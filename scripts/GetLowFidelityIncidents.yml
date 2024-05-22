@@ -1,0 +1,160 @@
+commonfields:
+  id: 0f231e3f-8b7a-49b9-8f37-fbfeac1083d9
+  version: 166
+vcShouldKeepItemLegacyProdMachine: false
+name: GetLowFidelityIncidents
+script: |-
+  def current_milli_time():
+      return round(time.time() * 1000)
+
+  def getIncidents(args):
+      apiURL = args.get("apiURL")
+      apiKey = args.get("apiKey")
+      apiID = args.get("apiID")
+      windowToBecomeInteresting = args.get("windowToBecomeInteresting")
+
+      windowEpochMilliseconds = 3600000 * int(windowToBecomeInteresting)  # Convert Hours to Epoch Milliseconds
+      searchWindow = current_milli_time() - windowEpochMilliseconds # Take windowToBecomeInteresting hours away from current time.
+
+      json_string = {
+          "request_data": {
+              "filters": [
+                  {
+                      "field": "starred",
+                      "value": False,
+                      "operator": "eq"
+                  },
+                  {
+                      "field": "status",
+                      "operator": "eq",
+                      "value": "New"
+                  },
+                  {
+                      "field":"creation_time",
+                      "operator":"lte",
+                      "value": searchWindow
+                  }
+              ],
+              "sort": {
+                  "field": "creation_time",
+                  "keyword": "asc"
+              }
+          }
+      }
+
+      json_data = json.dumps(json_string)
+
+      headers = {
+          "x-xdr-auth-id": str(apiID),
+          "Authorization": apiKey
+      }
+
+      #send post
+      resp = requests.post(url= apiURL + "/public_api/v1/incidents/get_incidents",
+                          headers=headers,
+                          data=json_data)
+
+      resp_json = json.loads(resp.text)
+
+      incident_list = resp_json['reply']['incidents']
+      for incident in incident_list:
+          incident_id = incident.get('incident_id')
+          getAlertsTable(incident_id, args)
+
+      incidents_table = tableToMarkdown("Low Fidelity Incidents", json.loads(resp.text)['reply'],
+                      headers=['incidents'],
+                      is_auto_json_transform=True)
+
+      command_results = CommandResults(
+          outputs_prefix='LowFidelityIncidents',
+          outputs_key_field='incident_id',
+          readable_output= incidents_table,
+          outputs=json.loads(resp.text)
+      )
+      return_results(command_results)
+      return(resp.text)
+
+  def getAlertsTable(alertID, args):
+      apiURL = args.get("apiURL")
+      apiKey = args.get("apiKey")
+      apiID = args.get("apiID")
+
+      json_string = {
+          "request_data": {
+          "incident_id": alertID,
+          "alerts_limit": 5
+          }
+      }
+
+      json_data = json.dumps(json_string)
+
+      headers = {
+          "x-xdr-auth-id": str(apiID),
+          "Authorization": apiKey
+      }
+
+      #send post
+      resp = requests.post(url= apiURL + "/public_api/v1/incidents/get_incident_extra_data",
+                          headers=headers,
+                          data=json_data)
+      incidents_table = tableToMarkdown("Alerts Table", json.loads(resp.text)['reply'],
+                      headers=['incidents'],
+                      is_auto_json_transform=True)
+
+      command_results = CommandResults(
+          outputs_prefix='AlertsTable',
+          outputs_key_field='incident_id',
+          readable_output= incidents_table,
+          outputs=json.loads(resp.text)
+      )
+      return_results(command_results)
+
+      return(resp.text)
+
+  def listIncidents():
+      incidentList = demisto.get(demisto.context(), 'LowFidelityIncidents')
+      print(incidentList)
+
+      #results = getAlertsTable(args)
+
+  def main():
+      args = demisto.args()
+      results = getIncidents(args)
+      listIncidents()
+
+  if __name__ == "__builtin__" or __name__ == "builtins":
+      main()
+type: python
+tags:
+- SOC
+comment: Get All Incidents that are not collecting starred alerts.  Starting from
+  the Window To Become Interesting (default 6 hours).
+enabled: true
+args:
+- name: apiURL
+  required: true
+  description: Typically https://api-{Some FQDN}.xdr.us.paloaltonetworks.com
+- name: apiKey
+  required: true
+  secret: true
+  description: API Key from XSIAM
+- name: apiID
+  secret: true
+  description: Located in the API Key section of XSIAM.  The field is just called
+    ID
+- name: windowToBecomeInteresting
+  required: true
+  description: The amount of time (in hours) to wait for an alert of interest "starred
+    alert"
+  defaultValue: "6"
+outputs:
+- contextPath: LowFidelityIncidents
+  type: unknown
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.10.14.92207
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}

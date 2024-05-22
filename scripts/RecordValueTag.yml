@@ -1,0 +1,95 @@
+commonfields:
+  id: 56138a3f-1bcf-4d11-8415-3d15e36608ba
+  version: 75
+vcShouldKeepItemLegacyProdMachine: false
+name: RecordValueTag
+script: |-
+  def sendMetricsToHTTP(args, data):
+      httpKey = args.get("httpKey")
+      httpURL = args.get("httpURL")
+
+      headers = {
+          "Authorization": httpKey,
+          "Content-Type": "text/plain"
+      }
+      res = requests.post(url=httpURL,
+                          headers=headers,
+                          data=data)
+      return res
+
+  def search_soc_metrics_by_tag(listStr, target_tag):
+      valueList = demisto.executeCommand("getList", {"listName":listStr})
+      contents_str = valueList[0]['Contents']
+      json_str = json.loads(contents_str)
+
+      ret_json = {}
+      for category in json_str['category']:
+          for value_tag in json_str['category'][category]:
+              if value_tag == target_tag:
+                  value_time_str = str(json_str['category'][category][value_tag])
+                  ret_json['Category'] = category
+                  ret_json['Tag'] = value_tag
+                  ret_json['Value'] = value_time_str
+      return ret_json
+
+
+  def main():
+      args = demisto.args()
+      tag = args.get('Tag')
+      alertID = args.get('alertID')
+      alertName = args.get('alertName')
+      listName = args.get('listName')
+
+      valueTags = search_soc_metrics_by_tag(listName,tag)
+
+      if valueTags:
+
+          # Build JSON to insert into dataset
+          data = {
+              "alert_id": alertID,
+              "alert_name": alertName,
+              "soc_category": valueTags['Category'],
+              "soc_tag": tag,
+              "soc_value": valueTags['Value']
+          }
+          json_data = json.dumps(data)
+
+          results = sendMetricsToHTTP(args, json_data)
+          print(results)
+      else:
+          print("Value Tag was not found please check the list for the correct tag.")
+
+  if __name__ == "__builtin__" or __name__ == "builtins":
+      main()
+type: python
+tags:
+- SOC
+enabled: true
+args:
+- name: httpURL
+  required: true
+  description: Typically https://api-{FQDN}.xdr.us.paloaltonetworks.com/logs/v1/event
+- name: httpKey
+  required: true
+  secret: true
+  description: API Key for the XSIAM HTTP Listener
+- name: Tag
+  required: true
+  description: Tag used when a specific automation i.e. enrichment_enrich_ip
+- name: alertID
+  required: true
+  description: The alert ID from the alert that trigger the automatoin
+- name: alertName
+  required: true
+  description: The alert Name from the alert that trigger the automation
+- name: listName
+  required: true
+  description: The name of the List where the value tags are stored.  Usually https://{FQDN}.xdr.us.paloaltonetworks.com/configuration/lists
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.10.14.92207
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
