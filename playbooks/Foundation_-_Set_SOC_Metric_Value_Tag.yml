@@ -1,0 +1,169 @@
+id: 477b10a5-11f5-430c-8884-282c63aae42a
+version: 32
+vcShouldKeepItemLegacyProdMachine: false
+name: Foundation - Set SOC Metric Value Tag
+description: This sends the current metric to the SOC Metrics dataset via an HTTP
+  Collector.
+tags:
+- SOC
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: b81f6dfa-3912-491a-8a95-c5827f7ccb9c
+    type: start
+    task:
+      id: b81f6dfa-3912-491a-8a95-c5827f7ccb9c
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 25535f04-5297-40ce-8cd0-8675fd1be74f
+    type: regular
+    task:
+      id: 25535f04-5297-40ce-8cd0-8675fd1be74f
+      version: -1
+      name: Record Value Tag
+      scriptName: RecordValueTag
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "2"
+    scriptarguments:
+      Category:
+        simple: ${inputs.Category}
+      Tag:
+        simple: ${inputs.Tag}
+      Value:
+        simple: ${inputs.Value}
+      alertID:
+        simple: ${inputs.alertID}
+      alertName:
+        simple: ${inputs.alertName}
+      httpKey:
+        simple: '{TOMMED}CbmtXg93u4WLsKWzIsJFA7BHQTw56o9vAo53Bmyn8pl3MuKapsL1r26VTPH1IuwNbX4wEHatAVN0/tfOefVtSotA04A/3i1R4VmersaPdJF3HH6TrOyABYqTJORcOVu4x/tfa6vizsJb1ywPjsoCN1wmF8W0CBQa8+SGn4ILl8ODnG91+JmVz7K/ahuRQ5nFtcQYvqHKRaDGWyO9EBQq399abXW0bS5rZvmBvTvHmCJJWtSpvXPpWu9k3mCCBU9II8bDHXzWsHaD0rNKhMzqPR1QERYRsazxBtRi52hGyDEQ8u0dywCyUYl9eaz26g+s'
+      httpURL:
+        simple: https://api-brumxdr.xdr.us.paloaltonetworks.com/logs/v1/event
+      listName:
+        simple: ValueTags
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 195
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: f21608e8-38c9-468f-84be-04bf257ec0fe
+    type: title
+    task:
+      id: f21608e8-38c9-468f-84be-04bf257ec0fe
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 370
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 385,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: Category
+  value: {}
+  required: true
+  description: triage, enrichment, auto-remediation, assess, escalation
+  playbookInputQuery: null
+- key: Tag
+  value: {}
+  required: true
+  description: Tag used when a specific automation i.e. enrichment_enrich_ip
+  playbookInputQuery: null
+- key: Value
+  value: {}
+  required: true
+  description: Median time the task takes in minutes.
+  playbookInputQuery: null
+- key: alertID
+  value:
+    simple: ${alert.id}
+  required: true
+  description: The alert ID that fired this automation
+  playbookInputQuery: null
+- key: alertName
+  value:
+    simple: ${alert.name}
+  required: true
+  description: The alert name of the alert that fired this automation
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - Category
+  - Tag
+  - Value
+  - alertID
+  - alertName
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+dirtyInputs: true
