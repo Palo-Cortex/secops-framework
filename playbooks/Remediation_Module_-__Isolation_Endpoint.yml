@@ -1,0 +1,214 @@
+id: 4577d6b2-c330-4f97-81c5-b36e15eafe9d
+version: 4
+vcShouldKeepItemLegacyProdMachine: false
+name: Remediation Module -  Isolation Endpoint
+description: Isolation subplaybooks.
+tags:
+- SOC
+- Template
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 206016b7-4bee-48df-89e1-dfcc70124656
+    type: start
+    task:
+      id: 206016b7-4bee-48df-89e1-dfcc70124656
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "3"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 62254632-86dd-4516-8e5f-f0f3ae8388ca
+    type: playbook
+    task:
+      id: 62254632-86dd-4516-8e5f-f0f3ae8388ca
+      version: -1
+      name: Foundation - Set SOC Value Tag
+      description: This sends the current metric to the SOC Metrics dataset via an
+        HTTP Collector.
+      playbookName: Foundation - Set SOC Metric Value Tag
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "2"
+    scriptarguments:
+      Category:
+        simple: remediation
+      Tag:
+        simple: isolate_endpoint
+      Value:
+        simple: "10"
+      alertID:
+        simple: ${inputs.alertID}
+      alertName:
+        simple: ${inputs.alertName}
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 485
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: 30cb72d3-5f51-4f08-8777-ad771ed84d60
+    type: title
+    task:
+      id: 30cb72d3-5f51-4f08-8777-ad771ed84d60
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 660
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: b76709b3-5377-4bb1-849b-42f50f65b1ce
+    type: title
+    task:
+      id: b76709b3-5377-4bb1-849b-42f50f65b1ce
+      version: -1
+      name: Isolate Endpoint
+      type: title
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 195
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: 924c4e90-dab5-4153-8fe8-d9a5829e54a7
+    type: title
+    task:
+      id: 924c4e90-dab5-4153-8fe8-d9a5829e54a7
+      version: -1
+      name: Was Isolation Successful?
+      type: title
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 340
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 675,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: alertID
+  value:
+    simple: ${alert.id}
+  required: true
+  description: ""
+  playbookInputQuery: null
+- key: alertName
+  value:
+    simple: ${alert.name}
+  required: true
+  description: ""
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - alertID
+  - alertName
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+sourceplaybookid: dec57f34-ee9c-4c11-8f17-9812e700babe
+quiet: true
+dirtyInputs: true

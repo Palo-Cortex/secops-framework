@@ -1,0 +1,201 @@
+id: e7a8b4ad-7bff-42fc-86ba-06d33d94b78c
+version: 52
+vcShouldKeepItemLegacyProdMachine: false
+name: Job - Triage Low Fidelity Incidents
+description: This gets incidents earlier than the immediate threat window of 6 hours
+  that are unstarred.  Meaning they have not collected an alert of interest (starred
+  alert) in 6 hours.  The default is 6 hours but this can be set.
+tags:
+- SOC
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: c94654e7-70c8-46b3-8354-23ff868c8574
+    type: start
+    task:
+      id: c94654e7-70c8-46b3-8354-23ff868c8574
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "7"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: c7ef7661-a261-4676-82cb-c3a24a056957
+    type: regular
+    task:
+      id: c7ef7661-a261-4676-82cb-c3a24a056957
+      version: -1
+      name: Get Incidents
+      scriptName: GetLowFidelityIncidents
+      type: regular
+      iscommand: false
+      brand: Custom Commands - Cortex XSIAM
+    nexttasks:
+      '#none#':
+      - "5"
+    scriptarguments:
+      apiID:
+        simple: '{TOMMED}qi6A1R2SS65tI0EO3x18sJqdJpmVzcIp4p/4dSsmN6raEN/msa0tkE1OCllhOVL8fvVC3jaKA8NBUd5E3UNrmQ=='
+      apiKey:
+        simple: '{TOMMED}hSXYFQXHPcYXGV2nT6pQtQI2KIyxvjHIUxH9pDOBVzABlczxCqNdu8j0In8zcTlAph2bfTWzEaj7agpOX0shAXgbwmK/eqnRMNSj6rFQK9fXx8I7Wr6xrXosnL/nEJhoqcSsV1c0lb1YIdPyaWRvdLvpRMSTkWDkQiaVFmcyn2mHaUb/2Rdc65YNv9E6zDHRNWnDoapC/W6C9UU8ufw3mw+p66YdMjEqxV278WCLS8/sbQyvxtxQPD+uz2MTdXVN'
+      apiURL:
+        simple: https://api-brumxdr.xdr.us.paloaltonetworks.com
+      windowToBecomeInteresting:
+        simple: "6"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 370
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: 4c068ea7-84cf-47fc-8509-3409eb9ae4ac
+    type: regular
+    task:
+      id: 4c068ea7-84cf-47fc-8509-3409eb9ae4ac
+      version: -1
+      name: Close Alerts
+      description: commands.local.cmd.close.inv
+      script: Builtin|||closeInvestigation
+      type: regular
+      iscommand: true
+      brand: Builtin
+    nexttasks:
+      '#none#':
+      - "6"
+    scriptarguments:
+      closeNotes:
+        simple: Auto-Close
+      closeReason:
+        simple: Resolved - Other
+      id:
+        simple: ${AlertsTable.reply.alerts.data.alert_id}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 545
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "6":
+    id: "6"
+    taskid: 57719198-6d6a-4ac9-8c5a-b404a6de88c7
+    type: title
+    task:
+      id: 57719198-6d6a-4ac9-8c5a-b404a6de88c7
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 720
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: d4beadeb-7fc5-4787-8924-47f741aadc6e
+    type: regular
+    task:
+      id: d4beadeb-7fc5-4787-8924-47f741aadc6e
+      version: -1
+      name: Cleanup Content
+      description: |-
+        Delete field from context.
+
+        This automation runs using the default Limited User role, unless you explicitly change the permissions.
+        For more information, see the section about permissions here:
+        https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.10/Cortex-XSOAR-Administrator-Guide/Automations
+      scriptName: DeleteContext
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      all:
+        simple: "yes"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 195
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 735,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs: []
+outputs: []
+quiet: true
