@@ -1,0 +1,241 @@
+description: A simple Dedup to insure alerts are not executed on more than once.
+dirtyInputs: true
+id: 7afa7e4b-9f55-4627-8381-ebd0c92b69ad
+inputs: []
+name: Foundation - Dedup
+outputs: []
+quiet: true
+sourceplaybookid: 0c636b23-4aaa-4eb4-84d8-e2d77cc5182b
+starttaskid: "0"
+tags:
+- SOC
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2def57f4-a191-4295-879f-9b8dac6d10e0
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: 2def57f4-a191-4295-879f-9b8dac6d10e0
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+  "8":
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 8350316b-b65f-4bcc-8166-7836ca1bb856
+      iscommand: false
+      name: Done
+      type: title
+      version: -1
+    taskid: 8350316b-b65f-4bcc-8166-7836ca1bb856
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 930
+        }
+      }
+  "10":
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "16"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      fromDate:
+        simple: 1 days ago
+      minimunIncidentSimilarity:
+        simple: "0.8"
+      query:
+        simple: case_id=${parentIncidentFields.incident_id}
+      similarJsonField:
+        simple: username,hostip,mitreattcktactic
+      similarTextField:
+        simple: name,details
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Find past similar alerts based on alert fields' similarity. Includes
+        an option to also display indicators similarity.
+      id: 90054f30-6aac-45c1-8dfc-da18b6753b45
+      iscommand: false
+      name: DeDup Alerts from the Last "1 days ago"
+      script: DBotFindSimilarAlerts
+      type: regular
+      version: -1
+    taskid: 90054f30-6aac-45c1-8dfc-da18b6753b45
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 195
+        }
+      }
+  "14":
+    continueonerrortype: ""
+    id: "14"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "8"
+    note: false
+    quietmode: 2
+    scriptarguments:
+      closeNotes:
+        simple: Auto-Close Duplicate
+      closeReason:
+        simple: Resolved - Duplicate Alert
+      id:
+        simple: ${DBotFindSimilarIncidents.similarIncident.id}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.close.inv
+      id: 14bc03cc-6727-4686-8e6a-a6034a54f6aa
+      iscommand: true
+      name: Close As Duplicates
+      script: Builtin|||closeInvestigation
+      type: regular
+      version: -1
+    taskid: 14bc03cc-6727-4686-8e6a-a6034a54f6aa
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 720
+        }
+      }
+  "15":
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "14"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: ${DBotFindSimilarIncidents.similarIncident.id}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 4f3e7458-ee9f-401b-81c3-828d4c1b3679
+      iscommand: false
+      name: Print Duplicate Alerts
+      script: Print
+      type: regular
+      version: -1
+    taskid: 4f3e7458-ee9f-401b-81c3-828d4c1b3679
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 545
+        }
+      }
+  "16":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotFindSimilarIncidents.isSimilarIncidentFound
+          operator: isTrue
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "8"
+      "yes":
+      - "15"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 14b12d9a-9717-41ab-8501-805af21d7389
+      iscommand: false
+      name: Are there any similar alerts?
+      type: condition
+      version: -1
+    taskid: 14b12d9a-9717-41ab-8501-805af21d7389
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 370
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 945,
+        "width": 492.5,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }

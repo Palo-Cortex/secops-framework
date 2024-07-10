@@ -1,0 +1,159 @@
+dirtyInputs: true
+id: 4c10469e-e42e-43ec-8b71-901c43135c0a
+inputs: []
+name: JOB - Store Playbook Metrics in Dataset
+outputs: []
+quiet: true
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 1d9a14ec-7271-4242-888f-02cb1d17d0ff
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: 1d9a14ec-7271-4242-888f-02cb1d17d0ff
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 50
+        }
+      }
+  "1":
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      fromdate:
+        simple: 1 hours ago
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        Searches Demisto alerts. A summarized version of this scrips is avilable with the summarizedversion argument.
+
+        This automation runs using the default Limited User role, unless you explicitly change the permissions.
+        For more information, see the section about permissions here:
+        https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.10/Cortex-XSOAR-Administrator-Guide/Automations
+      id: d9232c5f-0925-486a-844f-03851428c83a
+      iscommand: false
+      name: Search Alerts
+      script: SearchAlertsV2
+      type: regular
+      version: -1
+    taskid: d9232c5f-0925-486a-844f-03851428c83a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 250
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      forEach: true
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      Alert:
+        simple: ${foundIncidents}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9ca61b9d-868c-4a3f-836c-d504bee3e4b3
+      iscommand: false
+      name: Get Alert Tasks and Store to Dataset
+      playbookId: bb2825d4-e383-4c6f-83fd-b89036f3dc6c
+      type: playbook
+      version: -1
+    taskid: 9ca61b9d-868c-4a3f-836c-d504bee3e4b3
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 430
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.close.inv
+      id: fef26ff9-4dcc-43c8-8920-a4806f69920d
+      iscommand: true
+      name: Close Investigation
+      script: Builtin|||closeInvestigation
+      type: regular
+      version: -1
+    taskid: fef26ff9-4dcc-43c8-8920-a4806f69920d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 610
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 655,
+        "width": 380,
+        "x": 450,
+        "y": 50
+      }
+    }
+  }
