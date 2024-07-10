@@ -1,0 +1,260 @@
+dirtyInputs: true
+id: bb2825d4-e383-4c6f-83fd-b89036f3dc6c
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Alert
+  name: General (Inputs group)
+inputs:
+- description: The Alert ID
+  key: Alert
+  playbookInputQuery: null
+  required: false
+  value: {}
+name: Get Alert Tasks and Store to Dataset
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+quiet: true
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: afb132f5-8d47-4936-88b9-83131adb137f
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: afb132f5-8d47-4936-88b9-83131adb137f
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 50
+        }
+      }
+  "1":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      inc_id:
+        simple: ${inputs.Alert.id}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Get all tasks for a specific alert by the given state, name and/or
+        tag.
+      id: bf0ee84a-541f-40ef-8464-8ede6b9d432d
+      iscommand: false
+      name: Get Alert Tasks
+      script: GetAlertTasks
+      type: regular
+      version: -1
+    taskid: bf0ee84a-541f-40ef-8464-8ede6b9d432d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 200
+        }
+      }
+  "2":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Tasks
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 61354dd8-6f63-43ec-8798-29c8bfe67865
+      iscommand: false
+      name: Tasks exist?
+      type: condition
+      version: -1
+    taskid: 61354dd8-6f63-43ec-8798-29c8bfe67865
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 380
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      JSON:
+        complex:
+          root: ${Object}
+          transformers:
+          - operator: Stringify
+      using:
+        simple: PlaybookMetrics
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 45ec77ff-8b56-4311-8c3b-2fa8726a2051
+      iscommand: true
+      name: Post to Dataset
+      script: '|||xql-post-to-dataset'
+      type: regular
+      version: -1
+    taskid: 45ec77ff-8b56-4311-8c3b-2fa8726a2051
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 690,
+          "y": 780
+        }
+      }
+  "4":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: Task,Object
+      subplaybook:
+        simple: "yes"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        Delete field from context.
+
+        This automation runs using the default Limited User role, unless you explicitly change the permissions.
+        For more information, see the section about permissions here:
+        https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.10/Cortex-XSOAR-Administrator-Guide/Automations
+      id: 9192f3d8-bfe5-4df9-8587-c752cf310535
+      iscommand: false
+      name: Delete Context
+      script: DeleteContext
+      type: regular
+      version: -1
+    taskid: 9192f3d8-bfe5-4df9-8587-c752cf310535
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 400,
+          "y": 1000
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: Object
+      stringify:
+        simple: "true"
+      value:
+        simple: '{"Tasks": ${Tasks}, "Alert": ${inputs.Alert}}'
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 31167d7a-e034-4875-850d-2ea8d4fdf4f5
+      iscommand: false
+      name: Create Object
+      script: Set
+      type: regular
+      version: -1
+    taskid: 31167d7a-e034-4875-850d-2ea8d4fdf4f5
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 690,
+          "y": 610
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1045,
+        "width": 670,
+        "x": 400,
+        "y": 50
+      }
+    }
+  }

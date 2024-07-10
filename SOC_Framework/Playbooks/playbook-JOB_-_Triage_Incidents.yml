@@ -1,0 +1,236 @@
+dirtyInputs: true
+id: 9baee4e3-5735-4b58-8407-5c5ce6fbad91
+inputs: []
+name: JOB - Triage Incidents
+outputs: []
+quiet: true
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: e017f7b2-15dc-4408-8530-1bedbbbe5c72
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: e017f7b2-15dc-4408-8530-1bedbbbe5c72
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -310
+        }
+      }
+  "1":
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      body:
+        simple: '{"request_data" : {"filters" : [{"field": "status","operator": "eq","value":
+          "New"},{"operator": "lte", "value": ${TimeNowUnix}, "field": "modification_time"},{"operator":
+          "eq", "value": "true", "field": "starred"}]}}'
+      extend-context:
+        simple: Found=.
+      uri:
+        simple: /public_api/v1/incidents/get_incidents
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: send HTTP POST request.
+      id: 6a8b90f4-120b-4489-87a1-2e114b866a3f
+      iscommand: true
+      name: Get Incidents
+      script: '|||core-api-post'
+      type: regular
+      version: -1
+    taskid: 6a8b90f4-120b-4489-87a1-2e114b866a3f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -10
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      forEach: true
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      Incident:
+        simple: ${Found.response.reply.incidents}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 94b05767-4822-4ae1-8f66-53b98234d58a
+      iscommand: false
+      name: Close Incidents
+      playbookId: 97f87182-252c-454b-810d-c951e39abe9d
+      type: playbook
+      version: -1
+    taskid: 94b05767-4822-4ae1-8f66-53b98234d58a
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 400
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      hoursAgo:
+        simple: "6"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |
+        Retrieves the current date and time.
+      id: 21fd00e3-ed09-442f-892c-04dcf4ea94b0
+      iscommand: false
+      name: Get Time
+      script: GetTime
+      type: regular
+      version: -1
+    taskid: 21fd00e3-ed09-442f-892c-04dcf4ea94b0
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -210
+        }
+      }
+  "4":
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.close.inv
+      id: 9daa56ce-5ee8-4b80-8f35-8cbfb39e6314
+      iscommand: true
+      name: Close
+      script: Builtin|||closeInvestigation
+      type: regular
+      version: -1
+    taskid: 9daa56ce-5ee8-4b80-8f35-8cbfb39e6314
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 590
+        }
+      }
+  "5":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Found.response.reply.incidents.incident_id
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2a934d58-f94b-41b6-85b0-cf069a19ec88
+      iscommand: false
+      name: Incidents to Triage?
+      type: condition
+      version: -1
+    taskid: 2a934d58-f94b-41b6-85b0-cf069a19ec88
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 170
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 995,
+        "width": 380,
+        "x": 450,
+        "y": -310
+      }
+    }
+  }

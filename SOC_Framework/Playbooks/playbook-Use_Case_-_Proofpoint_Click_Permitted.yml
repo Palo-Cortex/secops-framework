@@ -1,0 +1,779 @@
+dirtyInputs: true
+id: ba7aa520-0767-4b3c-87ed-79e32b5ad5dd
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Shadow
+  name: General (Inputs group)
+inputs:
+- description: In Shadow Mode the Playbook will run in a testing only mode where it
+    prints to the war room but will not take disruptive actions
+  key: Shadow
+  playbookInputQuery: null
+  required: true
+  value:
+    simple: "false"
+name: Use Case - Proofpoint Click Permitted
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: fcd8a90f-5f53-4dc4-8ade-48374a66b4ec
+starttaskid: "0"
+tags:
+- SOC
+- PoV
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0b9d53d3-d66f-4715-8249-de216ec9808d
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: 0b9d53d3-d66f-4715-8249-de216ec9808d
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 50
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "12"
+    note: true
+    quietmode: 2
+    scriptarguments:
+      ignore-outputs:
+        simple: "false"
+      includeCampaignForensics:
+        simple: "true"
+      threatId:
+        simple: ${alert.proofpointtapthreatid}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns forensics evidence.
+      id: b04ee12c-19cf-462b-8a02-78f918eca0b6
+      iscommand: true
+      name: Get Forensic Information
+      script: '|||proofpoint-get-forensics'
+      type: regular
+      version: -1
+    taskid: b04ee12c-19cf-462b-8a02-78f918eca0b6
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 515
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "14"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      forensicsummarymarkdown:
+        complex:
+          accessor: Report
+          root: Proofpoint
+          transformers:
+          - args:
+              headers: {}
+              is_auto_json_transform: {}
+              json_transform_properties: {}
+              title: {}
+            operator: JsonToTable
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.incident
+      id: 546a56b9-95e1-4e1b-842b-e578976f1bd2
+      iscommand: true
+      name: Summarize Forensic Info
+      script: Builtin|||setAlert
+      type: regular
+      version: -1
+    taskid: 546a56b9-95e1-4e1b-842b-e578976f1bd2
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 152.5,
+          "y": 865
+        }
+      }
+  "11":
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "23"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: fd493027-fde4-42fe-8fd7-b362fffd03dc
+      iscommand: false
+      name: Foundation - Upon Trigger
+      playbookId: 0c636b23-4aaa-4eb4-84d8-e2d77cc5182b
+      type: playbook
+      version: -1
+    taskid: fd493027-fde4-42fe-8fd7-b362fffd03dc
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 195
+        }
+      }
+  "12":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Proofpoint.Report
+          operator: isExists
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "14"
+      "yes":
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5ddb3b42-ec1a-4353-83d7-f3760fa60739
+      iscommand: false
+      name: Forensic Info Exists?
+      type: condition
+      version: -1
+    taskid: 5ddb3b42-ec1a-4353-83d7-f3760fa60739
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 690
+        }
+      }
+  "13":
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "15"
+      - "20"
+    note: false
+    quietmode: 2
+    reputationcalc: 2
+    scriptarguments:
+      text:
+        simple: |-
+          ${alert.proofpointtapsuspiciousurl}
+          ${alert.proofpointtapclickip}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.extract.indicators
+      id: 03bec576-05ab-4340-8a48-74c917877e62
+      iscommand: true
+      name: Create Indicator from Threat
+      script: Builtin|||extractIndicators
+      type: regular
+      version: -1
+    taskid: 03bec576-05ab-4340-8a48-74c917877e62
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1185
+        }
+      }
+  "14":
+    continueonerrortype: ""
+    id: "14"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b9b18ac2-1779-4228-8ca6-a1ee4314025e
+      iscommand: false
+      name: TIM - Enrichment
+      type: title
+      version: -1
+    taskid: b9b18ac2-1779-4228-8ca6-a1ee4314025e
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1040
+        }
+      }
+  "15":
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "16"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      indicator:
+        simple: ${alert.proofpointtapsuspiciousurl}
+      indicatorType:
+        simple: url
+      reliability:
+        simple: C - Fairly reliable
+      score:
+        simple: "2"
+      vendor:
+        simple: Proofpoint
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Add DBot score to context for indicators with custom vendor, score,
+        reliability, and type.
+      id: e23f7778-21b8-4f4d-833d-8c0b567631bd
+      iscommand: false
+      name: Assign Proofpoint DBot Score
+      script: AddDBotScoreToContext
+      type: regular
+      version: -1
+    taskid: e23f7778-21b8-4f4d-833d-8c0b567631bd
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1535
+        }
+      }
+  "16":
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: ${alert.proofpointtapsuspiciousurl}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Get the overall score for the indicator as calculated by DBot.
+      id: 32fd8a01-4b5b-4bcf-8726-1d673adbaaba
+      iscommand: false
+      name: Get Indicator Scores
+      script: GetIndicatorDBotScoreFromCache
+      type: regular
+      version: -1
+    taskid: 32fd8a01-4b5b-4bcf-8726-1d673adbaaba
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1710
+        }
+      }
+  "17":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScoreCache.Score
+          operator: greaterThan
+          right:
+            value:
+              simple: "2"
+        - left:
+            iscontext: true
+            value:
+              simple: Proofpoint.Report.Behavior.Malicious
+          operator: isTrue
+        - left:
+            iscontext: true
+            value:
+              simple: Core.value
+          operator: isFalse
+      label: "yes"
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "18"
+      "yes":
+      - "24"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9f6de37e-1303-49e7-8715-08e10901e086
+      iscommand: false
+      name: Remediation Required?
+      type: condition
+      version: -1
+    taskid: 9f6de37e-1303-49e7-8715-08e10901e086
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 2205
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.close.inv
+      id: 1fc76c73-bff0-4657-805c-c6ac8e8548bc
+      iscommand: true
+      name: Close
+      script: Builtin|||closeInvestigation
+      type: regular
+      version: -1
+    taskid: 1fc76c73-bff0-4657-805c-c6ac8e8548bc
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 2700
+        }
+      }
+  "19":
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "25"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 89886dee-4e3e-4c9f-8414-ad151cc66e54
+      iscommand: false
+      name: Analysis
+      type: title
+      version: -1
+    taskid: 89886dee-4e3e-4c9f-8414-ad151cc66e54
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1885
+        }
+      }
+  "20":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "21"
+    note: true
+    quietmode: 0
+    scriptarguments:
+      url:
+        simple: ${alert.proofpointtapsuspiciousurl}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Converts the contents of a URL to an image file or a PDF file.
+      id: 6ed4591d-338f-4713-8863-6122f5f67196
+      iscommand: true
+      name: Rasterize URL
+      script: '|||rasterize'
+      type: regular
+      version: -1
+    taskid: 6ed4591d-338f-4713-8863-6122f5f67196
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1360
+        }
+      }
+  "21":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "26"
+    note: true
+    quietmode: 0
+    scriptarguments:
+      method:
+        simple: GET
+      url:
+        simple: ${alert.proofpointtapsuspiciousurl}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sends http request. Returns the response as json.
+      id: e269dd1f-51c2-4860-80a0-c0e53a5a0783
+      iscommand: false
+      name: Request raw HTML
+      script: http
+      type: regular
+      version: -1
+    taskid: e269dd1f-51c2-4860-80a0-c0e53a5a0783
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1535
+        }
+      }
+  "23":
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 6284baff-3fb9-461a-889d-645f171e605c
+      iscommand: false
+      name: Forensics
+      type: title
+      version: -1
+    taskid: 6284baff-3fb9-461a-889d-645f171e605c
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 370
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 4e618c0d-6718-4b0f-85f9-d7084050e938
+      iscommand: false
+      name: Remediation
+      type: title
+      version: -1
+    taskid: 4e618c0d-6718-4b0f-85f9-d7084050e938
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 152.5,
+          "y": 2380
+        }
+      }
+  "25":
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "17"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      extend-context:
+        simple: Core=.
+      ip_address:
+        simple: ${alert.labels.clickIP}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Get the prevalence of an ip, identified by ip_address.
+      id: bb5f9ab2-3341-4618-8e01-0249313a6923
+      iscommand: true
+      name: Prevalence of Click IP
+      script: '|||core-get-IP-analytics-prevalence'
+      type: regular
+      version: -1
+    taskid: bb5f9ab2-3341-4618-8e01-0249313a6923
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 2030
+        }
+      }
+  "26":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      forensicdnsmarkdown:
+        complex:
+          accessor: DNS
+          root: Proofpoint.Report
+          transformers:
+          - args:
+              headers: {}
+              is_auto_json_transform: {}
+              json_transform_properties: {}
+              title: {}
+            operator: JsonToTable
+      forensicfilemarkdown:
+        complex:
+          accessor: File
+          root: Proofpoint.Report
+          transformers:
+          - args:
+              headers: {}
+              is_auto_json_transform: {}
+              json_transform_properties: {}
+              title: {}
+            operator: JsonToTable
+      forensicnetworkmarkdown:
+        complex:
+          accessor: Network
+          root: Proofpoint.Report
+          transformers:
+          - args:
+              headers: {}
+              is_auto_json_transform: {}
+              json_transform_properties: {}
+              title: {}
+            operator: JsonToTable
+      forensicsummarymarkdown:
+        complex:
+          accessor: Behavior
+          root: Proofpoint.Report
+          transformers:
+          - args:
+              headers: {}
+              is_auto_json_transform: {}
+              json_transform_properties: {}
+              title: {}
+            operator: JsonToTable
+      httpcookiesmd:
+        complex:
+          accessor: Cookies
+          root: HttpRequest.Response
+          transformers:
+          - args:
+              headers: {}
+              is_auto_json_transform: {}
+              json_transform_properties: {}
+              title: {}
+            operator: JsonToTable
+      httprawhtml:
+        simple: ${HttpRequest.Response.Body}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.incident
+      id: 61d99d4e-1bba-4efb-88cb-4a30968b2381
+      iscommand: true
+      name: Set Response Data
+      script: Builtin|||setAlert
+      type: regular
+      version: -1
+    taskid: 61d99d4e-1bba-4efb-88cb-4a30968b2381
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1710
+        }
+      }
+  "27":
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "18"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b4f0dbea-65db-4be4-8a39-2b45a5e42882
+      iscommand: false
+      name: Manual Review
+      type: regular
+      version: -1
+    taskid: b4f0dbea-65db-4be4-8a39-2b45a5e42882
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": 2520
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 2745,
+        "width": 810,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
