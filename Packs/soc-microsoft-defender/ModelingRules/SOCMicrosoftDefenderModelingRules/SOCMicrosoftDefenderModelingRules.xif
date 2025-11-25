@@ -1,0 +1,144 @@
+[MODEL: dataset=microsoft_graph_generic_alert_raw, content_id="soc-microsoft-defender"]
+filter productName in ("Microsoft Defender for Endpoint","Microsoft Defender XDR")
+| filter status != "resolved"
+| alter
+    // Partition evidence[] only for the types we actually use downstream
+    analyzedMessageEvidence_json    = arraystring(arraymap(evidence -> [], if("@element" ~= "analyzedMessageEvidence", "@element", null)), ""),
+    analyzedMessageEvidence_array   = arraymap(evidence -> [], if("@element" ~= "analyzedMessageEvidence", "@element", null)),
+    deviceEvidence_json             = arraystring(arraymap(evidence -> [], if("@element" ~= "deviceEvidence", "@element", null)), ""),
+    fileEvidence_json               = arraystring(arraymap(evidence -> [], if("@element" ~= "fileEvidence", "@element", null)), ""),
+    ipEvidence_array                = arraymap(evidence -> [], if("@element" ~= "ipEvidence", "@element", null)),
+    mailboxEvidence_json            = arraystring(arraymap(evidence -> [], if("@element" ~= "mailboxEvidence", "@element", null)), ""),
+    processEvidence_json            = arraystring(arraymap(evidence -> [], if("@element" ~= "processEvidence", "@element", null)), ""),
+    registryKeyEvidence_json        = arraystring(arraymap(evidence -> [], if("@element" ~= "registryKeyEvidence", "@element", null)), ""),
+    registryValueEvidence_json      = arraystring(arraymap(evidence -> [], if("@element" ~= "registryValueEvidence", "@element", null)), ""),
+    urlEvidence_json                = arraystring(arraymap(evidence -> [], if("@element" ~= "urlEvidence", "@element", null)), ""),
+    userEvidence_json               = arraystring(arraymap(evidence -> [], if("@element" ~= "userEvidence", "@element", null)), ""),
+    azureResourceEvidence_json      = arraystring(arraymap(evidence -> [], if("@element" ~= "azureResourceEvidence", "@element", null)), "")
+| alter
+    // User
+    user_account_name          = json_extract_scalar(userEvidence_json, "$.userAccount.accountName"),
+    user_account_domain        = json_extract_scalar(userEvidence_json, "$.userAccount.domainName"),
+    user_account_sid           = json_extract_scalar(userEvidence_json, "$.userAccount.userSid"),
+    user_account_upn           = json_extract_scalar(userEvidence_json, "$.userAccount.userPrincipalName"),
+    user_account_display_name  = json_extract_scalar(userEvidence_json, "$.userAccount.displayName")
+| alter
+    // Device
+    device_dns_name            = json_extract_scalar(deviceEvidence_json, "$.deviceDnsName"),
+    device_os_platform         = json_extract_scalar(deviceEvidence_json, "$.osPlatform"),
+    device_version             = json_extract_scalar(deviceEvidence_json, "$.version"),
+    device_mde_id              = json_extract_scalar(deviceEvidence_json, "$.mdeDeviceId")
+| alter
+    // File
+    file_detection_status      = json_extract_scalar(fileEvidence_json, "$.detectionStatus"),
+    file_name                  = json_extract_scalar(fileEvidence_json, "$.fileDetails.fileName"),
+    file_path                  = json_extract_scalar(fileEvidence_json, "$.fileDetails.filePath"),
+    file_size                  = json_extract_scalar(fileEvidence_json, "$.fileDetails.fileSize"),
+    file_sha256                = json_extract_scalar(fileEvidence_json, "$.fileDetails.sha256"),
+    file_signer                = json_extract_scalar(fileEvidence_json, "$.fileDetails.signer")
+| alter
+    // Process
+    proc_detection_status      = json_extract_scalar(processEvidence_json, "$.detectionStatus"),
+    proc_account_name          = json_extract_scalar(processEvidence_json, "$.userAccount.accountName"),
+    proc_account_upn           = json_extract_scalar(processEvidence_json, "$.userAccount.userPrincipalName"),
+    proc_account_domain        = json_extract_scalar(processEvidence_json, "$.userAccount.domainName"),
+    proc_account_sid           = json_extract_scalar(processEvidence_json, "$.userAccount.userSid"),
+    proc_image_file_name       = json_extract_scalar(processEvidence_json, "$.imageFile.fileName"),
+    proc_image_file_path       = json_extract_scalar(processEvidence_json, "$.imageFile.filePath"),
+    proc_image_file_size       = json_extract_scalar(processEvidence_json, "$.imageFile.fileSize"),
+    proc_image_sha256          = json_extract_scalar(processEvidence_json, "$.imageFile.sha256"),
+    proc_image_signer          = json_extract_scalar(processEvidence_json, "$.imageFile.signer"),
+    proc_parent_id             = json_extract_scalar(processEvidence_json, "$.parentProcessId"),
+    proc_cmdline               = json_extract_scalar(processEvidence_json, "$.processCommandLine"),
+    proc_pid                   = json_extract_scalar(processEvidence_json, "$.processId")
+| alter
+    // IPs (derive v4/v6 directly from evidence without leaving unused helpers)
+    ipv4_addresses             = arrayfilter(arraymap(ipEvidence_array, json_extract_scalar("@element", "$.ipAddress")), "@element" ~= "^(?:\\d{1,3}\\.){3}\\d{1,3}$"),
+    ipv6_addresses             = arrayfilter(arraymap(ipEvidence_array, json_extract_scalar("@element", "$.ipAddress")), "@element" ~= "^(?:[:]{2}[fF]{4}:(?:\\d{1,3}\\.){3}\\d{1,3})|(?:(?:[a-fA-F\\d]{0,4}:){2,7}[a-fA-F\\d]{0,4})$")
+| alter
+    // Mailbox
+    mailbox_display_name       = json_extract_scalar(mailboxEvidence_json, "$.displayName"),
+    mailbox_primary_address    = json_extract_scalar(mailboxEvidence_json, "$.primaryAddress"),
+    mailbox_user_upn           = json_extract_scalar(mailboxEvidence_json, "$.userAccount.userPrincipalName"),
+    mailbox_user_domain        = json_extract_scalar(mailboxEvidence_json, "$.userAccount.domainName"),
+    mailbox_user_sid           = json_extract_scalar(mailboxEvidence_json, "$.userAccount.userSid")
+| alter
+    // URL + analyzed message
+    url_value                  = json_extract_scalar(urlEvidence_json, "$.url"),
+    am_subject                 = json_extract_scalar(analyzedMessageEvidence_json, "$.subject"),
+    am_internet_message_id     = json_extract_scalar(analyzedMessageEvidence_json, "$.internetMessageId"),
+    am_received_datetime       = json_extract_scalar(analyzedMessageEvidence_json, "$.receivedDateTime"),
+    am_recipient_array         = arraymap(analyzedMessageEvidence_array, json_extract_scalar("@element", "$.recipientEmailAddress"))
+| alter
+    // Azure resource
+    az_resource_id             = json_extract_scalar(azureResourceEvidence_json, "$.resourceId"),
+    az_resource_name           = json_extract_scalar(azureResourceEvidence_json, "$.resourceName"),
+    az_resource_type           = json_extract_scalar(azureResourceEvidence_json, "$.resourceType")
+| alter
+    // Outcome + email timestamp helpers (used)
+    outcome_raw                = coalesce(file_detection_status, proc_detection_status, to_string(classification)),
+    email_timestamp_str        = arraystring(regextract(am_received_datetime, "\\d+\\/\\d+\\/\\d+ \\d+:\\d+:\\d+ [A-Z]{2}"), ""),
+    email_zone_str             = replex(arraystring(regextract(am_received_datetime, "[+|-]\\d+:\\d+"), ""), ":", "")
+| alter
+    // XDM mapping (all helpers above are consumed)
+    xdm.event.id                          = coalesce(to_string(incidentId), to_string(providerAlertId)),
+    xdm.alert.severity                    = severity,
+    xdm.alert.category                    = category,
+    xdm.alert.name                        = title,
+    xdm.alert.description                 = description,
+    xdm.alert.original_alert_id           = to_string(providerAlertId),
+    xdm.alert.mitre_techniques            = arraymap(json_extract_array(mitreTechniques, "$"), replex("@element", "\"", "")),
+    xdm.event.outcome                     = if(outcome_raw = "blocked", XDM_CONST.OUTCOME_SUCCESS, outcome_raw = "detected", XDM_CONST.OUTCOME_FAILED, outcome_raw = "prevented", XDM_CONST.OUTCOME_PARTIAL, outcome_raw = null, null, to_string(outcome_raw)),
+    xdm.event.description                 = title,
+    xdm.observer.type                     = serviceSource,
+    xdm.intermediate.host.fqdn            = coalesce(to_string(alertWebUrl), to_string(incidentWebUrl)),
+
+    xdm.source.host.fqdn                  = device_dns_name,
+    xdm.source.host.os                    = arraystring(arraycreate(device_os_platform, device_version), " "),
+    xdm.source.host.device_id             = device_mde_id,
+    xdm.source.host.ipv4_addresses        = if(array_length(ipv4_addresses) > 0, ipv4_addresses),
+    xdm.source.host.ipv6_addresses        = if(array_length(ipv6_addresses) > 0, ipv6_addresses),
+
+    xdm.source.user.username              = coalesce(mailbox_display_name, mailbox_primary_address, proc_account_name, user_account_name, user_account_display_name),
+    xdm.source.user.upn                   = coalesce(user_account_upn, mailbox_user_upn, proc_account_upn),
+    xdm.source.user.domain                = coalesce(mailbox_user_domain, proc_account_domain, user_account_domain),
+    xdm.source.user.identifier            = coalesce(mailbox_user_sid, proc_account_sid, user_account_sid),
+
+    xdm.source.process.command_line       = proc_cmdline,
+    xdm.source.process.pid                = to_integer(proc_pid),
+    xdm.source.process.parent_id          = proc_parent_id,
+    xdm.source.process.executable.filename= proc_image_file_name,
+    xdm.source.process.executable.path    = proc_image_file_path,
+    xdm.source.process.executable.size    = to_integer(proc_image_file_size),
+    xdm.source.process.executable.sha256  = proc_image_sha256,
+    xdm.source.process.executable.signer  = proc_image_signer,
+
+    xdm.target.file.filename              = file_name,
+    xdm.target.file.path                  = file_path,
+    xdm.target.file.size                  = to_integer(file_size),
+    xdm.target.file.sha256                = file_sha256,
+    xdm.target.file.signer                = file_signer,
+
+    xdm.email.message_id                  = am_internet_message_id,
+    xdm.email.delivery_timestamp          = parse_timestamp("%m/%d/%Y %H:%M:%S %p %z", arraystring(arraycreate(email_timestamp_str, email_zone_str), " ")),
+    xdm.email.recipients                  = am_recipient_array,
+    xdm.email.subject                     = am_subject,
+
+        xdm.network.http.url                  = url_value,
+
+    // Registry (no ternary; use if(...) and coalesce(...))
+    xdm.target.registry.key               = coalesce(
+                                              if(registryKeyEvidence_json != "", json_extract_scalar(registryKeyEvidence_json, "$.registryKey")),
+                                              if(registryValueEvidence_json != "", json_extract_scalar(registryValueEvidence_json, "$.registryKey"))
+                                            ),
+    xdm.target.registry.value             = if(registryValueEvidence_json != "", json_extract_scalar(registryValueEvidence_json, "$.registryValueName")),
+    xdm.target.registry.data              = if(registryValueEvidence_json != "", json_extract_scalar(registryValueEvidence_json, "$.registryValue")),
+    xdm.target.registry.value_type        = if(registryValueEvidence_json != "", to_string(json_extract_scalar(registryValueEvidence_json, "$.registryValueType"))),
+
+    // Azure resource
+    xdm.target.resource.id                = az_resource_id,
+    xdm.target.resource.name              = az_resource_name,
+    xdm.target.resource.type              = az_resource_type,
+
+    xdm.observer.unique_identifier        = to_string(providerAlertId)
+;
