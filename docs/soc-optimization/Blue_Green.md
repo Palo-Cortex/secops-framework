@@ -3,7 +3,7 @@
 This README explains how to use the **Blue/Green Playbook Deployment model** in Cortex XSIAM using the `DeployPlaybook` automation script. This model lets you safely test and promote playbooks while maintaining production stability.
 
 An **Entry Point (EP)** is a playbook triggered after the creation of an alert. In this case we are filtering these by MITRE Tactic. They are configured in the **Playbook Triggers** settings of Cortex XSIAM.
-![Blue-Green-Triggers.png](../images/Blue-Green-Triggers.png)
+![Blue-Green-Triggers.png](Blue-Green-Triggers.png)
 ---
 
 ## 📘 Overview
