@@ -2,7 +2,7 @@
 
 The **“Upon Trigger”** foundation playbook is the standardized first step for any **entry point playbook** triggered by alerts in XSIAM. It provides structured, modular logic to ensure clean triage, contextual enrichment, and safe, scalable automation from the moment a trigger fires.
 
-![When to Use the 'Upon Trigger' Foundation](../images/When_To_Use_Upon_Trigger.png)
+![When to Use the 'Upon Trigger' Foundation](When_To_Use_Upon_Trigger.png)
 
 ---
 
@@ -29,7 +29,7 @@ Use the `Upon Trigger` playbook **as the first task** in:
 | **Assessment & Escalation** | Adjust severity, flag for analyst review, notify if needed              |
 
 ---
-👉 [See how to adjust this playbook for your industry](../Documentation/CIA_Priorities_Readme.md)
+👉 [See how to adjust this playbook for your industry](CIA_Priorities_Readme.md)
 ---
 
 ## 🧩 Where and How to Add To It

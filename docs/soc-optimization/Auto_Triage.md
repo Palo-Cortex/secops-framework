@@ -5,7 +5,7 @@ The **Auto-Triage** function is a key automation mechanism within the XSIAM ecos
 ## Auto-Triage Usage
 
 <div align="center">
-  <img src="../images/Auto_Triage_Usage.png" alt="Auto-Triage Flow" width="60%">
+  <img src="Auto_Triage_Usage.png" alt="Auto-Triage Flow" width="60%">
 </div>
 
 

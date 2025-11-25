@@ -202,7 +202,7 @@ The Alert-to-Incident Funnel illustrates how automation reduces alert volume and
 
 ### 🖼️ Dashboard Example
 
-![Alert Funneling Diagram](../images/Value_Metrics_Alert_Funneling.png)
+![Alert Funneling Diagram](Value_Metrics_Alert_Funneling.png)
 
 ## 🖼️ Diagram References
 
@@ -212,11 +212,11 @@ Use the following visual aids to support your Value Metrics documentation:
 
 Displays time saved by task and category, script vs. playbook usage, and vendor/product automation distribution.
 
-![Value Metrics Dashboard](../images/Value_Metrics.png)
+![Value Metrics Dashboard](Value_Metrics.png)
 
 ### 📊 Alert Funneling Dashboard
 
-![Alert Funneling Diagram](../images/Value_Metrics_Alert_Funneling.png)
+![Alert Funneling Diagram](Value_Metrics_Alert_Funneling.png)
 
 ## ✅ Best Practices
 

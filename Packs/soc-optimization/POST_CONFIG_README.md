@@ -11,16 +11,16 @@ manual steps still need to be done:
    * Refresh page and look for Running or Completed
 2. **Configure Starring**
    * Star Issues on Medium or Higher + has MITRE Tactic
-![Starring_NIST_IR.png](images/Starring_NIST_IR.png)
+![Starring_NIST_IR.png](../../docs/soc-optimization/Starring_NIST_IR.png)
 3. **Configure Automation Trigger**
    * NIST Incident Response Flow (800-61)
      * Trigger playbook "EP_IR_NIST(800-61)" on Medium Severity or Higher Alerts
      ![Automation_Trigger_NIST_IR.png](https://github.com/Palo-Cortex/soc-optimization/blob/main/images/Automation_Trigger_NIST_IR.png)
 --- 
 ## What Next?
-1. XSIAM SOC Value Metrics Dashboard([Value Metrics](Documentation/Value_Metrics.md))
+1. XSIAM SOC Value Metrics Dashboard([Value Metrics](../../Documentation/Value_Metrics.md))
    * These require alerts with triggered playbooks tasks.
-2. Customize Value Metrics tasks or playbooks "Use Cases" ([setValueTags.md](Documentation/setValueTags.md))
+2. Customize Value Metrics tasks or playbooks "Use Cases" ([setValueTags.md](../../Documentation/setValueTags.md))
 3. Observe Playbooks running in Issues table.
 ---
 
@@ -47,7 +47,7 @@ tenant are set up properly, please enable the job.
 If either of the "_Auto Triage_" or "_Collect Playbook Metrics_" jobs show as _**Error**_ for their _Last Run status_ as seen in 
 this picture below, please follow these troubleshooting steps:
 
-![Job Troubleshooting](images/job-troubleshooting.png)
+![Job Troubleshooting](../../docs/soc-optimization/job-troubleshooting.png)
 
 #### Verify Job's Playbooks Exist in Library
 
