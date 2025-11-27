@@ -34,7 +34,7 @@ Go To: **Settings → Configurations → Object Setup → Issues → Layout Rule
 
 #### 🖼️ Layout Rule Visualization
 
-![Vision One Layout Rules](../../../secops-framework/docs/soc-trendmicro-visionone/TrendVisionOneLayout.png)
+![Vision One Layout Rules](images/TrendVisionOneLayout.png)
 
 > This rule ensures that analysts immediately see the most relevant Vision One alert data in context.
 
@@ -48,7 +48,7 @@ Go To: **Detection & Correlation → Correlation Rules**
 
 Enable the following rules (Disable any default rules from Integration Install):
 
-![Vision One Layout Rules](../../../secops-framework/docs/soc-trendmicro-visionone/TrendVisionCorrelations.png)
+![Vision One Layout Rules](images/TrendVisionCorrelations.png)
 
 ---
 

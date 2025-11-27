@@ -1,0 +1,171 @@
+action: ALERTS
+alert_category: User Defined
+alert_description: $description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  action_file_name: file_name
+  action_file_path: file_path
+  action_file_sha256: file_sha256
+  action_local_ip: agent_ip
+  action_process_image_sha256: actor_process_image_sha256
+  action_remote_ip: remote_ip
+  actor_effective_username: actor_effective_username
+  actor_process_command_line: actor_process_command_line
+  actor_process_image_sha256: actor_process_image_sha256
+  actor_process_os_pid: actor_process_pid
+  agent_device_domain: agent_domain
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  alert_category: category
+  causality_actor_causality_id: parent_process_id
+  destinationipv6: remote_ipv6
+  detectionid: detectorId
+  deviceexternalips: agent_external_ip
+  deviceosname: agent_os
+  displayname: actorDisplayName
+  dns_query_name: dns_query_name
+  externallink: alertWebUrl
+  fw_url_domain: url_value
+  image_name: actor_process_image_name
+  mitretechniqueid: mitreTechniques
+  mitretechniquename: mitreTechniques
+  originalalertid: providerAlertId
+  originalalertname: title
+  originalalertsource: productName
+  parentprocessid: parent_process_id
+  parentprocessname: parent_process_name
+  parentprocesspath: parent_process_path
+  parentprocesssha256: parent_process_sha256
+  processcreationtime: actor_process_start_time
+  severity: severity
+  urls: url_array
+alert_name: Microsoft-Defender
+alert_type: null
+crontab: null
+dataset: alerts
+description: null
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: Microsoft-Defender-CommandAndControl
+investigation_query_link: ''
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0011 - Command and Control: []
+name: Microsoft-Defender-CommandAndControl
+rule_id: 537
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: null
+suppression_enabled: false
+suppression_fields: null
+timezone: null
+user_defined_category: category
+user_defined_severity: severity
+xql_query: "config case_sensitive = false\n| dataset = msft_graph_security_alerts_raw\n\
+  \n// evidence is a JSON STRING here: convert once to an array\n| alter evidence\
+  \ = json_extract_array(evidence, \"$\")\n\n// Focus on Defender alerts\n| filter\
+  \ productName in (\"Microsoft Defender for Endpoint\", \"Microsoft Defender XDR\"\
+  )\n| filter serviceSource = \"microsoftDefenderForEndpoint\"\n//| filter status\
+  \ != \"resolved\"\n\n// Simple C2 filter (no arrays involved)\n| alter cat_norm\
+  \ = replace(replace(replace(replace(lowercase(category),\" \",\"\"),\"-\",\"\"),\"\
+  _\",\"\"),\".\",\"\"),\n        mitre_str = lowercase(to_string(mitreTechniques))\n\
+  | filter cat_norm = \"commandandcontrol\"\n    or mitre_str ~= \"(t1071|t1095|t1105|t1571|t1219|t1132)\"\
+  \n\n// ========================= DEVICE EVIDENCE =========================\n| alter\n\
+  \    device_hostname_array = arrayfilter(arraymap(evidence,\n        if(\"@element\"\
+  \ -> [\"@odata.type\"] contains \"deviceEvidence\", \"@element\" -> hostName, null)\n\
+  \    ), \"@element\" != null),\n    device_id_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"deviceEvidence\", \"@element\"\
+  \ -> mdeDeviceId, null)\n    ), \"@element\" != null),\n    device_domain_array\
+  \ = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"@odata.type\"\
+  ] contains \"deviceEvidence\", \"@element\" -> dnsDomain, null)\n    ), \"@element\"\
+  \ != null),\n    device_os_array = arrayfilter(arraymap(evidence,\n        if(\"\
+  @element\" -> [\"@odata.type\"] contains \"deviceEvidence\", \"@element\" -> osPlatform,\
+  \ null)\n    ), \"@element\" != null),\n    device_version_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"deviceEvidence\", \"@element\"\
+  \ -> version, null)\n    ), \"@element\" != null),\n    device_external_ip_array\
+  \ = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"@odata.type\"\
+  ] contains \"deviceEvidence\", \"@element\" -> lastExternalIpAddress, null)\n  \
+  \  ), \"@element\" != null),\n    device_last_ip_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"deviceEvidence\", \"@element\"\
+  \ -> lastIpAddress, null)\n    ), \"@element\" != null)\n\n| alter\n    agent_hostname\
+  \ = arrayindex(device_hostname_array, 0),\n    agent_id = arrayindex(device_id_array,\
+  \ 0),\n    agent_domain = arrayindex(device_domain_array, 0),\n    agent_os = arrayindex(device_os_array,\
+  \ 0),\n    agent_version = arrayindex(device_version_array, 0),\n    agent_external_ip\
+  \ = arrayindex(device_external_ip_array, 0),\n    agent_ip = arrayindex(device_last_ip_array,\
+  \ 0)\n\n\n// ========================= USER EVIDENCE =========================\n\
+  | alter\n    user_upn_array = arrayfilter(arraymap(evidence,\n        if(\"@element\"\
+  \ -> [\"@odata.type\"] contains \"userEvidence\", \"@element\" -> userAccount.userPrincipalName,\
+  \ null)\n    ), \"@element\" != null),\n    user_domain_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"userEvidence\", \"@element\"\
+  \ -> userAccount.domainName, null)\n    ), \"@element\" != null),\n    user_sid_array\
+  \ = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"@odata.type\"\
+  ] contains \"userEvidence\", \"@element\" -> userAccount.userSid, null)\n    ),\
+  \ \"@element\" != null),\n    user_accountname_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"userEvidence\", \"@element\"\
+  \ -> userAccount.accountName, null)\n    ), \"@element\" != null)\n\n| alter\n \
+  \   user_upn = arrayindex(user_upn_array, 0),\n    user_domain = arrayindex(user_domain_array,\
+  \ 0),\n    user_sid = arrayindex(user_sid_array, 0),\n    actor_effective_username\
+  \ = arrayindex(user_accountname_array, 0)\n\n\n// ========================= PROCESS\
+  \ EVIDENCE =========================\n| alter\n    proc_sha256_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"processEvidence\", \"@element\"\
+  \ -> imageFile.sha256, null)\n    ), \"@element\" != null),\n    proc_name_array\
+  \ = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"@odata.type\"\
+  ] contains \"processEvidence\", \"@element\" -> imageFile.fileName, null)\n    ),\
+  \ \"@element\" != null),\n    proc_path_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"processEvidence\", \"@element\"\
+  \ -> imageFile.filePath, null)\n    ), \"@element\" != null),\n    proc_cmdline_array\
+  \ = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"@odata.type\"\
+  ] contains \"processEvidence\", \"@element\" -> processCommandLine, null)\n    ),\
+  \ \"@element\" != null),\n    proc_pid_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"processEvidence\", \"@element\"\
+  \ -> processId, null)\n    ), \"@element\" != null),\n    proc_start_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"processEvidence\", \"@element\"\
+  \ -> processCreationDateTime, null)\n    ), \"@element\" != null)\n\n| alter\n \
+  \   actor_process_image_sha256 = arrayindex(proc_sha256_array, 0),\n    actor_process_image_name\
+  \ = arrayindex(proc_name_array, 0),\n    actor_process_image_path = arrayindex(proc_path_array,\
+  \ 0),\n    actor_process_command_line = arrayindex(proc_cmdline_array, 0),\n   \
+  \ actor_process_pid = arrayindex(proc_pid_array, 0),\n    actor_process_start_time\
+  \ = arrayindex(proc_start_array, 0)\n\n\n// ========================= PARENT / CGO\
+  \ =========================\n| alter\n    parent_pid_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"processEvidence\", \"@element\"\
+  \ -> parentProcessId, null)\n    ), \"@element\" != null),\n    parent_sha256_array\
+  \ = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"@odata.type\"\
+  ] contains \"processEvidence\", \"@element\" -> parentProcessImageFile.sha256, null)\n\
+  \    ), \"@element\" != null),\n    parent_name_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"processEvidence\", \"@element\"\
+  \ -> parentProcessImageFile.fileName, null)\n    ), \"@element\" != null),\n   \
+  \ parent_path_array = arrayfilter(arraymap(evidence,\n        if(\"@element\" ->\
+  \ [\"@odata.type\"] contains \"processEvidence\", \"@element\" -> parentProcessImageFile.filePath,\
+  \ null)\n    ), \"@element\" != null)\n\n| alter\n    parent_process_id = arrayindex(parent_pid_array,\
+  \ 0),\n    parent_process_sha256 = arrayindex(parent_sha256_array, 0),\n    parent_process_name\
+  \ = arrayindex(parent_name_array, 0),\n    parent_process_path = arrayindex(parent_path_array,\
+  \ 0)\n\n\n// ========================= FILE EVIDENCE =========================\n\
+  | alter\n    file_name_array = arrayfilter(arraymap(evidence,\n        if(\"@element\"\
+  \ -> [\"@odata.type\"] contains \"fileEvidence\", \"@element\" -> fileDetails.fileName,\
+  \ null)\n    ), \"@element\" != null),\n    file_path_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"fileEvidence\", \"@element\"\
+  \ -> fileDetails.filePath, null)\n    ), \"@element\" != null),\n    file_sha256_array\
+  \ = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"@odata.type\"\
+  ] contains \"fileEvidence\", \"@element\" -> fileDetails.sha256, null)\n    ), \"\
+  @element\" != null)\n\n| alter\n    file_name = arrayindex(file_name_array, 0),\n\
+  \    file_path = arrayindex(file_path_array, 0),\n    file_sha256 = arrayindex(file_sha256_array,\
+  \ 0)\n\n\n// ========================= URL / DNS =========================\n| alter\n\
+  \    url_array = arrayfilter(arraymap(evidence,\n        if(\"@element\" -> [\"\
+  @odata.type\"] contains \"urlEvidence\", \"@element\" -> url, null)\n    ), \"@element\"\
+  \ != null)\n\n| alter\n    url_value = arrayindex(url_array, 0)\n| alter\n    dns_query_name\
+  \ = regextract(url_value, \"([A-Za-z0-9.-]+\\\\.[A-Za-z]{2,})\")\n\n\n// =========================\
+  \ NETWORK IPs =========================\n| alter\n    ip_array = arrayfilter(arraymap(evidence,\n\
+  \        if(\"@element\" -> [\"@odata.type\"] contains \"ipEvidence\", \"@element\"\
+  \ -> ipAddress, null)\n    ), \"@element\" != null)\n\n| alter\n    remote_ip =\
+  \ arrayindex(arrayfilter(ip_array, \"@element\" ~= \"^(?:\\\\d{1,3}\\\\.){3}\\\\\
+  d{1,3}$\"), 0),\n    remote_ipv6 = arrayindex(arrayfilter(ip_array, \"@element\"\
+  \ ~= \"^[0-9a-fA-F:]+$\"), 0)\n\n| fields\n    agent_hostname, agent_id, agent_domain,\
+  \ agent_os, agent_version, agent_external_ip, agent_ip,\n    user_upn, user_domain,\
+  \ user_sid, actor_effective_username,\n    actor_process_image_name, actor_process_image_path,\
+  \ actor_process_image_sha256, actor_process_command_line, actor_process_pid, actor_process_start_time,\n\
+  \    parent_process_id, parent_process_name, parent_process_path, parent_process_sha256,\n\
+  \    file_name, file_path, file_sha256,\n    remote_ip, remote_ipv6, dns_query_name,\
+  \ url_value,\n    *\n"

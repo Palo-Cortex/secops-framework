@@ -1,0 +1,73 @@
+action: ALERTS
+alert_category: User Defined
+alert_description: $description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  _product: productName
+  action_country: countryName
+  action_file_md5: md5
+  action_file_name: fileName
+  action_file_path: filePath
+  action_file_sha256: sha256
+  action_remote_ip: remoteIP
+  actor_effective_username: user_name
+  agent_device_domain: domain
+  city: cityName
+  emailsenderip: senderIP
+  filesize: fileSize
+  fw_email_recipient: recepientEmail
+  fw_email_sender: senderEmail
+  fw_email_subject: subject
+  fw_url_domain: url
+  mitretechniqueid: mitreTechniques
+  state: stateName
+  urls: urls
+  user_agent: userAgent
+alert_name: $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+description: null
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: Microsoft Graph Alerts - Execution
+investigation_query_link: ''
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0002 - Execution: []
+name: Microsoft Graph Alerts - Execution
+rule_id: 213
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: null
+suppression_enabled: false
+suppression_fields: null
+timezone: null
+user_defined_category: category
+user_defined_severity: severity
+xql_query: "dataset = microsoft_graph_generic_alert_raw \n| filter category = \"Execution\"\
+  \n| alter alert_name = title + \" - \" + id\n\n| alter user_name = arraymap(evidence\
+  \ -> [], \"@element\" -> userAccount.userPrincipalName)\n| alter domain = arraymap(evidence\
+  \ -> [], \"@element\" -> p1Sender.domainName)\n| alter url = arraymap(evidence ->\
+  \ [], \"@element\" -> url)\n| alter urls = arraymap(evidence -> [], \"@element\"\
+  \ -> urls)\n| alter senderIP = arraymap(evidence -> [], \"@element\" -> senderIp)\n\
+  | alter subject = arraymap(evidence -> [], \"@element\" -> subject)\n| alter recepientEmail\
+  \ = arraymap(evidence -> [], \"@element\" -> recipientEmailAddress)\n| alter senderEmail\
+  \ = arraymap(evidence -> [], \"@element\" -> p1Sender.emailAddress)\n| alter userAgent\
+  \ = arraymap(evidence -> [], \"@element\" -> userAgent)\n| alter sha256 = arraymap(evidence\
+  \ -> [], \"@element\" -> fileDetails.sha256)\n| alter md5 = arraymap(evidence ->\
+  \ [], \"@element\" -> fileDetails.md5)\n| alter fileName = arraymap(evidence ->\
+  \ [], \"@element\" -> fileDetails.fileName)\n| alter filePath = arraymap(evidence\
+  \ -> [], \"@element\" -> fileDetails.filePath)\n| alter fileSize = arraymap(evidence\
+  \ -> [], \"@element\" -> fileDetails.fileSize)\n| alter countryName = arraymap(evidence\
+  \ -> [], \"@element\" -> sourceAddress.location.countryName)\n| alter cityName =\
+  \ arraymap(evidence -> [], \"@element\" -> sourceAddress.location.city)\n| alter\
+  \ stateName = arraymap(evidence -> [], \"@element\" -> sourceAddress.location.state)\n\
+  | alter remoteIP = coalesce(arraymap(evidence -> [], \"@element\" -> sourceAddress.ipAddress),arraymap(evidence\
+  \ -> [], \"@element\" -> ipAddress), arraymap(evidence -> [], \"@element\" -> senderIp))\n\
+  | alter countryCode = arraymap(evidence -> [], \"@element\" -> countryLetterCode)\n\
+  \n// 7/11/25 Customization request from FedEx to modify \"Medium\" serverity alerts\
+  \ to \"Low\"\n| alter severity = if(severity = \"medium\", \"low\", severity)"

@@ -1,0 +1,124 @@
+action: ALERTS
+alert_category: User Defined
+alert_description: $description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  _device_id: device_id
+  action_file_path: filepath
+  action_local_ip: local_ip
+  action_remote_ip: remote_ips
+  actor_effective_username: user_name
+  actor_process_command_line: cmdline
+  actor_process_image_name: filename
+  actor_process_image_path: filepath
+  actor_process_image_sha256: sha256
+  actor_process_os_pid: local_process_id
+  additionalindicators: ioc_value
+  agent_device_domain: domain
+  agent_hostname: hostname
+  agent_id: agent_id
+  alertaction: pattern_disposition_description
+  causality_actor_process_command_line: cgo_cmd
+  causality_actor_process_image_name: cgo_name
+  causality_actor_process_image_path: cgo_path
+  detectionid: template_instance_id
+  deviceexternalips: external_ip
+  deviceou: device_ou_arr
+  dns_query_name: dns_queries
+  eventaction: ioc_source
+  external_pivot_url: falcon_host_link
+  externalconfidence: confidence
+  externallink: falcon_host_link
+  externalseverity: severity
+  mac: mac_address
+  mitretacticid: tactic_id
+  mitretacticname: tactic
+  mitretechniqueid: technique_id
+  mitretechniquename: technique
+  objective: objective
+  originalalertid: composite_id
+  parentprocesscmd: parent_process_cmd
+  parentprocessid: parent_process_name
+  parentprocessids: parent_local_process_id
+  parentprocessname: parent_process_name
+  parentprocesspath: parent_process_path
+  parentprocesssha256: parent_process_sha256
+  processcreationtime: process_start_time
+  processid: grandparent_local_process_id
+  processmd5: md5
+  scenario: scenario
+  severity: severity_name
+  sourceid: aggregate_id
+  tim_main_indicator: ioc_value
+  userid: user_name
+  usersid: user_id
+alert_name: CrowdStrike Falcon - $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+description: Creates an XSIAM alert for each CrowdStrike Falcon Endpoint Detection
+  Event
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: CrowdStrike Falcon - Endpoint Alerts - Impact
+investigation_query_link: '// All (stitched) activity from host - assuming raw telemetry
+  is being collected
+
+  dataset = xdr_data
+
+  | filter agent_hostname = $hostname
+
+  | fields * '
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0040 - Impact: []
+name: CrowdStrike Falcon - Endpoint Alerts - Impact
+rule_id: 54
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: null
+suppression_enabled: false
+suppression_fields: null
+timezone: null
+user_defined_category: tactic
+user_defined_severity: severity_name
+xql_query: "/*\nTitle: CrowdStrike Falcon - Endpoint Alerts - Impact\nDescription:\
+  \  Single rule handler for any Detection Summary alert fetched from the CrowdStrike\
+  \ Falcon Integration\nNITRE Tactic: Impact\nDatasets: crowdstrike_falcon_event_raw\
+  \ (note, this may be different depending on how the initial integration is configured)\n\
+  Dependencies:  CrowdStrike Falcon automation integration\nImportant Note:  This\
+  \ will not work with alerts ingested via the \"CrowdStrike Platform\" (Event Stream\
+  \ API) integration\nVersion: 0.1 (Beta) April 2025\n*/\nconfig case_sensitive =\
+  \ false\n| dataset = crowdstrike_falcon_event_raw \n| filter product = \"epp\"\n\
+  \n// Alert metadata extraction\n| alter alert_name = display_name\n\n| filter tactic\
+  \ = \"Impact\"\n\n// Extract fields from nested objects for use in alert table mapping,\
+  \ grouping and display.\n| alter \n        hostname = device->hostname,\n      \
+  \  domain = device->machine_domain,\n        local_ip = device->local_ip,\n    \
+  \    external_ip = device->external_ip,\n        mac_address = device->mac_address,\n\
+  \        device_id = device -> device_id,\n        device_ou = device -> ou[],\n\
+  \        parent_process_name = parent_details -> filename,\n        parent_process_cmd\
+  \ = parent_details -> cmdline,\n        parent_process_path = parent_details ->\
+  \ filepath,\n        parent_process_sha256 = parent_details -> sha256,\n       \
+  \ parent_local_process_id = parent_details -> local_process_id,\n        grandparent_process_name\
+  \ = grandparent_details -> filename,\n        grandparent_process_cmd = grandparent_details\
+  \ -> cmdline,\n        grandparent_process_path = grandparent_details -> filepath,\n\
+  \        grandparent_process_sha256 = grandparent_details -> sha256,\n        grandparent_local_process_id\
+  \ = grandparent_details -> local_process_id\n\n// Approximate cgo - Note, filtering\
+  \ typical root system processes can be adjusted. CGO is used for alert/issue grouping\
+  \ - this filter is intended to ignore over-grouping grouping on common root nodes\n\
+  | alter cgo_name = if(lowercase(grandparent_process_name) not in (\"wininit.exe\"\
+  , \"userinit.exe\"), grandparent_process_name, coalesce(parent_process_name, filename)),\n\
+  \        cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\"\
+  , \"userinit.exe\"), grandparent_process_path , coalesce(parent_process_path, filepath)),\n\
+  \        cgo_cmd = if(lowercase(grandparent_process_name) not in (\"wininit.exe\"\
+  , \"userinit.exe\"), grandparent_process_path , coalesce(parent_process_cmd, cmdline))\n\
+  \n// Clean up field formatting \n| alter device_ou_arr = arraymap(device_ou, replace(\"\
+  @element\", \"\\\"\", \"\"))\n\n// Optional fields, not present in all CRWD deployments.\
+  \ Comment out and remove mapping if/as needed\n| alter dns_queries = null //arraymap(dns_requests->[],\
+  \ \"@element\"->domain_name)\n| alter remote_ips = null //arraymap(network_accesses->[],\
+  \ \"@element\"->remote_address)\n\n// Explicitly place correlation fields in front\n\
+  | fields device_id,local_ip,user_name,cmdline,sha256,domain,hostname,agent_id,pattern_disposition_description,cgo_cmd,cgo_name,cgo_path,template_instance_id,external_ip,falcon_host_link,mac_address,tactic_id,tactic,technique_id,technique,objective,composite_id,parent_process_cmd,parent_process_name,parent_local_process_id,parent_process_path,parent_process_sha256,process_start_time,local_process_id,md5,scenario,severity_name,aggregate_id,indicator_id,user_name,user_id,\
+  \ *"
