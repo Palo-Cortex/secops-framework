@@ -1,0 +1,374 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.5.0
+    isoverridable: false
+    itemVersion: 1.3.32
+    packID: ""
+    packName: Zscaler Internet Access
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: |-
+  This playbook blocks domains using Zscaler.
+  The playbook checks whether the Zscaler integration is enabled, whether the Domain input has been provided and if so, blocks the domain.
+dirtyInputs: true
+id: 'SOC Block Domain - Zscaler'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Domain
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The Domain to block.
+  key: Domain
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block Domain - Zscaler
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Block Domain - Zscaler
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b124cfe7-a56f-4490-880b-78cf3274b99b
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: b124cfe7-a56f-4490-880b-78cf3274b99b
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -210
+        }
+      }
+  "2":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Zscaler
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "7"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of Check Point Firewall enabled.
+      id: 566639bd-4b4b-47c5-81f5-1665ec447c34
+      iscommand: false
+      name: Is Zscaler enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 566639bd-4b4b-47c5-81f5-1665ec447c34
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 700,
+          "y": 170
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "6"
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      url:
+        complex:
+          root: inputs.Domain
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Zscaler
+      description: Adds the specified URLs to the block list.
+      id: 5c24626d-b1cd-4be5-8925-7d95ffc3b0ec
+      iscommand: true
+      name: Block Domain
+      playbooktaskmissingcomponent:
+      script: Zscaler|||zscaler-blacklist-url
+      type: regular
+      version: -1
+    taskid: 5c24626d-b1cd-4be5-8925-7d95ffc3b0ec
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 780,
+          "y": 460
+        }
+      }
+  "4":
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 897a00db-2a04-48d5-8630-e55b5443f0b9
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 897a00db-2a04-48d5-8630-e55b5443f0b9
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": 670
+        }
+      }
+  "5":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Domain
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check whether the necessary inputs were provided
+      id: cfdef7e9-5188-4715-8a20-4cf22f75f1ee
+      iscommand: false
+      name: Check if Domain input was provided
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: cfdef7e9-5188-4715-8a20-4cf22f75f1ee
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -20
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 6e77c9b1-f8b7-4d4b-8695-e37a7e1f3441
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 6e77c9b1-f8b7-4d4b-8695-e37a7e1f3441
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1020,
+          "y": 665
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "3"
+      Shadow Mode:
+      - "8"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: c7719eeb-e2f2-4bcf-9227-6d17ecc3bd4a
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: ShadowModeRouter
+      type: condition
+      version: -1
+    taskid: c7719eeb-e2f2-4bcf-9227-6d17ecc3bd4a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 980,
+          "y": 300
+        }
+      }
+  "8":
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Zscaler Block Domain
+          Command: zscaler-blacklist-url
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 7827dd70-3caf-4cd1-8d7c-b3b955049ab8
+      iscommand: false
+      name: 'Shadow: Zscaler Block Domain'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 7827dd70-3caf-4cd1-8d7c-b3b955049ab8
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1310,
+          "y": 460
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "2_4_#default#": 0.47,
+      "5_2_yes": 0.71,
+      "5_4_#default#": 0.53
+    },
+    "paper": {
+      "dimensions": {
+        "height": 945,
+        "width": 1250,
+        "x": 440,
+        "y": -210
+      }
+    }
+  }
+fromversion: 5.0.0

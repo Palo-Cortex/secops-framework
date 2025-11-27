@@ -1,0 +1,608 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 1.6.56
+    packID: ""
+    packName: Active Directory Query
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    - agentix
+    toServerVersion: ""
+description: Takes an email address or a username of a user account in Active Directory,
+  and returns the email address of the user's manager.
+dirtyInputs: true
+id: 'SOC Active Directory - Get User Manager Details'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Username
+  - UserEmail
+  name: General (Inputs group)
+inputs:
+- description: Search for user by the sAMAccountName attribute in Active Directory.
+  key: Username
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Search for user by the email attribute in Active Directory.
+  key: UserEmail
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Email
+      root: Account
+      transformers:
+      - operator: uniq
+name: SOC Active Directory - Get User Manager Details
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - UserManagerEmail
+  - UserManagerDisplayName
+outputs:
+- contextPath: UserManagerEmail
+  description: The email of the user's manager.
+- contextPath: UserManagerDisplayName
+  description: The display name of the user's manager.
+  type: unknown
+sourceplaybookid: Active Directory - Get User Manager Details
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 65b748f8-8d64-4ff1-8e55-f8050fefa13e
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 65b748f8-8d64-4ff1-8e55-f8050fefa13e
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 50
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Active Directory Query v2
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "13"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if the Active Directory Query v2 integration is enabled.
+      id: 9c6dd8f5-91bb-406f-86c3-add4019fba2c
+      iscommand: false
+      name: Is Active Directory enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 9c6dd8f5-91bb-406f-86c3-add4019fba2c
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 180
+        }
+      }
+  "2":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.UserEmail
+                transformers:
+                - operator: uniq
+          operator: isNotEmpty
+      label: Email
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Username
+                transformers:
+                - operator: uniq
+          operator: isNotEmpty
+      label: Username
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "13"
+      Email:
+      - "5"
+      Username:
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Active Directory Query v2
+      description: Retrieves detailed information about a user account. The user can
+        be specified by name, email address, or as an Active Directory Distinguished
+        Name (DN). If no filter is specified, all users are returned.
+      id: c1c98615-ba19-44ef-8aa0-1d50a1ee1c3c
+      iscommand: false
+      name: By which attribute should the user be searched?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: c1c98615-ba19-44ef-8aa0-1d50a1ee1c3c
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 410
+        }
+      }
+  "4":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      ignore-outputs:
+        simple: "false"
+      username:
+        complex:
+          root: inputs.Username
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Active Directory Query v2
+      description: Retrieves detailed information about a user account based on their
+        username.
+      id: 1052e99a-83b1-4978-b238-6a50ed63f068
+      iscommand: true
+      name: Get user details by username
+      playbooktaskmissingcomponent:
+      script: Active Directory Query v2|||ad-get-user
+      type: regular
+      version: -1
+    taskid: 1052e99a-83b1-4978-b238-6a50ed63f068
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 220,
+          "y": 620
+        }
+      }
+  "5":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      email:
+        complex:
+          root: inputs.UserEmail
+      ignore-outputs:
+        simple: "false"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Active Directory Query v2
+      description: Retrieves detailed information about a user account based on their
+        email address.
+      id: fddf5cde-dd7d-4da4-892c-c71ccaf7ead8
+      iscommand: true
+      name: Get user details by email
+      playbooktaskmissingcomponent:
+      script: Active Directory Query v2|||ad-get-user
+      type: regular
+      version: -1
+    taskid: fddf5cde-dd7d-4da4-892c-c71ccaf7ead8
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 670,
+          "y": 620
+        }
+      }
+  "6":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: Manager
+                root: Account
+                transformers:
+                - operator: uniq
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "13"
+      "yes":
+      - "7"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether a manager name was found for the user account.
+      id: da7d26a1-d686-4030-80a8-0500e919ec09
+      iscommand: false
+      name: Was a manager found?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: da7d26a1-d686-4030-80a8-0500e919ec09
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 840
+        }
+      }
+  "7":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "16"
+      - "10"
+    note: false
+    quietmode: 0
+    reputationcalc: 3
+    scriptarguments:
+      dn:
+        complex:
+          accessor: Manager
+          root: Account
+          transformers:
+          - operator: uniq
+      extend-context:
+        simple: ManagerDetails=
+      ignore-outputs:
+        simple: "true"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Active Directory Query v2
+      description: Retrieves detailed information about the user's manager based on
+        their email or username.
+      id: 6be04fd9-00d5-45c6-badc-460efeee51cc
+      iscommand: true
+      name: Get manager details by user email or username
+      playbooktaskmissingcomponent:
+      script: Active Directory Query v2|||ad-get-user
+      tags:
+      - active_directory_manager_details
+      type: regular
+      version: -1
+    taskid: 6be04fd9-00d5-45c6-badc-460efeee51cc
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 1070
+        }
+      }
+  "10":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "12"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: UserManagerEmail
+      value:
+        complex:
+          accessor: mail
+          root: ManagerDetails.attributes
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\n
+        For more information, see the section about permissions here:\n- For Cortex
+        XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n
+        - For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 0ff49df3-e89d-45ef-9470-6f330da1f19d
+      iscommand: false
+      name: Set manager email to outputs
+      playbooktaskmissingcomponent:
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 0ff49df3-e89d-45ef-9470-6f330da1f19d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 660,
+          "y": 1290
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: cd103324-58ed-4ef2-8de4-ed223a0831c0
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: cd103324-58ed-4ef2-8de4-ed223a0831c0
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 1500
+        }
+      }
+  "13":
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "12"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 82beca2e-d6ae-43f2-8dbc-60d72893585c
+      iscommand: false
+      name: Cannot Retrieve Manager Email
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 82beca2e-d6ae-43f2-8dbc-60d72893585c
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1370,
+          "y": 1120
+        }
+      }
+  "16":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "12"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: UserManagerDisplayName
+      value:
+        complex:
+          accessor: displayName
+          root: ManagerDetails.attributes
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if the specified value exists in context. If the value exists,
+        it will be set in context, otherwise no value will be set in context.
+      id: 2d85cfd8-8c13-441d-a550-a17099a55ea0
+      iscommand: false
+      name: Set manager display name to outputs
+      playbooktaskmissingcomponent:
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 2d85cfd8-8c13-441d-a550-a17099a55ea0
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": 1290
+        }
+      }
+  "17":
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 29387c43-9504-4bdc-8e9d-c6a0fdbb2356
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 29387c43-9504-4bdc-8e9d-c6a0fdbb2356
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": -280,
+          "y": 1495
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "1_13_#default#": 0.3,
+      "1_2_yes": 0.58,
+      "2_13_#default#": 0.35,
+      "2_4_Username": 0.78,
+      "2_5_Email": 0.7,
+      "6_13_#default#": 0.5,
+      "6_7_yes": 0.47
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1515,
+        "width": 2030,
+        "x": -280,
+        "y": 50
+      }
+    }
+  }
+fromversion: 5.0.0

@@ -1,0 +1,399 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.5.0
+    isoverridable: false
+    itemVersion: 2.0.28
+    packID: ""
+    packName: Proofpoint Threat Response
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: |-
+  This playbook blocks domains using Proofpoint Threat Response.
+  The playbook checks whether the Proofpoint Threat Response integration is enabled, whether the Domain input has been provided and if so, blocks the domain.
+dirtyInputs: true
+id: 'SOC Block Domain - Proofpoint Threat Response'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Domain
+  - DomainBlackListID
+  - Expiration
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The Domain to block.
+  key: Domain
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The ID of the block list to block the domain in.
+  key: DomainBlackListID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: 'The UTC expiration date and time of the suspicious object, for example:
+    2020-01-25T09:00:00Z.'
+  key: Expiration
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block Domain - Proofpoint Threat Response
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Block Domain - Proofpoint Threat Response
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 74cfb49a-85e7-4d70-82df-6eec688b84b0
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 74cfb49a-85e7-4d70-82df-6eec688b84b0
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -400
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Proofpoint Threat Response
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of Check Point Firewall enabled.
+      id: 480634cc-137e-4540-8320-57bede8c1434
+      iscommand: false
+      name: Is Proofpoint Threat Response enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 480634cc-137e-4540-8320-57bede8c1434
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 680,
+          "y": -120
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "5"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      blacklist_domain:
+        complex:
+          root: inputs.DomainBlackListID
+      domain:
+        complex:
+          root: inputs.Domain
+      expiration:
+        complex:
+          root: inputs.Expiration
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Proofpoint Threat Response
+      description: Adds the supplied domains to the specified block list.
+      id: 4229de47-31e8-4c87-bcea-9bf972aed621
+      iscommand: true
+      name: Block Domain
+      playbooktaskmissingcomponent:
+      script: Proofpoint Threat Response|||proofpoint-tr-block-domain
+      type: regular
+      version: -1
+    taskid: 4229de47-31e8-4c87-bcea-9bf972aed621
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 710,
+          "y": 290
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d9d40cf1-5be4-4d84-8739-27b065949e57
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: d9d40cf1-5be4-4d84-8739-27b065949e57
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 550
+        }
+      }
+  "4":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Domain
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.DomainBlackListID
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check whether the necessary inputs were provided
+      id: 43e0f76e-d745-4fd7-810d-761ceba711f2
+      iscommand: false
+      name: Check if inputs were provided
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 43e0f76e-d745-4fd7-810d-761ceba711f2
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -290
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2f806767-8adb-4630-86bb-826484c4edd6
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 2f806767-8adb-4630-86bb-826484c4edd6
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1230,
+          "y": 545
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "2"
+      Shadow Mode:
+      - "7"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 99e5f3da-af3f-4df6-9066-ca587bbed325
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: ShadowModeRouter
+      type: condition
+      version: -1
+    taskid: 99e5f3da-af3f-4df6-9066-ca587bbed325
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 110
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Proofpoint Threat Response Block Domain
+          Command: proofpoint-tr-block-domain
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 613f2e01-7d09-4cf6-b255-bb60d80ae563
+      iscommand: false
+      name: 'Shadow: Proofpoint Threat Response Block Domain'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 613f2e01-7d09-4cf6-b255-bb60d80ae563
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1150,
+          "y": 290
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "1_3_#default#": 0.35,
+      "4_1_yes": 0.65,
+      "4_3_#default#": 0.47
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1015,
+        "width": 1160,
+        "x": 450,
+        "y": -400
+      }
+    }
+  }
+fromversion: 5.0.0

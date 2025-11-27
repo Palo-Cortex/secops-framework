@@ -1,0 +1,1085 @@
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.6.0
+    isoverridable: false
+    itemVersion: 1.0.0
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    toServerVersion: ""
+description: "This playbook checks the file reputation and sets the verdict as a new
+  context key.\n\nThe verdict is composed by 3 main components:\n\n* VirusTotal detection
+  rate\n* Digital certificate signers\n* NSRL DB\n\nNote: a user can provide a list
+  of trusted signers of his own using the playbook inputs\n "
+adopted: true
+id: 'SOC File Reputation'
+inputs:
+- description: The minimum number of positive engines needed to mark file as malicious.
+  key: DetectionThreshold
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "5"
+- description: A list of trusted publishers
+  key: TrustedPublishers
+  playbookInputQuery:
+  required: false
+  value:
+    simple: |-
+      Microsoft Root Authority,Microsoft Timestamping Service,
+      Microsoft Code Signing PCA, Microsoft Corporation
+- description: The file SHA256.
+  key: FileSHA256
+  playbookInputQuery:
+  required: false
+  value: {}
+name: SOC File Reputation
+outputs:
+- contextPath: VTFileVerdict
+  description: VirusTotal file verdict.
+  type: unknown
+- contextPath: NSRLFileVerdict
+  description: NSRL file verdict.
+  type: unknown
+- contextPath: VTFileSigners
+  description: VirusTotal file signers.
+  type: unknown
+- contextPath: XDRFileSigners
+  description: XDR file signers.
+  type: unknown
+- contextPath: WildFire.Report
+  description: WildFire report details.
+  type: unknown
+- contextPath: WildFire.Verdicts
+  description: WildFire verdict.
+  type: unknown
+sourceplaybookid: File Reputation
+starttaskid: "0"
+tags:
+- SOC
+- Enrichment
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "7"
+      - "4"
+      - "18"
+      - "25"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0036bf78-bb71-4cc0-8147-c1dcb446f610
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: 0036bf78-bb71-4cc0-8147-c1dcb446f610
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 2269.25,
+          "y": 50
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9a0d46f3-35a0-4022-833b-6e33cda9114b
+      iscommand: false
+      name: Done
+      type: title
+      version: -1
+    taskid: 9a0d46f3-35a0-4022-833b-6e33cda9114b
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 2509.75,
+          "y": 1055
+        }
+      }
+  "4":
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d188fc98-26aa-4ad3-8c92-d603b765f6ec
+      iscommand: false
+      name: VirusTotal Reputation
+      type: title
+      version: -1
+    taskid: d188fc98-26aa-4ad3-8c92-d603b765f6ec
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1307.25,
+          "y": 210
+        }
+      }
+  "5":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      file:
+        complex:
+          root: inputs.FileSHA256
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: ""
+      description: Retrieve results for a file hash using WildFire.
+      id: 4f29d47b-7ada-471d-b59a-086e88eb8c69
+      iscommand: true
+      name: File enrichment
+      script: '|||file'
+      type: regular
+      version: -1
+    taskid: 4f29d47b-7ada-471d-b59a-086e88eb8c69
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1307.25,
+          "y": 370
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 728d695a-84e4-41a4-8de6-2e8b792c24ee
+      iscommand: false
+      name: NSRL
+      type: title
+      version: -1
+    taskid: 728d695a-84e4-41a4-8de6-2e8b792c24ee
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 290.5,
+          "y": 210
+        }
+      }
+  "8":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: malicious
+                root: VirusTotal.File.attributes.last_analysis_stats
+          operator: lessThan
+          right:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.DetectionThreshold
+      label: Benign
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "17"
+      Benign:
+      - "14"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check file detections.
+      id: 58df7ac3-e6e9-4da5-88ec-3a6b8268872b
+      iscommand: false
+      name: Check file detections
+      type: condition
+      version: -1
+    taskid: 58df7ac3-e6e9-4da5-88ec-3a6b8268872b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 2509.75,
+          "y": 710
+        }
+      }
+  "10":
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "11"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ignore-outputs:
+        simple: "false"
+      method:
+        simple: GET
+      saveAsFile:
+        simple: test.txt
+      url:
+        simple: https://hashlookup.circl.lu/lookup/sha256/${inputs.FileSHA256}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sends http request. Returns the response as json.
+      id: 657cdfbc-0d99-4fc1-8130-541ac61a46de
+      iscommand: false
+      name: Check the file hash against NSRL DB
+      script: http
+      type: regular
+      version: -1
+    taskid: 657cdfbc-0d99-4fc1-8130-541ac61a46de
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 290.5,
+          "y": 370
+        }
+      }
+  "11":
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "12"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      extend-context:
+        simple: NSRLCheckResults=
+      ignore-outputs:
+        simple: "true"
+      value:
+        complex:
+          accessor: Body
+          root: HttpRequest.Response
+          transformers:
+          - operator: Stringify
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: 'Parse a given JSON string "value" to a representative object.
+        Example: ''{"a": "value"}'' => {"a": "value"}.'
+      id: 83169b11-c3c4-452c-8a9b-e8cbb65740ce
+      iscommand: false
+      name: Parse HTTP response body
+      script: ParseJSON
+      type: regular
+      version: -1
+    taskid: 83169b11-c3c4-452c-8a9b-e8cbb65740ce
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 290.5,
+          "y": 540
+        }
+      }
+  "12":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: message
+                root: NSRLCheckResults
+          operator: isNotEqualString
+          right:
+            value:
+              simple: Non existing SHA-256
+      label: Found Results
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "21"
+      Found Results:
+      - "13"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check NSRL search results.
+      id: 0daec705-f44f-4630-872a-ecfa3227ddab
+      iscommand: false
+      name: Check NSRL search results
+      type: condition
+      version: -1
+    taskid: 0daec705-f44f-4630-872a-ecfa3227ddab
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 290.5,
+          "y": 710
+        }
+      }
+  "13":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: NSRLFileVerdict
+      value:
+        simple: IsNSRL
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: d8857862-f9f8-4d41-b1b9-6c084b173d5a
+      iscommand: false
+      name: Set file verdict - IsNSRL
+      script: Set
+      type: regular
+      version: -1
+    taskid: d8857862-f9f8-4d41-b1b9-6c084b173d5a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 581,
+          "y": 880
+        }
+      }
+  "14":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "14"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: VTFileVerdict
+      value:
+        simple: Benign
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 4389c2e9-2557-45bb-be87-8d76c832a01b
+      iscommand: false
+      name: Set file verdict - VT-Benign
+      script: Set
+      type: regular
+      version: -1
+    taskid: 4389c2e9-2557-45bb-be87-8d76c832a01b
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2750.25,
+          "y": 880
+        }
+      }
+  "15":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: organization
+                root: VirusTotal.SearchResults.attributes.trusted_verdict
+          operator: inList
+          right:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.TrustedPublishers
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: verdict
+                root: VirusTotal.SearchResults.attributes.trusted_verdict
+          operator: isEqualString
+          right:
+            value:
+              simple: goodware
+      label: Trusted Signers
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "22"
+      Trusted Signers:
+      - "16"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check file signature.
+      id: df8ccfaa-c452-4c35-837c-4e80a383b1d1
+      iscommand: false
+      name: Check file signature
+      type: condition
+      version: -1
+    taskid: df8ccfaa-c452-4c35-837c-4e80a383b1d1
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1547.75,
+          "y": 710
+        }
+      }
+  "16":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: VTFileSigners
+      value:
+        simple: Trusted
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 55b06558-6f82-4dfc-a196-c34f3b62e469
+      iscommand: false
+      name: Set file verdict - VT-TrustedSigners
+      script: Set
+      type: regular
+      version: -1
+    taskid: 55b06558-6f82-4dfc-a196-c34f3b62e469
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1743,
+          "y": 880
+        }
+      }
+  "17":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: VTFileVerdict
+      value:
+        simple: Malicious
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 7206a5f3-ba50-4e13-a794-884021095866
+      iscommand: false
+      name: Set file verdict - VT-Malicious
+      script: Set
+      type: regular
+      version: -1
+    taskid: 7206a5f3-ba50-4e13-a794-884021095866
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2269.25,
+          "y": 880
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d51edea1-e13a-4342-83a1-804f7e2df09e
+      iscommand: false
+      name: Cortex XDR
+      type: title
+      version: -1
+    taskid: d51edea1-e13a-4342-83a1-804f7e2df09e
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 3471.75,
+          "y": 545
+        }
+      }
+  "19":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: action_process_signature_vendor
+                root: PaloAltoNetworksXDR.Incident.alerts
+                transformers:
+                - args:
+                    item:
+                      iscontext: true
+                      value:
+                        simple: ${PaloAltoNetworksXDR.Incident.alerts.os_actor_process_signature_vendor}
+                  operator: append
+                - args:
+                    item:
+                      iscontext: true
+                      value:
+                        simple: ${PaloAltoNetworksXDR.Incident.alerts.actor_process_signature_vendor}
+                  operator: append
+                - args:
+                    item:
+                      iscontext: true
+                      value:
+                        simple: ${PaloAltoNetworksXDR.Incident.alerts.causality_actor_process_signature_vendor}
+                  operator: append
+          operator: inList
+          right:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.TrustedPublishers
+      label: Trusted Signers
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "23"
+      Trusted Signers:
+      - "20"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check file signature.
+      id: 96728cac-a5cf-41e5-8cde-43882c9dd70f
+      iscommand: false
+      name: Check file signature
+      type: condition
+      version: -1
+    taskid: 96728cac-a5cf-41e5-8cde-43882c9dd70f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 3471.75,
+          "y": 710
+        }
+      }
+  "20":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: XDRFileSigners
+      value:
+        simple: Trusted
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: cae4954d-4e6d-432d-b5ea-7eab69b4b1e0
+      iscommand: false
+      name: Set file verdict - XDR-TrustedSigners
+      script: Set
+      type: regular
+      version: -1
+    taskid: cae4954d-4e6d-432d-b5ea-7eab69b4b1e0
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 3712.25,
+          "y": 880
+        }
+      }
+  "21":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: NSRLFileVerdict
+      value:
+        simple: IsNotNSRL
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: b0d6fd46-903e-408a-abae-c1a0e98f0034
+      iscommand: false
+      name: Set file verdict - IsNotNSRL
+      script: Set
+      type: regular
+      version: -1
+    taskid: b0d6fd46-903e-408a-abae-c1a0e98f0034
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 880
+        }
+      }
+  "22":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "22"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: VTFileSigners
+      value:
+        simple: UnTrusted
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: d1aae27e-bda1-4816-9af7-b8d375d8aae9
+      iscommand: false
+      name: Set file verdict - VT-TrustedSigners
+      script: Set
+      type: regular
+      version: -1
+    taskid: d1aae27e-bda1-4816-9af7-b8d375d8aae9
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1262,
+          "y": 880
+        }
+      }
+  "23":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: XDRFileSigners
+      value:
+        simple: UnTrusted
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: fe108c46-c4ae-462d-9e8c-ccf72fbbe028
+      iscommand: false
+      name: Set file verdict - XDR-UnTrustedSigners
+      script: Set
+      type: regular
+      version: -1
+    taskid: fe108c46-c4ae-462d-9e8c-ccf72fbbe028
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 3231.25,
+          "y": 880
+        }
+      }
+  "24":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: VirusTotal
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "15"
+      - "8"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether there are results from VirusTotal.
+      id: 5205d32a-2c3a-42ca-8586-04680de9bc5b
+      iscommand: false
+      name: Check for VT results
+      type: condition
+      version: -1
+    taskid: 5205d32a-2c3a-42ca-8586-04680de9bc5b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1502.5,
+          "y": 540
+        }
+      }
+  "25":
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "27"
+      - "28"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 825810e7-b8fb-4347-894b-51dae87fcb7f
+      iscommand: false
+      name: WildFire
+      type: title
+      version: -1
+    taskid: 825810e7-b8fb-4347-894b-51dae87fcb7f
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 4483.75,
+          "y": 715
+        }
+      }
+  "27":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      sha256:
+        complex:
+          root: inputs.FileSHA256
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: ""
+      description: Retrieves results for a file hash using WildFire.
+      id: 04e3f233-3ddf-4ed1-bf58-a298d46658cd
+      iscommand: true
+      name: Get WildFire report
+      script: '|||wildfire-report'
+      type: regular
+      version: -1
+    taskid: 04e3f233-3ddf-4ed1-bf58-a298d46658cd
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 4193.25,
+          "y": 880
+        }
+      }
+  "28":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "28"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      hash:
+        complex:
+          root: inputs.FileSHA256
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: ""
+      description: Returns a verdict for a hash.
+      id: d8dddf61-ca65-4111-9c5c-8c82f784d18d
+      iscommand: true
+      name: Get WildFire verdict
+      script: '|||wildfire-get-verdict'
+      type: regular
+      version: -1
+    taskid: d8dddf61-ca65-4111-9c5c-8c82f784d18d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 4724.25,
+          "y": 880
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: true
+    task:
+      brand: ""
+      id: 2bb432ff-39d1-444e-b9e8-d002d7bd6cae
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      type: playbook
+      version: -1
+    taskid: 2bb432ff-39d1-444e-b9e8-d002d7bd6cae
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1838.25,
+          "y": 1050
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "12_13_Found Results": 0.64,
+      "12_21_#default#": 0.84,
+      "15_16_Trusted Signers": 0.64,
+      "15_22_#default#": 0.8,
+      "19_20_Trusted Signers": 0.66,
+      "19_23_#default#": 0.81,
+      "22_29_#error#": 0.64,
+      "8_14_Benign": 0.78,
+      "8_17_#default#": 0.8
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1070,
+        "width": 5055.25,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+fromversion: 5.0.0

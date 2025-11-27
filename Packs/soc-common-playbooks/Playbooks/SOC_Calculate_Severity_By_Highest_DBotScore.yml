@@ -1,0 +1,551 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.0.0
+    isoverridable: false
+    itemVersion: 2.7.14
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    - agentix
+    toServerVersion: ""
+description: Calculates the alert severity level according to the highest DBotScore.
+id: 'SOC Calculate Severity By Highest DBotScore'
+inputs:
+- description: 'Array of all DBotScore indicator values associated with the incident. '
+  key: DBotScoreIndicators
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: The highest score that was given to a DBotScore indicator.
+  key: DBotScoreMaxScore
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Score
+      root: DBotScore
+      transformers:
+      - args:
+          descending:
+            value:
+              simple: "true"
+        operator: sort
+      - operator: uniq
+      - operator: FirstArrayElement
+name: SOC Calculate Severity By Highest DBotScore
+outputs:
+- contextPath: Severities.DBotScoreSeverity
+  description: The severity level of the incident identified and set in the Calculate
+    Severity By Highest DBotScore playbook.
+  type: string
+sourceplaybookid: Calculate Severity By Highest DBotScore
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "23"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 79cbff50-3ae4-48f1-8f6d-785a4c8163de
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 79cbff50-3ae4-48f1-8f6d-785a4c8163de
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": -10
+        }
+      }
+  "10":
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9d087581-2976-4b96-887a-27a3a8edd630
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 9d087581-2976-4b96-887a-27a3a8edd630
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": 855
+        }
+      }
+  "23":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.DBotScoreIndicators
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "yes":
+      - "31"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is a "DBotScore" in the playbook input.
+      id: 2166ae1b-bafb-478b-81f9-c68b98651a63
+      iscommand: false
+      name: Is there a DBotScore in inputs?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 2166ae1b-bafb-478b-81f9-c68b98651a63
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": 120
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "30"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d6b7eccb-3284-460d-8b20-197ea1c62f8a
+      iscommand: false
+      name: No DBotScore
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: d6b7eccb-3284-460d-8b20-197ea1c62f8a
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": -210,
+          "y": 290
+        }
+      }
+  "25":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: Score
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: DBotScoreCache.Score
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: "3"
+                root: DBotScoreCache
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: inputs.DBotScoreMaxScore
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: "3"
+                root: inputs.DBotScoreMaxScore
+          operator: isNotEmpty
+      label: High
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: DBotScoreCache.Score
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: "2"
+                root: DBotScoreCache.Score
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: inputs.DBotScoreMaxScore
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: "2"
+                root: inputs.DBotScoreMaxScore
+          operator: isNotEmpty
+      label: Medium
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: DBotScoreCache.Score
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: "1"
+                root: DBotScoreCache.Score
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: inputs.DBotScoreMaxScore
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: "1"
+                root: inputs.DBotScoreMaxScore
+          operator: isNotEmpty
+      label: Low
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "30"
+      High:
+      - "27"
+      Low:
+      - "29"
+      Medium:
+      - "28"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        Determines a severity based on the DBotScores of the indicators involved with the alert. Severity level is assigned according to the corresponding DBotScore:
+        No DBotScores / 0 = Unknown
+        1 = Low
+        2 = Medium
+        3 = High
+      id: e66f1b7a-bf4c-4b8c-8995-ba249d9f7600
+      iscommand: false
+      name: Evaluate severity based on DBotScore of indicators
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: e66f1b7a-bf4c-4b8c-8995-ba249d9f7600
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 490
+        }
+      }
+  "27":
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: Severities.DBotScoreSeverity
+      value:
+        simple: High
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: Sets the severity of the alert to "High". This severity level means
+        that malicious indicators were identified.
+      id: 86bc9089-08a5-44e2-8a0f-03dd11411f9b
+      iscommand: false
+      name: Set severity to high
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 86bc9089-08a5-44e2-8a0f-03dd11411f9b
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 990,
+          "y": 685
+        }
+      }
+  "28":
+    continueonerrortype: ""
+    id: "28"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: Severities.DBotScoreSeverity
+      value:
+        simple: Medium
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: Sets the severity of the alert to "Medium". This severity level
+        means that only suspicious indicators were identified (no malicious indicators).
+      id: 288ac730-e8e3-4782-805f-e54721977877
+      iscommand: false
+      name: Set severity to medium
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 288ac730-e8e3-4782-805f-e54721977877
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 685
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: Severities.DBotScoreSeverity
+      value:
+        simple: Low
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: Sets the severity of the alert to "Low". This severity level means
+        no suspicious or malicious indicators were identified.
+      id: 3132e114-0841-4c3f-800f-fab492944f7a
+      iscommand: false
+      name: Set severity to low
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 3132e114-0841-4c3f-800f-fab492944f7a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 190,
+          "y": 685
+        }
+      }
+  "30":
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: Severities.DBotScoreSeverity
+      value:
+        simple: Unknown
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: Sets the severity of the alert to "Unknown". This severity level
+        means that either unknown indicators were identified, or no indicators were
+        identified.
+      id: ca3d7b7e-95d9-48b6-87e1-c625b8f53c43
+      iscommand: false
+      name: Set severity to unknown
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: ca3d7b7e-95d9-48b6-87e1-c625b8f53c43
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -210,
+          "y": 685
+        }
+      }
+  "31":
+    continueonerrortype: ""
+    id: "31"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "25"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        complex:
+          root: inputs.DBotScoreIndicators
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Get the overall score for the indicator as calculated by DBot.
+      id: 508c21c3-4362-4dd9-84a7-9efd305c0fef
+      iscommand: false
+      name: Get DBotScore from XSOAR
+      playbooktaskmissingcomponent:
+      script: GetIndicatorDBotScoreFromCache
+      type: regular
+      version: -1
+    taskid: 508c21c3-4362-4dd9-84a7-9efd305c0fef
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 310
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "23_24_#default#": 0.24,
+      "25_27_High": 0.82,
+      "25_28_Medium": 0.76,
+      "25_29_Low": 0.78,
+      "25_30_#default#": 0.87
+    },
+    "paper": {
+      "dimensions": {
+        "height": 930,
+        "width": 1580,
+        "x": -210,
+        "y": -10
+      }
+    }
+  }
+fromversion: 5.0.0

@@ -1,0 +1,407 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 1.1.41
+    packID: ""
+    packName: Cylance Protect
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: This playbook accepts a SHA256 hash and adds the hash to the Global Quarantine
+  list using the Cylance Protect v2 integration.
+dirtyInputs: true
+id: 'SOC Block File - Cylance Protect v2'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - SHA256
+  - ListType
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The SHA256 hash of the file to block.
+  key: SHA256
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: SHA256
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: File.Malicious
+          operator: isExists
+      root: File
+      transformers:
+      - operator: uniq
+- description: The list type to which the threat belongs. Can be "GlobalQuarantine"
+    or "GlobalSafe".
+  key: ListType
+  playbookInputQuery:
+  required: false
+  value:
+    simple: GlobalQuarantine
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block File - Cylance Protect v2
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - CbResponse.BlockedHashes.LastBlock.Time
+  - CbResponse.BlockedHashes.LastBlock.Hostname
+  - CbResponse.BlockedHashes.LastBlock.CbSensorID
+outputs:
+- contextPath: CbResponse.BlockedHashes.LastBlock.Time
+  description: Last block time
+- contextPath: CbResponse.BlockedHashes.LastBlock.Hostname
+  description: Last block hostname
+- contextPath: CbResponse.BlockedHashes.LastBlock.CbSensorID
+  description: Last block sensor ID
+sourceplaybookid: Block File - Cylance Protect v2
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5e4385e3-76c2-48e2-80a4-c3798cdae027
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 5e4385e3-76c2-48e2-80a4-c3798cdae027
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 50
+        }
+      }
+  "6":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Cylance Protect v2
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "8"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if Cylance Protect is enabled.
+      id: df41aaaa-8055-4c59-8e9e-a167a7ef7819
+      iscommand: false
+      name: Is Cylance Protect v2 enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: df41aaaa-8055-4c59-8e9e-a167a7ef7819
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 195
+        }
+      }
+  "8":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.SHA256
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is a value for the SHA256 input field. This task
+        does not verify that the value is actually a SHA256 hash, just that the value
+        for the field exists.
+      id: 9b14005e-903d-4724-80ec-84e7c42a9e7b
+      iscommand: false
+      name: Is there a SHA256 to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 9b14005e-903d-4724-80ec-84e7c42a9e7b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 510,
+          "y": 370
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2c14bf01-7fd9-45f8-8554-86d0c1332d81
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 2c14bf01-7fd9-45f8-8554-86d0c1332d81
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 965
+        }
+      }
+  "10":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "13"
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      listType:
+        complex:
+          root: inputs.ListType
+      sha256:
+        complex:
+          root: inputs.SHA256
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Cylance Protect v2
+      description: Adds a convicted threat for a particular tenant to either the Global
+        Quarantine list or the Global Safe list.
+      id: ca946416-a22f-437e-b82f-42d8dab60c32
+      iscommand: true
+      name: Add hash to Global Quarantine list
+      playbooktaskmissingcomponent:
+      script: Cylance Protect v2|||cylance-protect-add-hash-to-list
+      type: regular
+      version: -1
+    taskid: ca946416-a22f-437e-b82f-42d8dab60c32
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 750,
+          "y": 705
+        }
+      }
+  "11":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "10"
+      Shadow Mode:
+      - "12"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 434ac536-a75f-4d51-9397-ac26ee5d419f
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 434ac536-a75f-4d51-9397-ac26ee5d419f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1070,
+          "y": 530
+        }
+      }
+  "12":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "13"
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Cylance Add Hash To Global Quarantine list
+          Command: cylance-protect-add-hash-to-list ${inputs.SHA256}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 9a7a7323-9af3-4955-aca8-c8fe59a63a15
+      iscommand: false
+      name: 'Shadow: Cylance Add Hash to Global Quarantine list'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 9a7a7323-9af3-4955-aca8-c8fe59a63a15
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1380,
+          "y": 700
+        }
+      }
+  "13":
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: da48fb19-dd12-4fb0-8584-1a3fdfe3c6d9
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: da48fb19-dd12-4fb0-8584-1a3fdfe3c6d9
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1180,
+          "y": 960
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "6_9_#default#": 0.64,
+      "8_9_#default#": 0.32
+    },
+    "paper": {
+      "dimensions": {
+        "height": 980,
+        "width": 1495,
+        "x": 265,
+        "y": 50
+      }
+    }
+  }
+fromversion: 5.0.0

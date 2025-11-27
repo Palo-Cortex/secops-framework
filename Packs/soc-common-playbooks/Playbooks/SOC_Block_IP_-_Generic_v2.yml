@@ -1,0 +1,1223 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 2.7.15
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    - agentix
+    toServerVersion: ""
+description: "Deprecated. Use the `Block IP - Generic v3` playbook instead. \nThis
+  playbook blocks malicious IPs using all integrations that are enabled.\n\nSupported
+  integrations for this playbook:\n* Check Point Firewall\n* Palo Alto Networks Minemeld\n
+  * Palo Alto Networks PAN-OS\n* Zscaler\n* FortiGate"
+dirtyInputs: true
+id: 'SOC Block IP - Generic v2'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - IPBlacklistMiner
+  - IP
+  - CustomBlockRule
+  - LogForwarding
+  - AutoCommit
+  - StaticAddressGroup
+  - IPListName
+  - EDLServerIP
+  - DAG
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The name of the IP block list Miner in  Minemeld.
+  key: IPBlacklistMiner
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Array of malicious IPs to block.
+  key: IP
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    This input determines whether Palo Alto Networks Panorama or Firewall Custom Block Rules are used.
+    Specify True to use Custom Block Rules.
+  key: CustomBlockRule
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "True"
+- description: Panorama log forwarding object name.
+  key: LogForwarding
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    This input determines whether to commit the configuration automatically.
+    Yes - Commit automatically.
+    No - Commit manually.
+  key: AutoCommit
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "No"
+- description: |-
+    This input determines whether Palo Alto Networks Panorama or Firewall Static Address Groups are used.
+    Specify the Static Address Group name for IP handling.
+  key: StaticAddressGroup
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    This input determines whether Palo Alto Networks Panorama or Firewall External Dynamic Lists are used for blocking IPs.
+    Specify the EDL name for IP handling.
+  key: IPListName
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    This input determines whether Palo Alto Networks Panorama or Firewall External Dynamic Lists are used:
+    * The IP address of the web server on which the files are stored.
+    * The web server IP address is configured in the integration instance.
+  key: EDLServerIP
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    This input determines whether Palo Alto Networks Panorama or Firewall Dynamic Address Groups are used.
+    Specify the Dynamic Address Group tag name for IP handling.
+  key: DAG
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block IP - Generic v2
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - CheckpointFWRule.Destination
+  - CheckpointFWRule.DestinationNegate
+  - PanoramaRule.Direction
+  - PanoramaRule.IP
+  - CheckpointFWRule.Name
+  - PanoramaRule.Name
+  - CheckpointFWRule.UID
+  - PanoramaRule
+  - CheckpointFWRule.Type
+  - CheckpointFWRule.Action
+  - CheckpointFWRule.ActionSetting
+  - CheckpointFWRule.CustomFields
+  - CheckpointFWRule.Data
+  - CheckpointFWRule.DataDirection
+  - CheckpointFWRule.DataNegate
+  - CheckpointFWRule.Domain
+  - CheckpointFWRule.Enabled
+  - CheckpointFWRule.Hits
+  - CheckpointFWRule.Data.Name
+  - CheckpointFWRule.Data.Domain
+  - CheckpointFWRule.Domain.Name
+  - CheckpointFWRule.Domain.UID
+  - CheckpointFWRule.Domain.Type
+  - CheckpointFWRule.Hits.FirstDate
+  - CheckpointFWRule.Hits.LastDate
+  - CheckpointFWRule.Hits.Level
+  - CheckpointFWRule.Hits.Percentage
+  - CheckpointFWRule.Hits.Value
+outputs:
+- contextPath: CheckpointFWRule.Destination
+  description: Rule Destination.
+- contextPath: CheckpointFWRule.DestinationNegate
+  description: Rule destination negate status (True/False).
+- contextPath: PanoramaRule.Direction
+  description: Direction of the Panorama rule. Can be 'to','from', 'both'
+  type: string
+- contextPath: PanoramaRule.IP
+  description: The IP the Panorama rule blocks
+  type: string
+- contextPath: CheckpointFWRule.Name
+  description: Rule name.
+- contextPath: PanoramaRule.Name
+  description: Name of the Panorama rule
+  type: string
+- contextPath: CheckpointFWRule.UID
+  description: Rule UID.
+- contextPath: PanoramaRule
+  description: List of Panorama rules
+- contextPath: CheckpointFWRule.Type
+  description: Rule Type.
+- contextPath: CheckpointFWRule.Action
+  description: 'Rule action (Valid values are: Accept, Drop, Apply Layer, Ask, Info).'
+- contextPath: CheckpointFWRule.ActionSetting
+  description: Rule action settings.
+- contextPath: CheckpointFWRule.CustomFields
+  description: Rule custom fields.
+- contextPath: CheckpointFWRule.Data
+  description: Rule data.
+- contextPath: CheckpointFWRule.DataDirection
+  description: Rule data direction.
+- contextPath: CheckpointFWRule.DataNegate
+  description: Rule data negate status (True/False).
+- contextPath: CheckpointFWRule.Domain
+  description: Rule domain.
+- contextPath: CheckpointFWRule.Enabled
+  description: Rule status.
+- contextPath: CheckpointFWRule.Hits
+  description: Rule hits count.
+- contextPath: CheckpointFWRule.Data.Name
+  description: Rule data object name.
+- contextPath: CheckpointFWRule.Data.Domain
+  description: Information about the domain the data object belongs to.
+- contextPath: CheckpointFWRule.Domain.Name
+  description: Rule domain name.
+- contextPath: CheckpointFWRule.Domain.UID
+  description: Rule domain UID.
+- contextPath: CheckpointFWRule.Domain.Type
+  description: Rule domain type.
+- contextPath: CheckpointFWRule.Hits.FirstDate
+  description: The date of the first hit for the rule.
+- contextPath: CheckpointFWRule.Hits.LastDate
+  description: The date of the last hit for the rule.
+- contextPath: CheckpointFWRule.Hits.Level
+  description: Level of rule hits.
+- contextPath: CheckpointFWRule.Hits.Percentage
+  description: Percentage of rule hits.
+- contextPath: CheckpointFWRule.Hits.Value
+  description: Value of rule hits.
+sourceplaybookid: Block IP - Generic v2
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "8"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 650804b8-1cd4-4c33-8d83-8f72c789f860
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 650804b8-1cd4-4c33-8d83-8f72c789f860
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 500,
+          "y": 10
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: cbdf2261-0bd1-4856-86f8-c5082a16f3ee
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: cbdf2261-0bd1-4856-86f8-c5082a16f3ee
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 510,
+          "y": 1300
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "17"
+      - "18"
+      - "20"
+      - "26"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 47c2b776-5038-453b-8115-48141dbad596
+      iscommand: false
+      name: Block IPs
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 47c2b776-5038-453b-8115-48141dbad596
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 500,
+          "y": 370
+        }
+      }
+  "6":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      direction:
+        simple: both
+      ip:
+        complex:
+          root: inputs.IP
+      ipname:
+        simple: IP-${inputs.IP}
+      rulename:
+        simple: Block-${inputs.IP}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Check Point
+      description: Block the IPs using Check Point Firewall
+      id: 02cce821-5459-460c-be12-786ae1105409
+      iscommand: true
+      name: Block IP with Check Point Firewall
+      playbooktaskmissingcomponent:
+      script: Check Point|||checkpoint-block-ip
+      type: regular
+      version: -1
+    taskid: 02cce821-5459-460c-be12-786ae1105409
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 750,
+          "y": 970
+        }
+      }
+  "7":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Check Point
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "34"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of Check Point Firewall enabled.
+      id: f74fb6b5-f7c9-42ed-808a-d227355f1e9d
+      iscommand: false
+      name: Is Check Point Firewall enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: f74fb6b5-f7c9-42ed-808a-d227355f1e9d
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 960,
+          "y": 650
+        }
+      }
+  "8":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.IP
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that the playbook input includes at least one IP to block.
+      id: 39db44de-9bb1-460e-8b42-023c12aa4778
+      iscommand: false
+      name: Is there an IP to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 39db44de-9bb1-460e-8b42-023c12aa4778
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 500,
+          "y": 155
+        }
+      }
+  "12":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Zscaler
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "32"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of Zscaler enabled.
+      id: e8c51174-7d85-4248-86b4-6d14eba20ca6
+      iscommand: false
+      name: Is Zscaler enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: e8c51174-7d85-4248-86b4-6d14eba20ca6
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1780,
+          "y": 650
+        }
+      }
+  "13":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ip:
+        complex:
+          root: inputs.IP
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Zscaler
+      description: Block the IPs using Zscaler.
+      id: cb843505-bd86-4159-8f3a-0cdd97770c2c
+      iscommand: true
+      name: Block IP with Zscaler
+      playbooktaskmissingcomponent:
+      script: Zscaler|||zscaler-blacklist-ip
+      type: regular
+      version: -1
+    taskid: cb843505-bd86-4159-8f3a-0cdd97770c2c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1570,
+          "y": 970
+        }
+      }
+  "16":
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 0
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: true
+    task:
+      brand: ""
+      id: 9620e528-42f8-4c0d-8706-b46a73d188be
+      iscommand: false
+      name: PAN-OS - Block IP and URL - External Dynamic List
+      playbookId: PAN-OS - Block IP and URL - External Dynamic List
+      playbookName: PAN-OS - Block IP and URL - External Dynamic List
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 9620e528-42f8-4c0d-8706-b46a73d188be
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 60,
+          "y": 890
+        }
+      }
+  "17":
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "24"
+      - "25"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9d73fbe9-6b72-4cd3-8a23-235fb61bc197
+      iscommand: false
+      name: PAN-OS
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 9d73fbe9-6b72-4cd3-8a23-235fb61bc197
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": -80,
+          "y": 515
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "7"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: fa041b26-6524-4e1f-8aeb-6d6e77e75c5c
+      iscommand: false
+      name: CheckPoint FW
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: fa041b26-6524-4e1f-8aeb-6d6e77e75c5c
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 960,
+          "y": 515
+        }
+      }
+  "20":
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "12"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: ffef1804-3251-47ce-83d5-f398b82b8fa6
+      iscommand: false
+      name: Zscaler
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: ffef1804-3251-47ce-83d5-f398b82b8fa6
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1780,
+          "y": 515
+        }
+      }
+  "21":
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 0
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: true
+    task:
+      brand: ""
+      id: 6c3dfdb9-9ac3-4a32-831b-67fc7bec6fd1
+      iscommand: false
+      name: PAN-OS DAG Configuration
+      playbookId: PAN-OS DAG Configuration
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 6c3dfdb9-9ac3-4a32-831b-67fc7bec6fd1
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": -380,
+          "y": 890
+        }
+      }
+  "24":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.IPListName
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.EDLServerIP
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "16"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify if there is an EDL Server IP as a playbook input.
+      id: 156aee26-31e3-4cba-8846-767ee8a2dc6a
+      iscommand: false
+      name: Use External Dynamic List?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 156aee26-31e3-4cba-8846-767ee8a2dc6a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 40,
+          "y": 650
+        }
+      }
+  "25":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.DAG
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "21"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify if there is a dynamic address group name set as a playbook
+        input.
+      id: 181b1519-8b3e-4296-8cb2-d0f91984b16b
+      iscommand: false
+      name: Use Dynamic Address Group?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 181b1519-8b3e-4296-8cb2-d0f91984b16b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -380,
+          "y": 650
+        }
+      }
+  "26":
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 65dca814-c04b-40ff-8e32-766432ee9f13
+      iscommand: false
+      name: Fortinet
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 65dca814-c04b-40ff-8e32-766432ee9f13
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 2590,
+          "y": 515
+        }
+      }
+  "27":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: FortiGate
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "30"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of FortiGate enabled.
+      id: 5ec7ae21-1c50-4a72-8a86-daa39ac43f18
+      iscommand: false
+      name: Is FortiGate enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 5ec7ae21-1c50-4a72-8a86-daa39ac43f18
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 2590,
+          "y": 660
+        }
+      }
+  "28":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "28"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "29"
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ip_address:
+        complex:
+          root: inputs.IP
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: FortiGate
+      description: Adds IP addresses to the banned list.
+      id: ac009747-08fb-4e87-ab50-94df18beb0c7
+      iscommand: true
+      name: 'FortiGate Ban IP '
+      playbooktaskmissingcomponent:
+      script: FortiGate|||fortigate-ban-ip
+      type: regular
+      version: -1
+    taskid: ac009747-08fb-4e87-ab50-94df18beb0c7
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2400,
+          "y": 960
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: fe0ffc2c-5608-4262-835c-9f324f6ecc0f
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: fe0ffc2c-5608-4262-835c-9f324f6ecc0f
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1340,
+          "y": 1295
+        }
+      }
+  "30":
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "28"
+      Shadow Mode:
+      - "31"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: deea2326-e463-4947-a6b3-2436c4f60e40
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: deea2326-e463-4947-a6b3-2436c4f60e40
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 2590,
+          "y": 810
+        }
+      }
+  "31":
+    continueonerrortype: ""
+    id: "31"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: FortiGate Ban IP
+          Command: fortigate-ban-ip ${inputs.IP}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 3be3f200-a9c7-421b-8841-cfd614c727c5
+      iscommand: false
+      name: 'Shadow: Fortigate Ban IP'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 3be3f200-a9c7-421b-8841-cfd614c727c5
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2790,
+          "y": 960
+        }
+      }
+  "32":
+    continueonerrortype: ""
+    id: "32"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "13"
+      Shadow Mode:
+      - "33"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: aa139b78-ee9c-4e80-ba18-2fec67326878
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: aa139b78-ee9c-4e80-ba18-2fec67326878
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1780,
+          "y": 820
+        }
+      }
+  "33":
+    continueonerrortype: ""
+    id: "33"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Zscaler Block IP
+          Command: zscaler-blacklist-ip ${inputs.IP}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: e703caf6-6ff5-4e4f-956c-76db08b4ff62
+      iscommand: false
+      name: 'Shadow: Zscaler Block IP'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: e703caf6-6ff5-4e4f-956c-76db08b4ff62
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1970,
+          "y": 970
+        }
+      }
+  "34":
+    continueonerrortype: ""
+    id: "34"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "6"
+      Shadow Mode:
+      - "35"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: fa85af38-5950-4ff0-9590-21faf4c2caad
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: fa85af38-5950-4ff0-9590-21faf4c2caad
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 960,
+          "y": 810
+        }
+      }
+  "35":
+    continueonerrortype: ""
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Check Point Block IP
+          Command: checkpoint-block-ip ${inputs.IP}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 2aa70143-90c6-46ed-88b9-3e99a9c189b6
+      iscommand: false
+      name: 'Shadow: Check Point Block IP'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 2aa70143-90c6-46ed-88b9-3e99a9c189b6
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1150,
+          "y": 970
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "12_2_#default#": 0.18,
+      "12_32_yes": 0.9,
+      "24_2_#default#": 0.1,
+      "25_2_#default#": 0.1,
+      "27_2_#default#": 0.16,
+      "7_2_#default#": 0.39,
+      "7_34_yes": 0.38,
+      "8_2_#default#": 0.48
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1355,
+        "width": 3550,
+        "x": -380,
+        "y": 10
+      }
+    }
+  }
+fromversion: 5.0.0

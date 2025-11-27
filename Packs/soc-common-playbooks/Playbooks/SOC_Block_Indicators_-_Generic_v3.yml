@@ -1,0 +1,1661 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.5.0
+    isoverridable: false
+    itemVersion: 2.7.16
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    - agentix
+    toServerVersion: ""
+description: |-
+  This playbook blocks malicious indicators using all integrations that are enabled, using the following sub-playbooks:
+
+  - Block URL - Generic v2
+  - Block Account - Generic v2
+  - Block IP - Generic v3
+  - Block File - Generic v2
+  - Block Email - Generic v2
+  - Block Domain - Generic v2.
+dirtyInputs: true
+id: 'SOC Block Indicators - Generic v3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - IP
+  - URL
+  - Username
+  - MD5
+  - SHA256
+  - FilesToBlock
+  - DomainToBlock
+  - EmailToBlock
+  - AutoBlockIndicators
+  - CustomBlockRule
+  - LogForwarding
+  - AutoCommit
+  - StaticAddressGroup
+  - CustomURLCategory
+  - type
+  - device-group
+  - categories
+  - DomainBlackListID
+  - Tag
+  - DAG
+  - UserVerification
+  - InternalRange
+  - SiteName
+  - AkamaiNetworkListID
+  - CiscoFWSource
+  - InputEnrichment
+  - RuleName
+  - RuleDirection
+  - EDLServerIP
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: 'An array of malicious IPs to block. Enter a comma-separated list of
+    IPs (i.e.: 1.1.1.1,2.2.2.2).'
+  key: IP
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: ip
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: Array of malicious URLs to block.
+  key: URL
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: url
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: Array of malicious usernames to block.
+  key: Username
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: username
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: The MD5 hash of the file you want to block.
+  key: MD5
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Indicator
+          operator: stringHasLength
+          right:
+            value:
+              simple: "32"
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: file
+        - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: hash
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: The SHA256 hash of the file you want to block.
+  key: SHA256
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Indicator
+          operator: stringHasLength
+          right:
+            value:
+              simple: "64"
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: file
+        - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: hash
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: Array of malicious file hashes to block.
+  key: FilesToBlock
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: file
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: The domain that you wish to block.
+  key: DomainToBlock
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: domain
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: The email address that you wish to block.
+  key: EmailToBlock
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Indicator
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Type
+          operator: isEqualString
+          right:
+            value:
+              simple: email
+      - - left:
+            iscontext: true
+            value:
+              simple: DBotScore.Score
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "3"
+      root: DBotScore
+      transformers:
+      - operator: uniq
+- description: "Should the given indicators be automatically blocked, or should the
+    user be prompted to select whether to block them?\n\nPossible values: True/False.
+    \nDefault value: True.\n\nIf set to True - No prompt will appear. All of the provided
+    indicators will be blocked automatically.\n\nIf set to False - The user will be
+    prompted to select which indicators to block."
+  key: AutoBlockIndicators
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "True"
+- description: "This input determines whether Palo Alto Networks Panorama or Firewall
+    Custom Block Rules are used.\nSpecify \"True\" to create new Custom Block Rules
+    (2 FW rules inside the PAN-OS device). \nFor \"False\" - no rules will be created."
+  key: CustomBlockRule
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "True"
+- description: Panorama log forwarding object name. Indicate what type of Log Forwarding
+    setting will be specified in the PAN-OS custom rules.
+  key: LogForwarding
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: "This input determines whether to commit the configuration automatically
+    on PAN-OS devices and other FWs. \nYes - Commit automatically.\nNo - Commit manually."
+  key: AutoCommit
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "No"
+- description: |-
+    This input determines whether Palo Alto Networks Panorama or Firewall Static Address Groups are used.
+    Specify the Static Address Group name for IPs list handling.
+  key: StaticAddressGroup
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Custom URL Category name.
+  key: CustomURLCategory
+  playbookInputQuery:
+  required: false
+  value:
+    simple: XSOAR Remediation - Malicious URLs
+- description: Custom URL category type. Insert "URL List"/ "Category Match".
+  key: type
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Device group for the Custom URL Category (Panorama instances).
+  key: device-group
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The list of categories. Relevant from PAN-OS v9.x.
+  key: categories
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    The Domain List ID to add the Domain to.
+    product: Proofpoint Threat Response
+  key: DomainBlackListID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Insert a tag name with which indicators will get tagged. This tag can
+    be used later in the External Dynamic Lists integration by using the tag for filtering
+    IPs in the indicator query.
+  key: Tag
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Blocked Indicator In Systems
+- description: |-
+    This input determines whether Palo Alto Networks Panorama or Firewall Dynamic Address Groups are used.
+    Specify the Dynamic Address Group tag name for IPs list handling.
+  key: DAG
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: "Possible values: True/False.  Default: True.\nWhether to provide user
+    verification for blocking those IPs. \n\nFalse - No prompt will be displayed to
+    the user.\nTrue - The server will ask the user for blocking verification and will
+    display the blocking list."
+  key: UserVerification
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "True"
+- description: 'A list of internal IP ranges to check IP addresses against. The comma-separated
+    list should be provided in CIDR notation. For example, a list of ranges would
+    be: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16" (without quotes).'
+  key: InternalRange
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: PrivateIPs
+      root: lists
+      transformers:
+      - args:
+          error_if_no_match: {}
+          ignore_case: {}
+          multi_line: {}
+          period_matches_newline: {}
+          regex:
+            value:
+              simple: (\b(?:\d{1,3}\.){3}\d{1,3}\b/\d{1,2})
+          unpack_matches: {}
+        operator: RegexExtractAll
+      - args:
+          separator:
+            value:
+              simple: ','
+        operator: join
+- description: Signal Sciences WAF - Enter the site name for the integration to be
+    applied. The site name can be found in your instance console.
+  key: SiteName
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Akamai's WAF network list ID, which is mandatory to be mentioned for
+    the integration. The chosen IPs will be added to this ID.
+  key: AkamaiNetworkListID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Cisco ASA (firewall) value for the rule's source object in the created
+    blocking rule. Can be the value of an IPv4, an address block, or the name of a
+    network object.
+  key: CiscoFWSource
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    The rule name/description that will be presented on the created rule in certain integrations (if there is a need).
+    The supported integrations: PAN-OS, CheckPoint.
+
+    Default input- "XSOAR - Block IP playbook - ${incident.id}"
+  key: InputEnrichment
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "False"
+- description: |-
+    The rule name/description that will be presented on the created rule in certain integrations (if there is a need).
+    The supported integrations: PAN-OS, CheckPoint.
+
+    Default input- "XSOAR - Block IP playbook - ${incident.id}"
+  key: RuleName
+  playbookInputQuery:
+  required: false
+  value:
+    simple: XSOAR - Block Indicators playbook - ${alert.id}
+- description: |-
+    Determine if a newly created rule should be with the network direction of outbound or inbound blocked traffic.
+    Possible values: inbound or outbound
+    Default: outbound
+  key: RuleDirection
+  playbookInputQuery:
+  required: false
+  value:
+    simple: outbound
+- description: EDL Server IP Address
+  key: EDLServerIP
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block Indicators - Generic v3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - CheckpointFWRule.Domain
+  - CheckpointFWRule.Enabled
+  - CheckpointFWRule.Name
+  - CheckpointFWRule.UID
+  - CheckpointFWRule.Type
+  - CheckpointFWRule.DestinationNegate
+  - CheckpointFWRule.Action
+  - CheckpointFWRule.Destination
+  - CheckpointFWRule.ActionSetting
+  - CheckpointFWRule.CustomFields
+  - CheckpointFWRule.Data
+  - CheckpointFWRule.DataDirection
+  - CheckpointFWRule.DataNegate
+  - CheckpointFWRule.Hits
+  - PanoramaRule.Direction
+  - PanoramaRule.IP
+  - PanoramaRule.Name
+  - CheckpointFWRule.Data.Name
+  - CheckpointFWRule.Data.Domain
+  - CheckpointFWRule.Domain.Name
+  - CheckpointFWRule.Domain.UID
+  - CheckpointFWRule.Domain.Type
+  - CheckpointFWRule.Hits.FirstDate
+  - CheckpointFWRule.Hits.LastDate
+  - CheckpointFWRule.Hits.Level
+  - CheckpointFWRule.Hits.Percentage
+  - CheckpointFWRule.Hits.Value
+  - IndicatorsToBlock
+outputs:
+- contextPath: CheckpointFWRule.Domain
+  description: Rule domain.
+- contextPath: CheckpointFWRule.Enabled
+  description: Rule status.
+- contextPath: CheckpointFWRule.Name
+  description: Rule name.
+- contextPath: CheckpointFWRule.UID
+  description: Rule UID.
+- contextPath: CheckpointFWRule.Type
+  description: Rule Type.
+- contextPath: CheckpointFWRule.DestinationNegate
+  description: Rule destination negate status (True/False).
+- contextPath: CheckpointFWRule.Action
+  description: 'Rule action (Valid values are: Accept, Drop, Apply Layer, Ask, Info).'
+- contextPath: CheckpointFWRule.Destination
+  description: Rule Destination.
+- contextPath: CheckpointFWRule.ActionSetting
+  description: Rule action settings.
+- contextPath: CheckpointFWRule.CustomFields
+  description: Rule custom fields.
+- contextPath: CheckpointFWRule.Data
+  description: Rule data.
+- contextPath: CheckpointFWRule.DataDirection
+  description: Rule data direction.
+- contextPath: CheckpointFWRule.DataNegate
+  description: Rule data negate status (True/False).
+- contextPath: CheckpointFWRule.Hits
+  description: Rule hits count.
+- contextPath: PanoramaRule.Direction
+  description: Direction of the Panorama rule. Can be 'to','from', 'both'.
+  type: string
+- contextPath: PanoramaRule.IP
+  description: The IP the Panorama rule blocks.
+  type: string
+- contextPath: PanoramaRule.Name
+  description: Name of the Panorama rule.
+  type: string
+- contextPath: CheckpointFWRule.Data.Name
+  description: Rule data object name.
+- contextPath: CheckpointFWRule.Data.Domain
+  description: Information about the domain the data object belongs to.
+- contextPath: CheckpointFWRule.Domain.Name
+  description: Rule domain name.
+- contextPath: CheckpointFWRule.Domain.UID
+  description: Rule domain UID.
+- contextPath: CheckpointFWRule.Domain.Type
+  description: Rule domain type.
+- contextPath: CheckpointFWRule.Hits.FirstDate
+  description: The date of the first hit for the rule.
+- contextPath: CheckpointFWRule.Hits.LastDate
+  description: The date of the last hit for the rule.
+- contextPath: CheckpointFWRule.Hits.Level
+  description: Level of rule hits.
+- contextPath: CheckpointFWRule.Hits.Percentage
+  description: Percentage of rule hits.
+- contextPath: CheckpointFWRule.Hits.Value
+  description: Value of rule hits.
+- contextPath: IndicatorsToBlock
+  description: Selected indicators to block.
+  type: unknown
+sourceplaybookid: Block Indicators - Generic v3
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: be855f8e-b0d6-4b33-8898-954bf9ba99cc
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: be855f8e-b0d6-4b33-8898-954bf9ba99cc
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": -870
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "26"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: c155d55d-f7f3-4af2-8739-3cb6143e0e81
+      iscommand: false
+      name: Tag Indicators
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: c155d55d-f7f3-4af2-8739-3cb6143e0e81
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 515
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "32"
+      - "34"
+      - "35"
+      - "36"
+      - "37"
+      - "39"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 15d43128-6c48-4deb-8ed0-044d0454fa7b
+      iscommand: false
+      name: Block indicators
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 15d43128-6c48-4deb-8ed0-044d0454fa7b
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 195
+        }
+      }
+  "14":
+    continueonerrortype: ""
+    id: "14"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 22f0eb38-c4d3-4e67-889b-6abbff216ab8
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 22f0eb38-c4d3-4e67-889b-6abbff216ab8
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 1005
+        }
+      }
+  "15":
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "14"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      field:
+        simple: tags
+      fieldValue:
+        complex:
+          root: inputs.Tag
+      indicatorsValues:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: IndicatorsToBlock
+              operator: isNotEqualString
+              right:
+                value:
+                  simple: No indicators to block
+          root: IndicatorsToBlock
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Builtin
+      description: commands.local.cmd.add.values.to.indicator.multi.select.field
+      id: 8e6165ed-cc2e-4820-8ae4-c73fd82a3088
+      iscommand: true
+      name: Tag bad indicators
+      playbooktaskmissingcomponent:
+      script: Builtin|||appendIndicatorField
+      type: regular
+      version: -1
+    taskid: 8e6165ed-cc2e-4820-8ae4-c73fd82a3088
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1390,
+          "y": 820
+        }
+      }
+  "19":
+    continueonerrortype: ""
+    form:
+      description: Select which indicators to block.
+      expired: false
+      questions:
+      - defaultrows: []
+        fieldassociated: ""
+        gridcolumns: []
+        id: "0"
+        label: ""
+        labelarg:
+          simple: Select IPs to block
+        options: []
+        optionsarg:
+        - complex:
+            root: inputs.IP
+            transformers:
+            - operator: uniq
+        placeholder: ""
+        readonly: false
+        required: false
+        tooltip: ""
+        type: multiSelect
+      - defaultrows: []
+        fieldassociated: ""
+        gridcolumns: []
+        id: "1"
+        label: ""
+        labelarg:
+          simple: Select URLs to block
+        options: []
+        optionsarg:
+        - complex:
+            root: inputs.URL
+            transformers:
+            - operator: uniq
+        placeholder: ""
+        readonly: false
+        required: false
+        tooltip: ""
+        type: multiSelect
+      - defaultrows: []
+        fieldassociated: ""
+        gridcolumns: []
+        id: "2"
+        label: ""
+        labelarg:
+          simple: Select files to block
+        options: []
+        optionsarg:
+        - complex:
+            root: inputs.MD5
+            transformers:
+            - args:
+                item:
+                  iscontext: true
+                  value:
+                    simple: inputs.SHA256
+              operator: append
+            - args:
+                item:
+                  iscontext: true
+                  value:
+                    simple: inputs.FilesToBlock
+              operator: append
+            - operator: uniq
+        placeholder: ""
+        readonly: false
+        required: false
+        tooltip: ""
+        type: multiSelect
+      - defaultrows: []
+        fieldassociated: ""
+        gridcolumns: []
+        id: "3"
+        label: ""
+        labelarg:
+          simple: Select users to block
+        options: []
+        optionsarg:
+        - complex:
+            root: inputs.Username
+        placeholder: ""
+        readonly: false
+        required: false
+        tooltip: ""
+        type: multiSelect
+      - defaultrows: []
+        fieldassociated: ""
+        gridcolumns: []
+        id: "4"
+        label: ""
+        labelarg:
+          simple: Select emails to block
+        options: []
+        optionsarg:
+        - complex:
+            root: inputs.EmailToBlock
+            transformers:
+            - operator: uniq
+        placeholder: ""
+        readonly: false
+        required: false
+        tooltip: ""
+        type: multiSelect
+      - defaultrows: []
+        fieldassociated: ""
+        gridcolumns: []
+        id: "5"
+        label: ""
+        labelarg:
+          simple: Select domains to block
+        options: []
+        optionsarg:
+        - complex:
+            root: inputs.DomainToBlock
+            transformers:
+            - operator: uniq
+        placeholder: ""
+        readonly: false
+        required: false
+        tooltip: ""
+        type: multiSelect
+      sender: ""
+      title: Which indicators would you like to block?
+      totalanswers: 0
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    message:
+      bcc:
+      body:
+      cc:
+      format: ""
+      methods: []
+      subject:
+      timings:
+        completeafterreplies: 1
+        completeaftersla: false
+        completeafterv2: true
+        retriescount: 2
+        retriesinterval: 360
+      to:
+    nexttasks:
+      '#none#':
+      - "21"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Select which indicators to block.
+      id: 0d20c35f-5bdf-4b27-8b63-f5334f9342f5
+      iscommand: false
+      name: Which indicators would you like to block?
+      playbooktaskmissingcomponent:
+      type: collection
+      version: -1
+    taskid: 0d20c35f-5bdf-4b27-8b63-f5334f9342f5
+    timertriggers: []
+    type: collection
+    view: |-
+      {
+        "position": {
+          "x": 680,
+          "y": -330
+        }
+      }
+  "20":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.AutoBlockIndicators
+          operator: isEqualString
+          right:
+            value:
+              simple: "true"
+      label: "yes"
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "19"
+      "yes":
+      - "22"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the AutoBlockIndicators input is set to 'True'
+      id: 8a156613-e43b-4bf2-857c-159220291b3b
+      iscommand: false
+      name: Block Indicators Automatically?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 8a156613-e43b-4bf2-857c-159220291b3b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": -500
+        }
+      }
+  "21":
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "23"
+    note: false
+    quietmode: 0
+    reputationcalc: 2
+    scriptarguments:
+      key:
+        simple: IndicatorsToBlock
+      value:
+        complex:
+          accessor: "0"
+          root: Which indicators would you like to block?.Answers
+          transformers:
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: Which indicators would you like to block?.Answers.1
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: Which indicators would you like to block?.Answers.2
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: Which indicators would you like to block?.Answers.3
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: Which indicators would you like to block?.Answers.4
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: Which indicators would you like to block?.Answers.5
+            operator: append
+          - operator: uniq
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: No indicators to block
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: ca92498f-ebc4-4e68-81e9-44e1c6907d9d
+      iscommand: false
+      name: Set indicators to block - Manual
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: ca92498f-ebc4-4e68-81e9-44e1c6907d9d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 680,
+          "y": -170
+        }
+      }
+  "22":
+    continueonerrortype: ""
+    id: "22"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "23"
+    note: false
+    quietmode: 0
+    reputationcalc: 2
+    scriptarguments:
+      key:
+        simple: IndicatorsToBlock
+      value:
+        complex:
+          root: inputs.IP
+          transformers:
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: inputs.URL
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: inputs.Username
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: inputs.MD5
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: inputs.SHA256
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: inputs.EmailToBlock
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: inputs.DomainToBlock
+            operator: append
+          - args:
+              item:
+                iscontext: true
+                value:
+                  simple: inputs.FilesToBlock
+            operator: append
+          - operator: uniq
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: No indicators to block
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 6cabb94a-1422-4d97-89ee-5b35b328c70b
+      iscommand: false
+      name: Set indicators to block - Auto
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 6cabb94a-1422-4d97-89ee-5b35b328c70b
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": -170
+        }
+      }
+  "23":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: IndicatorsToBlock
+          operator: isNotEqualString
+          right:
+            value:
+              simple: No indicators to block
+      label: "yes"
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "14"
+      "yes":
+      - "7"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether there are indicators to block.
+      id: 92a68f14-96ed-4e6f-880f-dde5980b1fc2
+      iscommand: false
+      name: Has indicators to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 92a68f14-96ed-4e6f-880f-dde5980b1fc2
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 30
+        }
+      }
+  "26":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Tag
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "14"
+      "yes":
+      - "15"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether a tag for blocked indicators was specified.
+      id: ee795eae-1fc0-4458-864b-91b2f224db89
+      iscommand: false
+      name: Tag received from inputs?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: ee795eae-1fc0-4458-864b-91b2f224db89
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 650
+        }
+      }
+  "27":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.IP
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.URL
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Username
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.MD5
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.SHA256
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FilesToBlock
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.DomainToBlock
+          operator: isNotEmpty
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.EmailToBlock
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "14"
+      "yes":
+      - "20"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Looks for available indicators to process
+      id: 4b64da5f-53b9-4fdd-8e65-5a133c6700d6
+      iscommand: false
+      name: Are there indicators to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 4b64da5f-53b9-4fdd-8e65-5a133c6700d6
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": -700
+        }
+      }
+  "32":
+    continueonerrortype: ""
+    id: "32"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |
+        This playbook will block emails at your mail relay integration.
+
+        Supported integrations for this playbook:
+        * Mimecast
+        * FireEye Email Security (EX)
+        * Cisco Email Security
+        * Symantec Email Security
+      id: ac1dcf02-1ea8-488a-ad60-b31434a0026d
+      iscommand: false
+      name: SOC Block Email - Generic v2
+      playbookId: SOC Block Email - Generic v2
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: ac1dcf02-1ea8-488a-ad60-b31434a0026d
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1330,
+          "y": 340
+        }
+      }
+  "34":
+    continueonerrortype: ""
+    id: "34"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |
+        This playbook blocks malicious Domains using all integrations that are enabled.
+
+        Supported integrations for this playbook:
+        * Zscaler
+        * Symantec Messaging Gateway
+        * FireEye EX
+        * Trend Micro Apex One
+        * Proofpoint Threat Response
+        * Cisco Stealthwatch Cloud
+      id: 65f15302-fd9a-4ee3-9777-312c8350c3e9
+      iscommand: false
+      name: SOC Block Domain - Generic v2
+      playbookId: SOC Block Domain - Generic v2
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 65f15302-fd9a-4ee3-9777-312c8350c3e9
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1760,
+          "y": 340
+        }
+      }
+  "35":
+    continueonerrortype: ""
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      AutoCommit:
+        simple: "No"
+      CustomURLCategory:
+        simple: XSOAR Remediation - Malicious URLs
+      Folder:
+        simple: Shared
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+      UserVerification:
+        simple: "True"
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        This playbook blocks malicious URLs using all integrations that are enabled.
+
+        Supported integrations for this playbook:
+        * Palo Alto Networks PAN-OS
+        * Zscaler
+        * Sophos
+        * Forcepoint
+        * Checkpoint
+        * Netcraft.
+      id: 114d89c6-d66a-4322-af15-50e41e979728
+      iscommand: false
+      name: SOC Block URL - Generic v2
+      playbookId: SOC Block URL - Generic v2
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 114d89c6-d66a-4322-af15-50e41e979728
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 30,
+          "y": 340
+        }
+      }
+  "36":
+    continueonerrortype: ""
+    id: "36"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+      Tag:
+        simple: Bad Account
+      UserVerification:
+        simple: "True"
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        This playbook blocks malicious usernames using all integrations that you have enabled.
+
+        Supported integrations for this playbook:
+        * Active Directory
+        * PAN-OS - This requires PAN-OS 9.1 or higher.
+        * SailPoint
+        * PingOne
+        * AWS IAM
+        * Clarizen IAM
+        * Envoy IAM
+        * ExceedLMS IAM
+        * Okta
+        * Microsoft Graph User (Azure Active Directory Users)
+        * Google Workspace Admin
+        * Slack IAM
+        * ServiceNow IAM
+        * Prisma Cloud IAM
+        * Zoom IAM
+        * Atlassian IAM
+        * GitHub IAM.
+      id: bbcc49c4-52a8-400d-ac24-132c221bc0df
+      iscommand: false
+      name: SOC Block Account - Generic v2
+      playbookId: SOC Block Account - Generic v2
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: bbcc49c4-52a8-400d-ac24-132c221bc0df
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 460,
+          "y": 340
+        }
+      }
+  "37":
+    continueonerrortype: ""
+    id: "37"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      MD5:
+        complex:
+          accessor: MD5
+          root: File
+      SHA256:
+        complex:
+          accessor: SHA256
+          root: File
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "This playbook is used to block files from running on endpoints.
+        \nThis playbook supports the following integrations:\n- Palo Alto Networks
+        Traps\n- Palo Alto Networks Cortex XDR\n- Cybereason\n- Carbon Black Enterprise
+        Response\n- Cylance Protect v2\n- Crowdstrike Falcon\n- Microsoft Defender
+        for Endpoint."
+      id: 7c49c3b9-313c-4282-abfd-235baaccd6a6
+      iscommand: false
+      name: SOC Block File - Generic v2
+      playbookId: SOC Block File - Generic v2
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 7c49c3b9-313c-4282-abfd-235baaccd6a6
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 930,
+          "y": 340
+        }
+      }
+  "39":
+    continueonerrortype: ""
+    id: "39"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      AutoCommit:
+        simple: "No"
+      CustomBlockRule:
+        simple: "True"
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 312289eb-2251-4985-a7a0-7befe2235c5b
+      iscommand: false
+      name: SOC Block IP - Generic v2
+      playbookId: SOC Block IP - Generic v2
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 312289eb-2251-4985-a7a0-7befe2235c5b
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 2170,
+          "y": 340
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "27_14_#default#": 0.88,
+      "27_20_yes": 0.4
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1935,
+        "width": 2520,
+        "x": 30,
+        "y": -870
+      }
+    }
+  }
+fromversion: 5.0.0
