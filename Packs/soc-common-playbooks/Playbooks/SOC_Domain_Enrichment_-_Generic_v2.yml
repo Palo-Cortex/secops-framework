@@ -1,0 +1,544 @@
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 1.0.0
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    toServerVersion: ""
+description: |-
+  Enrich domains using one or more integrations.
+  Domain enrichment includes:
+  * Threat information
+  * Domain reputation using !domain command
+adopted: true
+id: 'SOC Domain Enrichment - Generic v2'
+inputs:
+- description: The domain name to enrich.
+  key: Domain
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Name
+      root: Domain
+      transformers:
+      - operator: uniq
+- description: |-
+    Define if you would like to use the !url command.
+    Note: This input should be used whenever there is no auto-extract enabled in the investigation flow.
+    Possible values: True / False.
+  key: UseReputationCommand
+  playbookInputQuery:
+  required: true
+  value:
+    simple: "False"
+name: SOC Domain Enrichment - Generic v2
+outputs:
+- contextPath: Domain
+  description: The domain objects.
+  type: string
+- contextPath: DBotScore
+  description: Indicator, Score, Type, and Vendor.
+  type: string
+- contextPath: Domain.Name
+  description: Bad domain found.
+  type: string
+- contextPath: Domain.Malicious.Vendor
+  description: For malicious domains, the vendor that made the decision.
+  type: string
+- contextPath: DBotScore.Indicator
+  description: The indicator that was tested.
+  type: string
+- contextPath: DBotScore.Type
+  description: The indicator type.
+  type: string
+- contextPath: DBotScore.Score
+  description: The actual DBot score.
+  type: number
+- contextPath: Domain.SecurityCategories
+  description: The Umbrella security category, or categories, that match this domain
+  type: string
+- contextPath: Domain.ContentCategories
+  description: The Umbrella content category or categories that match this domain
+  type: string
+- contextPath: Domain.Malicious.Description
+  description: For malicious domains, the reason for the vendor to make the decision
+  type: string
+- contextPath: Domain.CreationDate
+  description: The date on which the domain was created.
+  type: string
+- contextPath: Domain.DomainStatus
+  description: The status of the domain.
+  type: string
+- contextPath: Domain.UpdatedDate
+  description: The date on which the domain was last updated.
+  type: string
+- contextPath: Domain.ExpirationDate
+  description: The expiration date of the domain.
+  type: string
+- contextPath: Domain.Umbrella.RiskScore
+  description: The status will be "-1" if the domain is believed to be malicious,
+    "1" if the domain is believed to be benign, "0" if it hasn't been classified yet.
+  type: string
+- contextPath: Domain.Umbrella.SecureRank 
+  description: Suspicious rank for a domain that reviews based on the lookup behavior
+    of client IP for the domain. Securerank is designed to identify hostnames requested
+    by known infected clients but never requested by clean clients, assuming these
+    domains are more likely to be bad. Scores returned range from -100 (suspicious)
+    to 100 (benign). Note, this parameter is deprecated by the API, and will be equal
+    to 0.
+  type: string
+- contextPath: Domain.Umbrella.FirstQueriedTime
+  description: The time when the attribution for this Domain was made.
+  type: string
+- contextPath: Domain.Umbrella.ContentCategories
+  description: The Umbrella content category or categories that match this domain.
+    If none of them match, the return will be blank.
+  type: string
+- contextPath: Domain.Umbrella.MalwareCategories
+  description: The Umbrella security category, or categories, that match this domain
+    or that this domain is associated with. If none match, the return will be blank.
+  type: string
+- contextPath: DBotScore.Vendor
+  description: The vendor used to calculate the score.
+  type: string
+- contextPath: Domain.Admin.Country
+  description: The country of the domain administrator.
+  type: string
+- contextPath: Domain.Admin.Email
+  description: The email address of the domain administrator.
+  type: string
+- contextPath: Domain.Admin.Name
+  description: The name of the domain administrator.
+  type: string
+- contextPath: Domain.Admin.Phone
+  description: The phone number of the domain administrator.
+  type: string
+- contextPath: Domain.Registrant.Country
+  description: The country of the registrant.
+  type: string
+- contextPath: Domain.Registrant.Email
+  description: The email address of the registrant.
+  type: string
+- contextPath: Domain.Registrant.Name
+  description: The name of the registrant.
+  type: string
+- contextPath: Domain.Registrant.Phone
+  description: The phone number of the registrant.
+  type: string
+- contextPath: Domain.Registrar.Name
+  description: The name of the registrar, such as "GoDaddy".
+  type: string
+sourceplaybookid: Domain Enrichment - Generic v2
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "16"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3f6b8522-c653-4608-800d-f7da232392fb
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: 3f6b8522-c653-4608-800d-f7da232392fb
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 54.75,
+          "y": 50
+        }
+      }
+  "16":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.Domain
+          operator: isExists
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "yes":
+      - "33"
+      - "32"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the playbook's input contains at least one domain
+        name to enrich.
+      id: 86e8324e-34fa-4726-8cc0-2f61e6de5395
+      iscommand: false
+      name: Is there a domain to enrich?
+      type: condition
+      version: -1
+    taskid: 86e8324e-34fa-4726-8cc0-2f61e6de5395
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 54.75,
+          "y": 210
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: f6da103d-6baa-4afb-8b7d-65740714dcf2
+      iscommand: false
+      name: Done
+      type: title
+      version: -1
+    taskid: f6da103d-6baa-4afb-8b7d-65740714dcf2
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 885
+        }
+      }
+  "29":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "36"
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      domain:
+        complex:
+          root: inputs.Domain
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Gets the category of the domain as found in Cisco Umbrella Investigation
+        records.
+      id: ce6ae1a5-a542-43ee-8fea-2bfa5b7c5f0e
+      iscommand: true
+      name: Get domain category
+      script: '|||umbrella-domain-categorization'
+      type: regular
+      version: -1
+    taskid: ce6ae1a5-a542-43ee-8fea-2bfa5b7c5f0e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 340.5,
+          "y": 710
+        }
+      }
+  "30":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Cisco Umbrella Investigate
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "yes":
+      - "29"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is an active instance of the Cisco Umbrella Investigate
+        integration enabled.
+      id: ec9764d9-3eea-44d8-8da7-538766ac0670
+      iscommand: false
+      name: Is Cisco Umbrella Investigate enabled?
+      type: condition
+      version: -1
+    taskid: ec9764d9-3eea-44d8-8da7-538766ac0670
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 95.25,
+          "y": 540
+        }
+      }
+  "32":
+    continueonerrortype: ""
+    id: "32"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "34"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 230be3d0-b15b-446e-8e9e-5eaf8aa47c2b
+      iscommand: false
+      name: Domain Reputation
+      type: title
+      version: -1
+    taskid: 230be3d0-b15b-446e-8e9e-5eaf8aa47c2b
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 781,
+          "y": 380
+        }
+      }
+  "33":
+    continueonerrortype: ""
+    id: "33"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "30"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 1dd7328d-b062-4a7c-8b80-55acc42bb92b
+      iscommand: false
+      name: Cisco Umbrella enrichment
+      type: title
+      version: -1
+    taskid: 1dd7328d-b062-4a7c-8b80-55acc42bb92b
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 95.25,
+          "y": 380
+        }
+      }
+  "34":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.UseReputationCommand
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      label: "yes"
+    continueonerrortype: ""
+    id: "34"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "yes":
+      - "35"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check whether to run domain reputation command.
+      id: 5b429a1c-ec97-4f6a-877b-0e5dbff30e9f
+      iscommand: false
+      name: Should use !domain command?
+      type: condition
+      version: -1
+    taskid: 5b429a1c-ec97-4f6a-877b-0e5dbff30e9f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 781,
+          "y": 540
+        }
+      }
+  "35":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "36"
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      domain:
+        complex:
+          root: inputs.Domain
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: ""
+      description: Checks the reputation of a domain.
+      id: d7e35314-a3b5-4bc3-ac5f-e71e00facd74
+      iscommand: true
+      name: Check Reputation
+      script: '|||domain'
+      type: regular
+      version: -1
+    taskid: d7e35314-a3b5-4bc3-ac5f-e71e00facd74
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 926.25,
+          "y": 710
+        }
+      }
+  "36":
+    continueonerrortype: ""
+    id: "36"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: true
+    task:
+      brand: ""
+      id: 1a30ec18-e26d-4c55-96a0-9accdc422fb5
+      iscommand: false
+      name: Foundation - Upon Trigger
+      playbookId: Foundation - Upon Trigger
+      type: playbook
+      version: -1
+    taskid: 1a30ec18-e26d-4c55-96a0-9accdc422fb5
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 976.25,
+          "y": 880
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "16_24_#default#": 0.13,
+      "30_24_#default#": 0.43,
+      "30_29_yes": 0.5,
+      "34_24_#default#": 0.41,
+      "34_35_yes": 0.47
+    },
+    "paper": {
+      "dimensions": {
+        "height": 900,
+        "width": 1307.25,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+fromversion: 5.0.0

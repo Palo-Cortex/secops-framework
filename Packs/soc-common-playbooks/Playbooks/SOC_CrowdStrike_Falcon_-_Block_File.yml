@@ -1,0 +1,622 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.10.0
+    isoverridable: false
+    itemVersion: 1.0.0
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: "This playbook receives an MD5 or a SHA256 hash and adds it to the block
+  list in CrowdStrike Falcon. \nThe playbook uses the integration \"CrowdStrike Falcon\"\
+  ."
+dirtyInputs: true
+id: 'SOC CrowdStrike Falcon - Block File'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - 'Severity '
+  - Hash
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: 'The severity of the indicator (informational, low, medium, high and
+    critical) '
+  key: 'Severity '
+  playbookInputQuery:
+  required: true
+  value:
+    simple: medium
+- description: In this input you can insert either MD5 or SHA256 to block.
+  key: Hash
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Shadow Mode is a key safety mechanism. It ensures actions like isolate_endpoint
+    or disable_user are logged but not executed in test scenarios.
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC CrowdStrike Falcon - Block File
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: CrowdStrike Falcon - Block File
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0d73b973-bbfc-453b-8f17-48573f846ef8
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 0d73b973-bbfc-453b-8f17-48573f846ef8
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 845.75,
+          "y": 60
+        }
+      }
+  "1":
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      brandname:
+        simple: CrowdstrikeFalcon
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns 'yes' if the integration brand is available. Otherwise
+        returns 'no'.
+      id: 6131ee7b-bdd9-48b7-8ef9-6f4f25520d57
+      iscommand: false
+      name: 'Is CrowdStrike enabled? '
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 6131ee7b-bdd9-48b7-8ef9-6f4f25520d57
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 845.75,
+          "y": 210
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: adf1831c-824c-4336-83f7-59df78cb904b
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: adf1831c-824c-4336-83f7-59df78cb904b
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 680,
+          "y": 1290
+        }
+      }
+  "7":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action:
+        simple: prevent
+      applied_globally:
+        simple: "true"
+      ioc_type:
+        simple: sha256
+      platforms:
+        simple: mac,windows,linux
+      severity:
+        complex:
+          root: 'inputs.Severity '
+      value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.Hash
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "64"
+          root: inputs.Hash
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: CrowdstrikeFalcon
+      description: Uploads an indicator for CrowdStrike to monitor.
+      id: fdf5f2a5-206f-41fa-bf97-85c3d12c9860
+      iscommand: true
+      name: Block by SHA256
+      playbooktaskmissingcomponent:
+      script: CrowdstrikeFalcon|||cs-falcon-upload-custom-ioc
+      type: regular
+      version: -1
+    taskid: fdf5f2a5-206f-41fa-bf97-85c3d12c9860
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 465.75,
+          "y": 890
+        }
+      }
+  "8":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action:
+        simple: prevent
+      applied_globally:
+        simple: "true"
+      ioc_type:
+        simple: md5
+      platforms:
+        simple: windows,mac,linux
+      severity:
+        complex:
+          root: 'inputs.Severity '
+      value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.Hash
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "32"
+          root: inputs.Hash
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: CrowdstrikeFalcon
+      description: Uploads an indicator for CrowdStrike to monitor.
+      id: e7d425f1-beef-4302-91d8-8fefaa1404e9
+      iscommand: true
+      name: Block by MD5
+      playbooktaskmissingcomponent:
+      script: CrowdstrikeFalcon|||cs-falcon-upload-custom-ioc
+      type: regular
+      version: -1
+    taskid: e7d425f1-beef-4302-91d8-8fefaa1404e9
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2070,
+          "y": 880
+        }
+      }
+  "9":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Hash
+          operator: isNotEmpty
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "10"
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2cd3e8da-b26a-4d7e-8466-567b0c1727dc
+      iscommand: false
+      name: Is there any file to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 2cd3e8da-b26a-4d7e-8466-567b0c1727dc
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 960,
+          "y": 360
+        }
+      }
+  "10":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Hash
+                transformers:
+                - operator: uniq
+          operator: stringHasLength
+          right:
+            value:
+              simple: "64"
+      label: "Yes"
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "Yes":
+      - "17"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 03ec2d2d-fe08-4e24-83db-bb3511aa626b
+      iscommand: false
+      name: Has SHA256 Hashes?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 03ec2d2d-fe08-4e24-83db-bb3511aa626b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 340.5,
+          "y": 550
+        }
+      }
+  "11":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Hash
+                transformers:
+                - operator: uniq
+          operator: stringHasLength
+          right:
+            value:
+              simple: "32"
+      label: "Yes"
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "Yes":
+      - "18"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 68b13d2c-09d4-48d5-8607-8e9b922cc8ab
+      iscommand: false
+      name: Has MD5 Hashes?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 68b13d2c-09d4-48d5-8607-8e9b922cc8ab
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1552.5,
+          "y": 550
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: e7f16046-9c00-4832-8aec-37614f86ba41
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: e7f16046-9c00-4832-8aec-37614f86ba41
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1530,
+          "y": 1270
+        }
+      }
+  "14":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "14"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: Block by MD5
+          Command: cs-falcon-upload-custom-ioc ${inputs.Hash}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: ea89ec84-b71f-416c-aeab-d109b842bf41
+      iscommand: false
+      name: CrowdStrike Block by MD5
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: ea89ec84-b71f-416c-aeab-d109b842bf41
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1567.25,
+          "y": 880
+        }
+      }
+  "16":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: Block by SHA256
+          Command: cs-falcon-upload-custom-ioc ${inputs.Hash}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: caf0851a-94f3-489c-84d1-87b89cc9ca2e
+      iscommand: false
+      name: CrowdStrike Block by SHA256
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: caf0851a-94f3-489c-84d1-87b89cc9ca2e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -60,
+          "y": 890
+        }
+      }
+  "17":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "7"
+      Shadow Mode:
+      - "16"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: "true"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d7cd21f4-0e80-451e-bf0c-f879a14bcbfc
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: d7cd21f4-0e80-451e-bf0c-f879a14bcbfc
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 210,
+          "y": 730
+        }
+      }
+  "18":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "8"
+      Shadow Mode:
+      - "14"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: "true"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3f02c51f-6922-4418-8624-930d4280030e
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 3f02c51f-6922-4418-8624-930d4280030e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1810,
+          "y": 720
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "10_3_#default#": 0.24,
+      "11_3_#default#": 0.49,
+      "1_3_#default#": 0.37,
+      "9_11_yes": 0.64,
+      "9_3_#default#": 0.3
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1290,
+        "width": 2510,
+        "x": -60,
+        "y": 60
+      }
+    }
+  }
+fromversion: 5.0.0

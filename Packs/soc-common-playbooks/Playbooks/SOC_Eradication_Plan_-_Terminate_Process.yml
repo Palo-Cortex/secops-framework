@@ -1,0 +1,1099 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.6.0
+    isoverridable: false
+    itemVersion: 2.7.15
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    toServerVersion: ""
+description: "This playbook is one of the sub-playbooks in the eradication plan. \n
+  This playbook handles the termination of the processes as a crucial step in the
+  eradication action.\nThe playbook executes actions of process termination, which
+  is a crucial step in the eradication process.\nThe process termination can be performed
+  based on either the process ID or the process name."
+dirtyInputs: true
+id: 'SOC Eradication Plan - Terminate Process'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - ProcessTermination
+  - EndpointID
+  - FilePath
+  - ProcessID
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: "Choose 'PID' to terminate the process by PID or 'Name' to terminate
+    the process by process name. \nNote: If neither option is selected, the process
+    will not be terminated."
+  key: ProcessTermination
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Name
+- description: The endpoint ID to run commands over.
+  key: EndpointID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The file path for the process termination.
+  key: FilePath
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The process ID to terminate.
+  key: ProcessID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Eradication Plan - Terminate Process
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - TerminatedProcessFromEndpoints
+outputs:
+- contextPath: TerminatedProcessFromEndpoints
+  description: The terminated process from endpoint
+  type: unknown
+sourceplaybookid: Eradication Plan - Terminate Process
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0c2bd2d8-2747-473f-873c-fdf0258c1425
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 0c2bd2d8-2747-473f-873c-fdf0258c1425
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 190,
+          "y": -180
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.EndpointID
+          operator: isNotEmpty
+          right:
+            value: {}
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ProcessTermination
+          operator: isEqualString
+          right:
+            value:
+              simple: PID
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ProcessID
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ProcessID
+          operator: notContainsGeneral
+          right:
+            value:
+              simple: \
+      label: PID
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ProcessTermination
+          operator: isEqualString
+          right:
+            value:
+              simple: Name
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.EndpointID
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FilePath
+          operator: isNotEmpty
+      label: Name
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "5"
+      Name:
+      - "22"
+      PID:
+      - "21"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Whether to terminate the process automatically, manually, or not
+        at all.
+      id: 387a0de2-f9a3-412a-8531-299ba47ac010
+      iscommand: false
+      name: Should terminate the process?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 387a0de2-f9a3-412a-8531-299ba47ac010
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 190,
+          "y": -40
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b6c458a7-8533-4692-87af-498de4ea894f
+      iscommand: false
+      name: Done - Process Termination
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: b6c458a7-8533-4692-87af-498de4ea894f
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 190,
+          "y": 1240
+        }
+      }
+  "8":
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action_id:
+        complex:
+          accessor: action_id
+          root: Core.GetActionStatus
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Retrieve the results of a script execution action.
+      id: d1bf1eb3-8962-4fe0-8f37-dd1d6e67fc1d
+      iscommand: true
+      name: Get command result
+      playbooktaskmissingcomponent:
+      script: '|||core-get-script-execution-results'
+      type: regular
+      version: -1
+    taskid: d1bf1eb3-8962-4fe0-8f37-dd1d6e67fc1d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -70,
+          "y": 500
+        }
+      }
+  "9":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "23"
+      '#none#':
+      - "8"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      endpoint_ids:
+        complex:
+          root: inputs.EndpointID
+      process_name:
+        complex:
+          root: FilePath
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: '[^\\]+$'
+              unpack_matches: {}
+            operator: RegexExtractAll
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Initiates a new endpoint script execution kill process.
+      id: 9fbfc5a0-d0b7-4354-a968-e8964e4ee45e
+      iscommand: true
+      name: process termination
+      playbooktaskmissingcomponent:
+      script: '|||core-run-script-kill-process'
+      type: regular
+      version: -1
+    taskid: 9fbfc5a0-d0b7-4354-a968-e8964e4ee45e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -70,
+          "y": 320
+        }
+      }
+  "10":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: standard_output
+                root: Core.ScriptResult.results
+          operator: notEndWith
+          right:
+            value:
+              simple: 'killed: 0.'
+      label: "yes"
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "20"
+      "yes":
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if the process was terminated.
+      id: 5bb3ab00-26df-4e11-89b2-a213d1eba8aa
+      iscommand: false
+      name: Was the process terminated?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 5bb3ab00-26df-4e11-89b2-a213d1eba8aa
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -70,
+          "y": 670
+        }
+      }
+  "11":
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "12"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      extend-context:
+        simple: TerminatedProcessFromEndpoints=
+      ignore-outputs:
+        simple: "true"
+      key:
+        complex:
+          root: inputs.EndpointID
+      value:
+        complex:
+          accessor: standard_output
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: Core.ScriptResult.results._return_value
+              operator: isEqualString
+              right:
+                value:
+                  simple: "True"
+          root: Core.ScriptResult.results
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: .*name (.*) found.*
+              unpack_matches: {}
+            operator: RegexExtractAll
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 960374b2-8b4a-4577-8bf1-ac02f9ceccf4
+      iscommand: false
+      name: Set terminated process per endpoint ID
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 960374b2-8b4a-4577-8bf1-ac02f9ceccf4
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -70,
+          "y": 860
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      extend-context:
+        simple: TerminatedProcessOnEndpoints=
+      key:
+        simple: TerminatedProcessPerEndpointsID
+      value:
+        complex:
+          root: TerminatedProcessFromEndpoints
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.parent.alert.context
+      id: 42d427fd-6d4a-4b70-8b1a-35c76fdd8d45
+      iscommand: true
+      name: Set Deleted files per endpoint ID to the Alert context
+      playbooktaskmissingcomponent:
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      version: -1
+    taskid: 42d427fd-6d4a-4b70-8b1a-35c76fdd8d45
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -70,
+          "y": 1040
+        }
+      }
+  "13":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "23"
+      '#none#':
+      - "15"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      commands:
+        simple: taskkill /F /PID ${ProcessID}
+      endpoint_ids:
+        complex:
+          root: inputs.EndpointID
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Initiate a new endpoint script execution of shell commands.
+      id: b55e14c5-51c9-455a-8560-36383f942676
+      iscommand: true
+      name: process termination
+      playbooktaskmissingcomponent:
+      script: '|||core-run-script-execute-commands'
+      type: regular
+      version: -1
+    taskid: b55e14c5-51c9-455a-8560-36383f942676
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": 320
+        }
+      }
+  "15":
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "16"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action_id:
+        complex:
+          accessor: action_id
+          root: Core.ScriptRun
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Retrieve the results of a script execution action.
+      id: 98faa8b1-1539-4e59-8274-c8434226eff7
+      iscommand: true
+      name: Get command result
+      playbooktaskmissingcomponent:
+      script: '|||core-get-script-execution-results'
+      type: regular
+      version: -1
+    taskid: 98faa8b1-1539-4e59-8274-c8434226eff7
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": 500
+        }
+      }
+  "16":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: standard_output
+                root: Core.ScriptResult.results
+          operator: endWith
+          right:
+            value:
+              simple: has been terminated.
+      label: "yes"
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "19"
+      "yes":
+      - "17"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if the termination of the process was successful.
+      id: 1a42b9b2-db4a-4905-8dd5-4b47d18449fc
+      iscommand: false
+      name: Was the process terminated?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 1a42b9b2-db4a-4905-8dd5-4b47d18449fc
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": 670
+        }
+      }
+  "17":
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "18"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      extend-context:
+        simple: TerminatedProcessFromEndpoints=
+      ignore-outputs:
+        simple: "true"
+      key:
+        complex:
+          root: inputs.EndpointID
+      value:
+        complex:
+          accessor: standard_output
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: Core.ScriptResult.results._return_value
+              operator: isEqualString
+              right:
+                value:
+                  simple: "True"
+          root: Core.ScriptResult.results
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: .*name (.*) found.*
+              unpack_matches: {}
+            operator: RegexExtractAll
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 800bc596-f674-43ff-84cf-91da9573954b
+      iscommand: false
+      name: Set terminated process per endpoint ID
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 800bc596-f674-43ff-84cf-91da9573954b
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": 860
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      extend-context:
+        simple: TerminatedProcessOnEndpoints=
+      key:
+        simple: TerminatedProcessPerEndpointsID
+      value:
+        complex:
+          root: TerminatedProcessFromEndpoints
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.parent.alert.context
+      id: 0056cbe7-0eda-4bea-832f-9438e1f45936
+      iscommand: true
+      name: Set Deleted files per endpoint ID to the Alert context
+      playbooktaskmissingcomponent:
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      version: -1
+    taskid: 0056cbe7-0eda-4bea-832f-9438e1f45936
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": 1040
+        }
+      }
+  "19":
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      message:
+        simple: The process termination has failed.
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints an error entry with a given message
+      id: c7749af3-73ff-4422-87dd-e8caeb84c069
+      iscommand: false
+      name: Print Error
+      playbooktaskmissingcomponent:
+      script: PrintErrorEntry
+      type: regular
+      version: -1
+    taskid: c7749af3-73ff-4422-87dd-e8caeb84c069
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1020,
+          "y": 860
+        }
+      }
+  "20":
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      message:
+        simple: The process termination has failed.
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints an error entry with a given message
+      id: 4e7794f3-70a6-4941-8e9e-65ef20777dca
+      iscommand: false
+      name: Print Error
+      playbooktaskmissingcomponent:
+      script: PrintErrorEntry
+      type: regular
+      version: -1
+    taskid: 4e7794f3-70a6-4941-8e9e-65ef20777dca
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -490,
+          "y": 860
+        }
+      }
+  "21":
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "26"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: ProcessID
+      value:
+        complex:
+          root: inputs.ProcessID
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: PID\":\"(\d+?)\"
+              unpack_matches: {}
+            operator: RegexExtractAll
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                iscontext: true
+                value:
+                  simple: inputs.ProcessID
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: e5475bb4-564f-4364-892b-12b130016b7a
+      iscommand: false
+      name: Set PID
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: e5475bb4-564f-4364-892b-12b130016b7a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": 150
+        }
+      }
+  "22":
+    continueonerrortype: ""
+    id: "22"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: FilePath
+      value:
+        complex:
+          root: inputs.FilePath
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: Path\":\"(.+?)\"
+              unpack_matches: {}
+            operator: RegexExtractAll
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                iscontext: true
+                value:
+                  simple: inputs.FilePath
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 77d2329d-39ac-4e97-8490-b759589f91ad
+      iscommand: false
+      name: Set Path
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 77d2329d-39ac-4e97-8490-b759589f91ad
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -70,
+          "y": 150
+        }
+      }
+  "23":
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: ee7dd725-fe5f-4919-8e7f-46115af0617d
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: ee7dd725-fe5f-4919-8e7f-46115af0617d
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 710,
+          "y": 1235
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "9"
+      Shadow Mode:
+      - "25"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 91d25756-3c88-49f7-8bf6-165ad92c912c
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 91d25756-3c88-49f7-8bf6-165ad92c912c
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -560,
+          "y": 230
+        }
+      }
+  "25":
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "11"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Palo XDR Kill Process
+          Command: core-run-script-kill-process ${inputs.FilePath}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 697fde5c-cab8-4724-96fb-5b82c3e8b5ca
+      iscommand: false
+      name: 'Shadow: Palo XDR Kill Process'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 697fde5c-cab8-4724-96fb-5b82c3e8b5ca
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -570,
+          "y": 410
+        }
+      }
+  "26":
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "13"
+      Shadow Mode:
+      - "27"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 923ab99c-7548-4d6e-8b62-b8c1f647b475
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 923ab99c-7548-4d6e-8b62-b8c1f647b475
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 900,
+          "y": 230
+        }
+      }
+  "27":
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "17"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Palo XDR Kill Process
+          Command: core-run-script-execute-commands ${ProcessID}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 5cb2b236-1d62-4da0-9604-bbc62a733c8a
+      iscommand: false
+      name: 'Shadow: Palo XDR Kill Process'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 5cb2b236-1d62-4da0-9604-bbc62a733c8a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 390
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "16_17_yes": 0.41,
+      "1_5_#default#": 0.14
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1485,
+        "width": 1970,
+        "x": -570,
+        "y": -180
+      }
+    }
+  }
+fromversion: 5.0.0

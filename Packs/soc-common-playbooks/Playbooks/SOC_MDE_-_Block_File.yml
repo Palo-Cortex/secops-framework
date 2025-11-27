@@ -1,0 +1,665 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.10.0
+    isoverridable: false
+    itemVersion: 1.20.8
+    packID: ""
+    packName: Microsoft Defender for Endpoint
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: "This playbook receives an MD5 or a SHA256 hash and adds it to the block
+  list in Microsoft Defender for Endpoint. \nThe playbook uses the integration \"
+  Microsoft Defender for Endpoint\"."
+dirtyInputs: true
+id: 'SOC MDE - Block File'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - 'Severity '
+  - IndicatorDescription
+  - IndicatorTitle
+  - GenerateAlert
+  - Hash
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The severity of the malicious behavior identified by the data within
+    the indicator, where High is the most severe and Informational is not severe at
+    all.
+  key: 'Severity '
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Brief description (100 characters or less) of the threat represented
+    by the indicator.
+  key: IndicatorDescription
+  playbookInputQuery:
+  required: true
+  value:
+    simple: Added by Cortex
+- description: The indicator alert title in Defender.
+  key: IndicatorTitle
+  playbookInputQuery:
+  required: true
+  value:
+    simple: Added by Cortex
+- description: Whether to generate an alert or not. The default is true.
+  key: GenerateAlert
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+- description: In this input you can insert either MD5 or SHA256 to block.
+  key: Hash
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    Shadow Mode is a key safety mechanism. It ensures actions like isolate_endpoint or disable_user are logged but not executed in test scenarios.
+    - Made in the Upon Trigger playbook.
+    - Stored in the incident’s data context.
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC MDE - Block File
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: MDE - Block File
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2301242c-19a0-41b2-8906-2a58c726a8ff
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 2301242c-19a0-41b2-8906-2a58c726a8ff
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 250,
+          "y": 90
+        }
+      }
+  "1":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      '#error#':
+      - "9"
+      "yes":
+      - "6"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      brandname:
+        simple: Microsoft Defender Advanced Threat Protection
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns 'yes' if the integration brand is available. Otherwise
+        returns 'no'.
+      id: 8ad41643-eae0-476f-82c8-2e2b3705f363
+      iscommand: false
+      name: Is Microsoft Defender for Endpoint is enable?
+      playbooktaskmissingcomponent:
+      script: IsIntegrationAvailable
+      type: condition
+      version: -1
+    taskid: 8ad41643-eae0-476f-82c8-2e2b3705f363
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 250,
+          "y": 240
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 32e7827d-3a6f-4154-8ef5-6e3a0d20a518
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 32e7827d-3a6f-4154-8ef5-6e3a0d20a518
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": 1270
+        }
+      }
+  "4":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action:
+        simple: Block
+      generate_alert:
+        complex:
+          root: inputs.GenerateAlert
+      indicator_description:
+        complex:
+          root: inputs.IndicatorDescription
+      indicator_title:
+        complex:
+          root: inputs.IndicatorTitle
+      indicator_type:
+        simple: FileSha256
+      indicator_value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.SHA256
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "64"
+          root: inputs.SHA256
+          transformers:
+          - operator: uniq
+      severity:
+        complex:
+          root: 'inputs.Severity '
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Microsoft Defender Advanced Threat Protection
+      description: Creates a new indicator.
+      id: f5cd6551-f1a0-47fa-b279-05b7678a6baf
+      iscommand: true
+      name: Block Indicators by SHA256
+      playbooktaskmissingcomponent:
+      script: Microsoft Defender Advanced Threat Protection|||microsoft-atp-sc-indicator-create
+      type: regular
+      version: -1
+    taskid: f5cd6551-f1a0-47fa-b279-05b7678a6baf
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1010,
+          "y": 1000
+        }
+      }
+  "5":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action:
+        simple: Block
+      generate_alert:
+        complex:
+          root: inputs.GenerateAlert
+      indicator_description:
+        complex:
+          root: inputs.IndicatorDescription
+      indicator_title:
+        complex:
+          root: inputs.IndicatorTitle
+      indicator_type:
+        simple: FileMd5
+      indicator_value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.MD5
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "32"
+          root: inputs.MD5
+          transformers:
+          - operator: uniq
+      severity:
+        complex:
+          root: 'inputs.Severity '
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Microsoft Defender Advanced Threat Protection
+      description: Creates a new indicator.
+      id: 752cb3d2-8431-4528-a094-c71252e2f269
+      iscommand: true
+      name: Block Indicators by MD5
+      playbooktaskmissingcomponent:
+      script: Microsoft Defender Advanced Threat Protection|||microsoft-atp-sc-indicator-create
+      type: regular
+      version: -1
+    taskid: 752cb3d2-8431-4528-a094-c71252e2f269
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -50,
+          "y": 1000
+        }
+      }
+  "6":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Hash
+          operator: isNotEmpty
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "7"
+      - "8"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: aeda8e30-f52c-4e9d-8f10-67e049054750
+      iscommand: false
+      name: Is there any file to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: aeda8e30-f52c-4e9d-8f10-67e049054750
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 260,
+          "y": 410
+        }
+      }
+  "7":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Hash
+                transformers:
+                - operator: uniq
+          operator: stringHasLength
+          right:
+            value:
+              simple: "32"
+      label: "yes"
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "12"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 4b1ab765-8f50-44ab-8f68-1649fec5095c
+      iscommand: false
+      name: Has MD5 hashes?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 4b1ab765-8f50-44ab-8f68-1649fec5095c
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -210,
+          "y": 580
+        }
+      }
+  "8":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Hash
+                transformers:
+                - operator: uniq
+          operator: stringHasLength
+          right:
+            value:
+              simple: "64"
+      label: "yes"
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "4"
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3d4dde8d-e1ec-4712-8a31-b18d40635b1f
+      iscommand: false
+      name: Has SHA256 hashes?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 3d4dde8d-e1ec-4712-8a31-b18d40635b1f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 702.5,
+          "y": 580
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2b6efb40-1f3c-4936-8e3b-05f115ba4102
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 2b6efb40-1f3c-4936-8e3b-05f115ba4102
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 940,
+          "y": 1350
+        }
+      }
+  "10":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "4"
+      Shadow Mode:
+      - "11"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0b85e28d-9e0b-4fb1-ab17-90950d94511a
+      iscommand: false
+      name: Run Mode
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 0b85e28d-9e0b-4fb1-ab17-90950d94511a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1210,
+          "y": 810
+        }
+      }
+  "11":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: MS Defender Block SHA256
+          Command: microsoft-atp-sc-indicator-create ${inputs.SHA256}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 612406e4-1732-41b2-a11a-34480513f12f
+      iscommand: false
+      name: 'Shadow Mode: Block Indicators by SHA256'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 612406e4-1732-41b2-a11a-34480513f12f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1420,
+          "y": 1000
+        }
+      }
+  "12":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "5"
+      Shadow Mode:
+      - "13"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      Message:
+        simple: '"Shadow Mode: "'
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 08a0fe62-f065-4ddf-855d-8fbe789bb002
+      iscommand: false
+      name: Run Mode
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 08a0fe62-f065-4ddf-855d-8fbe789bb002
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -250,
+          "y": 800
+        }
+      }
+  "13":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: "Shadow: MS Defender Block MD5 \nCommand: microsoft-atp-sc-indicator-create
+          ${inputs.Hash}"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 5bfdd037-54bd-43d7-b247-626ef423219d
+      iscommand: false
+      name: 'Shadow Mode: Block Indicators by MD5'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 5bfdd037-54bd-43d7-b247-626ef423219d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -450,
+          "y": 1000
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "1_3_#default#": 0.42,
+      "6_3_#default#": 0.32,
+      "6_7_yes": 0.54,
+      "6_8_yes": 0.62,
+      "7_12_yes": 0.89,
+      "7_3_#default#": 0.43,
+      "8_3_#default#": 0.17,
+      "8_4_yes": 0.66
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1330,
+        "width": 2250,
+        "x": -450,
+        "y": 90
+      }
+    }
+  }
+fromversion: 5.0.0

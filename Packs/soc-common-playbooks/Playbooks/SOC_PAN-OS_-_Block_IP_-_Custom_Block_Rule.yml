@@ -1,0 +1,672 @@
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 1.0.0
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    toServerVersion: ""
+description: |-
+  This playbook blocks IP addresses using Custom Block Rules in Palo Alto Networks Panorama or Firewall.
+  The playbook receives malicious IP addresses as inputs, creates a custom bi-directional rule to block them, and commits the configuration.
+dirtyInputs: true
+id: 'SOC PAN-OS - Block IP - Custom Block Rule'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - LogForwarding
+  - IP
+  - AutoCommit
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: Panorama log forwarding object name
+  key: LogForwarding
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: IP address to block
+  key: IP
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Address
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: IP.Malicious
+          operator: isExists
+      root: IP
+      transformers:
+      - operator: uniq
+- description: |-
+    This input establishes whether to commit the configuration automatically.
+    Yes - Commit automatically.
+    No - Commit manually.
+  key: AutoCommit
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "No"
+- description: Shadow Mode is a key safety mechanism. It ensures actions like isolate_endpoint
+    or disable_user are logged but not executed in test scenarios.
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC PAN-OS - Block IP - Custom Block Rule
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: PAN-OS - Block IP - Custom Block Rule
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 49a9b9d3-a97b-4473-8119-70300c0c01ed
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: 49a9b9d3-a97b-4473-8119-70300c0c01ed
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 481,
+          "y": 50
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Panorama
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 957428b9-9a0c-4ae3-8917-83ae0a83de43
+      iscommand: false
+      name: Palo Alto Networks PAN-OS enabled?
+      type: condition
+      version: -1
+    taskid: 957428b9-9a0c-4ae3-8917-83ae0a83de43
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 481,
+          "y": 210
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "15"
+      '#none#':
+      - "17"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      log_forwarding:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.LogForwarding
+              operator: isNotEmpty
+          root: inputs.LogForwarding
+      object_type:
+        simple: ip
+      object_value:
+        complex:
+          root: inputs.IP
+      pre_post:
+        simple: pre-rulebase
+      rulename:
+        simple: Demisto - ${alert.id}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Creates a custom block policy rule in Panorama.
+      id: 4f2dd2a0-72aa-4a98-aa92-91e131db091f
+      iscommand: true
+      name: Panorama - Create custom block rule
+      script: '|||pan-os-custom-block-rule'
+      type: regular
+      version: -1
+    taskid: 4f2dd2a0-72aa-4a98-aa92-91e131db091f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 962,
+          "y": 1230
+        }
+      }
+  "4":
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: da771405-12fa-4cf0-8e22-1ecfd2393812
+      iscommand: false
+      name: Done
+      type: title
+      version: -1
+    taskid: da771405-12fa-4cf0-8e22-1ecfd2393812
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 435.75,
+          "y": 1570
+        }
+      }
+  "5":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.IP
+          operator: isExists
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "18"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3ca4edaa-2ab1-4c17-b633-4ebf573a18e1
+      iscommand: false
+      name: Is there an IP to block?
+      type: condition
+      version: -1
+    taskid: 3ca4edaa-2ab1-4c17-b633-4ebf573a18e1
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 626.25,
+          "y": 380
+        }
+      }
+  "7":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "15"
+      '#none#':
+      - "11"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ip_netmask:
+        simple: 255.255.255.255
+      name:
+        complex:
+          root: inputs.IP
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Creates an address object
+      id: 09a29c90-2d95-4fe8-90e5-e8125bfa706c
+      iscommand: true
+      name: PAN-OS - Create address object
+      script: '|||pan-os-create-address'
+      type: regular
+      version: -1
+    taskid: 09a29c90-2d95-4fe8-90e5-e8125bfa706c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 531,
+          "y": 720
+        }
+      }
+  "11":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.AutoCommit
+          operator: isEqualString
+          right:
+            value:
+              simple: "Yes"
+      label: "yes"
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "12"
+      "yes":
+      - "16"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 4d41a27f-1818-4f90-8bba-39b3881a4af3
+      iscommand: false
+      name: AutoCommit defined?
+      type: condition
+      version: -1
+    taskid: 4d41a27f-1818-4f90-8bba-39b3881a4af3
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 721.5,
+          "y": 890
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5df6d93f-8c45-4a3b-840f-cd0a24cc7ae6
+      iscommand: false
+      name: Commit PAN-OS Instance manually
+      type: regular
+      version: -1
+    taskid: 5df6d93f-8c45-4a3b-840f-cd0a24cc7ae6
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 435.75,
+          "y": 1060
+        }
+      }
+  "13":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "15"
+      '#none#':
+      - "14"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      log_forwarding:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.LogForwarding
+              operator: isNotEmpty
+          root: inputs.LogForwarding
+      object_type:
+        simple: ip
+      object_value:
+        complex:
+          root: inputs.IP
+      pre_post:
+        simple: pre-rulebase
+      rulename:
+        simple: Demisto - ${alert.id}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Creates a custom block policy rule in Panorama.
+      id: 132d398b-e8e2-4e96-bc18-698f7fc88385
+      iscommand: true
+      name: Panorama - Create custom block rule
+      script: '|||pan-os-custom-block-rule'
+      type: regular
+      version: -1
+    taskid: 132d398b-e8e2-4e96-bc18-698f7fc88385
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 435.75,
+          "y": 1230
+        }
+      }
+  "14":
+    continueonerrortype: ""
+    id: "14"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: a1caf43e-5771-4591-8b0f-1653b0fd201a
+      iscommand: false
+      name: Commit PAN-OS Instance manually
+      type: regular
+      version: -1
+    taskid: a1caf43e-5771-4591-8b0f-1653b0fd201a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 531,
+          "y": 1400
+        }
+      }
+  "15":
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 267ba183-4090-44a6-84cf-67697b3675aa
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      type: playbook
+      version: -1
+    taskid: 267ba183-4090-44a6-84cf-67697b3675aa
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1400
+        }
+      }
+  "16":
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b9ffab74-7ee9-4b98-8f9c-6a32cfdfae58
+      iscommand: false
+      name: SOC PAN-OS Commit Configuration v2
+      playbookId: SOC PAN-OS Commit Configuration v2
+      type: playbook
+      version: -1
+    taskid: b9ffab74-7ee9-4b98-8f9c-6a32cfdfae58
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 962,
+          "y": 1060
+        }
+      }
+  "17":
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 68309d6a-c9f2-4165-8eb1-b517754d6c8a
+      iscommand: false
+      name: SOC PAN-OS Commit Configuration v2
+      playbookId: SOC PAN-OS Commit Configuration v2
+      type: playbook
+      version: -1
+    taskid: 68309d6a-c9f2-4165-8eb1-b517754d6c8a
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1012,
+          "y": 1400
+        }
+      }
+  "18":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ShadowMode
+          operator: isFalse
+          right:
+            value: {}
+      label: "no"
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "19"
+      "no":
+      - "7"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 8580095f-c402-4d1e-9308-a935b1165b0d
+      iscommand: false
+      name: Shadow Run?
+      type: condition
+      version: -1
+    taskid: 8580095f-c402-4d1e-9308-a935b1165b0d
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 771.5,
+          "y": 550
+        }
+      }
+  "19":
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: Block IP on PAN-OS ${inputs.IP}
+          Command: pan-os-custom-block-rule
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: d51cceda-f8cf-4c3b-8509-5b823e58c533
+      iscommand: false
+      name: Print To WarRoom
+      script: Print
+      type: regular
+      version: -1
+    taskid: d51cceda-f8cf-4c3b-8509-5b823e58c533
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1493,
+          "y": 1400
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "11_16_yes": 0.82,
+      "1_4_#default#": 0.15,
+      "5_4_#default#": 0.19
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1580,
+        "width": 1823,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+adopted: true
+fromversion: 5.0.0

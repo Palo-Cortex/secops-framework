@@ -1,0 +1,404 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 2.1.53
+    packID: ""
+    packName: Carbon Black Enterprise Response
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: |-
+  This playbook receives an MD5 hash and adds it to the block list in Carbon Black Enterprise Response. Files with that MD5 hash are blocked from execution on the managed endpoints. If the hash is already on the block list, no action is taken on the MD5.
+
+  The playbook uses the integration ''VMware Carbon Black EDR v2".
+dirtyInputs: true
+id: 'SOC Block File - Carbon Black Response'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - MD5
+  - Text
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The MD5 hash of the file you want to block.
+  key: MD5
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: MD5
+      root: File
+- description: Text description of block list.
+  key: Text
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Blocked by XSOAR
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block File - Carbon Black Response
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - CbResponse.BlockedHashes.LastBlock.Time
+  - CbResponse.BlockedHashes.LastBlock.Hostname
+  - CbResponse.BlockedHashes.LastBlock.CbSensorID
+outputs:
+- contextPath: CbResponse.BlockedHashes.LastBlock.Time
+  description: Last block time
+- contextPath: CbResponse.BlockedHashes.LastBlock.Hostname
+  description: Last block hostname
+- contextPath: CbResponse.BlockedHashes.LastBlock.CbSensorID
+  description: Last block sensor ID
+sourceplaybookid: Block File - Carbon Black Response
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "8"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5e4385e3-76c2-48e2-80a4-c3798cdae027
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 5e4385e3-76c2-48e2-80a4-c3798cdae027
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -340
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      md5:
+        complex:
+          root: inputs.MD5
+      text:
+        complex:
+          root: inputs.Text
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: VMware Carbon Black EDR v2
+      description: Prevent execution of a specified md5 hash
+      id: 3abbd606-e6ac-41a4-a783-d0a76e14f3ff
+      iscommand: true
+      name: Get a list of blacklisted hashes
+      playbooktaskmissingcomponent:
+      script: VMware Carbon Black EDR v2|||cb-edr-binary-ban
+      type: regular
+      version: -1
+    taskid: 3abbd606-e6ac-41a4-a783-d0a76e14f3ff
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1130,
+          "y": 150
+        }
+      }
+  "6":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: VMware Carbon Black EDR v2
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "2"
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if Carbon Black Enterprise Response integration is enabled.
+      id: 83cd8bdb-894a-436d-87df-45889e52da88
+      iscommand: false
+      name: Is Carbon Black Enterprise Response enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 83cd8bdb-894a-436d-87df-45889e52da88
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 710,
+          "y": -30
+        }
+      }
+  "8":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.MD5
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is a value for the MD5 input field. This task does
+        not verify that the value is actually an MD5 hash, just that the value for
+        the MD5 field exists.
+      id: ff0935b7-054b-4729-82a3-5588d553d9d0
+      iscommand: false
+      name: Is there an MD5 to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: ff0935b7-054b-4729-82a3-5588d553d9d0
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -200
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2c14bf01-7fd9-45f8-8554-86d0c1332d81
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 2c14bf01-7fd9-45f8-8554-86d0c1332d81
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 350
+        }
+      }
+  "10":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "2"
+      Shadow Mode:
+      - "11"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7b5460df-d1b3-43a2-92b0-347c5ac4e68a
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 7b5460df-d1b3-43a2-92b0-347c5ac4e68a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1320,
+          "y": -70
+        }
+      }
+  "11":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: Carbon Black Ban Hash
+          Command: cb-edr-binary-ban ${inputs.MD5}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: e24e3cc8-5a36-4dc1-b7d9-3f227d38e6fd
+      iscommand: false
+      name: 'Shadow: Carbon Black Ban MD5 Hash'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: e24e3cc8-5a36-4dc1-b7d9-3f227d38e6fd
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1570,
+          "y": 150
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0887c687-1ca0-4651-8e75-c22495572248
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 0887c687-1ca0-4651-8e75-c22495572248
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1570,
+          "y": 345
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "6_9_#default#": 0.19,
+      "8_9_#default#": 0.16
+    },
+    "paper": {
+      "dimensions": {
+        "height": 755,
+        "width": 1500,
+        "x": 450,
+        "y": -340
+      }
+    }
+  }
+fromversion: 5.0.0

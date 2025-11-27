@@ -1,0 +1,390 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.6.0
+    isoverridable: false
+    itemVersion: 2.7.15
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    toServerVersion: ""
+description: "This playbook is one of the sub-playbooks in the eradication plan. \n
+  This playbook executes actions of file deletion, which is a crucial step in the
+  eradication process."
+dirtyInputs: true
+id: 'SOC Eradication Plan - Delete File'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - FileRemediation
+  - EndpointID
+  - FilePath
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: "Choose 'Quarantine' or 'Delete' to avoid file remediation conflicts.
+    \nFor example, choosing 'Delete' ignores the 'Quarantine file' task under the
+    containment playbook and executes only file deletion."
+  key: FileRemediation
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Delete
+- description: The endpoint ID.
+  key: EndpointID
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      root: Endpoints
+- description: The file path for the file deletion task.
+  key: FilePath
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      root: Path
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Eradication Plan - Delete File
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Eradication Plan - Delete File
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "21"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 48cbb13a-a0c0-4a27-815a-66e38f3387ff
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 48cbb13a-a0c0-4a27-815a-66e38f3387ff
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 360,
+          "y": -90
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "22"
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      endpoint_ids:
+        complex:
+          root: inputs.EndpointID
+      file_path:
+        complex:
+          root: inputs.FilePath
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Initiates a new endpoint script execution to delete the specified
+        file.
+      id: 62686350-448d-4781-9ec5-2276b50dd884
+      iscommand: true
+      name: Auto file deletion
+      playbooktaskmissingcomponent:
+      script: '|||core-run-script-delete-file'
+      type: regular
+      version: -1
+    taskid: 62686350-448d-4781-9ec5-2276b50dd884
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 350,
+          "y": 430
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 040279ae-6f3d-42a1-8def-2c0565fd669f
+      iscommand: false
+      name: Done - File Deletion
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 040279ae-6f3d-42a1-8def-2c0565fd669f
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 350,
+          "y": 790
+        }
+      }
+  "19":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "22"
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action_id:
+        complex:
+          accessor: action_id
+          root: Core.GetActionStatus
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Retrieve the results of a script execution action.
+      id: ea39bf65-7f5c-4e0e-b47a-c23fcae7667f
+      iscommand: true
+      name: Get command result
+      playbooktaskmissingcomponent:
+      script: '|||core-get-script-execution-results'
+      type: regular
+      version: -1
+    taskid: ea39bf65-7f5c-4e0e-b47a-c23fcae7667f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 350,
+          "y": 600
+        }
+      }
+  "21":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FilePath
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.EndpointID
+          operator: isNotEmpty
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileRemediation
+          operator: isEqualString
+          right:
+            value:
+              simple: Delete
+      label: "yes"
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "5"
+      "yes":
+      - "23"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Whether to delete the file based on the input values.
+      id: a1a09dd3-d1de-40ae-898b-6fe92bd93c6e
+      iscommand: false
+      name: Should delete the file?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: a1a09dd3-d1de-40ae-898b-6fe92bd93c6e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 360,
+          "y": 70
+        }
+      }
+  "22":
+    continueonerrortype: ""
+    id: "22"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: f70aec3b-d083-4117-832d-a75daa678c9b
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: f70aec3b-d083-4117-832d-a75daa678c9b
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 800,
+          "y": 785
+        }
+      }
+  "23":
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "3"
+      Shadow Mode:
+      - "24"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: a6bc0525-0fc3-42b5-82dc-f1e60c25a27d
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: a6bc0525-0fc3-42b5-82dc-f1e60c25a27d
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 520,
+          "y": 250
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: Palo XDR Auto File Deletion
+          Command: core-run-script-delete-file
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: ffb42258-a95d-40df-811c-b6790521e9d1
+      iscommand: false
+      name: 'Shadow Mode: Palo XDR Auto File Deletion'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: ffb42258-a95d-40df-811c-b6790521e9d1
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 770,
+          "y": 410
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 945,
+        "width": 830,
+        "x": 350,
+        "y": -90
+      }
+    }
+  }
+fromversion: 5.0.0

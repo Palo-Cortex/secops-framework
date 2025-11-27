@@ -1,0 +1,1537 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 2.7.14
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    - agentix
+    toServerVersion: ""
+description: |-
+  Determines if a critical assest is associated with the invesigation. The playbook returns a severity level of "Critical" if at least one critical asset is associated with the investigation.
+  Critical assets refer to: users, user groups, endpoints and endpoint groups.
+id: 'SOC Calculate Severity - Critical Assets v2'
+inputs:
+- description: CSV of critical users.
+  key: CriticalUsers
+  playbookInputQuery:
+  required: false
+  value:
+    simple: admin,administrator
+- description: CSV of critical endpoints.
+  key: CriticalEndpoints
+  playbookInputQuery:
+  required: false
+  value:
+    simple: AdminPC
+- description: CSV of DN names of critical AD groups.
+  key: CriticalGroups
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Administrators, Domain Admins, Enterprise Admins, Schema Admins
+- description: User accounts to check against the critical lists.
+  key: Account
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      root: Account
+      transformers:
+      - operator: uniq
+- description: Endpoints to check against the CriticalEndpoints list.
+  key: Endpoint
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      root: Endpoint
+      transformers:
+      - operator: uniq
+name: SOC Calculate Severity - Critical Assets v2
+outputs:
+- contextPath: Severities.CriticalAssetsSeverity
+  description: The score returned by the Calculate Severity - Critical Assets v2 playbook.
+  type: number
+- contextPath: CriticalAssets
+  description: All critical assets involved in the incident.
+  type: unknown
+- contextPath: CriticalAssets.CriticalEndpoints
+  description: Critical endpoints involved in the incident.
+  type: unknown
+- contextPath: CriticalAssets.CriticalEndpointGroups
+  description: Critical endpoint-groups involved in the incident.
+  type: unknown
+- contextPath: CriticalAssets.CriticalUsers
+  description: Critical users involved in the incident.
+  type: unknown
+- contextPath: CriticalAssets.CriticalUserGroups
+  description: Critical user-groups involved in the incident.
+  type: unknown
+sourceplaybookid: Calculate Severity - Critical Assets v2
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "21"
+      - "19"
+      - "20"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3eded69b-617e-4212-86b7-2537474285f3
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 3eded69b-617e-4212-86b7-2537474285f3
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": -400
+        }
+      }
+  "8":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.Account.Username
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.CriticalUsers
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "43"
+      "yes":
+      - "34"
+      - "50"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether there is at least one user involved in the alert
+        and at least one user defined as a critical asset.
+      id: 424aaa79-feb8-4351-8818-b15b2999b7a6
+      iscommand: false
+      name: Do required user inputs exist?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 424aaa79-feb8-4351-8818-b15b2999b7a6
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1680,
+          "y": -5
+        }
+      }
+  "9":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: criticalusers
+                    operator: in
+                    right:
+                      iscontext: true
+                      value:
+                        simple: usernames
+                root: criticalusers
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "43"
+      "yes":
+      - "54"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if at least one of the usernames involved in the alert is
+        listed in the "CriticalUsers" list.
+      id: ae8f3642-3d2e-46e9-80e7-806b6cfbeca3
+      iscommand: false
+      name: Is a critical user involved in the alert?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: ae8f3642-3d2e-46e9-80e7-806b6cfbeca3
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1680,
+          "y": 420
+        }
+      }
+  "10":
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3e771227-3718-4714-89ac-51e80b242f8b
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 3e771227-3718-4714-89ac-51e80b242f8b
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": 1631
+        }
+      }
+  "13":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: criticalendpoints
+                    operator: in
+                    right:
+                      iscontext: true
+                      value:
+                        simple: hostnames
+                root: criticalendpoints
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "42"
+      "yes":
+      - "51"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if at least one of the endpoints involved in the alert is
+        listed in the "CriticalEndpoints" list.
+      id: e94c9609-239f-4032-827a-8dc4b44b987a
+      iscommand: false
+      name: Is a critical endpoint involved in the alert?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: e94c9609-239f-4032-827a-8dc4b44b987a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -445,
+          "y": 420
+        }
+      }
+  "19":
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "8"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: f62d3761-4856-44ee-80f1-668a0d53ce9d
+      iscommand: false
+      name: Critical Users
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: f62d3761-4856-44ee-80f1-668a0d53ce9d
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1680,
+          "y": -215
+        }
+      }
+  "20":
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "37"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: fd271425-66a0-48f9-8c71-fe1032820013
+      iscommand: false
+      name: Critical Endpoints
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: fd271425-66a0-48f9-8c71-fe1032820013
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": -445,
+          "y": -215
+        }
+      }
+  "21":
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: c59f6491-e15c-43aa-86ed-dad7d70cdf22
+      iscommand: false
+      name: Critical Groups
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: c59f6491-e15c-43aa-86ed-dad7d70cdf22
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": -245
+        }
+      }
+  "22":
+    continueonerrortype: ""
+    id: "22"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "23"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: endpointgroups
+      value:
+        complex:
+          accessor: Groups
+          root: inputs.Endpoint
+          transformers:
+          - operator: Stringify
+          - args:
+              limit: {}
+              replaceWith:
+                value:
+                  simple: =
+              toReplace:
+                value:
+                  simple: CN=
+            operator: replace
+          - args:
+              limit: {}
+              replaceWith:
+                value:
+                  simple: =
+              toReplace:
+                value:
+                  simple: DC=
+            operator: replace
+          - args:
+              delimiter:
+                value:
+                  simple: ','
+            operator: split
+          - args:
+              limit: {}
+              replaceWith: {}
+              toReplace:
+                value:
+                  simple: =
+            operator: replace
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets all endpoint groups to the context, as a list.
+      id: d199396a-b6cd-49e6-8eed-f8c40dbf6022
+      iscommand: false
+      name: Get all endpoint groups
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: d199396a-b6cd-49e6-8eed-f8c40dbf6022
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 232.5,
+          "y": 577
+        }
+      }
+  "23":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: criticalgroups
+                    operator: in
+                    right:
+                      iscontext: true
+                      value:
+                        simple: endpointgroups
+                root: criticalgroups
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "44"
+      "yes":
+      - "52"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if at least one critical endpoint group is involved in the
+        alert.
+      id: 3f7ea2b9-d2c9-400c-8972-e64ec0ec7863
+      iscommand: false
+      name: Is a critical endpoint group involved in the alert?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 3f7ea2b9-d2c9-400c-8972-e64ec0ec7863
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 232.5,
+          "y": 742
+        }
+      }
+  "24":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: Groups
+                root: inputs.Account
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "44"
+      "yes":
+      - "29"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is at least one user group involved in the alert.
+      id: 7160e3e9-7200-4ba5-808f-ac28e7ef86f6
+      iscommand: false
+      name: Is there a user group?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 7160e3e9-7200-4ba5-808f-ac28e7ef86f6
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 992.5,
+          "y": 385
+        }
+      }
+  "25":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: Groups
+                root: inputs.Endpoint
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "44"
+      "yes":
+      - "22"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether there is at least one group for an involved endpoint.
+      id: babf3f91-5d9c-47e8-870d-c236b9c68346
+      iscommand: false
+      name: Is there an endpoint group?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: babf3f91-5d9c-47e8-870d-c236b9c68346
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 232.5,
+          "y": 385
+        }
+      }
+  "26":
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "36"
+      - "35"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: criticalgroups
+      value:
+        complex:
+          root: inputs.CriticalGroups
+          transformers:
+          - args:
+              delimiter:
+                value:
+                  simple: ','
+            operator: splitAndTrim
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets user-defined critical groups to context, as a list.
+      id: a0e5a630-df39-4346-846b-d67653fee2ec
+      iscommand: false
+      name: Get all user-defined critical groups
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: a0e5a630-df39-4346-846b-d67653fee2ec
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": 90
+        }
+      }
+  "27":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.CriticalGroups
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "44"
+      "yes":
+      - "26"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there are any user-defined critical groups in the playbook
+        inputs.
+      id: f43d598e-ba8f-4dc0-8405-46fbbd12ec79
+      iscommand: false
+      name: Are there user-defined critical groups?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: f43d598e-ba8f-4dc0-8405-46fbbd12ec79
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": -100
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "30"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: accountgroups
+      value:
+        complex:
+          accessor: Groups
+          root: inputs.Account
+          transformers:
+          - operator: Stringify
+          - args:
+              limit: {}
+              replaceWith:
+                value:
+                  simple: =
+              toReplace:
+                value:
+                  simple: CN=
+            operator: replace
+          - args:
+              limit: {}
+              replaceWith:
+                value:
+                  simple: =
+              toReplace:
+                value:
+                  simple: DC=
+            operator: replace
+          - args:
+              delimiter:
+                value:
+                  simple: ','
+            operator: split
+          - args:
+              limit: {}
+              replaceWith: {}
+              toReplace:
+                value:
+                  simple: =
+            operator: replace
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets all user groups to the context, as a list.
+      id: 80d01617-682f-4dbb-8e9a-5bb7660d03b7
+      iscommand: false
+      name: Get all user groups
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 80d01617-682f-4dbb-8e9a-5bb7660d03b7
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 992.5,
+          "y": 577
+        }
+      }
+  "30":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: criticalgroups
+                    operator: in
+                    right:
+                      iscontext: true
+                      value:
+                        simple: accountgroups
+                root: criticalgroups
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "44"
+      "yes":
+      - "53"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether at least one user group is involved in the alert.
+      id: 09afd6ef-f9b2-4be1-80a6-f294243dc89a
+      iscommand: false
+      name: Is a critical user group involved in the alert?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 09afd6ef-f9b2-4be1-80a6-f294243dc89a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 992.5,
+          "y": 742
+        }
+      }
+  "34":
+    continueonerrortype: ""
+    id: "34"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: usernames
+      value:
+        complex:
+          accessor: Username
+          root: inputs.Account
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets all usernames involved in the alert to context.
+      id: b93fb183-5e45-442b-8083-6706d301202c
+      iscommand: false
+      name: Get all usernames
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: b93fb183-5e45-442b-8083-6706d301202c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1890,
+          "y": 235
+        }
+      }
+  "35":
+    continueonerrortype: ""
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "25"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 53feba0a-5f2f-410c-882f-b95cbd9c5fbb
+      iscommand: false
+      name: Critical Endpoint Groups
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 53feba0a-5f2f-410c-882f-b95cbd9c5fbb
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 232.5,
+          "y": 265
+        }
+      }
+  "36":
+    continueonerrortype: ""
+    id: "36"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 37f291a8-8336-412f-8f0f-26bfa0fa7e7d
+      iscommand: false
+      name: Critical User Groups
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 37f291a8-8336-412f-8f0f-26bfa0fa7e7d
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 992.5,
+          "y": 265
+        }
+      }
+  "37":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: Hostname
+                root: inputs.Endpoint
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.CriticalEndpoints
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "37"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "42"
+      "yes":
+      - "39"
+      - "49"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether there is at least one endpoint involved in the alert
+        and at least one hostname defined as a critical asset.
+      id: d0e85e0c-9d5f-46a2-8f7d-37c5cccfb2af
+      iscommand: false
+      name: Do required endpoint inputs exist?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: d0e85e0c-9d5f-46a2-8f7d-37c5cccfb2af
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -445,
+          "y": -5
+        }
+      }
+  "39":
+    continueonerrortype: ""
+    id: "39"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: hostnames
+      value:
+        complex:
+          accessor: Hostname
+          root: inputs.Endpoint
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets all hostnames to context.
+      id: 86e2054c-c8b2-4c83-8d2b-40afd339203a
+      iscommand: false
+      name: Get all hostnames
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 86e2054c-c8b2-4c83-8d2b-40afd339203a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -260,
+          "y": 220
+        }
+      }
+  "42":
+    continueonerrortype: ""
+    id: "42"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: fab539ae-ff25-486e-82b4-9c94f0426de4
+      iscommand: false
+      name: No Critical Endpoints
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: fab539ae-ff25-486e-82b4-9c94f0426de4
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": -875,
+          "y": 1200
+        }
+      }
+  "43":
+    continueonerrortype: ""
+    id: "43"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 33b118b1-2ecc-47bc-8eed-ce8e53b5a160
+      iscommand: false
+      name: No Critical Users
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 33b118b1-2ecc-47bc-8eed-ce8e53b5a160
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 2140,
+          "y": 1200
+        }
+      }
+  "44":
+    continueonerrortype: ""
+    id: "44"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 008bea76-3889-4e55-894b-058dbb6dda36
+      iscommand: false
+      name: No Critical Groups
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 008bea76-3889-4e55-894b-058dbb6dda36
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": 945
+        }
+      }
+  "46":
+    continueonerrortype: ""
+    id: "46"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "55"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: Severities.CriticalAssetsSeverity
+      value:
+        simple: Critical
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets the severity output of this playbook to "Critical".
+      id: 7f151914-046a-4f0a-8594-90ac5447ddca
+      iscommand: false
+      name: Set severity to critical
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 7f151914-046a-4f0a-8594-90ac5447ddca
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": 1265
+        }
+      }
+  "49":
+    continueonerrortype: ""
+    id: "49"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: criticalendpoints
+      value:
+        complex:
+          root: inputs.CriticalEndpoints
+          transformers:
+          - args:
+              delimiter:
+                value:
+                  simple: ','
+            operator: splitAndTrim
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets all critical endpoints to context, as a list.
+      id: 5a9cf941-59dd-4d46-8153-8b76a30c4168
+      iscommand: false
+      name: Get all critical endpoints
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 5a9cf941-59dd-4d46-8153-8b76a30c4168
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -670,
+          "y": 220
+        }
+      }
+  "50":
+    continueonerrortype: ""
+    id: "50"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      key:
+        simple: criticalusers
+      value:
+        complex:
+          root: inputs.CriticalUsers
+          transformers:
+          - args:
+              delimiter:
+                value:
+                  simple: ','
+            operator: splitAndTrim
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets all critical usernames in context, as a list.
+      id: 0db98f70-66d9-4ba3-8616-5af419630189
+      iscommand: false
+      name: Get all critical usernames
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 0db98f70-66d9-4ba3-8616-5af419630189
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1480,
+          "y": 235
+        }
+      }
+  "51":
+    continueonerrortype: ""
+    id: "51"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "46"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      append:
+        simple: "true"
+      key:
+        simple: CriticalAssets.CriticalEndpoints
+      value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: criticalendpoints
+              operator: in
+              right:
+                iscontext: true
+                value:
+                  simple: hostnames
+          root: criticalendpoints
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets the critical endpoints to the CriticalAssets.CriticalEndpoints
+        context key, which is an output of this playbook.
+      id: a680f6b3-2306-407d-8a2b-a8a7bf1a4df6
+      iscommand: false
+      name: Set critical endpoints to output
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: a680f6b3-2306-407d-8a2b-a8a7bf1a4df6
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -445,
+          "y": 742
+        }
+      }
+  "52":
+    continueonerrortype: ""
+    id: "52"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "46"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      append:
+        simple: "true"
+      key:
+        simple: CriticalAssets.CriticalEndpointGroups
+      value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: criticalgroups
+              operator: in
+              right:
+                iscontext: true
+                value:
+                  simple: endpointgroups
+          root: criticalgroups
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets the critical endpoint groups to the CriticalAssets.CriticalEndpointGroups
+        context key, which is an output of this playbook.
+      id: 7c4d5151-dc5e-40c3-8697-440b4e3e9cae
+      iscommand: false
+      name: Set critical endpoint groups to output
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 7c4d5151-dc5e-40c3-8697-440b4e3e9cae
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 232.5,
+          "y": 1040
+        }
+      }
+  "53":
+    continueonerrortype: ""
+    id: "53"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "46"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "true"
+      key:
+        simple: CriticalAssets.UserGroups
+      value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: criticalgroups
+              operator: in
+              right:
+                iscontext: true
+                value:
+                  simple: accountgroups
+          root: criticalgroups
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets the critical user groups to the CriticalAssets.CriticalUserGroups
+        context key, which is an output of this playbook.
+      id: 82bd69bb-ecc0-4438-8aa3-79626adf62a9
+      iscommand: false
+      name: Set critical user groups to output
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 82bd69bb-ecc0-4438-8aa3-79626adf62a9
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 992.5,
+          "y": 1040
+        }
+      }
+  "54":
+    continueonerrortype: ""
+    id: "54"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "46"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      append:
+        simple: "true"
+      key:
+        simple: CriticalAssets.Users
+      value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: criticalusers
+              operator: in
+              right:
+                iscontext: true
+                value:
+                  simple: usernames
+          root: criticalusers
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets the critical users to the CriticalAssets.CriticalUsers context
+        key, which is an output of this playbook.
+      id: 40a52d56-8468-4161-8832-9f3a8edbdc20
+      iscommand: false
+      name: Set critical users to output
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 40a52d56-8468-4161-8832-9f3a8edbdc20
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1680,
+          "y": 742
+        }
+      }
+  "55":
+    continueonerrortype: ""
+    id: "55"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      critical_assets:
+        complex:
+          root: CriticalAssets
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Sets the critical assets to an alert field which can be displayed
+        in the alert layout.
+      id: 9337a013-1493-4943-8d8f-42fe0feb437e
+      iscommand: false
+      name: Set critical assets to alert field
+      playbooktaskmissingcomponent:
+      script: PopulateCriticalAssets
+      type: regular
+      version: -1
+    taskid: 9337a013-1493-4943-8d8f-42fe0feb437e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": 1440
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "13_42_#default#": 0.34,
+      "13_51_yes": 0.53,
+      "23_44_#default#": 0.52,
+      "23_52_yes": 0.58,
+      "24_29_yes": 0.55,
+      "24_44_#default#": 0.32,
+      "25_22_yes": 0.61,
+      "25_44_#default#": 0.33,
+      "27_26_yes": 0.56,
+      "27_44_#default#": 0.58,
+      "30_44_#default#": 0.58,
+      "37_39_yes": 0.55,
+      "37_42_#default#": 0.45,
+      "8_34_yes": 0.34,
+      "8_43_#default#": 0.45,
+      "8_50_yes": 0.33,
+      "9_43_#default#": 0.36,
+      "9_54_yes": 0.43
+    },
+    "paper": {
+      "dimensions": {
+        "height": 2096,
+        "width": 3395,
+        "x": -875,
+        "y": -400
+      }
+    }
+  }
+fromversion: 5.0.0

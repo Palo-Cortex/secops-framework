@@ -1,0 +1,1056 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 2.7.15
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    - agentix
+    toServerVersion: ""
+description: |-
+  Enrich IP addresses using one or more integrations.
+
+  - Resolve IP addresses to hostnames (DNS).
+  - Provide threat information.
+  - IP address reputation using !ip command.
+  - Separate internal and external addresses.
+dirtyInputs: true
+id: 'SOC IP Enrichment - External - Generic v2'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - IP
+  - InternalRange
+  - ResolveIP
+  - UseReputationCommand
+  - extended_data
+  - threat_model_association
+  - ExecutedFromParent
+  name: General (Inputs group)
+inputs:
+- description: The IP address to enrich.
+  key: IP
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Address
+      root: IP
+      transformers:
+      - operator: uniq
+- description: 'A comma-separated list of IP address ranges (in CIDR notation). Use
+    this list to check if an IP address is found within a set of IP address ranges.
+    For example: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16" (without quotes).'
+  key: InternalRange
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: PrivateIPs
+      root: lists
+      transformers:
+      - args:
+          error_if_no_match: {}
+          ignore_case: {}
+          multi_line: {}
+          period_matches_newline: {}
+          regex:
+            value:
+              simple: (\b(?:\d{1,3}\.){3}\d{1,3}\b/\d{1,2})
+          unpack_matches: {}
+        operator: RegexExtractAll
+      - args:
+          separator:
+            value:
+              simple: ','
+        operator: join
+- description: |-
+    Whether to convert the IP address to a hostname using a DNS query (True/False).
+    The default value is true.
+  key: ResolveIP
+  playbookInputQuery:
+  required: true
+  value:
+    simple: "True"
+- description: |-
+    Define if you would like to use the !IP command.
+    Note: This input should be used whenever there is no auto-extract enabled in the investigation flow.
+    Possible values: True / False.
+    The default value is false.
+  key: UseReputationCommand
+  playbookInputQuery:
+  required: true
+  value:
+    simple: "False"
+- description: |-
+    Define whether you want the generic reputation command to return extended data (last_analysis_results).
+    Possible values: True / False.
+    The default value is false.
+  key: extended_data
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "False"
+- description: |-
+    Define whether you wish to enhance generic reputation command to include additional information such as Threat Bulletins, Attack patterns, Actors, Campaigns, TTPs, vulnerabilities, etc. Note: If set to true, additional 6 API calls will be performed.
+    Possible values: True / False.
+    The default value is false.
+  key: threat_model_association
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "False"
+- description: |-
+    Whether to execute common logic, like the classification of IP addresses to ranges and resolving, in the the main (IP Enrichment - Generic v2) enrichment playbook, instead of in the sub-playbooks.
+    Possible values are: True, False.
+
+    Setting this to True and using the parent playbook will execute the relevant commands in the main playbook instead of executing them in both sub-playbooks, improving the performance of the playbook and reducing the overfall size of the incident.
+  key: ExecutedFromParent
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "False"
+name: SOC IP Enrichment - External - Generic v2
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - IP
+  - DBotScore
+  - Endpoint
+  - Endpoint.Hostname
+  - Endpoint.IP
+  - IP.Address
+  - IP.InRange
+  - DBotScore.Indicator
+  - DBotScore.Type
+  - DBotScore.Vendor
+  - DBotScore.Score
+  - IP.ASN
+  - IP.Tags
+  - IP.ThreatTypes
+  - IP.Geo.Country
+  - IP.Geo.Location
+  - IP.Malicious.Vendor
+  - IP.Malicious.Description
+  - IP.VirusTotal.DownloadedHashes
+  - IP.VirusTotal.UnAVDetectedDownloadedHashes
+  - IP.VirusTotal.DetectedURLs
+  - IP.VirusTotal.CommunicatingHashes
+  - IP.VirusTotal.UnAVDetectedCommunicatingHashes
+  - IP.VirusTotal.Resolutions.hostname
+  - IP.VirusTotal.ReferrerHashes
+  - IP.VirusTotal.UnAVDetectedReferrerHashes
+  - IP.VirusTotal.Resolutions.last_resolved
+outputs:
+- contextPath: IP
+  description: The IP address objects.
+  type: unknown
+- contextPath: DBotScore
+  description: Indicator, Score, Type, and Vendor.
+  type: unknown
+- contextPath: Endpoint
+  description: The endpoint's object.
+  type: unknown
+- contextPath: Endpoint.Hostname
+  description: The hostname to enrich.
+  type: string
+- contextPath: Endpoint.IP
+  description: A list of endpoint IP addresses.
+  type: string
+- contextPath: IP.Address
+  description: The IP Address.
+  type: string
+- contextPath: IP.InRange
+  description: Is the IP in the input ranges? (could be 'yes' or 'no).
+  type: string
+- contextPath: DBotScore.Indicator
+  description: The indicator that was tested.
+  type: string
+- contextPath: DBotScore.Type
+  description: The indicator type.
+  type: string
+- contextPath: DBotScore.Vendor
+  description: The vendor used to calculate the score.
+  type: string
+- contextPath: DBotScore.Score
+  description: The actual score.
+  type: string
+- contextPath: IP.ASN
+  description: The Autonomous System (AS) number associated with the indicator.
+  type: string
+- contextPath: IP.Tags
+  description: List of IP tags.
+  type: string
+- contextPath: IP.ThreatTypes
+  description: Threat types associated with the IP.
+  type: string
+- contextPath: IP.Geo.Country
+  description: The country associated with the indicator.
+  type: string
+- contextPath: IP.Geo.Location
+  description: The longitude and latitude of the IP address.
+  type: string
+- contextPath: IP.Malicious.Vendor
+  description: The vendor that reported the indicator as malicious.
+  type: string
+- contextPath: IP.Malicious.Description
+  description: For malicious IPs, the reason that the vendor made the decision.
+  type: string
+- contextPath: IP.VirusTotal.DownloadedHashes
+  description: Latest files that are detected by at least one antivirus solution and
+    were downloaded by VirusTotal from the IP address.
+  type: string
+- contextPath: IP.VirusTotal.UnAVDetectedDownloadedHashes
+  description: Latest files that are not detected by any antivirus solution and were
+    downloaded by VirusTotal from the IP address provided.
+  type: string
+- contextPath: IP.VirusTotal.DetectedURLs
+  description: Latest URLs hosted in this IP address detected by at least one URL
+    scanner.
+  type: string
+- contextPath: IP.VirusTotal.CommunicatingHashes
+  description: Latest detected files that communicate with this IP address.
+  type: string
+- contextPath: IP.VirusTotal.UnAVDetectedCommunicatingHashes
+  description: Latest undetected files that communicate with this IP address.
+  type: string
+- contextPath: IP.VirusTotal.Resolutions.hostname
+  description: The following domains resolved to the given IP.
+  type: string
+- contextPath: IP.VirusTotal.ReferrerHashes
+  description: Latest detected files that embed this IP address in their strings.
+  type: string
+- contextPath: IP.VirusTotal.UnAVDetectedReferrerHashes
+  description: Latest undetected files that embed this IP address in their strings.
+  type: string
+- contextPath: IP.VirusTotal.Resolutions.last_resolved
+  description: The last time the following domains resolved to the given IP.
+  type: string
+sourceplaybookid: IP Enrichment - External - Generic v2
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "47"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 6635b28b-bdf1-42cf-88bc-14ad75e9ebe0
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 6635b28b-bdf1-42cf-88bc-14ad75e9ebe0
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 550,
+          "y": 39
+        }
+      }
+  "15":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: Address
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: IP.InRange
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: "no"
+                root: IP
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "39"
+      "yes":
+      - "34"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        complex:
+          accessor: Address
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: IP.InRange
+              operator: isEqualString
+              right:
+                value:
+                  simple: "no"
+          root: IP
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the "InRange" attribute is set to "no".
+      id: c8d8906f-cbf4-4ddd-84e6-1e55570d00a0
+      iscommand: false
+      name: Is there an external IP address?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: c8d8906f-cbf4-4ddd-84e6-1e55570d00a0
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 552.5,
+          "y": 670
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 8149db7c-af8d-41e2-85ee-c9fe2efd5040
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 8149db7c-af8d-41e2-85ee-c9fe2efd5040
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 110,
+          "y": 1970
+        }
+      }
+  "27":
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "36"
+      - "44"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 1734f24b-0b27-431e-81b6-89997f08894c
+      iscommand: false
+      name: Enrich external IP addresses
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 1734f24b-0b27-431e-81b6-89997f08894c
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 100,
+          "y": 1240
+        }
+      }
+  "29":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "49"
+      '#none#':
+      - "15"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      ignore-outputs:
+        simple: "false"
+      ip:
+        complex:
+          root: inputs.IP
+          transformers:
+          - operator: uniq
+      ipRanges:
+        complex:
+          root: inputs.InternalRange
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Checks if the IP address is in the internal IP address ranges.\n
+        If internal, sets the \"InRange\" attribute to \"yes\".\nIf external, sets
+        the \"InRange\" attribute to \"no\". "
+      id: 8f96dd19-92e0-421f-bf2c-c89fe6676684
+      iscommand: false
+      name: Determine whether the IP address is internal or external
+      playbooktaskmissingcomponent:
+      script: IsIPInRanges
+      type: regular
+      version: -1
+    taskid: 8f96dd19-92e0-421f-bf2c-c89fe6676684
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 552.5,
+          "y": 505
+        }
+      }
+  "34":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: inputs.ResolveIP
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      label: "yes"
+    continueonerrortype: ""
+    id: "34"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "27"
+      "yes":
+      - "35"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the "ResolveIP" parameter is set to "True".
+      id: 607dafbe-8ee1-47ad-810a-dacf03842673
+      iscommand: false
+      name: Resolve the IP address?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 607dafbe-8ee1-47ad-810a-dacf03842673
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 550,
+          "y": 870
+        }
+      }
+  "35":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "27"
+    note: false
+    quietmode: 0
+    reputationcalc: 2
+    scriptarguments:
+      ip:
+        complex:
+          accessor: Address
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: IP.InRange
+              operator: isEqualString
+              right:
+                value:
+                  simple: "no"
+          - - left:
+                iscontext: true
+                value:
+                  simple: IP.Address
+              operator: containsGeneral
+              right:
+                iscontext: true
+                value:
+                  simple: inputs.IP
+          root: IP
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: ""
+      description: Convert the IP address to a hostname using DNS query.
+      id: 9a9092a5-a173-4c8d-8a0c-f63960c42451
+      iscommand: false
+      name: IP to Hostname (DNS)
+      playbooktaskmissingcomponent:
+      script: IPToHost
+      type: regular
+      version: -1
+    taskid: 9a9092a5-a173-4c8d-8a0c-f63960c42451
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 750,
+          "y": 1055
+        }
+      }
+  "36":
+    continueonerrortype: ""
+    id: "36"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "37"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 22f7b81d-ea1a-44b3-8b73-c628afaf5cfc
+      iscommand: false
+      name: Enrich Using VirusTotal Private API
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 22f7b81d-ea1a-44b3-8b73-c628afaf5cfc
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 550,
+          "y": 1420
+        }
+      }
+  "37":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: VirusTotal - Private API
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "37"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "yes":
+      - "38"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is an active instance of the VirusTotal Private
+        API integration enabled.
+      id: 0df4420b-8119-4731-8cb3-4745fd044913
+      iscommand: false
+      name: Is VirusTotal Private API enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 0df4420b-8119-4731-8cb3-4745fd044913
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 550,
+          "y": 1553
+        }
+      }
+  "38":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "38"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "49"
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    reputationcalc: 1
+    scriptarguments:
+      ip:
+        complex:
+          root: .
+          transformers:
+          - operator: uniq
+          - args:
+              condition:
+                value:
+                  simple: lhs==rhs
+              conditionB: {}
+              conditionInBetween: {}
+              else:
+                iscontext: true
+                value:
+                  simple: ${IP(val.InRange=="no").Address}
+              equals: {}
+              lhs:
+                iscontext: true
+                value:
+                  simple: inputs.ExecutedFromParent
+              lhsB: {}
+              options: {}
+              optionsB: {}
+              rhs:
+                value:
+                  simple: "True"
+              rhsB: {}
+              then:
+                iscontext: true
+                value:
+                  simple: inputs.IP
+            operator: If-Then-Else
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: VirusTotal - Private API
+      description: |
+        Retrieves a report for a given IP address.
+      id: 2b536b08-f716-4b71-a54d-e0fdb7f1827e
+      iscommand: true
+      name: Get IP report from VirusTotal Private API
+      playbooktaskmissingcomponent:
+      script: VirusTotal - Private API|||vt-private-get-ip-report
+      type: regular
+      version: -1
+    taskid: 2b536b08-f716-4b71-a54d-e0fdb7f1827e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 550,
+          "y": 1730
+        }
+      }
+  "39":
+    continueonerrortype: ""
+    id: "39"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 67d938bf-2bd3-4dfd-885f-8dd190cd0b93
+      iscommand: false
+      name: No External IP Address
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 67d938bf-2bd3-4dfd-885f-8dd190cd0b93
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1270,
+          "y": 1240
+        }
+      }
+  "44":
+    continueonerrortype: ""
+    id: "44"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "46"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9bda4dfe-35b9-40ac-8d8c-c6973b2d1d40
+      iscommand: false
+      name: Check Reputation Using All Available Integrations
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 9bda4dfe-35b9-40ac-8d8c-c6973b2d1d40
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": -340,
+          "y": 1420
+        }
+      }
+  "45":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "45"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "49"
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      extended_data:
+        complex:
+          root: inputs.extended_data
+      ip:
+        complex:
+          root: .
+          transformers:
+          - args:
+              condition:
+                value:
+                  simple: lhs==rhs
+              conditionB: {}
+              conditionInBetween: {}
+              else:
+                iscontext: true
+                value:
+                  simple: ${IP(val.InRange=="no").Address}
+              equals: {}
+              lhs:
+                iscontext: true
+                value:
+                  simple: inputs.ExecutedFromParent
+              lhsB: {}
+              options: {}
+              optionsB: {}
+              rhs:
+                value:
+                  simple: "True"
+              rhsB: {}
+              then:
+                iscontext: true
+                value:
+                  simple: inputs.IP
+            operator: If-Then-Else
+          - operator: uniq
+      threat_model_association:
+        complex:
+          root: inputs.threat_model_association
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: ""
+      description: Checks the reputation of an IP address using all available integrations.
+      id: 59d18af0-7677-4e10-907f-c480e88d98f9
+      iscommand: true
+      name: Check Reputation
+      playbooktaskmissingcomponent:
+      script: '|||ip'
+      type: regular
+      version: -1
+    taskid: 59d18af0-7677-4e10-907f-c480e88d98f9
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -340,
+          "y": 1730
+        }
+      }
+  "46":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: inputs.UseReputationCommand
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      label: "yes"
+    continueonerrortype: ""
+    id: "46"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "yes":
+      - "45"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Should use !IP command?
+      id: c55e9651-e6f5-48ec-8bbc-995c4e87808b
+      iscommand: false
+      name: Should use !IP command?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: c55e9651-e6f5-48ec-8bbc-995c4e87808b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -340,
+          "y": 1553
+        }
+      }
+  "47":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.IP
+          operator: isNotEmpty
+          right:
+            value: {}
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: inputs.ExecutedFromParent
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      label: "Yes"
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.IP
+          operator: isNotEmpty
+      label: "No"
+    continueonerrortype: ""
+    id: "47"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "39"
+      "No":
+      - "48"
+      "Yes":
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the playbook's input contains at least one IP address.
+      id: ea6c64c9-4852-47c9-8cfd-d6d6907037cf
+      iscommand: false
+      name: Are the IPs already classified?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: ea6c64c9-4852-47c9-8cfd-d6d6907037cf
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 550,
+          "y": 170
+        }
+      }
+  "48":
+    continueonerrortype: ""
+    id: "48"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "29"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2e4dbc75-e8f0-4478-8b16-523ba22e1621
+      iscommand: false
+      name: Classify & Resolve IPs
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 2e4dbc75-e8f0-4478-8b16-523ba22e1621
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 552.5,
+          "y": 370
+        }
+      }
+  "49":
+    continueonerrortype: ""
+    id: "49"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 87c933fe-d5a5-4724-8d7f-ffa5625da08d
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 87c933fe-d5a5-4724-8d7f-ffa5625da08d
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 870,
+          "y": 1965
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "15_34_yes": 0.58,
+      "15_39_#default#": 0.29,
+      "34_27_#default#": 0.49,
+      "34_35_yes": 0.53,
+      "37_24_#default#": 0.28,
+      "37_38_yes": 0.52,
+      "46_24_#default#": 0.68,
+      "46_45_yes": 0.56,
+      "47_39_#default#": 0.3
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1996,
+        "width": 1990,
+        "x": -340,
+        "y": 39
+      }
+    }
+  }
+fromversion: 5.0.0

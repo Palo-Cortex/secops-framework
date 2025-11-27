@@ -1,0 +1,1011 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.8.0
+    isoverridable: false
+    itemVersion: 2.1.21
+    packID: ""
+    packName: Palo Alto Networks - Strata Cloud Manager
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    - agentix
+    toServerVersion: ""
+description: |-
+  The playbook will handle the operation of blocking a URL within the organization.
+  If a category is provided, the URL will be added to the list.
+  If not, a new URL category will be created, and a new security rule that blocks that category.
+dirtyInputs: true
+id: 'SOC Prisma SASE - Block URL'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - URL
+  - CategoryName
+  - Folder
+  - TSGID
+  - AutoCommit
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: List of URLs that are needed to be blocked.
+  key: URL
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The name of the predefined custom URL category.
+  key: CategoryName
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    Specify the scope for a newly created security rule to be applied.
+    Remember, this input will only be used when there is no input to the CategoryName.
+    Default: Shared
+  key: Folder
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Shared
+- description: Tenant services group ID. If not provided, the tsg_id integration parameter
+    will be used as the default.
+  key: TSGID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    Possible Values:
+    True -> Will Commit and Push Configuration
+    False -> Manual Push will be required.
+    Else --> Will ignore the push section and continue the playbook.
+  key: AutoCommit
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Prisma SASE - Block URL
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - PrismaSase
+  - PrismaSase.SecurityRule
+  - PrismaSase.SecurityRule.action
+  - PrismaSase.SecurityRule.application
+  - PrismaSase.SecurityRule.category
+  - PrismaSase.SecurityRule.description
+  - PrismaSase.SecurityRule.destination
+  - PrismaSase.SecurityRule.folder
+  - PrismaSase.SecurityRule.from
+  - PrismaSase.SecurityRule.id
+  - PrismaSase.SecurityRule.name
+  - PrismaSase.SecurityRule.position
+  - PrismaSase.SecurityRule.service
+  - PrismaSase.SecurityRule.source
+  - PrismaSase.SecurityRule.source_user
+  - PrismaSase.SecurityRule.to
+  - PrismaSase.SecurityRule.profile_setting
+  - PrismaSase.SecurityRule.profile_setting.group
+  - PrismaSase.CandidateConfig
+  - PrismaSase.CandidateConfig.job_id
+  - PrismaSase.CandidateConfig.result
+  - PrismaSase.CandidateConfig.details
+  - PrismaSase.CustomURLCategory
+  - PrismaSase.CustomURLCategory.id
+  - PrismaSase.CustomURLCategory.name
+  - PrismaSase.CustomURLCategory.folder
+  - PrismaSase.CustomURLCategory.type
+  - PrismaSase.CustomURLCategory.list
+  - PrismaSase.CustomURLCategory.description
+outputs:
+- contextPath: PrismaSase
+  description: The root context key for Prisma SASE integration output.
+  type: unknown
+- contextPath: PrismaSase.SecurityRule
+  description: Created security rule.
+- contextPath: PrismaSase.SecurityRule.action
+  description: Security rule action.
+- contextPath: PrismaSase.SecurityRule.application
+  description: Security rule application.
+- contextPath: PrismaSase.SecurityRule.category
+  description: Security rule category.
+- contextPath: PrismaSase.SecurityRule.description
+  description: Security rule description.
+- contextPath: PrismaSase.SecurityRule.destination
+  description: Security rule destination.
+- contextPath: PrismaSase.SecurityRule.folder
+  description: Security rule folder.
+- contextPath: PrismaSase.SecurityRule.from
+  description: Security rule from field (source zone(s)).
+- contextPath: PrismaSase.SecurityRule.id
+  description: Security rule ID.
+- contextPath: PrismaSase.SecurityRule.name
+  description: Security rule name.
+- contextPath: PrismaSase.SecurityRule.position
+  description: Security rule position.
+- contextPath: PrismaSase.SecurityRule.service
+  description: Security rule service.
+- contextPath: PrismaSase.SecurityRule.source
+  description: Security rule source.
+- contextPath: PrismaSase.SecurityRule.source_user
+  description: Security rule source user.
+- contextPath: PrismaSase.SecurityRule.to
+  description: Security rule to field (destination zone(s)).
+- contextPath: PrismaSase.SecurityRule.profile_setting
+  description: The Security rule group object in the rule.
+  type: unknown
+- contextPath: PrismaSase.SecurityRule.profile_setting.group
+  description: Security rule group.
+- contextPath: PrismaSase.CandidateConfig
+  description: Configuration job object.
+  type: unknown
+- contextPath: PrismaSase.CandidateConfig.job_id
+  description: Configuration job ID.
+- contextPath: PrismaSase.CandidateConfig.result
+  description: The configuration push result, e.g. OK, FAIL.
+- contextPath: PrismaSase.CandidateConfig.details
+  description: The configuration push details.
+- contextPath: PrismaSase.CustomURLCategory
+  description: The custom URL category object.
+  type: unknown
+- contextPath: PrismaSase.CustomURLCategory.id
+  description: The URL category ID.
+- contextPath: PrismaSase.CustomURLCategory.name
+  description: The URL category name.
+- contextPath: PrismaSase.CustomURLCategory.folder
+  description: The URL category folder.
+- contextPath: PrismaSase.CustomURLCategory.type
+  description: The URL category type.
+- contextPath: PrismaSase.CustomURLCategory.list
+  description: The URL category match list.
+- contextPath: PrismaSase.CustomURLCategory.description
+  description: The URL category description.
+sourceplaybookid: Prisma SASE - Block URL
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3f502737-194b-4b60-8b41-49768b2f0897
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 3f502737-194b-4b60-8b41-49768b2f0897
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": -480
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.CategoryName
+          operator: isNotEmpty
+          right:
+            value: {}
+      label: "Yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "6"
+      "Yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check if the URL Custom Category was defined
+      id: a7b8b8df-e87f-4615-8c21-1473a9eb4c39
+      iscommand: false
+      name: Check if the URL Custom Category was defined
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: a7b8b8df-e87f-4615-8c21-1473a9eb4c39
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 10,
+          "y": -90
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: f62cd92a-b7d6-41eb-8d0b-82b272c25a91
+      iscommand: false
+      name: Updating URL Predfiened Category List
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: f62cd92a-b7d6-41eb-8d0b-82b272c25a91
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": -220,
+          "y": 130
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "7"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      folder:
+        complex:
+          root: inputs.Folder
+      name:
+        complex:
+          root: inputs.CategoryName
+      tsg_id:
+        complex:
+          root: inputs.TSGID
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Palo Alto Networks - Prisma SASE
+      description: Lists all custom URL categories.
+      id: dcbb36bb-ebca-4b0d-a4b2-9366a7db2d84
+      iscommand: true
+      name: Get the URL category List
+      playbooktaskmissingcomponent:
+      script: Palo Alto Networks - Prisma SASE|||prisma-sase-custom-url-category-list
+      type: regular
+      version: -1
+    taskid: dcbb36bb-ebca-4b0d-a4b2-9366a7db2d84
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -220,
+          "y": 280
+        }
+      }
+  "4":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.URL
+          operator: isNotEmpty
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "5"
+      "yes":
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Was a URL to Block provided?
+      id: 407eba27-5f42-4fe6-80ca-1ddaf41b870b
+      iscommand: false
+      name: Was a URL to Block provided?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 407eba27-5f42-4fe6-80ca-1ddaf41b870b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": -270
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5abb3e14-5dce-4845-8d83-44ff4bfa5c11
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 5abb3e14-5dce-4845-8d83-44ff4bfa5c11
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": 1600
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "18"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 07b206b2-cab0-4eb1-8ce1-b1cbb870503d
+      iscommand: false
+      name: Creating a new Category
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 07b206b2-cab0-4eb1-8ce1-b1cbb870503d
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": 130
+        }
+      }
+  "7":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.URL
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: PrismaSase.CustomURLCategory.list
+      label: "yes"
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "19"
+      "yes":
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Is the URL already exist?
+      id: 2c56fab1-5200-4cee-8ced-ef3ecda1a04d
+      iscommand: false
+      name: Is the URL already exist?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 2c56fab1-5200-4cee-8ced-ef3ecda1a04d
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -220,
+          "y": 500
+        }
+      }
+  "8":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "15"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      description:
+        simple: List of Blocked URL - XSOAR
+      folder:
+        complex:
+          root: inputs.Folder
+      name:
+        simple: List of Blocked URL - XSOAR
+      tsg_id:
+        complex:
+          root: inputs.TSGID
+      type:
+        simple: URL List
+      value:
+        complex:
+          root: inputs.URL
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Palo Alto Networks - Prisma SASE
+      description: Create a new URL category.
+      id: a1e0a7ac-2603-46a7-9d20-702e5af492ef
+      iscommand: true
+      name: Create a new Custom URL Category
+      playbooktaskmissingcomponent:
+      script: Palo Alto Networks - Prisma SASE|||prisma-sase-custom-url-category-create
+      type: regular
+      version: -1
+    taskid: a1e0a7ac-2603-46a7-9d20-702e5af492ef
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": 500
+        }
+      }
+  "9":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      id:
+        complex:
+          accessor: id
+          root: PrismaSase.CustomURLCategory
+      overwrite:
+        simple: "false"
+      tsg_id:
+        complex:
+          root: inputs.TSGID
+      value:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.URL
+              operator: notIn
+              right:
+                iscontext: true
+                value:
+                  simple: PrismaSase.CustomURLCategory.list
+          root: inputs.URL
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Palo Alto Networks - Prisma SASE
+      description: Update an existing url category.
+      id: ff806252-a58e-4ace-8a87-079745408745
+      iscommand: true
+      name: Update the URL category
+      playbooktaskmissingcomponent:
+      script: Palo Alto Networks - Prisma SASE|||prisma-sase-custom-url-category-update
+      type: regular
+      version: -1
+    taskid: ff806252-a58e-4ace-8a87-079745408745
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -220,
+          "y": 980
+        }
+      }
+  "12":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "17"
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      folders:
+        complex:
+          root: inputs.Folder
+      tsg_id:
+        complex:
+          root: inputs.TSGID
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Palo Alto Networks - Prisma SASE
+      description: Push the candidate configuration.
+      id: 69ae71ff-3a69-4ed5-9128-a736c2d8b475
+      iscommand: true
+      name: Push Config
+      playbooktaskmissingcomponent:
+      script: Palo Alto Networks - Prisma SASE|||prisma-sase-candidate-config-push
+      type: regular
+      version: -1
+    taskid: 69ae71ff-3a69-4ed5-9128-a736c2d8b475
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": 1465
+        }
+      }
+  "13":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: inputs.AutoCommit
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      label: Auto Commit
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.AutoCommit
+          operator: isEqualString
+          right:
+            value:
+              simple: "False"
+      label: Manual
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "5"
+      Auto Commit:
+      - "12"
+      Manual:
+      - "16"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Commit and push configuration to folders?
+      id: 55bb3e8b-0479-4c30-8e6a-3a3edebc5bce
+      iscommand: false
+      name: Commit and push configuration to folders?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 55bb3e8b-0479-4c30-8e6a-3a3edebc5bce
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": 1050
+        }
+      }
+  "15":
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 0
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      Action:
+        simple: drop
+      Application:
+        simple: any
+      AutoCommit:
+        simple: Else
+      Category:
+        complex:
+          accessor: name
+          root: PrismaSase.CustomURLCategory
+      Destination:
+        simple: any
+      Folder:
+        complex:
+          root: inputs.Folder
+      Overwrite:
+        simple: "False"
+      Position:
+        simple: pre
+      RuleName:
+        simple: Block URL Rule
+      Service:
+        simple: any
+      Source:
+        simple: any
+      TSGID:
+        complex:
+          root: inputs.TSGID
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "This playbook handles the creation or editing of the Security
+        Policy Rule for Pisma SASE integration. \n"
+      id: ae2421c9-7bef-47f5-806b-149e3bef1a61
+      iscommand: false
+      name: Prisma SASE - Create or Edit Security Policy Rule
+      playbookId: Prisma SASE - Create or Edit Security Policy Rule
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: ae2421c9-7bef-47f5-806b-149e3bef1a61
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": 670
+        }
+      }
+  "16":
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    message:
+      bcc:
+      body:
+      cc:
+      format: ""
+      methods: []
+      replyOptions:
+      - Push
+      - "No"
+      subject:
+      timings:
+        completeafterreplies: 1
+        completeaftersla: false
+        completeafterv2: true
+        retriescount: 2
+        retriesinterval: 360
+      to:
+    nexttasks:
+      '#default#':
+      - "5"
+      Push:
+      - "12"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Choose to commit and push configuration automatically
+      id: af316618-dc9f-4475-89a4-b7fd5ad0e2f4
+      iscommand: false
+      name: Choose to commit and push configuration automatically
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: af316618-dc9f-4475-89a4-b7fd5ad0e2f4
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -80,
+          "y": 1260
+        }
+      }
+  "17":
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: c7325348-7c96-47b0-8e4e-c9fe042a0949
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: c7325348-7c96-47b0-8e4e-c9fe042a0949
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 930,
+          "y": 1610
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "8"
+      Shadow Mode:
+      - "21"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7f5ff5d6-143c-4f4d-8de1-fbb98068f6d2
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 7f5ff5d6-143c-4f4d-8de1-fbb98068f6d2
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 240,
+          "y": 280
+        }
+      }
+  "19":
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "9"
+      Shadow Mode:
+      - "22"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7eac0f1d-8938-4d3b-8bff-4b9c9c39ec9e
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter'
+      type: condition
+      version: -1
+    taskid: 7eac0f1d-8938-4d3b-8bff-4b9c9c39ec9e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -220,
+          "y": 700
+        }
+      }
+  "21":
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "15"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Prisma SASE Create new URL Category
+          Command: prisma-sase-custom-url-category-create
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: dc60e040-179d-4b92-a13b-c7094b3e54d9
+      iscommand: false
+      name: 'Shadow: Prisma SASE Create new URL Category'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: dc60e040-179d-4b92-a13b-c7094b3e54d9
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 690,
+          "y": 500
+        }
+      }
+  "22":
+    continueonerrortype: ""
+    id: "22"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Prisma SASE Create new URL Category
+          Command: prisma-sase-custom-url-category-update
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 682885e6-e34c-4ce7-b2c9-77d00e233310
+      iscommand: false
+      name: 'Shadow: Prisma SASE Update URL Category'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 682885e6-e34c-4ce7-b2c9-77d00e233310
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -620,
+          "y": 980
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "13_12_Auto Commit": 0.68,
+      "16_12_Push": 0.85,
+      "4_5_#default#": 0.11,
+      "7_19_#default#": 0.76,
+      "7_5_yes": 0.27
+    },
+    "paper": {
+      "dimensions": {
+        "height": 2160,
+        "width": 1930,
+        "x": -620,
+        "y": -480
+      }
+    }
+  }
+fromversion: 5.0.0

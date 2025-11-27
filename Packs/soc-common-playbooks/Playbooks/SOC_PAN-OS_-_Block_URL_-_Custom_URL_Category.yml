@@ -1,0 +1,1095 @@
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.10.0
+    isoverridable: false
+    itemVersion: 1.0.0
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    toServerVersion: ""
+description: |-
+  This playbook blocks URLs using Palo Alto Networks Panorama or Firewall through Custom URL Categories.
+  The playbook checks whether the input URL category already exists, and if the URLs are a part of this category. Otherwise, it will create the category, block the URLs, and commit the configuration.
+dirtyInputs: true
+id: 'SOC PAN-OS - Block URL - Custom URL Category'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - URL
+  - CustomURLCategory
+  - LogForwarding
+  - AutoCommit
+  - type
+  - device-group
+  - categories
+  - pre-post
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: URL to block
+  key: URL
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: Data
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: URL.Malicious
+          operator: isExists
+      root: URL
+      transformers:
+      - operator: uniq
+- description: Custom URL Category name
+  key: CustomURLCategory
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Remediation - Malicious URLs
+- description: Panorama log forwarding object name
+  key: LogForwarding
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    This input establishes whether to commit the configuration automatically.
+    Yes - Commit automatically.
+    No - Commit manually.
+  key: AutoCommit
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "No"
+- description: Custom URL category type. Insert "URL List"/ "Category Match".
+  key: type
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Device group for the Custom URL Category (Panorama instances).
+  key: device-group
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The list of categories. Relevant from PAN-OS v9.x.
+  key: categories
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Specify pre-rulebase or post-rulebase. (Panorama instances).
+  key: pre-post
+  playbookInputQuery:
+  required: false
+  value:
+    simple: pre-rulebase
+- description: Shadow Mode is a key safety mechanism. It ensures actions like isolate_endpoint
+    or disable_user are logged but not executed in test scenarios.
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC PAN-OS - Block URL - Custom URL Category
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: PAN-OS - Block URL - Custom URL Category
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b04e828c-66a7-4f40-8753-90ba9a20ccf2
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: b04e828c-66a7-4f40-8753-90ba9a20ccf2
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 962,
+          "y": 40
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Panorama
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "5"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: e12beb96-60f4-4279-8122-884f57440b1e
+      iscommand: false
+      name: Is Palo Alto Networks PAN-OS enabled?
+      type: condition
+      version: -1
+    taskid: e12beb96-60f4-4279-8122-884f57440b1e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 962,
+          "y": 210
+        }
+      }
+  "2":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.URL
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "5"
+      "yes":
+      - "9"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d8aa9ca9-1af0-4c39-81b4-46c18e53167b
+      iscommand: false
+      name: Is there a URL to block?
+      type: condition
+      version: -1
+    taskid: d8aa9ca9-1af0-4c39-81b4-46c18e53167b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1107.25,
+          "y": 380
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "24"
+      '#none#':
+      - "15"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      categories:
+        complex:
+          root: inputs.categories
+      description:
+        simple: Malicious URLs
+      device-group:
+        complex:
+          root: inputs.device-group
+      name:
+        complex:
+          root: inputs.CustomURLCategory
+      sites:
+        complex:
+          root: inputs.URL
+          transformers:
+          - args:
+              separator:
+                value:
+                  simple: ','
+            operator: join
+      type:
+        complex:
+          root: inputs.type
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Creates a custom URL category
+      id: 54dd10c2-babf-4b0a-87fc-f3d729d276a0
+      iscommand: true
+      name: PAN-OS - Create Custom URL Category
+      script: '|||pan-os-create-custom-url-category'
+      type: regular
+      version: -1
+    taskid: 54dd10c2-babf-4b0a-87fc-f3d729d276a0
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2124,
+          "y": 1060
+        }
+      }
+  "4":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "24"
+      '#none#':
+      - "26"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      device-group:
+        complex:
+          root: inputs.device-group
+      log_forwarding:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.LogForwarding
+              operator: isNotEmpty
+          root: inputs.LogForwarding
+      object_type:
+        simple: url-category
+      object_value:
+        complex:
+          root: inputs.CustomURLCategory
+      pre_post:
+        complex:
+          root: inputs.pre-post
+      rulename:
+        simple: Block Rule - ${alert.id}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Creates a custom block policy rule to block communication to URLs
+        in this category.
+      id: 0c911378-14f2-41a7-baf3-44fa42980251
+      iscommand: true
+      name: PAN-OS - Block Malicious URL Category
+      script: '|||pan-os-custom-block-rule'
+      type: regular
+      version: -1
+    taskid: 0c911378-14f2-41a7-baf3-44fa42980251
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2509.75,
+          "y": 1570
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 4d893660-9b68-4b75-883f-6624620fb454
+      iscommand: false
+      name: Done
+      type: title
+      version: -1
+    taskid: 4d893660-9b68-4b75-883f-6624620fb454
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 916.75,
+          "y": 1910
+        }
+      }
+  "9":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "24"
+      '#none#':
+      - "11"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      device-group:
+        complex:
+          root: inputs.device-group
+      name:
+        complex:
+          root: inputs.CustomURLCategory
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns information for a specified custom URL category
+      id: b04daec6-9e01-44f8-8f4c-ab9c7a1a9299
+      iscommand: true
+      name: PAN-OS - Get Custom URL Category
+      script: '|||pan-os-get-custom-url-category'
+      type: regular
+      version: -1
+    taskid: b04daec6-9e01-44f8-8f4c-ab9c7a1a9299
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1252.5,
+          "y": 550
+        }
+      }
+  "10":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Panorama.CustomURLCategory.Sites
+          operator: containsGeneral
+          right:
+            iscontext: true
+            value:
+              simple: inputs.URL
+      label: "yes"
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "30"
+      "yes":
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0519c3cc-452b-4c33-8fc0-45e60f6edcb9
+      iscommand: false
+      name: Malicious URLs already exist in the Custom URL Category?
+      type: condition
+      version: -1
+    taskid: 0519c3cc-452b-4c33-8fc0-45e60f6edcb9
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 95.25,
+          "y": 1060
+        }
+      }
+  "11":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Panorama.CustomURLCategory.Name
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "28"
+      "yes":
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 1d9d896f-0796-4e86-8dd9-d6072875a535
+      iscommand: false
+      name: Custom URL Category exists?
+      type: condition
+      version: -1
+    taskid: 1d9d896f-0796-4e86-8dd9-d6072875a535
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1397.75,
+          "y": 720
+        }
+      }
+  "12":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "24"
+      '#none#':
+      - "17"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      action:
+        simple: add
+      categories:
+        complex:
+          root: inputs.categories
+      name:
+        complex:
+          root: inputs.CustomURLCategory
+      sites:
+        complex:
+          root: inputs.URL
+          transformers:
+          - args:
+              separator:
+                value:
+                  simple: ','
+            operator: join
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Add sites to, or remove sites from, a custom URL category
+      id: 82bc09a8-df14-48bf-8f66-48138a756cba
+      iscommand: true
+      name: PAN-OS - Add malicious URLs to Custom URL Category
+      script: '|||pan-os-edit-custom-url-category'
+      type: regular
+      version: -1
+    taskid: 82bc09a8-df14-48bf-8f66-48138a756cba
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 290.5,
+          "y": 1400
+        }
+      }
+  "15":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.AutoCommit
+          operator: isEqualString
+          right:
+            value:
+              simple: "Yes"
+      label: "yes"
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "16"
+      "yes":
+      - "25"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 80060245-606b-4c59-8baa-c985a309745f
+      iscommand: false
+      name: AutoCommit defined?
+      type: condition
+      version: -1
+    taskid: 80060245-606b-4c59-8baa-c985a309745f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 2269.25,
+          "y": 1230
+        }
+      }
+  "16":
+    continueonerrortype: ""
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: bc336c13-48d4-4f99-8225-9a6a53af8861
+      iscommand: false
+      name: Commit PAN-OS Instance manually
+      type: regular
+      version: -1
+    taskid: bc336c13-48d4-4f99-8225-9a6a53af8861
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2028.75,
+          "y": 1400
+        }
+      }
+  "17":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.AutoCommit
+          operator: isEqualString
+          right:
+            value:
+              simple: "Yes"
+      label: "yes"
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "18"
+      "yes":
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3c782409-7469-45c5-80e0-c95308ad57bf
+      iscommand: false
+      name: AutoCommit defined?
+      type: condition
+      version: -1
+    taskid: 3c782409-7469-45c5-80e0-c95308ad57bf
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 435.75,
+          "y": 1570
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 73abf18f-a70f-4c67-81a3-3e9724cc9c5e
+      iscommand: false
+      name: Commit PAN-OS Instance manually
+      type: regular
+      version: -1
+    taskid: 73abf18f-a70f-4c67-81a3-3e9724cc9c5e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1740
+        }
+      }
+  "19":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "24"
+      '#none#':
+      - "20"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      device-group:
+        complex:
+          root: inputs.device-group
+      log_forwarding:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.LogForwarding
+              operator: isNotEmpty
+          root: inputs.LogForwarding
+      object_type:
+        simple: url-category
+      object_value:
+        complex:
+          root: inputs.CustomURLCategory
+      pre_post:
+        complex:
+          root: inputs.pre-post
+      rulename:
+        simple: Block Rule - ${alert.id}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Creates a custom block policy rule to block communication to URLs
+        in this category.
+      id: 03792349-cd68-4953-beff-45151f16c797
+      iscommand: true
+      name: PAN-OS - Block Malicious URL Category
+      script: '|||pan-os-custom-block-rule'
+      type: regular
+      version: -1
+    taskid: 03792349-cd68-4953-beff-45151f16c797
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2028.75,
+          "y": 1570
+        }
+      }
+  "20":
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: ae0d8023-81e3-4c95-8ccb-08f02de687e7
+      iscommand: false
+      name: Commit PAN-OS Instance manually
+      type: regular
+      version: -1
+    taskid: ae0d8023-81e3-4c95-8ccb-08f02de687e7
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 2078.75,
+          "y": 1740
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: f2fd9c9a-592b-4c40-8214-b90c2d217054
+      iscommand: false
+      name: Foundation - Error Handling
+      playbookId: Foundation - Error Handling
+      type: playbook
+      version: -1
+    taskid: f2fd9c9a-592b-4c40-8214-b90c2d217054
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1062,
+          "y": 1740
+        }
+      }
+  "25":
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: a14f9f99-7459-49b5-8b10-40583ab57527
+      iscommand: false
+      name: SOC PAN-OS Commit Configuration v2
+      playbookId: SOC PAN-OS Commit Configuration v2
+      type: playbook
+      version: -1
+    taskid: a14f9f99-7459-49b5-8b10-40583ab57527
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 2509.75,
+          "y": 1400
+        }
+      }
+  "26":
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 75d96362-721d-4976-85f7-21d62143aca4
+      iscommand: false
+      name: SOC PAN-OS Commit Configuration v2
+      playbookId: SOC PAN-OS Commit Configuration v2
+      type: playbook
+      version: -1
+    taskid: 75d96362-721d-4976-85f7-21d62143aca4
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 2559.75,
+          "y": 1740
+        }
+      }
+  "27":
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3c63a355-b588-41ec-81e7-2e479c802c4c
+      iscommand: false
+      name: SOC PAN-OS Commit Configuration v2
+      playbookId: SOC PAN-OS Commit Configuration v2
+      type: playbook
+      version: -1
+    taskid: 3c63a355-b588-41ec-81e7-2e479c802c4c
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 531,
+          "y": 1740
+        }
+      }
+  "28":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ShadowMode
+          operator: isFalse
+          right:
+            value: {}
+      label: "no"
+    continueonerrortype: ""
+    id: "28"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "29"
+      "no":
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9a77efeb-a18e-4774-8e3c-0d570df2b7ff
+      iscommand: false
+      name: Shadow Run?
+      type: condition
+      version: -1
+    taskid: 9a77efeb-a18e-4774-8e3c-0d570df2b7ff
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 2364.5,
+          "y": 890
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: 'Shadow Mode: PAN-OS Block Malicious URL'
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 797df12e-9225-48d8-b1c2-dca54b462524
+      iscommand: false
+      name: Print To WarRoom
+      script: Print
+      type: regular
+      version: -1
+    taskid: 797df12e-9225-48d8-b1c2-dca54b462524
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 3040.75,
+          "y": 1740
+        }
+      }
+  "30":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ShadowMode
+          operator: isFalse
+          right:
+            value: {}
+      label: "no"
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "31"
+      "no":
+      - "12"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d5c1d824-2503-436e-880f-e0473b168fd4
+      iscommand: false
+      name: Shadow Run?
+      type: condition
+      version: -1
+    taskid: d5c1d824-2503-436e-880f-e0473b168fd4
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 771.5,
+          "y": 1230
+        }
+      }
+  "31":
+    continueonerrortype: ""
+    id: "31"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: PAN-OS - Add malicious URLs to Custom URL Category
+          Command: pan-os-edit-custom-url-category
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 655594f7-7570-4c05-9203-206769072c94
+      iscommand: false
+      name: Print To WarRoom
+      script: Print
+      type: regular
+      version: -1
+    taskid: 655594f7-7570-4c05-9203-206769072c94
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1593,
+          "y": 1740
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "10_30_#default#": 0.9,
+      "10_5_yes": 0.5,
+      "15_25_yes": 0.9,
+      "19_24_#error#": 0.47,
+      "1_2_yes": 0.55,
+      "1_5_#default#": 0.12,
+      "2_5_#default#": 0.23
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1930,
+        "width": 3370.75,
+        "x": 50,
+        "y": 40
+      }
+    }
+  }
+adopted: true
+fromversion: 5.0.0
