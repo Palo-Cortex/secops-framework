@@ -7,11 +7,11 @@ on:
       - main
 
 permissions:
-  contents: write   # needed for releases + git push
+  contents: write   # required to create releases + push commits
 
 jobs:
   release-packs:
-    # Avoid infinite loop when we commit back with [skip ci]
+    # Avoid infinite loop after committing [skip ci]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed to read HEAD^
+          fetch-depth: 0  # Needed so we can read HEAD^
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,7 +33,9 @@ jobs:
         run: |
           pip install "demisto-sdk>=1.0.0"
 
-      # 1) Auto-discover packs (directories with pack_metadata.json)
+      ############################################
+      # 1) DISCOVER ALL PACKS
+      ############################################
       - name: Discover packs
         id: discover
         run: |
@@ -42,225 +44,204 @@ jobs:
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
-          packs = []
-          for p in packs_dir.iterdir():
-            if (p / "pack_metadata.json").is_file():
-              packs.append(p.name)
-
+          packs = [
+              p.name for p in packs_dir.iterdir()
+              if (p / "pack_metadata.json").is_file()
+          ]
           packs_str = " ".join(sorted(packs))
           print("Discovered packs:", packs_str or "(none)")
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-            fh.write(f"packs={packs_str}\n")
+              fh.write(f"packs={packs_str}\n")
           PY
 
-      # 2) Compute which packs actually changed version vs HEAD^
+      ############################################
+      # 2) DETECT PACKS WITH VERSION CHANGES
+      ############################################
       - name: Compute changed packs (version bump)
         id: changed
+        env:
+          ALL_PACKS: ${{ steps.discover.outputs.packs }}
         run: |
           python - << 'PY'
-          import io
-          import json
-          import os
-          import subprocess
+          import io, json, os, subprocess
           from pathlib import Path
 
-          all_packs = os.environ["ALL_PACKS"].split()
+          packs = os.environ["ALL_PACKS"].split()
           packs_dir = Path(os.environ["PACKS_DIR"])
           changed = []
 
-          for pack in all_packs:
+          for pack in packs:
             meta_path = packs_dir / pack / "pack_metadata.json"
-            if not meta_path.is_file():
+            if not meta_path.exists():
               continue
 
             new_meta = json.loads(meta_path.read_text())
-            new_ver = (
-                new_meta.get("version")
-                or new_meta.get("currentVersion")
-                or ""
-            )
+            new_ver = new_meta.get("version") or new_meta.get("currentVersion") or ""
 
             try:
-              blob = subprocess.check_output(
-                  ["git", "show", f"HEAD^:{meta_path}"],
-                  text=True,
-              )
-              old_meta = json.load(io.StringIO(blob))
-              old_ver = (
-                  old_meta.get("version")
-                  or old_meta.get("currentVersion")
-                  or ""
-              )
+                blob = subprocess.check_output(
+                    ["git", "show", f"HEAD^:{meta_path}"], text=True
+                )
+                old_meta = json.load(io.StringIO(blob))
+                old_ver = old_meta.get("version") or old_meta.get("currentVersion") or ""
             except subprocess.CalledProcessError:
-              old_ver = ""
+                old_ver = ""
 
             if new_ver != old_ver:
-              print(f"{pack}: version changed {old_ver!r} -> {new_ver!r}")
+              print(f"{pack}: version changed {old_ver} -> {new_ver}")
               changed.append(pack)
 
           changed_str = " ".join(changed)
           print("Changed packs:", changed_str or "(none)")
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-            fh.write(f"packs={changed_str}\n")
+              fh.write(f"packs={changed_str}\n")
           PY
-        env:
-          ALL_PACKS: ${{ steps.discover.outputs.packs }}
 
-      # 3) Decide environment (staging vs main) based on branch
+      ############################################
+      # 3) DETERMINE ENVIRONMENT
+      ############################################
       - name: Determine environment
         id: envinfo
         run: |
-          ref="${GITHUB_REF}"
-          if [ "$ref" = "refs/heads/staging" ]; then
-            ENVIRONMENT="staging"
-          elif [ "$ref" = "refs/heads/main" ]; then
-            ENVIRONMENT="main"
+          if [ "$GITHUB_REF" = "refs/heads/staging" ]; then
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "environment=main" >> "$GITHUB_OUTPUT"
           else
-            echo "Unsupported ref: $ref"
+            echo "Unsupported branch $GITHUB_REF"
             exit 1
           fi
-          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
-          echo "Environment: $ENVIRONMENT"
 
-      # 4) Build zips, create releases, update xsoar_config.json
+      ############################################
+      # 4) BUILD PACKS, CREATE RELEASES, UPDATE CONFIG
+      ############################################
       - name: Build & release changed packs
         if: ${{ steps.changed.outputs.packs != '' }}
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
           ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # used by gh CLI
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python - << 'PY'
-          import json
-          import os
-          import subprocess
+          import json, os, subprocess
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
-          changed = os.environ.get("CHANGED_PACKS", "").split()
-          environment = os.environ.get("ENVIRONMENT", "staging")
+          changed = os.environ["CHANGED_PACKS"].split()
+          environment = os.environ["ENVIRONMENT"]
           repo = os.environ["GITHUB_REPOSITORY"]
 
-          if not changed:
-            print("No changed packs to process.")
-            raise SystemExit(0)
-
-          dist_dir = Path("dist")
-          dist_dir.mkdir(parents=True, exist_ok=True)
+          dist = Path("dist")
+          dist.mkdir(exist_ok=True)
 
           def run_cmd(cmd):
-            print("+", " ".join(cmd))
-            return subprocess.run(cmd, check=True)
+              print("+", " ".join(cmd))
+              subprocess.run(cmd, check=True)
 
           def gh(*args, check=True):
-            print("+ gh", " ".join(args))
-            return subprocess.run(["gh", *args], check=check)
+              print("+ gh", " ".join(args))
+              return subprocess.run(["gh", *args], check=check)
 
           for pack in changed:
             pack_path = packs_dir / pack
             meta_path = pack_path / "pack_metadata.json"
             config_path = pack_path / "xsoar_config.json"
 
-            if not meta_path.exists():
-              print(f"Pack {pack}: no pack_metadata.json, skipping.")
-              continue
-
             meta = json.loads(meta_path.read_text())
-            version = (
-                meta.get("version")
-                or meta.get("currentVersion")
-                or ""
-            )
-            if not version:
-              print(f"Pack {pack}: no version/currentVersion, skipping.")
-              continue
-
+            version = meta.get("version") or meta.get("currentVersion") or ""
             print(f"Processing {pack} v{version}")
 
-            # Build zip with full pack path
+            # Build pack zip (SDK outputs to uploadable_packs/)
             run_cmd([
                 "demisto-sdk", "zip-packs",
                 "-i", str(pack_path),
-                "-o", str(dist_dir),
+                "-o", str(dist)
             ])
 
-            # demisto-sdk puts zips under dist/uploadable_packs/<pack>.zip
-            input_zip = dist_dir / "uploadable_packs" / f"{pack}.zip"
-            print("Created zips:")
-            for p in (dist_dir / "uploadable_packs").glob("*.zip"):
-              print(" ", p)
-
+            input_zip = dist / "uploadable_packs" / f"{pack}.zip"
             if not input_zip.exists():
-              raise FileNotFoundError(f"Expected zip {input_zip} not found")
+                raise FileNotFoundError(f"Expected zip not found: {input_zip}")
 
-            # Decide tag & asset name
+            # Determine release name + asset
             if environment == "staging":
-              tag = f"{pack}-v{version}-staging"
-              asset_name = f"{pack}-v{version}-staging.zip"
-              title = f"{pack} v{version} (staging)"
-              prerelease = True
+                tag = f"{pack}-v{version}-staging"
+                asset = f"{pack}-v{version}-staging.zip"
+                title = f"{pack} v{version} (staging)"
+                prerelease = True
             else:
-              tag = f"{pack}-v{version}"
-              asset_name = f"{pack}-v{version}.zip"
-              title = f"{pack} v{version}"
-              prerelease = False
+                tag = f"{pack}-v{version}"
+                asset = f"{pack}-v{version}.zip"
+                title = f"{pack} v{version}"
+                prerelease = False
 
-            final_zip = dist_dir / asset_name
+            final_zip = dist / asset
             if final_zip.exists():
-              final_zip.unlink()
+                final_zip.unlink()
             input_zip.rename(final_zip)
 
             # Create or update release
             exists = gh("release", "view", tag, check=False).returncode == 0
             if exists:
-              print(f"Release {tag} exists, uploading asset...")
-              gh("release", "upload", tag, str(final_zip), "--clobber")
+                gh("release", "upload", tag, str(final_zip), "--clobber")
             else:
-              print(f"Creating release {tag} ...")
-              base = ["release", "create", tag, str(final_zip), "-t", title]
-              if prerelease:
-                base += [
-                  "-n", f"Staging release for {pack} v{version}",
-                  "--prerelease",
-                ]
-              else:
-                base += [
-                  "-n", f"Release for {pack} v{version}",
-                ]
-              gh(*base)
+                args = ["release", "create", tag, str(final_zip), "-t", title]
+                if prerelease:
+                    args += ["-n", f"Staging release for {pack} v{version}", "--prerelease"]
+                else:
+                    args += ["-n", f"Release for {pack} v{version}"]
+                gh(*args)
 
-            url = f"https://github.com/{repo}/releases/download/{tag}/{asset_name}"
-            print(f"New URL for {pack}: {url}")
+            url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+            print("New URL:", url)
 
+            # Update xsoar_config.json → custom_packs entry
             if not config_path.exists():
-              print(f"Pack {pack}: no xsoar_config.json, skipping URL update.")
-              continue
+                print("No xsoar_config.json; skipping")
+                continue
 
             cfg = json.loads(config_path.read_text())
-            cfg["url"] = url
+            updated = False
+            target_id = f"{pack}.zip"
+
+            custom = cfg.get("custom_packs")
+            if isinstance(custom, list):
+                for entry in custom:
+                    if isinstance(entry, dict) and entry.get("id") == target_id:
+                        print(f"Updating custom_packs id={target_id}")
+                        entry["url"] = url
+                        updated = True
+                        break
+
+            if not updated:
+                print("WARNING: No custom_packs entry matched; updating top-level 'url'")
+                cfg["url"] = url
+
             config_path.write_text(json.dumps(cfg, indent=2) + "\n")
 
           PY
 
-      # 5) Commit any updated xsoar_config.json files
+      ############################################
+      # 5) COMMIT UPDATED FILES
+      ############################################
       - name: Commit updated xsoar_config.json files
         if: ${{ steps.changed.outputs.packs != '' }}
         run: |
           set -euo pipefail
 
           if git diff --quiet; then
-            echo "No changes to commit."
+            echo "No changes detected"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add "${PACKS_DIR}"/*/xsoar_config.json || true
 
           if git diff --cached --quiet; then
-            echo "No staged changes to commit."
+            echo "No staged changes"
             exit 0
           fi
 
@@ -268,8 +249,10 @@ jobs:
           git commit -m "chore: [skip ci] update xsoar_config urls (${ENVIRONMENT})"
           git push origin HEAD
 
-      # 6) No-op if nothing changed
-      - name: No packs changed, nothing to do
+      ############################################
+      # 6) NOTHING CHANGED
+      ############################################
+      - name: No packs changed
         if: ${{ steps.changed.outputs.packs == '' }}
         run: |
-          echo "No pack version changes detected. Skipping release."
+          echo "No pack version changes detected. Skipping."
