@@ -29,6 +29,10 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Install demisto-sdk
+        run: |
+          pip install "demisto-sdk>=1.0.0"
+
       ############################################
       # 1) DISCOVER ALL PACKS
       ############################################
@@ -111,7 +115,7 @@ jobs:
           fi
 
       ############################################
-      # 4) BUILD PACKS (ZIP), CREATE RELEASES, UPDATE CONFIG
+      # 4) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG
       ############################################
       - name: Build & release changed packs
         if: ${{ steps.changed.outputs.packs != '' }}
@@ -119,6 +123,7 @@ jobs:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
           ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
           python - << 'PY'
           import json, os, subprocess
@@ -129,8 +134,7 @@ jobs:
           environment = os.environ["ENVIRONMENT"]
           repo = os.environ["GITHUB_REPOSITORY"]
 
-          # dist as absolute path so zip works even when cwd is pack dir
-          dist = (Path.cwd() / "dist").resolve()
+          dist = Path("dist")
           dist.mkdir(exist_ok=True)
 
           def run_cmd(cmd, cwd=None):
@@ -158,6 +162,23 @@ jobs:
 
             print(f"Processing {pack} v{version}")
 
+            # Use demisto-sdk to build a proper pack artifact (with metadata.json)
+            run_cmd([
+                "demisto-sdk", "zip-packs",
+                "-i", str(pack_path),
+                "-o", str(dist)
+            ])
+
+            # SDK creates dist/uploadable_packs/<pack>.zip
+            uploadable_dir = dist / "uploadable_packs"
+            input_zip = uploadable_dir / f"{pack}.zip"
+            print("Uploadable zips:")
+            if uploadable_dir.exists():
+              for p in uploadable_dir.glob("*.zip"):
+                print(" ", p)
+            if not input_zip.exists():
+              raise FileNotFoundError(f"Expected zip not found: {input_zip}")
+
             # Decide tag & asset name
             if environment == "staging":
               tag = f"{pack}-v{version}-staging"
@@ -173,10 +194,7 @@ jobs:
             final_zip = dist / asset
             if final_zip.exists():
               final_zip.unlink()
-
-            # Build zip directly from the pack directory
-            # final_zip is absolute; cwd is pack_path
-            run_cmd(["zip", "-r", str(final_zip), "."], cwd=str(pack_path))
+            input_zip.rename(final_zip)
 
             # Create or update GitHub Release
             exists = gh("release", "view", tag, check=False).returncode == 0
