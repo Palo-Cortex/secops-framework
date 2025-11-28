@@ -132,73 +132,101 @@ jobs:
           ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # for gh CLI
         run: |
-          set -euo pipefail
-          mkdir -p dist
+          python - << 'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
 
-          echo "Environment: $ENVIRONMENT"
-          echo "Changed packs: $CHANGED_PACKS"
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed = os.environ.get("CHANGED_PACKS", "").split()
+          environment = os.environ.get("ENVIRONMENT", "staging")
+          repo = os.environ["GITHUB_REPOSITORY"]
 
-          for pack in $CHANGED_PACKS; do
-            META_PATH="${PACKS_DIR}/${pack}/pack_metadata.json"
-            CONFIG_PATH="${PACKS_DIR}/${pack}/xsoar_config.json"
+          if not changed:
+            print("No changed packs to process.")
+            raise SystemExit(0)
 
-            # Read new version from pack_metadata.json (version or currentVersion)
-            VERSION=$(python -c "import json, pathlib; m=json.loads(pathlib.Path('${META_PATH}').read_text()); print(m.get('version') or m.get('currentVersion'))")
-            echo "Processing pack=${pack}, version=${VERSION}"
+          dist_dir = Path("dist")
+          dist_dir.mkdir(parents=True, exist_ok=True)
 
-            # Build zip with demisto-sdk
-            demisto-sdk zip-packs -i "$pack" -o dist
+          def run_cmd(args, **kwargs):
+            print("+", " ".join(args))
+            return subprocess.run(args, check=True, **kwargs)
 
-            # Decide tag & asset name based on environment
-            if [ "$ENVIRONMENT" = "staging" ]; then
-              TAG=\"${pack}-v${VERSION}-staging\"
-              ASSET=\"${pack}-v${VERSION}-staging.zip\"
-              TITLE=\"${pack} v${VERSION} (staging)\"
-              PRERELEASE=\"true\"
-            else
-              TAG=\"${pack}-v${VERSION}\"
-              ASSET=\"${pack}-v${VERSION}.zip\"
-              TITLE=\"${pack} v${VERSION}\"
-              PRERELEASE=\"false\"
-            fi
+          for pack in changed:
+            meta_path = packs_dir / pack / "pack_metadata.json"
+            config_path = packs_dir / pack / "xsoar_config.json"
 
-            # Remove extra quotes from TAG/ASSET/TITLE/PRERELEASE
-            TAG=${TAG%\"}; TAG=${TAG#\"}
-            ASSET=${ASSET%\"}; ASSET=${ASSET#\"}
-            TITLE=${TITLE%\"}; TITLE=${TITLE#\"}
-            PRERELEASE=${PRERELEASE%\"}; PRERELEASE=${PRERELEASE#\"}
+            if not meta_path.is_file():
+              print(f"Pack {pack}: no pack_metadata.json, skipping.")
+              continue
 
-            mv "dist/${pack}.zip" "dist/${ASSET}"
+            meta = json.loads(meta_path.read_text())
+            version = (
+                meta.get("version")
+                or meta.get("currentVersion")
+                or ""
+            )
+            if not version:
+              print(f"Pack {pack}: no version/currentVersion in pack_metadata.json, skipping.")
+              continue
 
-            echo "Tag: $TAG"
-            echo "Asset: dist/$ASSET"
+            print(f"Processing {pack} v{version}")
 
-            # Create or update release with gh CLI
-            if gh release view "$TAG" >/dev/null 2>&1; then
-              echo "Release $TAG exists, uploading asset (clobber)..."
-              gh release upload "$TAG" "dist/${ASSET}" --clobber
-            else
-              echo "Creating release $TAG ..."
-              if [ "$PRERELEASE" = "true" ]; then
-                gh release create "$TAG" "dist/${ASSET}" \
-                  -t "$TITLE" \
-                  -n "Staging release for ${pack} v${VERSION}" \
-                  --prerelease
-              else
-                gh release create "$TAG" "dist/${ASSET}" \
-                  -t "$TITLE" \
-                  -n "Release for ${pack} v${VERSION}"
-              fi
-            fi
+            # Build pack zip
+            run_cmd(["demisto-sdk", "zip-packs", "-i", pack, "-o", str(dist_dir)])
 
-            # Build URL for this asset
-            URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}"
-            echo "New URL for ${pack}: $URL"
+            src_zip = dist_dir / f"{pack}.zip"
 
-            # Update xsoar_config.json url (Python one-liner)
-            python -c "import json, pathlib; p=pathlib.Path('${CONFIG_PATH}'); d=json.loads(p.read_text()); d['url'] = '${URL}'; p.write_text(json.dumps(d, indent=2) + '\n')"
+            if environment == "staging":
+              tag = f"{pack}-v{version}-staging"
+              asset = f"{pack}-v{version}-staging.zip"
+              title = f"{pack} v{version} (staging)"
+              prerelease = True
+            else:
+              tag = f"{pack}-v{version}"
+              asset = f"{pack}-v{version}.zip"
+              title = f"{pack} v{version}"
+              prerelease = False
 
-          done
+            dest_zip = dist_dir / asset
+            if dest_zip.exists():
+              dest_zip.unlink()
+            src_zip.rename(dest_zip)
+
+            # Helper for gh
+            def gh(*args, check=True):
+              print("+ gh", " ".join(args))
+              return subprocess.run(["gh", *args], check=check)
+
+            # Does release already exist?
+            exists = gh("release", "view", tag, check=False).returncode == 0
+
+            if exists:
+              print(f"Release {tag} exists, uploading asset...")
+              gh("release", "upload", tag, str(dest_zip), "--clobber")
+            else:
+              print(f"Creating release {tag} ...")
+              base = ["release", "create", tag, str(dest_zip), "-t", title]
+              if prerelease:
+                base += ["-n", f"Staging release for {pack} v{version}", "--prerelease"]
+              else:
+                base += ["-n", f"Release for {pack} v{version}"]
+              gh(*base)
+
+            url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+            print(f"New URL for {pack}: {url}")
+
+            if not config_path.is_file():
+              print(f"Pack {pack}: no xsoar_config.json, skipping URL update.")
+              continue
+
+            config = json.loads(config_path.read_text())
+            config["url"] = url
+            config_path.write_text(json.dumps(config, indent=2) + "\n")
+
+          PY
 
       # 5) Commit any updated xsoar_config.json files
       - name: Commit updated xsoar_config.json files
