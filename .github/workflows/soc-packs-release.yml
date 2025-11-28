@@ -75,14 +75,23 @@ jobs:
               continue
 
             new_meta = json.loads(meta_path.read_text())
-            new_ver = new_meta.get("version", "")
+            new_ver = (
+              new_meta.get("version")
+              or new_meta.get("currentVersion")
+              or ""
+            )
 
             try:
               blob = subprocess.check_output(
                   ["git", "show", f"HEAD^:{meta_path}"],
                   text=True,
               )
-              old_ver = json.load(io.StringIO(blob)).get("version", "")
+              old_meta = json.load(io.StringIO(blob))
+              old_ver = (
+                old_meta.get("version")
+                or old_meta.get("currentVersion")
+                or ""
+              )
             except subprocess.CalledProcessError:
               old_ver = ""
 
@@ -134,7 +143,7 @@ jobs:
             CONFIG_PATH="${PACKS_DIR}/${pack}/xsoar_config.json"
 
             # Read new version from pack_metadata.json (Python one-liner to keep YAML clean)
-            VERSION=$(python -c "import json, pathlib; print(json.loads(pathlib.Path('${META_PATH}').read_text())['version'])")
+            VERSION=$(python -c "import json, pathlib; m=json.loads(pathlib.Path('${META_PATH}').read_text()); print(m.get('version') or m.get('currentVersion'))")
             echo "Processing pack=${pack}, version=${VERSION}"
 
             # Build zip with demisto-sdk
