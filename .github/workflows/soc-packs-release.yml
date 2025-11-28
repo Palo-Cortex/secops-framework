@@ -29,10 +29,6 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install demisto-sdk
-        run: |
-          pip install "demisto-sdk>=1.0.0"
-
       ############################################
       # 1) DISCOVER ALL PACKS
       ############################################
@@ -115,7 +111,7 @@ jobs:
           fi
 
       ############################################
-      # 4) BUILD PACKS, CREATE RELEASES, UPDATE CONFIG
+      # 4) BUILD PACKS (ZIP), CREATE RELEASES, UPDATE CONFIG
       ############################################
       - name: Build & release changed packs
         if: ${{ steps.changed.outputs.packs != '' }}
@@ -136,9 +132,9 @@ jobs:
           dist = Path("dist")
           dist.mkdir(exist_ok=True)
 
-          def run_cmd(cmd):
+          def run_cmd(cmd, cwd=None):
               print("+", " ".join(cmd))
-              subprocess.run(cmd, check=True)
+              subprocess.run(cmd, check=True, cwd=cwd)
 
           def gh(*args, check=True):
               print("+ gh", " ".join(args))
@@ -149,57 +145,57 @@ jobs:
             meta_path = pack_path / "pack_metadata.json"
             config_path = pack_path / "xsoar_config.json"
 
+            if not meta_path.exists():
+              print(f"{pack}: no pack_metadata.json, skipping")
+              continue
+
             meta = json.loads(meta_path.read_text())
             version = meta.get("version") or meta.get("currentVersion") or ""
+            if not version:
+              print(f"{pack}: no version/currentVersion, skipping")
+              continue
+
             print(f"Processing {pack} v{version}")
 
-            # Build pack zip (SDK outputs to uploadable_packs/)
-            run_cmd([
-                "demisto-sdk", "zip-packs",
-                "-i", str(pack_path),
-                "-o", str(dist)
-            ])
-
-            input_zip = dist / "uploadable_packs" / f"{pack}.zip"
-            if not input_zip.exists():
-                raise FileNotFoundError(f"Expected zip not found: {input_zip}")
-
-            # Determine release name + asset
+            # Decide tag & asset name
             if environment == "staging":
-                tag = f"{pack}-v{version}-staging"
-                asset = f"{pack}-v{version}-staging.zip"
-                title = f"{pack} v{version} (staging)"
-                prerelease = True
+              tag = f"{pack}-v{version}-staging"
+              asset = f"{pack}-v{version}-staging.zip"
+              title = f"{pack} v{version} (staging)"
+              prerelease = True
             else:
-                tag = f"{pack}-v{version}"
-                asset = f"{pack}-v{version}.zip"
-                title = f"{pack} v{version}"
-                prerelease = False
+              tag = f"{pack}-v{version}"
+              asset = f"{pack}-v{version}.zip"
+              title = f"{pack} v{version}"
+              prerelease = False
 
             final_zip = dist / asset
             if final_zip.exists():
-                final_zip.unlink()
-            input_zip.rename(final_zip)
+              final_zip.unlink()
 
-            # Create or update release
+            # Build zip directly from the pack directory
+            # Contents will mirror Packs/<pack>/ exactly
+            run_cmd(["zip", "-r", str(final_zip), "."], cwd=str(pack_path))
+
+            # Create or update GitHub Release
             exists = gh("release", "view", tag, check=False).returncode == 0
             if exists:
-                gh("release", "upload", tag, str(final_zip), "--clobber")
+              gh("release", "upload", tag, str(final_zip), "--clobber")
             else:
-                args = ["release", "create", tag, str(final_zip), "-t", title]
-                if prerelease:
-                    args += ["-n", f"Staging release for {pack} v{version}", "--prerelease"]
-                else:
-                    args += ["-n", f"Release for {pack} v{version}"]
-                gh(*args)
+              args = ["release", "create", tag, str(final_zip), "-t", title]
+              if prerelease:
+                  args += ["-n", f"Staging release for {pack} v{version}", "--prerelease"]
+              else:
+                  args += ["-n", f"Release for {pack} v{version}"]
+              gh(*args)
 
             url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
             print("New URL:", url)
 
             # Update xsoar_config.json → custom_packs entry
             if not config_path.exists():
-                print("No xsoar_config.json; skipping")
-                continue
+              print(f"{pack}: no xsoar_config.json; skipping URL update")
+              continue
 
             cfg = json.loads(config_path.read_text())
             updated = False
@@ -207,16 +203,16 @@ jobs:
 
             custom = cfg.get("custom_packs")
             if isinstance(custom, list):
-                for entry in custom:
-                    if isinstance(entry, dict) and entry.get("id") == target_id:
-                        print(f"Updating custom_packs id={target_id}")
-                        entry["url"] = url
-                        updated = True
-                        break
+              for entry in custom:
+                if isinstance(entry, dict) and entry.get("id") == target_id:
+                  print(f"Updating custom_packs id={target_id}")
+                  entry["url"] = url
+                  updated = True
+                  break
 
             if not updated:
-                print("WARNING: No custom_packs entry matched; updating top-level 'url'")
-                cfg["url"] = url
+              print("WARNING: no matching custom_packs entry; updating top-level 'url'")
+              cfg["url"] = url
 
             config_path.write_text(json.dumps(cfg, indent=2) + "\n")
 
