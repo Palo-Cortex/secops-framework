@@ -130,7 +130,7 @@ jobs:
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
           ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # for gh CLI
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # used by gh CLI
         run: |
           python - << 'PY'
           import json
@@ -150,15 +150,20 @@ jobs:
           dist_dir = Path("dist")
           dist_dir.mkdir(parents=True, exist_ok=True)
 
-          def run_cmd(args, **kwargs):
-            print("+", " ".join(args))
-            return subprocess.run(args, check=True, **kwargs)
+          def run_cmd(cmd):
+            print("+", " ".join(cmd))
+            return subprocess.run(cmd, check=True)
+
+          def gh(*args, check=True):
+            print("+ gh", " ".join(args))
+            return subprocess.run(["gh", *args], check=check)
 
           for pack in changed:
-            meta_path = packs_dir / pack / "pack_metadata.json"
-            config_path = packs_dir / pack / "xsoar_config.json"
+            pack_path = packs_dir / pack
+            meta_path = pack_path / "pack_metadata.json"
+            config_path = pack_path / "xsoar_config.json"
 
-            if not meta_path.is_file():
+            if not meta_path.exists():
               print(f"Pack {pack}: no pack_metadata.json, skipping.")
               continue
 
@@ -169,62 +174,68 @@ jobs:
                 or ""
             )
             if not version:
-              print(f"Pack {pack}: no version/currentVersion in pack_metadata.json, skipping.")
+              print(f"Pack {pack}: no version/currentVersion, skipping.")
               continue
 
             print(f"Processing {pack} v{version}")
 
-            # Build pack zip
-            run_cmd(["demisto-sdk", "zip-packs", "-i", pack, "-o", str(dist_dir)])
+            # Build zip with full pack path
+            run_cmd([
+                "demisto-sdk", "zip-packs",
+                "-i", str(pack_path),
+                "-o", str(dist_dir),
+            ])
 
-            src_zip = dist_dir / f"{pack}.zip"
+            input_zip = dist_dir / f"{pack}.zip"
+            if not input_zip.exists():
+              raise FileNotFoundError(f"Expected zip {input_zip} not found")
 
+            # Decide tag & asset name
             if environment == "staging":
               tag = f"{pack}-v{version}-staging"
-              asset = f"{pack}-v{version}-staging.zip"
+              asset_name = f"{pack}-v{version}-staging.zip"
               title = f"{pack} v{version} (staging)"
               prerelease = True
             else:
               tag = f"{pack}-v{version}"
-              asset = f"{pack}-v{version}.zip"
+              asset_name = f"{pack}-v{version}.zip"
               title = f"{pack} v{version}"
               prerelease = False
 
-            dest_zip = dist_dir / asset
-            if dest_zip.exists():
-              dest_zip.unlink()
-            src_zip.rename(dest_zip)
+            final_zip = dist_dir / asset_name
+            if final_zip.exists():
+              final_zip.unlink()
+            input_zip.rename(final_zip)
 
-            # Helper for gh
-            def gh(*args, check=True):
-              print("+ gh", " ".join(args))
-              return subprocess.run(["gh", *args], check=check)
-
-            # Does release already exist?
+            # Create or update release
             exists = gh("release", "view", tag, check=False).returncode == 0
-
             if exists:
               print(f"Release {tag} exists, uploading asset...")
-              gh("release", "upload", tag, str(dest_zip), "--clobber")
+              gh("release", "upload", tag, str(final_zip), "--clobber")
             else:
               print(f"Creating release {tag} ...")
-              base = ["release", "create", tag, str(dest_zip), "-t", title]
+              base = ["release", "create", tag, str(final_zip), "-t", title]
               if prerelease:
-                base += ["-n", f"Staging release for {pack} v{version}", "--prerelease"]
+                base += [
+                  "-n", f"Staging release for {pack} v{version}",
+                  "--prerelease",
+                ]
               else:
-                base += ["-n", f"Release for {pack} v{version}"]
+                base += [
+                  "-n", f"Release for {pack} v{version}",
+                ]
               gh(*base)
 
-            url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+            url = f"https://github.com/{repo}/releases/download/{tag}/{asset_name}"
             print(f"New URL for {pack}: {url}")
 
-            if not config_path.is_file():
+            if not config_path.exists():
               print(f"Pack {pack}: no xsoar_config.json, skipping URL update.")
               continue
 
-            config = json.loads(config_path.read_text())
-            config["url"] = url
-            config_path.write_text(json.dumps(config, indent=2) + "\n")
+            cfg = json.loads(config_path.read_text())
+            cfg["url"] = url
+            config_path.write_text(json.dumps(cfg, indent=2) + "\n")
 
           PY
 
