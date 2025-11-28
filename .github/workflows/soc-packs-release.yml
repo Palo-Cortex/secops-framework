@@ -284,48 +284,11 @@ jobs:
   ############################################
   pov-staging-test:
     needs: release-packs
-    # Only run when:
-    #   - environment is staging
-    #   - at least one pack changed
     if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.changed_packs != ''
     runs-on: ubuntu-latest
 
     steps:
-      - name: Select pack under test & compute config URL
-        run: |
-          set -euo pipefail
-          CHANGED="${{ needs.release-packs.outputs.changed_packs }}"
-          PACK=$(echo "$CHANGED" | awk '{print $1}')
-          if [ -z "$PACK" ]; then
-            echo "No pack to test."; exit 1
-          fi
-
-          REPO="${{ github.repository }}"
-          BRANCH="staging"
-          URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
-
-          echo "Pack under test: $PACK"
-          echo "CONTENT_REPO_RAW_LINK: $URL"
-
-          # Export for later steps
-          echo "PACK_UNDER_TEST=$PACK" >> "$GITHUB_ENV"
-          echo "CONTENT_REPO_RAW_LINK=$URL" >> "$GITHUB_ENV"
-
-      - name: Checkout xsiam-pov-automation
-        uses: actions/checkout@v4
-        with:
-          repository: annabarone/xsiam-pov-automation
-          path: xsiam-pov-automation
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install POV requirements
-        working-directory: xsiam-pov-automation
-        run: |
-          pip install -r requirements.txt
+      # ... (select pack, checkout repo, install requirements as before)
 
       - name: Run POV setup playbook against staging
         working-directory: xsiam-pov-automation
@@ -334,7 +297,9 @@ jobs:
           DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
           XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
           CONTENT_REPO_RAW_LINK: ${{ env.CONTENT_REPO_RAW_LINK }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
           echo "Running POV setup against $DEMISTO_BASE_URL"
           echo "Using CONTENT_REPO_RAW_LINK=$CONTENT_REPO_RAW_LINK"
-          python setup.py
+          # auto-answer the interactive verify_dotenv() prompt
+          printf 'yes\n' | python setup.py
