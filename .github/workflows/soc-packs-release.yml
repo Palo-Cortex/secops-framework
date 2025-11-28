@@ -1,0 +1,224 @@
+name: SOC Packs Release (staging + main)
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+
+jobs:
+  release-packs:
+    # Avoid infinite loop when we commit back with [skip ci]
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+
+    env:
+      PACKS_DIR: Packs
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed to read HEAD^
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install demisto-sdk
+        run: |
+          pip install "demisto-sdk>=1.0.0"
+
+      # 1) Auto-discover packs (directories with pack_metadata.json)
+      - name: Discover packs
+        id: discover
+        run: |
+          python - << 'PY'
+          import os
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          packs = []
+          for p in packs_dir.iterdir():
+            if (p / "pack_metadata.json").is_file():
+              packs.append(p.name)
+
+          packs_str = " ".join(sorted(packs))
+          print("Discovered packs:", packs_str or "(none)")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+            fh.write(f"packs={packs_str}\n")
+          PY
+
+      # 2) Compute which packs actually changed version vs HEAD^
+      - name: Compute changed packs (version bump)
+        id: changed
+        run: |
+          python - << 'PY'
+          import io
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          all_packs = os.environ["ALL_PACKS"].split()
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed = []
+
+          for pack in all_packs:
+            meta_path = packs_dir / pack / "pack_metadata.json"
+            if not meta_path.is_file():
+              continue
+
+            new_meta = json.loads(meta_path.read_text())
+            new_ver = new_meta.get("version", "")
+
+            try:
+              blob = subprocess.check_output(
+                  ["git", "show", f"HEAD^:{meta_path}"],
+                  text=True,
+              )
+              old_ver = json.load(io.StringIO(blob)).get("version", "")
+            except subprocess.CalledProcessError:
+              old_ver = ""
+
+            if new_ver != old_ver:
+              print(f"{pack}: version changed {old_ver!r} -> {new_ver!r}")
+              changed.append(pack)
+
+          changed_str = " ".join(changed)
+          print("Changed packs:", changed_str or "(none)")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+            fh.write(f"packs={changed_str}\n")
+          PY
+        env:
+          ALL_PACKS: ${{ steps.discover.outputs.packs }}
+
+      # 3) Decide environment (staging vs main) based on branch
+      - name: Determine environment
+        id: envinfo
+        run: |
+          ref="${GITHUB_REF}"
+          if [ "$ref" = "refs/heads/staging" ]; then
+            ENVIRONMENT="staging"
+          elif [ "$ref" = "refs/heads/main" ]; then
+            ENVIRONMENT="main"
+          else
+            echo "Unsupported ref: $ref"
+            exit 1
+          fi
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "Environment: $ENVIRONMENT"
+
+      # 4) Build zips, create releases, update xsoar_config.json
+      - name: Build & release changed packs
+        if: ${{ steps.changed.outputs.packs != '' }}
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+          ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # for gh CLI
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          echo "Environment: $ENVIRONMENT"
+          echo "Changed packs: $CHANGED_PACKS"
+
+          for pack in $CHANGED_PACKS; do
+            META_PATH="${PACKS_DIR}/${pack}/pack_metadata.json"
+            CONFIG_PATH="${PACKS_DIR}/${pack}/xsoar_config.json"
+
+            # Read new version from pack_metadata.json (Python one-liner to keep YAML clean)
+            VERSION=$(python -c "import json, pathlib; print(json.loads(pathlib.Path('${META_PATH}').read_text())['version'])")
+            echo "Processing pack=${pack}, version=${VERSION}"
+
+            # Build zip with demisto-sdk
+            demisto-sdk zip-packs -i "$pack" -o dist
+
+            # Decide tag & asset name based on environment
+            if [ "$ENVIRONMENT" = "staging" ]; then
+              TAG="${pack}-v${VERSION}-staging"
+              ASSET="${pack}-v${VERSION}-staging.zip"
+              TITLE="${pack} v${VERSION} (staging)"
+              PRERELEASE="true"
+            else
+              TAG="${pack}-v${VERSION}"
+              ASSET="${pack}-v${VERSION}.zip"
+              TITLE="${pack} v${VERSION}"
+              PRERELEASE="false"
+            fi
+
+            mv "dist/${pack}.zip" "dist/${ASSET}"
+
+            echo "Tag: $TAG"
+            echo "Asset: dist/$ASSET"
+
+            # Create or update release with gh CLI
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG exists, uploading asset (clobber)..."
+              gh release upload "$TAG" "dist/${ASSET}" --clobber
+            else
+              echo "Creating release $TAG ..."
+              if [ "$PRERELEASE" = "true" ]; then
+                gh release create "$TAG" "dist/${ASSET}" \
+                  -t "$TITLE" \
+                  -n "Staging release for ${pack} v${VERSION}" \
+                  --prerelease
+              else
+                gh release create "$TAG" "dist/${ASSET}" \
+                  -t "$TITLE" \
+                  -n "Release for ${pack} v${VERSION}"
+              fi
+            fi
+
+            # Build URL for this asset
+            URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}"
+            echo "New URL for ${pack}: $URL"
+
+            # Update xsoar_config.json url via small Python snippet
+            CONFIG_PATH_ENV="$CONFIG_PATH" NEW_URL="$URL" python - << 'PY'
+            import json
+            import os
+            from pathlib import Path
+
+            config_path = Path(os.environ["CONFIG_PATH_ENV"])
+            url = os.environ["NEW_URL"]
+
+            data = json.loads(config_path.read_text())
+            data["url"] = url
+            config_path.write_text(json.dumps(data, indent=2) + "\n")
+            PY
+
+          done
+
+      # 5) Commit any updated xsoar_config.json files
+      - name: Commit updated xsoar_config.json files
+        if: ${{ steps.changed.outputs.packs != '' }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${PACKS_DIR}"/*/xsoar_config.json || true
+
+          if git diff --cached --quiet; then
+            echo "No staged changes to commit."
+            exit 0
+          fi
+
+          ENVIRONMENT="${{ steps.envinfo.outputs.environment }}"
+          git commit -m "chore: [skip ci] update xsoar_config urls (${ENVIRONMENT})"
+          git push origin HEAD
+
+      # 6) No-op if nothing changed
+      - name: No packs changed, nothing to do
+        if: ${{ steps.changed.outputs.packs == '' }}
+        run: |
+          echo "No pack version changes detected. Skipping release."
