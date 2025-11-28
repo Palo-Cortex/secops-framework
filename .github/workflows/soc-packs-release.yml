@@ -129,7 +129,8 @@ jobs:
           environment = os.environ["ENVIRONMENT"]
           repo = os.environ["GITHUB_REPOSITORY"]
 
-          dist = Path("dist")
+          # dist as absolute path so zip works even when cwd is pack dir
+          dist = (Path.cwd() / "dist").resolve()
           dist.mkdir(exist_ok=True)
 
           def run_cmd(cmd, cwd=None):
@@ -174,7 +175,7 @@ jobs:
               final_zip.unlink()
 
             # Build zip directly from the pack directory
-            # Contents will mirror Packs/<pack>/ exactly
+            # final_zip is absolute; cwd is pack_path
             run_cmd(["zip", "-r", str(final_zip), "."], cwd=str(pack_path))
 
             # Create or update GitHub Release
