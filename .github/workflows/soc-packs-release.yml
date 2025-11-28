@@ -76,9 +76,9 @@ jobs:
 
             new_meta = json.loads(meta_path.read_text())
             new_ver = (
-              new_meta.get("version")
-              or new_meta.get("currentVersion")
-              or ""
+                new_meta.get("version")
+                or new_meta.get("currentVersion")
+                or ""
             )
 
             try:
@@ -88,9 +88,9 @@ jobs:
               )
               old_meta = json.load(io.StringIO(blob))
               old_ver = (
-                old_meta.get("version")
-                or old_meta.get("currentVersion")
-                or ""
+                  old_meta.get("version")
+                  or old_meta.get("currentVersion")
+                  or ""
               )
             except subprocess.CalledProcessError:
               old_ver = ""
@@ -142,7 +142,7 @@ jobs:
             META_PATH="${PACKS_DIR}/${pack}/pack_metadata.json"
             CONFIG_PATH="${PACKS_DIR}/${pack}/xsoar_config.json"
 
-            # Read new version from pack_metadata.json (Python one-liner to keep YAML clean)
+            # Read new version from pack_metadata.json (version or currentVersion)
             VERSION=$(python -c "import json, pathlib; m=json.loads(pathlib.Path('${META_PATH}').read_text()); print(m.get('version') or m.get('currentVersion'))")
             echo "Processing pack=${pack}, version=${VERSION}"
 
@@ -151,16 +151,22 @@ jobs:
 
             # Decide tag & asset name based on environment
             if [ "$ENVIRONMENT" = "staging" ]; then
-              TAG="${pack}-v${VERSION}-staging"
-              ASSET="${pack}-v${VERSION}-staging.zip"
-              TITLE="${pack} v${VERSION} (staging)"
-              PRERELEASE="true"
+              TAG=\"${pack}-v${VERSION}-staging\"
+              ASSET=\"${pack}-v${VERSION}-staging.zip\"
+              TITLE=\"${pack} v${VERSION} (staging)\"
+              PRERELEASE=\"true\"
             else
-              TAG="${pack}-v${VERSION}"
-              ASSET="${pack}-v${VERSION}.zip"
-              TITLE="${pack} v${VERSION}"
-              PRERELEASE="false"
+              TAG=\"${pack}-v${VERSION}\"
+              ASSET=\"${pack}-v${VERSION}.zip\"
+              TITLE=\"${pack} v${VERSION}\"
+              PRERELEASE=\"false\"
             fi
+
+            # Remove extra quotes from TAG/ASSET/TITLE/PRERELEASE
+            TAG=${TAG%\"}; TAG=${TAG#\"}
+            ASSET=${ASSET%\"}; ASSET=${ASSET#\"}
+            TITLE=${TITLE%\"}; TITLE=${TITLE#\"}
+            PRERELEASE=${PRERELEASE%\"}; PRERELEASE=${PRERELEASE#\"}
 
             mv "dist/${pack}.zip" "dist/${ASSET}"
 
@@ -189,19 +195,8 @@ jobs:
             URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}"
             echo "New URL for ${pack}: $URL"
 
-            # Update xsoar_config.json url via small Python snippet
-            CONFIG_PATH_ENV="$CONFIG_PATH" NEW_URL="$URL" python - << 'PY'
-            import json
-            import os
-            from pathlib import Path
-
-            config_path = Path(os.environ["CONFIG_PATH_ENV"])
-            url = os.environ["NEW_URL"]
-
-            data = json.loads(config_path.read_text())
-            data["url"] = url
-            config_path.write_text(json.dumps(data, indent=2) + "\n")
-            PY
+            # Update xsoar_config.json url (Python one-liner)
+            python -c "import json, pathlib; p=pathlib.Path('${CONFIG_PATH}'); d=json.loads(p.read_text()); d['url'] = '${URL}'; p.write_text(json.dumps(d, indent=2) + '\n')"
 
           done
 
