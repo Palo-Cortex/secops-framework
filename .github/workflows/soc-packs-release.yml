@@ -171,9 +171,27 @@ jobs:
               print(f"{pack}: no version/currentVersion, skipping")
               continue
 
-            print(f"Processing {pack} v{version}")
+            print(f"Processing pack={pack}, version={version}")
 
-            # Decide tag & asset name
+            # Build pack with demisto-sdk
+            run_cmd([
+                "demisto-sdk", "zip-packs",
+                "-i", str(pack_path),
+                "-o", str(dist)
+            ])
+
+            # SDK writes to dist/uploadable_packs/<pack>.zip
+            uploadable_dir = dist / "uploadable_packs"
+            input_zip = uploadable_dir / f"{pack}.zip"
+            print("Uploadable zips in", uploadable_dir)
+            if uploadable_dir.exists():
+              for p in uploadable_dir.glob("*.zip"):
+                print("  ", p)
+
+            if not input_zip.exists():
+              raise FileNotFoundError(f"Expected zip {input_zip} not found")
+
+            # Decide tag & asset name based on environment
             if environment == "staging":
               tag = f"{pack}-v{version}-staging"
               asset = f"{pack}-v{version}-staging.zip"
@@ -185,19 +203,11 @@ jobs:
               title = f"{pack} v{version}"
               prerelease = False
 
-            # Build a plain zip of the pack folder: Packs/<pack> -> dist/<asset>
             final_zip = dist / asset
             if final_zip.exists():
               final_zip.unlink()
-
-            # run "zip -r <dist/asset> ." from inside Packs/<pack>
-            run_cmd([
-                "zip", "-r", str(final_zip), "."
-            ], cwd=str(pack_path))
-
-            if not final_zip.exists():
-              raise FileNotFoundError(f"Expected zip not found: {final_zip}")
-            print("Created zip:", final_zip)
+            input_zip.rename(final_zip)
+            print("Final asset zip:", final_zip)
 
             # Create or update GitHub Release
             exists = gh("release", "view", tag, check=False).returncode == 0
