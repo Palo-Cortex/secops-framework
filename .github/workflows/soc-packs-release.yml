@@ -1,4 +1,4 @@
-name: SOC Packs Release (staging + main)
+name: SOC Packs Release + POV Staging Test
 
 on:
   push:
@@ -7,16 +7,27 @@ on:
       - main
 
 permissions:
-  contents: write   # required to create releases + push commits
+  contents: write   # required for releases + commits
 
 jobs:
+  ############################################
+  # JOB 1: BUILD & RELEASE PACKS
+  ############################################
   release-packs:
     # Avoid infinite loop after committing [skip ci]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
+    # Use 'main' environment for main branch, otherwise 'staging'
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
+
     env:
       PACKS_DIR: Packs
+
+    outputs:
+      changed_packs: ${{ steps.changed.outputs.packs }}
+      environment:   ${{ steps.envinfo.outputs.environment }}
 
     steps:
       - name: Checkout repo
@@ -100,7 +111,7 @@ jobs:
           PY
 
       ############################################
-      # 3) DETERMINE ENVIRONMENT
+      # 3) DETERMINE ENVIRONMENT (staging/main)
       ############################################
       - name: Determine environment
         id: envinfo
@@ -138,7 +149,7 @@ jobs:
           dist.mkdir(exist_ok=True)
 
           def run_cmd(cmd, cwd=None):
-              print("+", " ".join(cmd))
+              print("+", " ".join(cmd), f"(cwd={cwd or os.getcwd()})")
               subprocess.run(cmd, check=True, cwd=cwd)
 
           def gh(*args, check=True):
@@ -160,26 +171,27 @@ jobs:
               print(f"{pack}: no version/currentVersion, skipping")
               continue
 
-            print(f"Processing {pack} v{version}")
+            print(f"Processing pack={pack}, version={version}")
 
-            # Use demisto-sdk to build a proper pack artifact (with metadata.json)
+            # Build pack with demisto-sdk
             run_cmd([
                 "demisto-sdk", "zip-packs",
                 "-i", str(pack_path),
                 "-o", str(dist)
             ])
 
-            # SDK creates dist/uploadable_packs/<pack>.zip
+            # SDK writes to dist/uploadable_packs/<pack>.zip
             uploadable_dir = dist / "uploadable_packs"
             input_zip = uploadable_dir / f"{pack}.zip"
-            print("Uploadable zips:")
+            print("Uploadable zips in", uploadable_dir)
             if uploadable_dir.exists():
               for p in uploadable_dir.glob("*.zip"):
-                print(" ", p)
-            if not input_zip.exists():
-              raise FileNotFoundError(f"Expected zip not found: {input_zip}")
+                print("  ", p)
 
-            # Decide tag & asset name
+            if not input_zip.exists():
+              raise FileNotFoundError(f"Expected zip {input_zip} not found")
+
+            # Decide tag & asset name based on environment
             if environment == "staging":
               tag = f"{pack}-v{version}-staging"
               asset = f"{pack}-v{version}-staging.zip"
@@ -195,6 +207,7 @@ jobs:
             if final_zip.exists():
               final_zip.unlink()
             input_zip.rename(final_zip)
+            print("Final asset zip:", final_zip)
 
             # Create or update GitHub Release
             exists = gh("release", "view", tag, check=False).returncode == 0
@@ -209,7 +222,7 @@ jobs:
               gh(*args)
 
             url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
-            print("New URL:", url)
+            print("New URL for", pack, ":", url)
 
             # Update xsoar_config.json → custom_packs entry
             if not config_path.exists():
@@ -271,3 +284,68 @@ jobs:
         if: ${{ steps.changed.outputs.packs == '' }}
         run: |
           echo "No pack version changes detected. Skipping."
+
+  ############################################
+  # JOB 2: POV STAGING TEST VIA xsiam-pov-automation
+  ############################################
+  pov-staging-test:
+    needs: release-packs
+    # Only run when:
+    #   - environment is staging
+    #   - at least one pack changed
+    if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.changed_packs != ''
+    runs-on: ubuntu-latest
+
+    # Always use the 'staging' environment / secrets here
+    environment:
+      name: staging
+
+    steps:
+      - name: Select pack under test & compute config URL
+        run: |
+          set -euo pipefail
+          CHANGED="${{ needs.release-packs.outputs.changed_packs }}"
+          PACK=$(echo "$CHANGED" | awk '{print $1}')
+          if [ -z "$PACK" ]; then
+            echo "No pack to test."; exit 1
+          fi
+
+          REPO="${{ github.repository }}"
+          BRANCH="staging"
+          URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+
+          echo "Pack under test: $PACK"
+          echo "CONTENT_REPO_RAW_LINK: $URL"
+
+          echo "PACK_UNDER_TEST=$PACK" >> "$GITHUB_ENV"
+          echo "CONTENT_REPO_RAW_LINK=$URL" >> "$GITHUB_ENV"
+
+      - name: Checkout xsiam-pov-automation
+        uses: actions/checkout@v4
+        with:
+          repository: annabarone/xsiam-pov-automation
+          path: xsiam-pov-automation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install POV requirements
+        working-directory: xsiam-pov-automation
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run POV setup playbook against staging
+        working-directory: xsiam-pov-automation
+        env:
+          DEMISTO_BASE_URL:  ${{ secrets.XSIAM_API_URL }}
+          DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
+          XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
+          CONTENT_REPO_RAW_LINK: ${{ env.CONTENT_REPO_RAW_LINK }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+        run: |
+          echo "Running POV setup against $DEMISTO_BASE_URL"
+          echo "Using CONTENT_REPO_RAW_LINK=$CONTENT_REPO_RAW_LINK"
+          # auto-answer verify_dotenv() prompt in setup.py
+          printf 'yes\n' | python setup.py
