@@ -1,6 +1,99 @@
-rule_id: 0
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  _device_id: device_id
+  action_file_path: filepath
+  action_local_ip: local_ip
+  action_process_image_sha256: sha256
+  action_remote_ip: remote_ips
+  actor_effective_username: user_name
+  actor_process_command_line: cmdline
+  actor_process_image_name: filename
+  actor_process_image_path: filepath
+  actor_process_image_sha256: sha256
+  actor_process_os_pid: local_process_id
+  additionalindicators: ioc_value
+  agent_device_domain: domain
+  agent_hostname: hostname
+  agent_id: agent_id
+  alert_description: alert_description
+  alertaction: pattern_disposition_description
+  causality_actor_causality_id: aggregate_id
+  causality_actor_process_command_line: cgo_cmd
+  causality_actor_process_image_name: cgo_name
+  causality_actor_process_image_path: cgo_path
+  causality_actor_process_image_sha256: grandparent_process_sha256
+  detectionid: template_instance_id
+  deviceexternalips: external_ip
+  deviceou: device_ou_arr
+  dns_query_name: dns_queries
+  eventaction: ioc_source
+  external_pivot_url: falcon_host_link
+  externalconfidence: confidence
+  externallink: falcon_host_link
+  externalseverity: severity
+  filehash: sha256
+  mac: mac_address
+  mitretacticid: mitre_tactic_id
+  mitretacticname: mitre_tactic
+  mitretechniqueid: mitre_technique_id
+  mitretechniquename: mitre_technique
+  objective: objective
+  originalalertid: composite_id
+  originalalertname: alert_name
+  originaldescription: alert_description
+  parentprocesscmd: parent_process_cmd
+  parentprocessid: parent_process_name
+  parentprocessids: parent_local_process_id
+  parentprocessname: parent_process_name
+  parentprocesspath: parent_process_path
+  parentprocesssha256: parent_process_sha256
+  postnatdestinationip: remote_ips
+  prenatsourceip: local_ip
+  processcreationtime: process_start_time
+  processid: grandparent_local_process_id
+  processmd5: md5
+  scenario: scenario
+  severity: severity_name
+  sourceid: aggregate_id
+  tim_main_indicator: ioc_value
+  userid: user_name
+  usersid: user_id
+alert_name: CrowdStrike Falcon - $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+description: Creates an XSIAM alert for each CrowdStrike Falcon Endpoint Detection
+  Event
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: soc_crowdstrike_falcon_endpoint_alerts_v1
+investigation_query_link: '// All (stitched) activity from host - assuming raw telemetry
+  is being collected
+
+  dataset = xdr_data
+
+  | filter agent_hostname = $hostname
+
+  | fields * '
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0040 - Impact: []
 name: CrowdStrike Falcon - Endpoint Alerts
+rule_id: 0
+search_window: null
 severity: User Defined
+simple_schedule: null
+suppression_duration: null
+suppression_enabled: false
+suppression_fields: null
+timezone: null
+user_defined_category: tactic
+user_defined_severity: severity_name
 xql_query: "/*\nTitle: CrowdStrike Falcon - Endpoint Alerts - Impact\nDescription:\
   \  Single rule handler for any Detection Summary alert fetched from the CrowdStrike\
   \ Falcon Integration\nNITRE Tactic: Impact\nDatasets: crowdstrike_falcon_event_raw\
@@ -39,100 +132,5 @@ xql_query: "/*\nTitle: CrowdStrike Falcon - Endpoint Alerts - Impact\nDescriptio
   \           = tactic,\n    mitre_tactic_id        = tactic_id,\n    mitre_technique\
   \        = technique,\n    mitre_technique_id     = technique_id\n\n| alter alert_name\
   \ = _name\n| alter alert_description = description  \n\n// Explicitly place correlation\
-  \ fields in front\n| fields device_id,local_ip,user_name,cmdline,sha256,domain,hostname,agent_id,pattern_disposition_description,cgo_cmd,cgo_name,cgo_path,template_instance_id,external_ip,falcon_host_link,mac_address,tactic_id,tactic,technique_id,technique,objective,composite_id,parent_process_cmd,parent_process_name,parent_local_process_id,parent_process_path,parent_process_sha256,process_start_time,local_process_id,md5,scenario,severity_name,aggregate_id,indicator_id,user_principal,user_id,alert_name,\
+  \ fields in front\n| fields device_id,local_ip,user_name,cmdline,sha256,domain,hostname,agent_id,pattern_disposition_description,cgo_cmd,cgo_name,cgo_path,template_instance_id,external_ip,falcon_host_link,mac_address,tactic_id,tactic,technique_id,technique,objective,composite_id,parent_process_cmd,parent_process_name,parent_local_process_id,parent_process_path,parent_process_sha256,process_start_time,local_process_id,md5,scenario,severity_name,aggregate_id,indicator_id,user_id,alert_name,\
   \ alert_description, *"
-is_enabled: true
-description: Creates an XSIAM alert for each CrowdStrike Falcon Endpoint Detection
-  Event
-alert_name: CrowdStrike Falcon - $alert_name
-alert_category: User Defined
-alert_type: null
-alert_description: $alert_description
-alert_domain: DOMAIN_SECURITY
-alert_fields:
-  mac: mac_address
-  userid: user_principal
-  usersid: user_id
-  agent_id: agent_id
-  deviceou: device_ou_arr
-  filehash: sha256
-  scenario: scenario
-  severity: severity_name
-  sourceid: aggregate_id
-  objective: objective
-  processid: grandparent_local_process_id
-  _device_id: device_id
-  processmd5: md5
-  alertaction: pattern_disposition_description
-  detectionid: template_instance_id
-  eventaction: ioc_source
-  externallink: falcon_host_link
-  mitretacticid: mitre_tactic_id
-  agent_hostname: hostname
-  dns_query_name: dns_queries
-  prenatsourceip: local_ip
-  action_local_ip: local_ip
-  mitretacticname: mitre_tactic
-  originalalertid: composite_id
-  parentprocessid: parent_process_name
-  action_file_path: filepath
-  action_remote_ip: remote_ips
-  externalseverity: severity
-  mitretechniqueid: mitre_technique_id
-  parentprocesscmd: parent_process_cmd
-  parentprocessids: parent_local_process_id
-  alert_description: alert_description
-  deviceexternalips: external_ip
-  originalalertname: alert_name
-  parentprocessname: parent_process_name
-  parentprocesspath: parent_process_path
-  external_pivot_url: falcon_host_link
-  externalconfidence: confidence
-  mitretechniquename: mitre_technique
-  tim_main_indicator: ioc_value
-  agent_device_domain: domain
-  originaldescription: alert_description
-  parentprocesssha256: parent_process_sha256
-  processcreationtime: process_start_time
-  actor_process_os_pid: local_process_id
-  additionalindicators: ioc_value
-  postnatdestinationip: remote_ips
-  actor_effective_username: user_name
-  actor_process_image_name: filename
-  actor_process_image_path: filepath
-  actor_process_command_line: cmdline
-  actor_process_image_sha256: sha256
-  action_process_image_sha256: sha256
-  causality_actor_causality_id: aggregate_id
-  causality_actor_process_image_name: cgo_name
-  causality_actor_process_image_path: cgo_path
-  causality_actor_process_command_line: cgo_cmd
-  causality_actor_process_image_sha256: grandparent_process_sha256
-execution_mode: REAL_TIME
-search_window: null
-simple_schedule: null
-timezone: null
-crontab: null
-suppression_enabled: false
-suppression_duration: null
-suppression_fields: null
-dataset: alerts
-user_defined_severity: severity_name
-user_defined_category: tactic
-mitre_defs:
-  TA0040 - Impact: []
-investigation_query_link: '// All (stitched) activity from host - assuming raw telemetry
-  is being collected
-
-  dataset = xdr_data
-
-  | filter agent_hostname = $hostname
-
-  | fields * '
-drilldown_query_timeframe: ALERT
-mapping_strategy: CUSTOM
-action: ALERTS
-lookup_mapping: []
-global_rule_id: CrowdStrike Falcon - Endpoint Alerts
-fromVersion: 6.10.0
-adopted: true
