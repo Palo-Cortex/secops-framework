@@ -1,25 +1,21 @@
-name: SOC Packs Release + POV Staging Test
+name: SOC Packs Release (develop builds)
 
 on:
   push:
     branches:
-      - staging
+      - develop
       - main
 
 permissions:
-  contents: write   # required for releases + commits
+  contents: write
 
 jobs:
-  ############################################
-  # JOB 1: BUILD & RELEASE PACKS
-  ############################################
   release-packs:
-    # Avoid infinite loop after committing [skip ci]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
-    # Use 'main' environment for main branch, otherwise 'staging'
     environment:
+      # develop builds are treated as "staging" artifacts, main as "main"
       name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
 
     env:
@@ -33,7 +29,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Needed so we can read HEAD^
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -44,9 +40,6 @@ jobs:
         run: |
           pip install "demisto-sdk>=1.0.0"
 
-      ############################################
-      # 1) DISCOVER ALL PACKS
-      ############################################
       - name: Discover packs
         id: discover
         run: |
@@ -66,9 +59,6 @@ jobs:
               fh.write(f"packs={packs_str}\n")
           PY
 
-      ############################################
-      # 2) DETECT PACKS WITH VERSION CHANGES
-      ############################################
       - name: Compute changed packs (version bump)
         id: changed
         env:
@@ -110,13 +100,10 @@ jobs:
               fh.write(f"packs={changed_str}\n")
           PY
 
-      ############################################
-      # 3) DETERMINE ENVIRONMENT (staging/main)
-      ############################################
       - name: Determine environment
         id: envinfo
         run: |
-          if [ "$GITHUB_REF" = "refs/heads/staging" ]; then
+          if [ "$GITHUB_REF" = "refs/heads/develop" ]; then
             echo "environment=staging" >> "$GITHUB_OUTPUT"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
             echo "environment=main" >> "$GITHUB_OUTPUT"
@@ -125,9 +112,6 @@ jobs:
             exit 1
           fi
 
-      ############################################
-      # 4) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG (locally only)
-      ############################################
       - name: Build & release changed packs
         if: ${{ steps.changed.outputs.packs != '' }}
         env:
@@ -224,8 +208,6 @@ jobs:
             url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
             print("New URL for", pack, ":", url)
 
-            # NOTE: we still update xsoar_config.json in the runner's workspace
-            # but we no longer commit/push it from this workflow.
             if not config_path.exists():
               print(f"{pack}: no xsoar_config.json; skipping URL update")
               continue
@@ -251,75 +233,26 @@ jobs:
 
           PY
 
-      ############################################
-      # 5) NOTHING CHANGED
-      ############################################
-      - name: No packs changed
-        if: ${{ steps.changed.outputs.packs == '' }}
-        run: |
-          echo "No pack version changes detected. Skipping."
-
-  ############################################
-  # JOB 2: POV STAGING TEST VIA xsiam-pov-automation
-  ############################################
-  pov-staging-test:
-    needs: release-packs
-    # Only run when:
-    #   - environment is staging
-    #   - at least one pack changed
-    if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.changed_packs != ''
-    runs-on: ubuntu-latest
-
-    # Always use the 'staging' environment / secrets here
-    environment:
-      name: staging
-
-    steps:
-      - name: Select pack under test & compute config URL
+      - name: Commit updated xsoar_config.json files
+        if: ${{ steps.changed.outputs.packs != '' }}
         run: |
           set -euo pipefail
-          CHANGED="${{ needs.release-packs.outputs.changed_packs }}"
-          PACK=$(echo "$CHANGED" | awk '{print $1}')
-          if [ -z "$PACK" ]; then
-            echo "No pack to test."; exit 1
+
+          if git diff --quiet; then
+            echo "No changes detected"
+            exit 0
           fi
 
-          REPO="${{ github.repository }}"
-          BRANCH="staging"
-          URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          echo "Pack under test: $PACK"
-          echo "CONTENT_REPO_RAW_LINK: $URL"
+          git add "${PACKS_DIR}"/*/xsoar_config.json || true
 
-          echo "PACK_UNDER_TEST=$PACK" >> "$GITHUB_ENV"
-          echo "CONTENT_REPO_RAW_LINK=$URL" >> "$GITHUB_ENV"
+          if git diff --cached --quiet; then
+            echo "No staged changes"
+            exit 0
+          fi
 
-      - name: Checkout xsiam-pov-automation
-        uses: actions/checkout@v4
-        with:
-          repository: annabarone/xsiam-pov-automation
-          path: xsiam-pov-automation
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install POV requirements
-        working-directory: xsiam-pov-automation
-        run: |
-          pip install -r requirements.txt
-
-      - name: Run POV setup playbook against staging
-        working-directory: xsiam-pov-automation
-        env:
-          DEMISTO_BASE_URL:  ${{ secrets.XSIAM_API_URL }}
-          DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
-          XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
-          CONTENT_REPO_RAW_LINK: ${{ env.CONTENT_REPO_RAW_LINK }}
-          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
-        run: |
-          echo "Running POV setup against $DEMISTO_BASE_URL"
-          echo "Using CONTENT_REPO_RAW_LINK=$CONTENT_REPO_RAW_LINK"
-          # auto-answer verify_dotenv() prompt in setup.py
-          printf 'yes\n' | python setup.py
+          ENVIRONMENT="${{ steps.envinfo.outputs.environment }}"
+          git commit -m "chore: [skip ci] update xsoar_config urls (${ENVIRONMENT})"
+          git push origin HEAD
