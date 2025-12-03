@@ -232,27 +232,3 @@ jobs:
             config_path.write_text(json.dumps(cfg, indent=2) + "\n")
 
           PY
-
-      - name: Commit updated xsoar_config.json files
-        if: ${{ steps.changed.outputs.packs != '' }}
-        run: |
-          set -euo pipefail
-
-          if git diff --quiet; then
-            echo "No changes detected"
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add "${PACKS_DIR}"/*/xsoar_config.json || true
-
-          if git diff --cached --quiet; then
-            echo "No staged changes"
-            exit 0
-          fi
-
-          ENVIRONMENT="${{ steps.envinfo.outputs.environment }}"
-          git commit -m "chore: [skip ci] update xsoar_config urls (${ENVIRONMENT})"
-          git push origin HEAD
