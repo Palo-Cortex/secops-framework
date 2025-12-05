@@ -226,7 +226,7 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool):
             # Nothing to do?
             if not is_playbook and not is_corr:
                 continue
-
+            """
             # If this is a correlation rule file, normalize filename (spaces -> underscores)
             if is_corr and " " in os.path.basename(fp):
                 old_fp = fp
@@ -247,7 +247,7 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool):
                         # Dry run: pretend we renamed for further logic
                         fp = new_fp
                         low = _norm(fp)
-
+            """
             try:
                 # JSON correlation rules
                 if low.endswith(".json"):
