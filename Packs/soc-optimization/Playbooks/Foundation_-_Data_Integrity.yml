@@ -1,5 +1,5 @@
 id: Foundation - Data Integrity
-version: 6
+version: 7
 contentitemexportablefields:
   contentitemfields:
     packID: soc-optimization
@@ -158,10 +158,10 @@ tasks:
     isautoswitchedtoquietmode: false
   "27":
     id: "27"
-    taskid: 715519e1-9024-4cd7-a7a6-09693160cf0f
+    taskid: 8d0eef34-1cd9-4577-9bc5-d66bdf625f38
     type: playbook
     task:
-      id: 715519e1-9024-4cd7-a7a6-09693160cf0f
+      id: 8d0eef34-1cd9-4577-9bc5-d66bdf625f38
       version: -1
       name: Foundation - Product Classification
       description: Designed to get the product category (EndPoint, Network, Cloud
@@ -177,7 +177,29 @@ tasks:
       - "28"
     scriptarguments:
       ProductKey:
-        simple: ${issue.tags.[0]}
+        complex:
+          root: ${issue.tags
+          accessor: '[0]}'
+          transformers:
+          - operator: replace
+            args:
+              limit: {}
+              replaceWith:
+                value:
+                  simple: _
+              toReplace:
+                value:
+                  simple: ':'
+          - operator: replace
+            args:
+              limit: {}
+              replaceWith:
+                value:
+                  simple: _
+              toReplace:
+                value:
+                  simple: /
+          - operator: toLowerCase
     separatecontext: true
     continueonerrortype: ""
     loop:
