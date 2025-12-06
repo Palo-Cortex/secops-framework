@@ -1,193 +1,83 @@
 #!/usr/bin/env python3
 """
-Replay a CrowdStrike JSON scenario (e.g. MITRE Turla Carbon) into XSIAM,
-preserving relative timing and endpoint behavior, while anonymizing ONLY
-CrowdStrike cloud tenant identifiers.
+Replay a CrowdStrike Falcon scenario (e.g., MITRE Turla Carbon) into XSIAM
+via HTTP Collector, with:
 
-Workflow:
+- Time rebasing:
+  - Anchor the LATEST event to "now" (or an explicit --start time)
+  - Optionally compress the whole scenario into a shorter demo window
+    (e.g. --compress-window 60m, 2h, 1h30m)
+- Tenant anonymization:
+  - Rewrite CrowdStrike cloud tenant IPs and *.crowdstrike.com hosts
+    (e.g., https://api.crowdstrike.com -> https://falcon.socframework.local)
+  - Do NOT touch endpoint agent IDs, hostnames, etc.
 
-  1) Convert TSV -> JSON array with existing script (unchanged):
-       python tools/tsv_to_json.py \
-         --input turla_carbon_falcon.tsv \
-         --output tools/turla_carbon_falcon.json
-
-  2) Replay the JSON into XSIAM with rebased timestamps:
-       python tools/replay_crowdstrike_scenario.py \
-         --file tools/turla_carbon_falcon.json \
-         --time-field "event_creation_time" \
-         --env ".env-brumxdr-crowdstrike"
-
-What this script does:
-
-  - Reads JSON array of events (output from tsv_to_json.py).
-  - Uses `time-field` to compute the earliest event time.
-  - If --start is provided, earliest event -> that time.
-    Otherwise, earliest event -> now() in UTC.
-  - Rewrites:
-      - ev[time_field]
-      - ev["@timestamp"], ev["timestamp"], ev["event_creation_time"],
-        ev["EventTimestamp"], ev["observation_time"], etc. if present
-      - ev["_time"]
-      - ev["_insert_time"]
-    while preserving the original time in `cs_original_time`.
-  - Leaves ALL endpoint behavior as-is (aid, host, IPs, hashes, etc.).
-  - Anonymizes ONLY CrowdStrike cloud tenant fields + Falcon console URLs.
-  - Reuses send_test_events.py for env loading and HTTP sending.
+This script expects a JSON array exported via your existing tsv_to_json.py,
+and uses send_test_events.py for env loading + HTTP send.
 """
 
 import os
-import sys
 import json
 import argparse
-import hashlib
+import re
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import Dict, Any, List, Optional
-from urllib.parse import urlparse, urlunparse
+from typing import List, Dict, Any, Optional, Tuple
 
-# Make sure we can import send_test_events from the same tools/ directory
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-import send_test_events  # uses load_env, read_events, send_events
+import send_test_events  # reuse load_env, read_events, send_events
 
 
-# ---------- Stable anonymizer for CrowdStrike cloud tenant identifiers ----------
-
-class StableAnonymizer:
-    """
-    Stable mapping for CrowdStrike cloud tenant identifiers only.
-
-    We intentionally DO NOT touch:
-      - aid / AgentId / sensorId
-      - endpoint hostnames, IPs
-      - hashes, domains, URLs, processes, usernames
-
-    We ONLY anonymize fields that identify the Falcon CLOUD tenant
-    (who the customer/org is), e.g.:
-
-      - cid
-      - customerId / CustomerId
-      - orgId / OrgId
-      - tenantId / TenantId
-      - falcon_customer_name
-      - cs_cloud_org
-      - etc.
-    """
-
-    def __init__(self, prefix: str = "cscloud") -> None:
-        self.prefix = prefix
-        self._cache: Dict[str, str] = {}
-
-    def _hash(self, value: str) -> str:
-        return hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
-
-    def anon(self, value: Optional[str], kind: str) -> Optional[str]:
-        if value is None:
-            return None
-        key = f"{kind}:{value}"
-        if key not in self._cache:
-            self._cache[key] = f"{self.prefix}-{kind}-{self._hash(value)}"
-        return self._cache[key]
-
-
-TENANT_FIELDS: List[str] = [
-    "cid",
-    "customerId",
-    "CustomerId",
-    "orgId",
-    "OrgId",
-    "tenantId",
-    "TenantId",
-    "cs_cloud_org",
-    "falcon_customer_name",
-    "falcon_cloud_tenant",
-    "cloud_tenant",
-]
-
-
-def _scrub_falcon_url(value: str) -> str:
-    """
-    Replace the real Falcon console hostname with a generic one,
-    keeping the path so the link still looks real but doesn't leak
-    the original tenant/region.
-    """
-    try:
-        parsed = urlparse(value)
-    except Exception:
-        return value  # not a valid URL; leave unchanged
-
-    if not parsed.scheme or not parsed.netloc:
-        return value
-
-    # Pick any fake console host you like
-    fake_netloc = "falcon.socframework.local"
-
-    return urlunparse((
-        parsed.scheme or "https",
-        fake_netloc,
-        parsed.path or "",
-        "",  # params
-        "",  # query
-        "",  # fragment
-    ))
-
-
-def anonymize_crowdstrike_cloud(ev: Dict[str, Any], anon: StableAnonymizer) -> None:
-    """
-    Mutate a single event, anonymizing only cloud-tenant-level identifiers.
-    """
-
-    # 1) ID-like tenant fields
-    for field in TENANT_FIELDS:
-        if field in ev and ev[field]:
-            ev[field] = anon.anon(str(ev[field]), kind=field.lower())
-
-    # 2) Falcon console URLs (e.g. Falcon_Host_Link)
-    for key, val in list(ev.items()):
-        if not isinstance(val, str):
-            continue
-
-        lk = key.lower()
-        # Match both specific field names and generic "falcon + link"
-        if lk == "falcon_host_link" or ("falcon" in lk and "link" in lk):
-            ev[key] = _scrub_falcon_url(val)
-
-
-# ---------- Time parsing / rebasing ----------
+# ---------- Time parsing helpers ----------
 
 def parse_event_time(raw: str, time_format: Optional[str]) -> datetime:
     """
     Parse an event time string into an aware datetime in UTC.
 
-    If time_format is provided, use datetime.strptime.
-    Otherwise, assume ISO8601; handle trailing 'Z' if present.
+    - If time_format is provided, use datetime.strptime().
+    - Else assume ISO8601-like (possibly with 'Z' and >6 fractional digits)
+      and normalize to something datetime.fromisoformat() accepts.
     """
     s = raw.strip()
+
     if time_format:
         dt = datetime.strptime(s, time_format)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
+
+    # Handle 'Z' (UTC) or explicit offsets
+    tz_suffix = ""
+    if s.endswith("Z"):
+        s = s[:-1]
+        tz_suffix = "+00:00"
     else:
-        # Best-effort ISO8601 parse
-        if s.endswith("Z"):
-            s = s[:-1] + "+00:00"
-        dt = datetime.fromisoformat(s)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
+        plus = s.rfind("+")
+        minus = s.rfind("-")
+        idx = max(plus, minus)
+        if idx > 10:
+            tz_suffix = s[idx:]
+            s = s[:idx]
+
+    # Truncate fractional seconds to 6 digits (Python fromisoformat limit)
+    if "." in s:
+        main, frac = s.split(".", 1)
+        frac_digits = "".join(ch for ch in frac if ch.isdigit())
+        frac_trim = frac_digits[:6].ljust(6, "0")
+        s = f"{main}.{frac_trim}"
+
+    iso = s + (tz_suffix or "")
+    dt = datetime.fromisoformat(iso)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
-def compute_offset(
+def compute_time_range(
         events: List[Dict[str, Any]],
         time_field: str,
         time_format: Optional[str],
-        start: datetime
-) -> timedelta:
+) -> Tuple[Optional[datetime], Optional[datetime]]:
     """
-    Compute the timedelta such that the earliest event time becomes `start`.
+    Return (min_dt, max_dt) over all events that have a parseable time_field.
     """
     times: List[datetime] = []
     for ev in events:
@@ -200,38 +90,194 @@ def compute_offset(
             print(f"[!] Skipping unparsable time '{raw}' ({e})")
 
     if not times:
-        print("[!] No valid timestamps found; using zero offset.")
-        return timedelta(0)
-
-    first = min(times)
-    return start - first
+        return None, None
+    return min(times), max(times)
 
 
-def apply_rebased_times(
+def parse_duration(spec: str) -> timedelta:
+    """
+    Parse a simple duration like:
+      - "60m", "15m"
+      - "2h", "1h30m"
+      - "90m"
+      - "1d", "1d2h"
+
+    Units: d (days), h (hours), m (minutes), s (seconds).
+    If unit is omitted, assume minutes.
+    """
+    s = spec.strip().lower()
+    if not s:
+        raise ValueError("Empty duration spec")
+
+    pattern = re.compile(r"(\d+)\s*([dhms]?)")
+    total_seconds = 0
+    pos = 0
+    for m in pattern.finditer(s):
+        val = int(m.group(1))
+        unit = m.group(2) or "m"  # default to minutes
+        pos = m.end()
+
+        if unit == "d":
+            total_seconds += val * 86400
+        elif unit == "h":
+            total_seconds += val * 3600
+        elif unit == "m":
+            total_seconds += val * 60
+        elif unit == "s":
+            total_seconds += val
+        else:
+            raise ValueError(f"Unknown duration unit: {unit}")
+
+    if total_seconds == 0:
+        raise ValueError(f"Could not parse duration spec: {spec}")
+
+    return timedelta(seconds=total_seconds)
+
+
+# ---------- CrowdStrike cloud anonymization ----------
+
+def _looks_like_ipv4(s: str) -> bool:
+    parts = s.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        return all(0 <= int(p) <= 255 for p in parts)
+    except ValueError:
+        return False
+
+
+def _map_ip(original: str, state: Dict[str, Any]) -> str:
+    """
+    Map each real IPv4 to a stable fake IPv4 in a documentation range.
+    Example outputs: 203.0.113.10, 203.0.113.11, ...
+
+    We keep a mapping so the same original IP always gets the same fake IP.
+    """
+    ip_map: Dict[str, str] = state.setdefault("ip_map", {})
+    if original in ip_map:
+        return ip_map[original]
+
+    counter = state.get("ip_counter", 10)
+    state["ip_counter"] = counter + 1
+
+    last_octet = counter % 254 or 1
+    fake_ip = f"203.0.113.{last_octet}"
+    ip_map[original] = fake_ip
+    return fake_ip
+
+
+_CROWDSTRIKE_HOST_PATTERN = re.compile(
+    r"https://[A-Za-z0-9.\-]*crowdstrike\.com", re.IGNORECASE
+)
+_FAKE_FALCON_HOST = "https://falcon.socframework.local"
+
+
+def _anonymize_string_for_cloud(key: str, value: str, state: Dict[str, Any]) -> str:
+    """
+    Only anonymize CrowdStrike CLOUD tenant info:
+      - IPs in reporting_device fields
+      - *.crowdstrike.com hosts in URLs
+
+    Endpoint agent IDs, hostnames, etc., are left untouched.
+    """
+    lk = key.lower()
+
+    # IPs for the cloud tenant
+    if lk in (
+            "_reporting_device_ip",
+            "_final_reporting_device_ip",
+            "reporting_device_ip",
+            "final_reporting_device_ip",
+    ):
+        if _looks_like_ipv4(value):
+            return _map_ip(value, state)
+
+    # URLs pointing at CrowdStrike cloud
+    if "url" in lk or "link" in lk or "endpoint" in lk or "host" in lk:
+        # Replace any https://*.crowdstrike.com host with fake host
+        def repl(_m):
+            return _FAKE_FALCON_HOST
+
+        new_val = _CROWDSTRIKE_HOST_PATTERN.sub(repl, value)
+        return new_val
+
+    # Also catch raw URL strings without key hints
+    if _CROWDSTRIKE_HOST_PATTERN.search(value):
+        return _CROWDSTRIKE_HOST_PATTERN.sub(_FAKE_FALCON_HOST, value)
+
+    return value
+
+
+def anonymize_crowdstrike_cloud(obj: Any, state: Dict[str, Any]) -> Any:
+    """
+    Recursively anonymize only the CrowdStrike CLOUD tenant info in the event.
+    """
+    if isinstance(obj, dict):
+        for k in list(obj.keys()):
+            obj[k] = anonymize_crowdstrike_cloud(obj[k], state if isinstance(state, dict) else {})
+        return obj
+
+    if isinstance(obj, list):
+        for i, v in enumerate(obj):
+            obj[i] = anonymize_crowdstrike_cloud(v, state)
+        return obj
+
+    if isinstance(obj, str):
+        # We don't know the key here, so just use a generic key name.
+        # For URLs this is enough because we match the pattern.
+        return _anonymize_string_for_cloud("", obj, state)
+
+    return obj
+
+
+def anonymize_crowdstrike_cloud_top(ev: Dict[str, Any], state: Dict[str, Any]) -> None:
+    """
+    Top-level helper that:
+      - respects key names for reporting IP fields
+      - still recurses to catch nested URLs
+    """
+    # First pass: key-aware transforms
+    for k, v in list(ev.items()):
+        if isinstance(v, str):
+            ev[k] = _anonymize_string_for_cloud(k, v, state)
+
+    # Second pass: recursive catch-all (e.g., nested structures)
+    anonymize_crowdstrike_cloud(ev, state)
+
+
+# ---------- Timestamp rebasing ----------
+
+def rebase_timestamps(
         events: List[Dict[str, Any]],
         time_field: str,
         time_format: Optional[str],
-        offset: timedelta,
+        anchor: datetime,
+        compress_window: Optional[timedelta],
 ) -> None:
     """
-    For each event, compute:
+    Replay-style behavior:
 
-        new_time = parse(original[time_field]) + offset
-
-    Then write rebased time into:
-
-        - ev[time_field]
-        - ev["@timestamp"], ev["timestamp"], ev["event_creation_time"],
-          ev["eventCreationTime"], ev["EventTimestamp"], ev["observation_time"],
-          ev["observationTime"] (if present)
-        - ev["_time"]
-        - ev["_insert_time"]
-
-    Preserve original in `cs_original_time`.
+    - Compute original min/max of time_field.
+    - If compress_window is None:
+        - Anchor the LATEST event to `anchor` (e.g., now).
+          Earlier events land in the past, preserving real gaps.
+    - If compress_window is set (demo mode):
+        - Map the entire [min, max] range into [anchor - compress_window, anchor].
+        - Order is preserved, but the scenario is "squashed" into a shorter window.
+    - For each event, update:
+        - time_field
+        - common timestamp fields if present
+        - _time
+        - _insert_time
+        - cs_original_time (preserved once)
     """
+    first_dt, last_dt = compute_time_range(events, time_field, time_format)
+    if first_dt is None or last_dt is None:
+        print("[!] No valid timestamps found; leaving times as-is.")
+        return
 
-    # Common timestamp field names that might exist
-    # and influence how XSIAM sets its internal _time.
+    print(f"[*] Original time range for {time_field}: {first_dt.isoformat()} → {last_dt.isoformat()}")
+
     candidate_fields = {
         time_field,
         "@timestamp",
@@ -241,151 +287,207 @@ def apply_rebased_times(
         "EventTimestamp",
         "observation_time",
         "observationTime",
+        "context_timestamp",
+        "created_timestamp",
+        "crawled_timestamp",
     }
 
-    for ev in events:
-        raw = ev.get(time_field)
-        if not isinstance(raw, str) or not raw.strip():
-            continue
+    updated = 0
 
-        try:
-            original_dt = parse_event_time(raw, time_format)
-        except Exception as e:
-            print(f"[!] Skipping event with unparsable time '{raw}' ({e})")
-            continue
+    if compress_window is None:
+        # Normal replay: latest event becomes anchor
+        offset = anchor - last_dt
+        print(f"[*] Mode: translate-only. Latest event → {anchor.isoformat()}, offset={offset}")
+        for ev in events:
+            raw = ev.get(time_field)
+            if not isinstance(raw, str) or not raw.strip():
+                continue
+            try:
+                original_dt = parse_event_time(raw, time_format)
+            except Exception as e:
+                print(f"[!] Skipping event with unparsable time '{raw}' ({e})")
+                continue
 
-        new_dt = original_dt + offset
-        new_iso = new_dt.isoformat()
+            new_dt = original_dt + offset
+            new_iso = new_dt.isoformat()
 
-        # Keep the original around for debugging
-        ev.setdefault("cs_original_time", raw)
+            ev.setdefault("cs_original_time", raw)
 
-        # Overwrite all candidate timestamp fields that exist in this event
-        for fld in candidate_fields:
-            if fld in ev:
-                ev[fld] = new_iso
+            for fld in candidate_fields:
+                if fld in ev:
+                    ev[fld] = new_iso
 
-        # Also set these explicit helpers
-        ev["_time"] = new_iso
-        ev["_insert_time"] = new_iso
+            ev["_time"] = new_iso
+            ev["_insert_time"] = new_iso
+            updated += 1
+    else:
+        # Demo mode: compress the whole scenario into a shorter window
+        original_span = last_dt - first_dt
+        if original_span.total_seconds() <= 0:
+            print("[!] Original time range is zero or negative; falling back to translate-only.")
+            offset = anchor - last_dt
+            for ev in events:
+                raw = ev.get(time_field)
+                if not isinstance(raw, str) or not raw.strip():
+                    continue
+                try:
+                    original_dt = parse_event_time(raw, time_format)
+                except Exception as e:
+                    print(f"[!] Skipping event with unparsable time '{raw}' ({e})")
+                    continue
+
+                new_dt = original_dt + offset
+                new_iso = new_dt.isoformat()
+                ev.setdefault("cs_original_time", raw)
+                for fld in candidate_fields:
+                    if fld in ev:
+                        ev[fld] = new_iso
+                ev["_time"] = new_iso
+                ev["_insert_time"] = new_iso
+                updated += 1
+        else:
+            print(f"[*] Mode: DEMO compress. Original span={original_span}, compress_window={compress_window}")
+            start_new = anchor - compress_window
+            total_secs = original_span.total_seconds()
+            window_secs = compress_window.total_seconds()
+
+            for ev in events:
+                raw = ev.get(time_field)
+                if not isinstance(raw, str) or not raw.strip():
+                    continue
+                try:
+                    original_dt = parse_event_time(raw, time_format)
+                except Exception as e:
+                    print(f"[!] Skipping event with unparsable time '{raw}' ({e})")
+                    continue
+
+                frac = (original_dt - first_dt).total_seconds() / total_secs
+                if frac < 0:
+                    frac = 0.0
+                elif frac > 1:
+                    frac = 1.0
+
+                new_dt = start_new + timedelta(seconds=frac * window_secs)
+                new_iso = new_dt.isoformat()
+
+                ev.setdefault("cs_original_time", raw)
+                for fld in candidate_fields:
+                    if fld in ev:
+                        ev[fld] = new_iso
+                ev["_time"] = new_iso
+                ev["_insert_time"] = new_iso
+                updated += 1
+
+    print(f"[*] Rebased timestamps on {updated} event(s)")
 
 
-# ---------- CLI / env helpers ----------
+# ---------- Main CLI ----------
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description=(
-            "Replay CrowdStrike JSON scenario into XSIAM, preserving behavior and "
-            "anonymizing only cloud tenant identifiers."
-        )
+def main():
+    parser = argparse.ArgumentParser(
+        description="Replay a CrowdStrike Falcon scenario into XSIAM via HTTP Collector"
     )
-
-    p.add_argument(
-        "--file",
-        required=True,
-        help="JSON file produced by tsv_to_json.py (array of events).",
+    parser.add_argument("--file", required=True, help="JSON file with event(s) to replay")
+    parser.add_argument(
+        "--env",
+        default=".env-brumxdr-crowdstrike",
+        help="Path to .env with API_URL and API_KEY (default: .env-brumxdr-crowdstrike)",
     )
-    p.add_argument(
+    parser.add_argument(
         "--time-field",
         required=True,
         help=(
             "Field in the JSON that holds the original event timestamp "
-            "(e.g. 'event_creation_time', 'timestamp', etc.)."
+            "(e.g. 'created_timestamp', 'event_creation_time', 'timestamp')."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--time-format",
         default=None,
         help=(
-            "Optional Python strptime format for time-field. "
-            "If omitted, assumes ISO8601 and uses fromisoformat()."
+            "Optional Python strptime format for --time-field. "
+            "If omitted, assumes ISO8601-like and uses fromisoformat() with "
+            "fraction truncation and Z handling."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--start",
         default=None,
         help=(
-            "Replay start time in ISO8601 "
-            "(e.g. 2025-12-06T14:00:00+00:00). "
-            "If omitted, uses now() in UTC."
+            "Anchor time in ISO8601 (e.g. 2025-12-06T21:00:00+00:00). "
+            "The LATEST event is mapped to this. If omitted, uses now() in UTC."
         ),
     )
-    p.add_argument(
-        "--env",
-        default=".env-brumxdr-crowdstrike",
-        help="Path to .env file (same style as send_test_events.py).",
+    parser.add_argument(
+        "--compress-window",
+        default=None,
+        help=(
+            "DEMO MODE: compress the entire scenario into this window before the anchor. "
+            "Examples: '60m', '2h', '1h30m'. If omitted, keep original span (multi-day)."
+        ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Don't send to XSIAM; just show what would happen.",
+        help="Don't actually send events; just show what would happen and print a sample.",
     )
 
-    return p.parse_args()
+    args = parser.parse_args()
 
+    # Resolve env path from repo root (parent of tools/)
+    env_path = args.env
+    if not os.path.isabs(env_path):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.dirname(script_dir)
+        env_path = os.path.join(repo_root, env_path)
 
-def resolve_env_path(env_rel: str) -> str:
-    """
-    Mirror send_test_events behavior:
-      - If relative, treat it as repo_root/<env_rel>, where repo_root = parent of tools/.
-    """
-    if os.path.isabs(env_rel):
-        return env_rel
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(script_dir)
-    return os.path.join(repo_root, env_rel)
-
-
-def main() -> None:
-    args = parse_args()
-
-    # 1) Determine replay start time
+    # Load env & events
+    print(f"[*] Replay anchor time argument: {args.start or 'NOW (UTC)'}")
     if args.start:
-        start_dt = datetime.fromisoformat(args.start)
-        if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        anchor = datetime.fromisoformat(args.start)
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
     else:
-        start_dt = datetime.now(timezone.utc)
-    print(f"[*] Replay start time: {start_dt.isoformat()}")
+        anchor = datetime.now(timezone.utc)
 
-    # 2) Load events (reuse send_test_events.read_events)
+    print(f"[*] Replay anchor (latest event → this): {anchor.isoformat()}")
+
     events = send_test_events.read_events(args.file)
     print(f"[*] Loaded {len(events)} event(s) from {args.file}")
 
-    if not events:
-        print("[!] No events to replay; exiting.")
-        return
+    compress_window: Optional[timedelta] = None
+    if args.compress_window:
+        compress_window = parse_duration(args.compress_window)
 
-    # 3) Compute offset so earliest event -> start_dt
-    offset = compute_offset(events, args.time_field, args.time_format, start_dt)
-    print(f"[*] Applying time offset: {offset}")
+    # Rebase timestamps
+    rebase_timestamps(
+        events,
+        time_field=args.time_field,
+        time_format=args.time_format,
+        anchor=anchor,
+        compress_window=compress_window,
+    )
 
-    apply_rebased_times(events, args.time_field, args.time_format, offset)
-    print("[*] Updated timestamp fields + _time/_insert_time with rebased values")
-
-    # 4) Anonymize ONLY CrowdStrike cloud tenant info (IDs + console URLs)
-    anon = StableAnonymizer(prefix="falcon")
+    # Anonymize CrowdStrike cloud tenant info
+    anon_state: Dict[str, Any] = {}
     for ev in events:
-        anonymize_crowdstrike_cloud(ev, anon)
+        anonymize_crowdstrike_cloud_top(ev, anon_state)
+        # Tag for easy XQL locating
+        ev.setdefault("scenario_source", "replay_crowdstrike_scenario")
+        ev.setdefault("scenario_name", "Turla Carbon Replay")
 
-    # 5) Load env + send
-    env_path = resolve_env_path(args.env)
+    # Load env and send / dry-run
     print(f"[*] Loading env from {env_path}")
     send_test_events.load_env(env_path)
     api_url = os.getenv("API_URL")
     api_key = os.getenv("API_KEY")
 
-    if not api_url or not api_key:
-        raise EnvironmentError("API_URL or API_KEY missing after loading env")
-
     if args.dry_run:
         print(f"[DRY RUN] Would send {len(events)} events to {api_url}")
-        # Show a sample event for sanity
-        print(json.dumps(events[0], indent=2)[:2000])
-        return
-
-    send_test_events.send_events(events, api_url=api_url, api_key=api_key)
-    print("[+] Replay complete.")
+        if events:
+            print(json.dumps(events[0], indent=2, ensure_ascii=False))
+    else:
+        send_test_events.send_events(events, api_url=api_url, api_key=api_key)
 
 
 if __name__ == "__main__":
