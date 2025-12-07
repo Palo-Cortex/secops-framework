@@ -67,6 +67,75 @@ jobs:
               fh.write(f"packs={packs_str}\n")
           PY
 
+name: SOC Packs Release + POV Staging Test
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+
+permissions:
+  contents: write   # required for releases + commits
+
+jobs:
+  ############################################
+  # JOB 1: BUILD & RELEASE PACKS
+  ############################################
+  release-packs:
+    # Avoid infinite loop after committing [skip ci]
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+
+    # Use 'main' environment for main branch, otherwise 'staging'
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
+
+    env:
+      PACKS_DIR: Packs
+
+    outputs:
+      changed_packs: ${{ steps.changed.outputs.packs }}
+      environment:   ${{ steps.envinfo.outputs.environment }}
+      install_order: ${{ steps.install_order.outputs.packs }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed so we can read HEAD^
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install demisto-sdk
+        run: |
+          pip install "demisto-sdk>=1.38.14"
+
+      ############################################
+      # 1) DISCOVER ALL PACKS
+      ############################################
+      - name: Discover packs
+        id: discover
+        run: |
+          python - << 'PY'
+          import os
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          packs = [
+              p.name for p in packs_dir.iterdir()
+              if (p / "pack_metadata.json").is_file()
+          ]
+          packs_str = " ".join(sorted(packs))
+          print("Discovered packs:", packs_str or "(none)")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={packs_str}\n")
+          PY
+
       ############################################
       # 2) DETECT PACKS WITH VERSION CHANGES
       ############################################
@@ -233,6 +302,318 @@ jobs:
                 "demisto-sdk", "zip-packs",
                 "-i", str(pack_path),
                 "-o", str(dist),
+            ])
+
+            # SDK writes to dist/uploadable_packs/<pack>.zip
+            uploadable_dir = dist / "uploadable_packs"
+            input_zip = uploadable_dir / f"{pack}.zip"
+            print("Uploadable zips in", uploadable_dir)
+            if uploadable_dir.exists():
+              for p in uploadable_dir.glob("*.zip"):
+                print("  ", p)
+
+            if not input_zip.exists():
+              raise FileNotFoundError(f"Expected zip {input_zip} not found")
+
+            # Decide tag & asset name based on environment
+            if environment == "staging":
+              tag = f"{pack}-v{version}-staging"
+              asset = f"{pack}-v{version}-staging.zip"
+              title = f"{pack} v{version} (staging)"
+              prerelease = True
+            else:
+              tag = f"{pack}-v{version}"
+              asset = f"{pack}-v{version}.zip"
+              title = f"{pack} v{version}"
+              prerelease = False
+
+            final_zip = dist / asset
+            if final_zip.exists():
+              final_zip.unlink()
+            input_zip.rename(final_zip)
+            print("Final asset zip:", final_zip)
+
+            # Create or update GitHub Release
+            exists = gh("release", "view", tag, check=False).returncode == 0
+            if exists:
+              gh("release", "upload", tag, str(final_zip), "--clobber")
+            else:
+              args = ["release", "create", tag, str(final_zip), "-t", title]
+              if prerelease:
+                  args += ["-n", f"Staging release for {pack} v{version}", "--prerelease"]
+              else:
+                  args += ["-n", f"Release for {pack} v{version}"]
+              gh(*args)
+
+            url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+            print("New URL for", pack, ":", url)
+
+            # Update xsoar_config.json (in runner only)
+            if not config_path.exists():
+              print(f"{pack}: no xsoar_config.json; skipping URL update")
+              continue
+
+            cfg = json.loads(config_path.read_text())
+            updated = False
+            target_id = f"{pack}.zip"
+
+            custom = cfg.get("custom_packs")
+            if isinstance(custom, list):
+              for entry in custom:
+                if isinstance(entry, dict) and entry.get("id") == target_id:
+                  print(f"Updating custom_packs id={target_id}")
+                  entry["url"] = url
+                  updated = True
+                  break
+
+            if not updated:
+              print("WARNING: no matching custom_packs entry; updating top-level 'url'")
+              cfg["url"] = url
+
+            config_path.write_text(json.dumps(cfg, indent=2) + "\n")
+
+          PY
+
+      ############################################
+      # 5) NOTHING CHANGED
+      ############################################
+      - name: No packs changed
+        if: ${{ steps.changed.outputs.packs == '' }}
+        run: |
+          echo "No pack version changes detected. Skipping."
+
+  ############################################
+  # JOB 2: POV STAGING TEST VIA xsiam-pov-automation
+  ############################################
+  pov-staging-test:
+    needs: release-packs
+    # Only run when:
+    #   - environment is staging
+    #   - at least one pack in install_order
+    if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.install_order != ''
+    runs-on: ubuntu-latest
+
+    environment:
+      name: staging
+
+    steps:
+      - name: Show install order
+        run: |
+          echo "Install order: ${{ needs.release-packs.outputs.install_order }}"
+
+      - name: Checkout xsiam-pov-automation
+        uses: actions/checkout@v4
+        with:
+          repository: annabarone/xsiam-pov-automation
+          path: xsiam-pov-automation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install POV requirements
+        working-directory: xsiam-pov-automation
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run POV setup playbook against STAGING (one pack at a time)
+        working-directory: xsiam-pov-automation
+        env:
+          DEMISTO_BASE_URL:  ${{ secrets.XSIAM_API_URL }}
+          DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
+          XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          BRANCH="staging"
+          INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
+
+          echo "Will install packs (with deps first): $INSTALL_ORDER"
+
+          for PACK in $INSTALL_ORDER; do
+            CONFIG_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+            echo "======================================="
+            echo "Installing pack: $PACK"
+            echo "Using CONTENT_REPO_RAW_LINK: $CONFIG_URL"
+            echo "======================================="
+
+            CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
+            printf 'yes\n' | python setup.py
+          done
+
+  ############################################
+  # JOB 3: POV PRODUCTION DEPLOY
+  ############################################
+  pov-production-deploy:
+    needs: release-packs
+    if: needs.release-packs.outputs.environment == 'main' && needs.release-packs.outputs.install_order != ''
+    runs-on: ubuntu-latest
+
+    environment:
+      name: main   # or 'production' if you prefer
+
+    steps:
+      - name: Show install order
+        run: |
+          echo "Install order: ${{ needs.release-packs.outputs.install_order }}"
+
+      - name: Checkout xsiam-pov-automation
+        uses: actions/checkout@v4
+        with:
+          repository: annabarone/xsiam-pov-automation
+          path: xsiam-pov-automation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install POV requirements
+        working-directory: xsiam-pov-automation
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run POV setup playbook against PRODUCTION (one pack at a time)
+        working-directory: xsiam-pov-automation
+        env:
+          DEMISTO_BASE_URL:  ${{ secrets.XSIAM_PROD_API_URL }}
+          DEMISTO_API_KEY:   ${{ secrets.XSIAM_PROD_API_KEY }}
+          XSIAM_AUTH_ID:     ${{ secrets.XSIAM_PROD_API_ID }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          BRANCH="main"
+          INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
+
+          echo "Will install packs (with deps first): $INSTALL_ORDER"
+
+          for PACK in $INSTALL_ORDER; do
+            CONFIG_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+            echo "======================================="
+            echo "Installing pack: $PACK"
+            echo "Using CONTENT_REPO_RAW_LINK: $CONFIG_URL"
+            echo "======================================="
+
+            CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
+            printf 'yes\n' | python setup.py
+
+      ############################################
+      # 3) DETERMINE ENVIRONMENT (staging/main)
+      ############################################
+      - name: Determine environment
+        id: envinfo
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/staging" ]; then
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "environment=main" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported branch $GITHUB_REF"
+            exit 1
+          fi
+
+      ############################################
+      # 3b) BUILD INSTALL ORDER (deps first)
+      ############################################
+      - name: Build install order (deps first)
+        id: install_order
+        if: ${{ steps.changed.outputs.packs != '' }}
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+        run: |
+          python - << 'PY'
+          import json, os
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed = os.environ["CHANGED_PACKS"].split()
+
+          def get_deps(pack):
+              meta_path = packs_dir / pack / "pack_metadata.json"
+              if not meta_path.exists():
+                  return []
+              meta = json.loads(meta_path.read_text())
+              deps = meta.get("dependencies") or {}
+              # keys are pack IDs
+              return list(deps.keys())
+
+          install_list = []
+          seen = set()
+
+          for pack in changed:
+              # dependencies first
+              for dep in get_deps(pack):
+                  if dep not in seen:
+                      seen.add(dep)
+                      install_list.append(dep)
+              # then the pack itself
+              if pack not in seen:
+                  seen.add(pack)
+                  install_list.append(pack)
+
+          out = " ".join(install_list)
+          print("Install order:", out or "(none)")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={out}\n")
+          PY
+
+      ############################################
+      # 4) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG (locally only)
+      ############################################
+      - name: Build & release changed packs
+        if: ${{ steps.changed.outputs.packs != '' }}
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+          ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+        run: |
+          python - << 'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed = os.environ["CHANGED_PACKS"].split()
+          environment = os.environ["ENVIRONMENT"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+
+          dist = Path("dist")
+          dist.mkdir(exist_ok=True)
+
+          def run_cmd(cmd, cwd=None):
+              print("+", " ".join(cmd), f"(cwd={cwd or os.getcwd()})")
+              subprocess.run(cmd, check=True, cwd=cwd)
+
+          def gh(*args, check=True):
+              print("+ gh", " ".join(args))
+              return subprocess.run(["gh", *args], check=check)
+
+          for pack in changed:
+            pack_path = packs_dir / pack
+            meta_path = pack_path / "pack_metadata.json"
+            config_path = pack_path / "xsoar_config.json"
+
+            if not meta_path.exists():
+              print(f"{pack}: no pack_metadata.json, skipping")
+              continue
+
+            meta = json.loads(meta_path.read_text())
+            version = meta.get("version") or meta.get("currentVersion") or ""
+            if not version:
+              print(f"{pack}: no version/currentVersion, skipping")
+              continue
+
+            print(f"Processing pack={pack}, version={version}")
+
+            # Build pack with demisto-sdk
+            run_cmd([
+                "demisto-sdk", "zip-packs",
+                "-i", str(pack_path),
+                "-o", str(dist)
             ])
 
             # SDK writes to dist/uploadable_packs/<pack>.zip
