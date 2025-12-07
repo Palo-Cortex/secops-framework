@@ -17,7 +17,11 @@ Behavior:
 - Ensure the pack root has .pack-ignore, .secrets-ignore, and README.md.
 
 Usage:
+  # Local (fix mode)
   python3 normalize_ruleid_adopted.py --root Packs/soc-optimization --fix
+
+  # CI / check-only mode (exit 1 if changes would be needed)
+  python3 normalize_ruleid_adopted.py --root Packs/soc-optimization
 """
 
 import argparse
@@ -40,16 +44,19 @@ def _load_json(path: str) -> Tuple[Any, bool]:
         print(f"[WARN] Failed to parse {path}: {e}")
         return {}, False
 
+
 def _dump_json(path: str, data: dict):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
+
 
 def _find_file(root: str, filename: str) -> str:
     for dirpath, _, filenames in os.walk(root):
         if filename in filenames:
             return os.path.join(dirpath, filename)
     return ""
+
 
 def _norm(path: str) -> str:
     return path.replace("\\", "/").lower()
@@ -58,12 +65,14 @@ def _norm(path: str) -> str:
 # Required pack files creation
 # ------------------------------------------------------------
 
-def ensure_pack_required_files(root: str, dry_run: bool):
+def ensure_pack_required_files(root: str, dry_run: bool) -> bool:
     """
     Ensure the pack root contains:
       - .pack-ignore
       - .secrets-ignore
       - README.md
+
+    Returns True if any file was (or would be) created.
     """
     required_files = {
         ".pack-ignore":
@@ -74,16 +83,21 @@ def ensure_pack_required_files(root: str, dry_run: bool):
             "# Pack README\nThis pack was auto-generated and normalized.\n",
     }
 
+    changed = False
+
     for fname, default_content in required_files.items():
         fpath = os.path.join(root, fname)
         if not os.path.exists(fpath):
             print(f"[INFO] Creating missing required pack file: {fpath}")
+            changed = True
             if not dry_run:
                 try:
                     with open(fpath, "w", encoding="utf-8") as f:
                         f.write(default_content)
                 except Exception as e:
                     print(f"[WARN] Failed to write {fpath}: {e}")
+
+    return changed
 
 # ------------------------------------------------------------
 # Path matching
@@ -92,6 +106,7 @@ def ensure_pack_required_files(root: str, dry_run: bool):
 def _is_playbook(path: str) -> bool:
     low = _norm(path)
     return "/content/playbooks/" in low and (low.endswith(".yml") or low.endswith(".yaml"))
+
 
 def _is_corr_rule(path: str) -> bool:
     """
@@ -105,6 +120,7 @@ def _is_corr_rule(path: str) -> bool:
         return False
     return low.endswith(".yml") or low.endswith(".yaml") or low.endswith(".json")
 
+
 def _is_list_json(path: str) -> bool:
     """
     Returns True if this is a JSON file under a Lists/* directory.
@@ -113,6 +129,7 @@ def _is_list_json(path: str) -> bool:
     low = _norm(path)
     return "/lists/" in low and low.endswith(".json")
 
+
 def _is_script_json(path: str) -> bool:
     """
     Returns True if this is a JSON file under a Scripts/* directory.
@@ -120,6 +137,7 @@ def _is_script_json(path: str) -> bool:
     """
     low = _norm(path)
     return "/scripts/" in low and low.endswith(".json")
+
 
 def _is_script_yaml(path: str) -> bool:
     """
@@ -210,7 +228,9 @@ def _ensure_fromversion_yaml(text: str, version: str = "6.10.0") -> Tuple[str, b
 # Correlation rule & playbook normalize logic
 # ------------------------------------------------------------
 
-def normalize_ruleid_and_adopted(root: str, dry_run: bool):
+def normalize_ruleid_and_adopted(root: str, dry_run: bool) -> bool:
+    changed_any = False
+
     for dirpath, _, filenames in os.walk(root):
         for fn in filenames:
             fp = os.path.join(dirpath, fn)
@@ -226,28 +246,7 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool):
             # Nothing to do?
             if not is_playbook and not is_corr:
                 continue
-            """
-            # If this is a correlation rule file, normalize filename (spaces -> underscores)
-            if is_corr and " " in os.path.basename(fp):
-                old_fp = fp
-                old_fn = os.path.basename(fp)
-                new_fn = old_fn.replace(" ", "_")
-                new_fp = os.path.join(dirpath, new_fn)
 
-                if old_fp != new_fp:
-                    print(f"[INFO] Rename correlation rule file: {old_fp} -> {new_fp}")
-                    if not dry_run:
-                        try:
-                            os.rename(old_fp, new_fp)
-                            fp = new_fp
-                            low = _norm(fp)
-                        except Exception as e:
-                            print(f"[WARN] Failed to rename {old_fp} -> {new_fp}: {e}")
-                    else:
-                        # Dry run: pretend we renamed for further logic
-                        fp = new_fp
-                        low = _norm(fp)
-            """
             try:
                 # JSON correlation rules
                 if low.endswith(".json"):
@@ -272,6 +271,7 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool):
 
                     if changed:
                         print(f"[INFO] Normalize JSON correlation rule: {fp}")
+                        changed_any = True
                         if not dry_run:
                             _dump_json(fp, obj)
 
@@ -299,6 +299,7 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool):
 
                     if changed:
                         print(f"[INFO] Normalize YAML: {fp}")
+                        changed_any = True
                         if not dry_run:
                             try:
                                 with open(fp, "w", encoding="utf-8") as f:
@@ -309,15 +310,19 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool):
             except Exception as e:
                 print(f"[WARN] Failed {fp}: {e}")
 
+    return changed_any
+
 # ------------------------------------------------------------
 # Lists JSON normalize logic
 # ------------------------------------------------------------
 
-def normalize_lists(root: str, dry_run: bool):
+def normalize_lists(root: str, dry_run: bool) -> bool:
     """
     For any JSON file under a Lists/* directory, ensure that
     "id" and "name" match the directory name.
     """
+    changed_any = False
+
     for dirpath, _, filenames in os.walk(root):
         if "/lists/" not in _norm(dirpath):
             continue
@@ -345,19 +350,24 @@ def normalize_lists(root: str, dry_run: bool):
 
             if changed:
                 print(f"[INFO] Normalize List JSON (id/name -> {dir_name}): {fp}")
+                changed_any = True
                 if not dry_run:
                     _dump_json(fp, data)
+
+    return changed_any
 
 # ------------------------------------------------------------
 # Scripts JSON normalize logic
 # ------------------------------------------------------------
 
-def normalize_scripts_json(root: str, dry_run: bool):
+def normalize_scripts_json(root: str, dry_run: bool) -> bool:
     """
     For any JSON file under a Scripts/* directory, ensure that
       - "id" and "name" match the directory name
       - "fromVersion" is 6.10.0
     """
+    changed_any = False
+
     for dirpath, _, filenames in os.walk(root):
         if "/scripts/" not in _norm(dirpath):
             continue
@@ -389,16 +399,21 @@ def normalize_scripts_json(root: str, dry_run: bool):
                 changed = True
 
             if changed:
-                print(f"[INFO] Normalize Script JSON (id/name/fromVersion -> "
-                      f"{dir_name}/6.10.0): {fp}")
+                print(
+                    f"[INFO] Normalize Script JSON (id/name/fromVersion -> "
+                    f"{dir_name}/6.10.0): {fp}"
+                )
+                changed_any = True
                 if not dry_run:
                     _dump_json(fp, data)
+
+    return changed_any
 
 # ------------------------------------------------------------
 # Scripts YAML normalize logic
 # ------------------------------------------------------------
 
-def normalize_scripts_yaml(root: str, dry_run: bool):
+def normalize_scripts_yaml(root: str, dry_run: bool) -> bool:
     """
     For any YAML file under a Scripts/* directory, ensure that:
       - id == directory name
@@ -407,6 +422,8 @@ def normalize_scripts_yaml(root: str, dry_run: bool):
 
     Only logs/rewrites when something actually changes.
     """
+    changed_any = False
+
     for dirpath, _, filenames in os.walk(root):
         if "/scripts/" not in _norm(dirpath):
             continue
@@ -474,8 +491,11 @@ def normalize_scripts_yaml(root: str, dry_run: bool):
             changed |= c
 
             if changed:
-                print(f"[INFO] Normalize Script YAML (id/name/fromversion -> "
-                      f"{dir_name}/6.10.0): {fp}")
+                print(
+                    f"[INFO] Normalize Script YAML (id/name/fromversion -> "
+                    f"{dir_name}/6.10.0): {fp}"
+                )
+                changed_any = True
                 if not dry_run:
                     try:
                         with open(fp, "w", encoding="utf-8") as f:
@@ -483,22 +503,31 @@ def normalize_scripts_yaml(root: str, dry_run: bool):
                     except Exception as e:
                         print(f"[WARN] Failed to write script YAML {fp}: {e}")
 
+    return changed_any
+
 # ------------------------------------------------------------
 # Pack metadata cleanup
 # ------------------------------------------------------------
 
-def clean_pack_metadata(root: str, fix: bool):
+def clean_pack_metadata(root: str, fix: bool) -> bool:
+    """
+    Remove Builtin/BuiltIn from pack_metadata.json dependencies if present.
+
+    Returns True if such a dependency existed (and would be/was removed).
+    """
     path = _find_file(root, "pack_metadata.json")
     if not path:
         print("[WARN] pack_metadata.json not found")
-        return
+        return False
 
     data, ok = _load_json(path)
     if not ok:
-        return
+        return False
 
     deps = data.get("dependencies") or {}
-    if "Builtin" in deps or "BuiltIn" in deps:
+    had_builtin = "Builtin" in deps or "BuiltIn" in deps
+
+    if had_builtin:
         if fix:
             deps.pop("Builtin", None)
             deps.pop("BuiltIn", None)
@@ -508,6 +537,8 @@ def clean_pack_metadata(root: str, fix: bool):
         else:
             print(f"[WARN] Builtin dependency found in {path}")
 
+    return had_builtin
+
 # ------------------------------------------------------------
 # Main
 # ------------------------------------------------------------
@@ -515,21 +546,29 @@ def clean_pack_metadata(root: str, fix: bool):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".", help="Pack root path")
-    ap.add_argument("--fix", action="store_true")
+    ap.add_argument("--fix", action="store_true", help="Apply changes instead of check-only")
     args = ap.parse_args()
 
     dry_run = not args.fix
 
-    # Ensure required pack root files exist
-    ensure_pack_required_files(args.root, dry_run=dry_run)
+    changed_anything = False
 
-    normalize_ruleid_and_adopted(args.root, dry_run=dry_run)
-    normalize_lists(args.root, dry_run=dry_run)
-    normalize_scripts_json(args.root, dry_run=dry_run)
-    normalize_scripts_yaml(args.root, dry_run=dry_run)
-    clean_pack_metadata(args.root, fix=args.fix)
+    changed_anything |= ensure_pack_required_files(args.root, dry_run=dry_run)
+    changed_anything |= normalize_ruleid_and_adopted(args.root, dry_run=dry_run)
+    changed_anything |= normalize_lists(args.root, dry_run=dry_run)
+    changed_anything |= normalize_scripts_json(args.root, dry_run=dry_run)
+    changed_anything |= normalize_scripts_yaml(args.root, dry_run=dry_run)
+    changed_anything |= clean_pack_metadata(args.root, fix=args.fix)
+
+    if dry_run and changed_anything:
+        print(
+            "❌ normalize_ruleid_adopted.py: changes are required. "
+            "Run with --fix locally and commit the updates."
+        )
+        raise SystemExit(1)
 
     print("✅ Completed normalize_ruleid_adopted.py")
+
 
 if __name__ == "__main__":
     main()
