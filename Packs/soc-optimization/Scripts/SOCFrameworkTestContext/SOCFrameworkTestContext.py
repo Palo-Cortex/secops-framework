@@ -63,7 +63,7 @@ ALL_THEME_VALUES = sum(THEMES.values(), [])
 
 def load_product_category_map():
     try:
-        resp = demisto.executeCommand("getList", {"listName": "SOC_ProductCategoryMap"})
+        resp = demisto.executeCommand("getList", {"listName": "SOCProductCategoryMap"})
         raw = resp[0].get("Contents")
         return json.loads(raw) if raw else {}
     except Exception:
