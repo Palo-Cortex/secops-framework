@@ -34,7 +34,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Needed so we can read HEAD^
+          fetch-depth: 0  # Needed so we can read BEFORE_SHA
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -142,15 +142,15 @@ jobs:
       - name: Compute changed packs (version bump)
         id: changed
         env:
-          ALL_PACKS: ${{ steps.discover.outputs.packs }}
+          ALL_PACKS:  ${{ steps.discover.outputs.packs }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           python - << 'PY'
           import io, json, os, subprocess
           from pathlib import Path
 
-          packs = os.environ["ALL_PACKS"].split()
           packs_dir = Path(os.environ["PACKS_DIR"])
+          packs = os.environ.get("ALL_PACKS", "").split()
           before = os.environ.get("BEFORE_SHA") or "HEAD^"
           changed = []
 
@@ -161,11 +161,11 @@ jobs:
             if not meta_path.exists():
               continue
 
-            # New version in current commit (HEAD)
+            # New version (current commit: HEAD)
             new_meta = json.loads(meta_path.read_text())
             new_ver = new_meta.get("version") or new_meta.get("currentVersion") or ""
 
-            # Old version from BEFORE_SHA
+            # Old version (commit before this push)
             try:
                 blob = subprocess.check_output(
                     ["git", "show", f"{before}:{meta_path.as_posix()}"],
@@ -174,7 +174,7 @@ jobs:
                 old_meta = json.load(io.StringIO(blob))
                 old_ver = old_meta.get("version") or old_meta.get("currentVersion") or ""
             except subprocess.CalledProcessError:
-                # File might not exist in BEFORE_SHA (new pack, etc.)
+                # File may not exist in BEFORE_SHA (new pack, etc.)
                 old_ver = ""
 
             if new_ver != old_ver:
@@ -256,8 +256,8 @@ jobs:
         if: ${{ steps.changed.outputs.packs != '' }}
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
-          ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ENVIRONMENT:   ${{ steps.envinfo.outputs.environment }}
+          GH_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
           DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
           python - << 'PY'
@@ -301,7 +301,7 @@ jobs:
             run_cmd([
                 "demisto-sdk", "zip-packs",
                 "-i", str(pack_path),
-                "-o", str(dist)
+                "-o", str(dist),
             ])
 
             # SDK writes to dist/uploadable_packs/<pack>.zip
