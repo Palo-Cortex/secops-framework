@@ -1,0 +1,81 @@
+name: SOC Packs Validate
+
+on:
+  pull_request:
+    paths:
+      - "Packs/**"
+      - "tools/normalize_ruleid_adopted.py"
+      - ".github/workflows/**"
+
+jobs:
+  validate-packs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install demisto-sdk
+        run: |
+          pip install "demisto-sdk>=1.38.14"
+
+      # Figure out which Packs/* dirs changed in this PR
+      - name: Determine changed packs
+        id: changed_packs
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.base_ref }}"
+          HEAD_SHA="${{ github.head_ref }}"
+
+          # When running on PRs, base/head are branch names; get their SHAs
+          BASE_COMMIT=$(git rev-parse "origin/${BASE_SHA}")
+          HEAD_COMMIT=$(git rev-parse "origin/${HEAD_SHA}")
+
+          echo "Base: $BASE_COMMIT"
+          echo "Head: $HEAD_COMMIT"
+
+          PACKS=$(git diff --name-only "$BASE_COMMIT" "$HEAD_COMMIT" \
+            | grep '^Packs/' \
+            | cut -d'/' -f2 \
+            | sort -u || true)
+
+          echo "Changed packs:"
+          echo "$PACKS"
+
+          # space-separated list as output
+          echo "packs=${PACKS}" >> "$GITHUB_OUTPUT"
+
+      - name: Fail early if no packs changed
+        if: ${{ steps.changed_packs.outputs.packs == '' }}
+        run: |
+          echo "No Packs/* content changed; nothing to validate."
+
+      # Run non-mutating checks per pack
+      - name: Run normalize + demisto-sdk validate
+        if: ${{ steps.changed_packs.outputs.packs != '' }}
+        run: |
+          set -euo pipefail
+
+          PACKS="${{ steps.changed_packs.outputs.packs }}"
+
+          for PACK in $PACKS; do
+            echo "======================================="
+            echo "Validating pack: $PACK"
+            echo "======================================="
+
+            ROOT="Packs/${PACK}"
+
+            echo "[1] normalize_ruleid_adopted.py (check only)"
+            # assuming: non-zero exit if problems are found
+            python tools/normalize_ruleid_adopted.py --root "$ROOT"
+
+            echo "[2] demisto-sdk validate"
+            demisto-sdk validate -i "$ROOT" -g
+          done
