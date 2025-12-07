@@ -1,0 +1,47 @@
+###############################################################################
+# SOC Framework – .gitattributes
+# Prevent Git hell by marking generated files as non-mergeable and ignorable
+###############################################################################
+
+# Always use LF endings (GitHub Actions runners use LF)
+* text=auto eol=lf
+
+# Treat YAML files as text for diffs
+*.yml  text
+*.yaml text
+
+# Treat JSON as text
+*.json text
+
+# Python scripts as text
+*.py   text
+
+# ----------------------------------------
+# IGNORE GENERATED BUILD ARTIFACTS
+# ----------------------------------------
+
+# demisto-sdk creates uploadable pack zips
+uploadable_packs/* -diff -merge
+dist/*             -diff -merge export-ignore
+
+# Release workflow generates custom config assets
+*-staging-xsoar_config.json -diff -merge
+*-main-xsoar_config.json    -diff -merge
+
+# Do not attempt to merge or diff Python bytecode
+*.pyc -diff -merge
+
+# Ignore macOS Finder metadata if it ever sneaks in
+.DS_Store export-ignore
+
+# Ignore IDE metadata in export tarballs
+.idea/ export-ignore
+.vscode/ export-ignore
+
+# Do not include test files or sandbox fixtures in GitHub release source bundles
+test_data/ export-ignore
+tests/     export-ignore
+
+###############################################################################
+# END OF FILE
+###############################################################################
