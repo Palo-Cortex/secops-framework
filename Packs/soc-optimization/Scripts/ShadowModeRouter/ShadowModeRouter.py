@@ -20,7 +20,7 @@ def main():
         ))
 
     except Exception as e:
-        return_error(f"SOC_ShadowModeRouter failed: {str(e)}")
+        return_error(f"SOCShadowModeRouter failed: {str(e)}")
 
 if __name__ in ("__main__", "__builtin__", "builtins"):
     main()

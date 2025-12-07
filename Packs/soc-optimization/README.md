@@ -199,7 +199,7 @@ The metrics collected are designed to demonstrate **operational value**:
 │   ├── DeployPlaybook                  - Blue / Green Deployment Script
 │   ├── EntryPointGBState               - Blue / Green Router
 │   ├── ShadowModeRouter                - Conditional task script that runs the playbook in Full Run or Shadow Mode
-│   ├── SOC_NormalizeContext            - Normalizeds Artifacts in Data Context (i.e. user, IPs, domains, urls, etc.)
+│   ├── SOCNormalizeContext            - Normalizeds Artifacts in Data Context (i.e. user, IPs, domains, urls, etc.)
 │   └── setValueTags                    – Maintains `value_tags` table for metrics and dashboards
 ```
 ---
