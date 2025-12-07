@@ -28,6 +28,7 @@ jobs:
     outputs:
       changed_packs: ${{ steps.changed.outputs.packs }}
       environment:   ${{ steps.envinfo.outputs.environment }}
+      install_order: ${{ steps.install_order.outputs.packs }}
 
     steps:
       - name: Checkout repo
@@ -42,7 +43,7 @@ jobs:
 
       - name: Install demisto-sdk
         run: |
-          pip install "demisto-sdk>=1.0.0"
+          pip install "demisto-sdk>=1.38.14"
 
       ############################################
       # 1) DISCOVER ALL PACKS
@@ -124,6 +125,52 @@ jobs:
             echo "Unsupported branch $GITHUB_REF"
             exit 1
           fi
+
+      ############################################
+      # 3b) BUILD INSTALL ORDER (deps first)
+      ############################################
+      - name: Build install order (deps first)
+        id: install_order
+        if: ${{ steps.changed.outputs.packs != '' }}
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+        run: |
+          python - << 'PY'
+          import json, os
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed = os.environ["CHANGED_PACKS"].split()
+
+          def get_deps(pack):
+              meta_path = packs_dir / pack / "pack_metadata.json"
+              if not meta_path.exists():
+                  return []
+              meta = json.loads(meta_path.read_text())
+              deps = meta.get("dependencies") or {}
+              # keys are pack IDs
+              return list(deps.keys())
+
+          install_list = []
+          seen = set()
+
+          for pack in changed:
+              # dependencies first
+              for dep in get_deps(pack):
+                  if dep not in seen:
+                      seen.add(dep)
+                      install_list.append(dep)
+              # then the pack itself
+              if pack not in seen:
+                  seen.add(pack)
+                  install_list.append(pack)
+
+          out = " ".join(install_list)
+          print("Install order:", out or "(none)")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={out}\n")
+          PY
 
       ############################################
       # 4) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG (locally only)
@@ -224,8 +271,7 @@ jobs:
             url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
             print("New URL for", pack, ":", url)
 
-            # NOTE: we still update xsoar_config.json in the runner's workspace
-            # but we no longer commit/push it from this workflow.
+            # Update xsoar_config.json (in runner only)
             if not config_path.exists():
               print(f"{pack}: no xsoar_config.json; skipping URL update")
               continue
@@ -266,33 +312,17 @@ jobs:
     needs: release-packs
     # Only run when:
     #   - environment is staging
-    #   - at least one pack changed
-    if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.changed_packs != ''
+    #   - at least one pack in install_order
+    if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.install_order != ''
     runs-on: ubuntu-latest
 
-    # Always use the 'staging' environment / secrets here
     environment:
       name: staging
 
     steps:
-      - name: Select pack under test & compute config URL
+      - name: Show install order
         run: |
-          set -euo pipefail
-          CHANGED="${{ needs.release-packs.outputs.changed_packs }}"
-          PACK=$(echo "$CHANGED" | awk '{print $1}')
-          if [ -z "$PACK" ]; then
-            echo "No pack to test."; exit 1
-          fi
-
-          REPO="${{ github.repository }}"
-          BRANCH="staging"
-          URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
-
-          echo "Pack under test: $PACK"
-          echo "CONTENT_REPO_RAW_LINK: $URL"
-
-          echo "PACK_UNDER_TEST=$PACK" >> "$GITHUB_ENV"
-          echo "CONTENT_REPO_RAW_LINK=$URL" >> "$GITHUB_ENV"
+          echo "Install order: ${{ needs.release-packs.outputs.install_order }}"
 
       - name: Checkout xsiam-pov-automation
         uses: actions/checkout@v4
@@ -310,16 +340,85 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Run POV setup playbook against staging
+      - name: Run POV setup playbook against STAGING (one pack at a time)
         working-directory: xsiam-pov-automation
         env:
           DEMISTO_BASE_URL:  ${{ secrets.XSIAM_API_URL }}
           DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
           XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
-          CONTENT_REPO_RAW_LINK: ${{ env.CONTENT_REPO_RAW_LINK }}
           DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
-          echo "Running POV setup against $DEMISTO_BASE_URL"
-          echo "Using CONTENT_REPO_RAW_LINK=$CONTENT_REPO_RAW_LINK"
-          # auto-answer verify_dotenv() prompt in setup.py
-          printf 'yes\n' | python setup.py
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          BRANCH="staging"
+          INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
+
+          echo "Will install packs (with deps first): $INSTALL_ORDER"
+
+          for PACK in $INSTALL_ORDER; do
+            CONFIG_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+            echo "======================================="
+            echo "Installing pack: $PACK"
+            echo "Using CONTENT_REPO_RAW_LINK: $CONFIG_URL"
+            echo "======================================="
+
+            CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
+            printf 'yes\n' | python setup.py
+          done
+
+  ############################################
+  # JOB 3: POV PRODUCTION DEPLOY
+  ############################################
+  pov-production-deploy:
+    needs: release-packs
+    if: needs.release-packs.outputs.environment == 'main' && needs.release-packs.outputs.install_order != ''
+    runs-on: ubuntu-latest
+
+    environment:
+      name: main   # or 'production' if you prefer
+
+    steps:
+      - name: Show install order
+        run: |
+          echo "Install order: ${{ needs.release-packs.outputs.install_order }}"
+
+      - name: Checkout xsiam-pov-automation
+        uses: actions/checkout@v4
+        with:
+          repository: annabarone/xsiam-pov-automation
+          path: xsiam-pov-automation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install POV requirements
+        working-directory: xsiam-pov-automation
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run POV setup playbook against PRODUCTION (one pack at a time)
+        working-directory: xsiam-pov-automation
+        env:
+          DEMISTO_BASE_URL:  ${{ secrets.XSIAM_PROD_API_URL }}
+          DEMISTO_API_KEY:   ${{ secrets.XSIAM_PROD_API_KEY }}
+          XSIAM_AUTH_ID:     ${{ secrets.XSIAM_PROD_API_ID }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          BRANCH="main"
+          INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
+
+          echo "Will install packs (with deps first): $INSTALL_ORDER"
+
+          for PACK in $INSTALL_ORDER; do
+            CONFIG_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+            echo "======================================="
+            echo "Installing pack: $PACK"
+            echo "Using CONTENT_REPO_RAW_LINK: $CONFIG_URL"
+            echo "======================================="
+
+            CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
+            printf 'yes\n' | python setup.py
