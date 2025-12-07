@@ -181,7 +181,8 @@ jobs:
           PY
 
       ############################################
-      # 4) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG (locally only)
+      # 4) BUILD PACKS, CREATE RELEASES,
+      #    GENERATE ENV-SPECIFIC XSOAR CONFIGS (ASSETS ONLY)
       ############################################
       - name: Build & release changed packs
         if: ${{ steps.changed.outputs.packs != '' }}
@@ -279,29 +280,33 @@ jobs:
             url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
             print("New URL for", pack, ":", url)
 
-            # Update xsoar_config.json (in runner only)
+            # If xsoar_config.json exists, use it as a template ONLY
             if not config_path.exists():
-              print(f"{pack}: no xsoar_config.json; skipping URL update")
+              print(f"{pack}: no xsoar_config.json; skipping config asset generation")
               continue
 
             cfg = json.loads(config_path.read_text())
-            updated = False
             target_id = f"{pack}.zip"
 
             custom = cfg.get("custom_packs")
             if isinstance(custom, list):
               for entry in custom:
                 if isinstance(entry, dict) and entry.get("id") == target_id:
-                  print(f"Updating custom_packs id={target_id}")
+                  print(f"Setting URL for custom_packs id={target_id}")
                   entry["url"] = url
-                  updated = True
                   break
-
-            if not updated:
-              print("WARNING: no matching custom_packs entry; updating top-level 'url'")
+            else:
+              # fallback to top-level url if needed
+              print("WARNING: no custom_packs list; setting top-level 'url'")
               cfg["url"] = url
 
-            config_path.write_text(json.dumps(cfg, indent=2) + "\n")
+            # Write env-specific config JSON to dist and upload as Release asset
+            config_asset = f"{pack}-v{version}-{environment}-xsoar_config.json"
+            config_file = dist / config_asset
+            config_file.write_text(json.dumps(cfg, indent=2) + "\n")
+            print("Config asset JSON:", config_file)
+
+            gh("release", "upload", tag, str(config_file), "--clobber")
 
           PY
 
@@ -358,15 +363,21 @@ jobs:
         run: |
           set -euo pipefail
           REPO="${{ github.repository }}"
-          BRANCH="staging"
           INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
 
           echo "Will install packs (with deps first): $INSTALL_ORDER"
 
           for PACK in $INSTALL_ORDER; do
-            CONFIG_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+            # Extract version from pack_metadata.json using jq
+            VERSION=$(jq -r '."version" // ."currentVersion"' "Packs/$PACK/pack_metadata.json")
+
+            TAG="${PACK}-v${VERSION}-staging"
+            CONFIG_ASSET="${PACK}-v${VERSION}-staging-xsoar_config.json"
+            CONFIG_URL="https://github.com/${REPO}/releases/download/${TAG}/${CONFIG_ASSET}"
+
             echo "======================================="
             echo "Installing pack: $PACK"
+            echo "Version: $VERSION"
             echo "Using CONTENT_REPO_RAW_LINK: $CONFIG_URL"
             echo "======================================="
 
@@ -416,17 +427,24 @@ jobs:
         run: |
           set -euo pipefail
           REPO="${{ github.repository }}"
-          BRANCH="main"
           INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
 
           echo "Will install packs (with deps first): $INSTALL_ORDER"
 
           for PACK in $INSTALL_ORDER; do
-            CONFIG_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+            # Extract version from pack_metadata.json using jq
+            VERSION=$(jq -r '."version" // ."currentVersion"' "Packs/$PACK/pack_metadata.json")
+
+            TAG="${PACK}-v${VERSION}"
+            CONFIG_ASSET="${PACK}-v${VERSION}-main-xsoar_config.json"
+            CONFIG_URL="https://github.com/${REPO}/releases/download/${TAG}/${CONFIG_ASSET}"
+
             echo "======================================="
             echo "Installing pack: $PACK"
+            echo "Version: $VERSION"
             echo "Using CONTENT_REPO_RAW_LINK: $CONFIG_URL"
             echo "======================================="
 
             CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
             printf 'yes\n' | python setup.py
+          done
