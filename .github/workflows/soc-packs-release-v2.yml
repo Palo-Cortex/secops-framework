@@ -1,4 +1,4 @@
-name: SOC Packs Release + POV Staging Test
+name: SOC Packs Release + POV Staging Test v2
 
 on:
   push:
@@ -14,11 +14,9 @@ jobs:
   # JOB 1: BUILD & RELEASE PACKS
   ############################################
   release-packs:
-    # Avoid infinite loop after committing [skip ci]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
-    # Use 'main' environment for main branch, otherwise 'staging'
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
 
@@ -34,7 +32,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Needed so we can read BEFORE_SHA
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -45,9 +43,6 @@ jobs:
         run: |
           pip install "demisto-sdk>=1.38.14"
 
-      ############################################
-      # 1) DISCOVER ALL PACKS
-      ############################################
       - name: Discover packs
         id: discover
         run: |
@@ -67,9 +62,6 @@ jobs:
               fh.write(f"packs={packs_str}\n")
           PY
 
-      ############################################
-      # 2) DETECT PACKS WITH VERSION CHANGES
-      ############################################
       - name: Compute changed packs (version bump)
         id: changed
         env:
@@ -92,11 +84,9 @@ jobs:
             if not meta_path.exists():
               continue
 
-            # New version (current commit: HEAD)
             new_meta = json.loads(meta_path.read_text())
             new_ver = new_meta.get("version") or new_meta.get("currentVersion") or ""
 
-            # Old version (commit before this push)
             try:
                 blob = subprocess.check_output(
                     ["git", "show", f"{before}:{meta_path.as_posix()}"],
@@ -105,7 +95,6 @@ jobs:
                 old_meta = json.load(io.StringIO(blob))
                 old_ver = old_meta.get("version") or old_meta.get("currentVersion") or ""
             except subprocess.CalledProcessError:
-                # File may not exist in BEFORE_SHA (new pack, etc.)
                 old_ver = ""
 
             if new_ver != old_ver:
@@ -119,9 +108,6 @@ jobs:
               fh.write(f"packs={changed_str}\n")
           PY
 
-      ############################################
-      # 3) DETERMINE ENVIRONMENT (staging/main)
-      ############################################
       - name: Determine environment
         id: envinfo
         run: |
@@ -134,9 +120,6 @@ jobs:
             exit 1
           fi
 
-      ############################################
-      # 3b) BUILD INSTALL ORDER (deps first)
-      ############################################
       - name: Build install order (deps first)
         id: install_order
         if: ${{ steps.changed.outputs.packs != '' }}
@@ -156,19 +139,16 @@ jobs:
                   return []
               meta = json.loads(meta_path.read_text())
               deps = meta.get("dependencies") or {}
-              # keys are pack IDs
               return list(deps.keys())
 
           install_list = []
           seen = set()
 
           for pack in changed:
-              # dependencies first
               for dep in get_deps(pack):
                   if dep not in seen:
                       seen.add(dep)
                       install_list.append(dep)
-              # then the pack itself
               if pack not in seen:
                   seen.add(pack)
                   install_list.append(pack)
@@ -180,9 +160,6 @@ jobs:
               fh.write(f"packs={out}\n")
           PY
 
-      ############################################
-      # 4) BUILD PACKS WITH SDK & CREATE RELEASES
-      ############################################
       - name: Build & release changed packs
         if: ${{ steps.changed.outputs.packs != '' }}
         env:
@@ -227,20 +204,17 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Build pack with demisto-sdk
             run_cmd([
                 "demisto-sdk", "zip-packs",
                 "-i", str(pack_path),
-                "-o", str(dist),
+                "-o", "dist",
             ])
 
-            # SDK writes to dist/uploadable_packs/<pack>.zip
             uploadable_dir = dist / "uploadable_packs"
             input_zip = uploadable_dir / f"{pack}.zip"
             if not uploadable_dir.exists() or not input_zip.exists():
               raise FileNotFoundError(f"Expected zip {input_zip} not found")
 
-            # Decide tag & asset name based on environment
             if environment == "staging":
               tag = f"{pack}-v{version}-staging"
               asset = f"{pack}-v{version}-staging.zip"
@@ -258,7 +232,6 @@ jobs:
             input_zip.rename(final_zip)
             print("Final asset zip:", final_zip)
 
-            # Create or update GitHub Release
             exists = gh("release", "view", tag, check=False).returncode == 0
             if exists:
               gh("release", "upload", tag, str(final_zip), "--clobber")
@@ -271,22 +244,16 @@ jobs:
               gh(*args)
           PY
 
-      ############################################
-      # 5) NOTHING CHANGED
-      ############################################
       - name: No packs changed
         if: ${{ steps.changed.outputs.packs == '' }}
         run: |
           echo "No pack version changes detected. Skipping."
 
   ############################################
-  # JOB 2: POV STAGING TEST VIA xsiam-pov-automation
+  # JOB 2: POV STAGING TEST
   ############################################
   pov-staging-test:
     needs: release-packs
-    # Only run when:
-    #   - environment is staging
-    #   - at least one pack in install_order
     if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.install_order != ''
     runs-on: ubuntu-latest
 
@@ -338,7 +305,6 @@ jobs:
 
             CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
             printf 'yes\n' | python setup.py
-          done
 
   ############################################
   # JOB 3: POV PRODUCTION DEPLOY
@@ -349,7 +315,7 @@ jobs:
     runs-on: ubuntu-latest
 
     environment:
-      name: main   # or 'production' if you prefer
+      name: main
 
     steps:
       - name: Show install order
