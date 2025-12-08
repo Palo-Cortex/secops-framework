@@ -318,10 +318,6 @@ jobs:
       name: main
 
     steps:
-      - name: Show install order
-        run: |
-          echo "Install order: ${{ needs.release-packs.outputs.install_order }}"
-
       - name: Checkout xsiam-pov-automation
         uses: actions/checkout@v4
         with:
@@ -338,27 +334,13 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Run POV setup playbook against PRODUCTION (one pack at a time)
+      - name: Run POV setup playbook against PRODUCTION (CSV-driven)
         working-directory: xsiam-pov-automation
         env:
-          DEMISTO_BASE_URL:  ${{ secrets.XSIAM_PROD_API_URL }}
-          DEMISTO_API_KEY:   ${{ secrets.XSIAM_PROD_API_KEY }}
-          XSIAM_AUTH_ID:     ${{ secrets.XSIAM_PROD_API_ID }}
+          DEMISTO_BASE_URL: ${{ secrets.XSIAM_PROD_API_URL }}
+          DEMISTO_API_KEY: ${{ secrets.XSIAM_PROD_API_KEY }}
+          XSIAM_AUTH_ID: ${{ secrets.XSIAM_PROD_API_ID }}
+          CONTENT_REPO_RAW_LINK: https://raw.githubusercontent.com/${{ github.repository }}/main/xsoar_config.csv
           DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
-          set -euo pipefail
-          REPO="${{ github.repository }}"
-          BRANCH="main"
-          INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
-
-          echo "Will install packs (with deps first): $INSTALL_ORDER"
-
-          for PACK in $INSTALL_ORDER; do
-            CONFIG_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
-            echo "======================================="
-            echo "Installing pack: $PACK"
-            echo "Using CONTENT_REPO_RAW_LINK: $CONFIG_URL"
-            echo "======================================="
-
-            CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
-            printf 'yes\n' | python setup.py
+          printf 'yes\n' | python setup.py
