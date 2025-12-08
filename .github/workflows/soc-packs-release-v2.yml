@@ -250,10 +250,13 @@ jobs:
           echo "No pack version changes detected. Skipping."
 
   ############################################
-  # JOB 2: POV STAGING TEST
+  # JOB 2: POV STAGING TEST VIA xsiam-pov-automation
   ############################################
   pov-staging-test:
     needs: release-packs
+    # Only run when:
+    #   - environment is staging
+    #   - at least one pack in install_order
     if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.install_order != ''
     runs-on: ubuntu-latest
 
@@ -290,6 +293,7 @@ jobs:
           DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
           set -euo pipefail
+
           REPO="${{ github.repository }}"
           BRANCH="staging"
           INSTALL_ORDER="${{ needs.release-packs.outputs.install_order }}"
@@ -305,6 +309,7 @@ jobs:
 
             CONTENT_REPO_RAW_LINK="$CONFIG_URL" \
             printf 'yes\n' | python setup.py
+          done
 
   ############################################
   # JOB 3: POV PRODUCTION DEPLOY
