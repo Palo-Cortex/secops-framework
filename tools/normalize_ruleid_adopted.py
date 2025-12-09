@@ -177,12 +177,27 @@ def _ensure_adopted_in_yaml(text: str) -> Tuple[str, bool]:
 
 
 def _set_rule_id_yaml(text: str) -> Tuple[str, bool]:
-    # Ensure rule_id: 0
+    """
+    Ensure rule_id: 0, but be idempotent so check-only runs don't keep
+    reporting changes once files are normalized.
+    """
+    # Already exactly rule_id: 0 ?
+    if re.search(r'^\s*rule_id\s*:\s*0\s*$', text, flags=re.M):
+        return text, False
+
+    # rule_id exists but not 0 -> set to 0
     if re.search(r'^\s*rule_id\s*:', text, flags=re.M):
-        new_text, n = re.subn(r'(^\s*rule_id\s*:\s*).*$', r'\g<1>0', text, flags=re.M)
+        new_text, n = re.subn(
+            r'(^\s*rule_id\s*:\s*).*$',  # full rule_id line
+            r'\g<1>0',
+            text,
+            flags=re.M,
+        )
         return new_text, n > 0
 
+    # No rule_id at all -> insert at top
     return "rule_id: 0\n" + text, True
+
 
 
 def _ensure_fromversion_yaml(text: str, version: str = "6.10.0") -> Tuple[str, bool]:
