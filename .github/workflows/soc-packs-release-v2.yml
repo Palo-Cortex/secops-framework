@@ -48,12 +48,13 @@ jobs:
 
       - name: Verify demisto-sdk version
         run: |
-          VERSION=$(demisto-sdk --version)
-          echo "demisto-sdk version: $VERSION"
+          VERSION=$(demisto-sdk --version | grep -Eo '([0-9]+\.)+[0-9]+' | head -1)
+          echo "Parsed SDK version: $VERSION"
           if [ "$VERSION" != "${DEMISTO_SDK_VERSION}" ]; then
             echo "ERROR: Expected demisto-sdk ${DEMISTO_SDK_VERSION}"
             exit 1
           fi
+
 
       ############################################
       # 1) DISCOVER ALL PACKS
