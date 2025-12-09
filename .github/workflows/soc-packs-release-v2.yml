@@ -22,7 +22,7 @@ jobs:
   ###########################################################################
   release-packs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04   # 🔒 LOCKED BACK TO WHAT WORKED
 
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
@@ -40,19 +40,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.9"   # 🔒 LOCKED
+
+      - name: Lock pip (pre-strict resolver)
+        run: |
+          python -m pip install --upgrade "pip<24"
+          pip --version
 
       - name: Install demisto-sdk
         run: pip install "demisto-sdk==${{ env.DEMISTO_SDK_VERSION }}"
-
-      #- name: Verify demisto-sdk version
-      #  run: |
-      #    VER=$(demisto-sdk --version | grep -Eo '([0-9]+\.)+[0-9]+' | head -1)
-      #    echo "SDK version = $VER"
-      #    if [ "$VER" != "${{ env.DEMISTO_SDK_VERSION }}" ]; then
-      #      echo "ERROR: Expected demisto-sdk ${{ env.DEMISTO_SDK_VERSION }}"
-      #      exit 1
-      #    fi
 
       ###################################################################
       # Discover all packs
@@ -154,7 +150,6 @@ jobs:
           environment = os.environ["ENVIRONMENT"]
           repo = os.environ["GITHUB_REPOSITORY"]
 
-          # fresh dist directory
           dist = Path("dist")
           if dist.exists():
             shutil.rmtree(dist)
@@ -169,8 +164,6 @@ jobs:
             return subprocess.run(["gh", *args], check=check)
 
           for pack in changed:
-            print(f"\n=== Building pack: {pack} ===")
-
             pack_path = packs_dir / pack
             meta_path = pack_path / "pack_metadata.json"
             config_path = pack_path / "xsoar_config.json"
@@ -178,10 +171,8 @@ jobs:
             meta = json.loads(meta_path.read_text())
             version = meta.get("version") or meta.get("currentVersion")
             if not version:
-              print(f"{pack}: no version found, skipping")
               continue
 
-            # Build using prepare-content
             run_cmd([
               "demisto-sdk", "prepare-content",
               "-i", str(pack_path),
@@ -190,13 +181,8 @@ jobs:
               "--force"
             ])
 
-            # Find the generated zip
             zips = list(Path("dist").glob("*.zip"))
-            if not zips:
-              raise FileNotFoundError(f"No ZIP produced for pack {pack}")
-
             built_zip = zips[0]
-            print("Created ZIP:", built_zip)
 
             upload_dir = Path("dist/uploadable_packs")
             upload_dir.mkdir(parents=True, exist_ok=True)
@@ -204,9 +190,6 @@ jobs:
             final_zip = upload_dir / f"{pack}.zip"
             built_zip.rename(final_zip)
 
-            print("Final ZIP:", final_zip)
-
-            # release tags
             if environment == "staging":
               tag = f"{pack}-v{version}-staging"
               asset = f"{pack}-v{version}-staging.zip"
@@ -218,12 +201,9 @@ jobs:
               title = f"{pack} v{version}"
               prerelease = False
 
-            release_zip = dist / asset
-            if release_zip.exists():
-              release_zip.unlink()
+            release_zip = Path("dist") / asset
             shutil.copy(final_zip, release_zip)
 
-            # Create or update GitHub release
             exists = gh("release", "view", tag, check=False).returncode == 0
             if exists:
               gh("release", "upload", tag, str(release_zip), "--clobber")
@@ -236,57 +216,24 @@ jobs:
               gh(*args)
 
             url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
-            print("New download URL:", url)
 
-            # Update xsoar_config.json
             if config_path.exists():
               cfg = json.loads(config_path.read_text())
-              updated = False
-              target_id = f"{pack}.zip"
-
-              cp = cfg.get("custom_packs")
-              if isinstance(cp, list):
-                for entry in cp:
-                  if entry.get("id") == target_id:
-                    entry["url"] = url
-                    updated = True
-                    break
-
-              if not updated:
-                cfg["url"] = url
-
+              for entry in cfg.get("custom_packs", []):
+                if entry.get("id") == f"{pack}.zip":
+                  entry["url"] = url
               config_path.write_text(json.dumps(cfg, indent=2) + "\n")
-
           PY
 
-      ###################################################################
-      # Commit updated URLs
-      ###################################################################
       - name: Commit updated xsoar_config.json files
         if: ${{ steps.changed.outputs.packs != '' }}
         run: |
-          if git diff --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-
+          if git diff --quiet; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add Packs/*/xsoar_config.json || true
-
-          if git diff --cached --quiet; then
-            echo "No staged changes"
-            exit 0
-          fi
-
-          ENV="${{ steps.envinfo.outputs.environment }}"
-          git commit -m "chore: [skip ci] update xsoar_config urls ($ENV)"
+          git commit -m "chore: [skip ci] update xsoar_config urls"
           git push origin HEAD
-
-      - name: No changes
-        if: ${{ steps.changed.outputs.packs == '' }}
-        run: echo "No pack version changes. Skipping build."
 
   ###########################################################################
   # JOB 2 — Install into staging via PoV automation
@@ -294,7 +241,7 @@ jobs:
   pov-staging-test:
     needs: release-packs
     if: needs.release-packs.outputs.environment == 'staging' && needs.release-packs.outputs.changed_packs != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04   # 🔒 LOCKED
 
     environment:
       name: staging
@@ -305,10 +252,7 @@ jobs:
           PK="${{ needs.release-packs.outputs.changed_packs }}"
           PACK=$(echo "$PK" | awk '{print $1}')
           URL="https://raw.githubusercontent.com/${{ github.repository }}/staging/Packs/${PACK}/xsoar_config.json"
-
-          echo "Pack: $PACK"
           echo "CONTENT_REPO_RAW_LINK=$URL" >> "$GITHUB_ENV"
-          echo "PACK_UNDER_TEST=$PACK" >> "$GITHUB_ENV"
 
       - name: Checkout xsiam-pov-automation
         uses: actions/checkout@v4
@@ -319,26 +263,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.9"   # 🔒 LOCKED
 
-      # Hot-fix the bad demisto-py pin in Anna's repo
+      - name: Lock pip (pre-strict resolver)
+        run: |
+          python -m pip install --upgrade "pip<24"
+
       - name: Patch POV requirements (demisto-py)
         working-directory: xsiam-pov-automation
         run: |
-          echo "Before patch:"
-          grep -n "demisto-py" requirements.txt || true
-          
-          # Replace the non-existent 3.2.15 with a version pip can actually find
           sed -i 's/demisto-py==3\.2\.15/demisto-py==3.2.13/' requirements.txt
-          
-          echo "After patch:"
-          grep -n "demisto-py" requirements.txt || true
 
       - name: Install POV requirements
         working-directory: xsiam-pov-automation
-        run: |
-          pip install -r requirements.txt
-
+        run: pip install -r requirements.txt
 
       - name: Run POV Setup
         working-directory: xsiam-pov-automation
