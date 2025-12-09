@@ -9,25 +9,18 @@ on:
 permissions:
   contents: write   # required for releases + commits
 
+env:
+  PACKS_DIR: Packs
+
 jobs:
   ############################################
-  # JOB 1: BUILD & RELEASE PACKS
+  # JOB 1: VALIDATE CHANGED PACKS
   ############################################
-  release-packs:
-    # Avoid infinite loop after committing [skip ci]
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+  validate:
     runs-on: ubuntu-latest
-
-    # Use 'main' environment for main branch, otherwise 'staging'
-    environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
-
-    env:
-      PACKS_DIR: Packs
 
     outputs:
       changed_packs: ${{ steps.changed.outputs.packs }}
-      environment:   ${{ steps.envinfo.outputs.environment }}
 
     steps:
       - name: Checkout repo
@@ -111,7 +104,64 @@ jobs:
           PY
 
       ############################################
-      # 3) DETERMINE ENVIRONMENT (staging/main)
+      # 3) RUN VALIDATION FOR CHANGED PACKS
+      ############################################
+      - name: Validate changed packs
+        if: ${{ steps.changed.outputs.packs != '' }}
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+        run: |
+          set -euo pipefail
+          echo "Validating packs: $CHANGED_PACKS"
+          for PACK in $CHANGED_PACKS; do
+            echo "=== demisto-sdk validate -i ${PACKS_DIR}/$PACK ==="
+            demisto-sdk validate -i "${PACKS_DIR}/$PACK" --no-docker-checks --no-conf-json
+          done
+
+      - name: No packs changed (validate)
+        if: ${{ steps.changed.outputs.packs == '' }}
+        run: |
+          echo "No pack version changes detected. Skipping validation."
+
+  ############################################
+  # JOB 2: BUILD & RELEASE PACKS
+  ############################################
+  release-packs:
+    needs: validate
+    # Avoid infinite loop after committing [skip ci]
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    runs-on: ubuntu-latest
+
+    # Use 'main' environment for main branch, otherwise 'staging'
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
+
+    outputs:
+      changed_packs: ${{ needs.validate.outputs.changed_packs }}
+      environment:   ${{ steps.envinfo.outputs.environment }}
+
+    env:
+      CHANGED_PACKS: ${{ needs.validate.outputs.changed_packs }}
+      DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install demisto-sdk
+        run: |
+          pip install "demisto-sdk>=1.0.0"
+
+      ############################################
+      # 1) DETERMINE ENVIRONMENT (staging/main)
       ############################################
       - name: Determine environment
         id: envinfo
@@ -126,15 +176,13 @@ jobs:
           fi
 
       ############################################
-      # 4) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG
+      # 2) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG
       ############################################
       - name: Build & release changed packs
-        if: ${{ steps.changed.outputs.packs != '' }}
+        if: ${{ env.CHANGED_PACKS != '' }}
         env:
-          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
           ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
           python - << 'PY'
           import json, os, subprocess
@@ -146,6 +194,9 @@ jobs:
           repo = os.environ["GITHUB_REPOSITORY"]
 
           dist = Path("dist")
+          if dist.exists():
+              import shutil
+              shutil.rmtree(dist)
           dist.mkdir(exist_ok=True)
 
           def run_cmd(cmd, cwd=None):
@@ -155,6 +206,19 @@ jobs:
           def gh(*args, check=True):
               print("+ gh", " ".join(args))
               return subprocess.run(["gh", *args], check=check)
+
+          # Build all packs once (SDK writes dist/uploadable_packs/*.zip)
+          run_cmd([
+              "demisto-sdk", "zip-packs",
+              "-i", str(packs_dir),
+              "-o", str(dist)
+          ])
+
+          uploadable_dir = dist / "uploadable_packs"
+          print("Uploadable zips in", uploadable_dir)
+          if uploadable_dir.exists():
+              for p in uploadable_dir.glob("*.zip"):
+                  print("  ", p)
 
           for pack in changed:
             pack_path = packs_dir / pack
@@ -173,21 +237,7 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Build pack with demisto-sdk
-            run_cmd([
-                "demisto-sdk", "zip-packs",
-                "-i", str(pack_path),
-                "-o", str(dist)
-            ])
-
-            # SDK writes to dist/uploadable_packs/<pack>.zip
-            uploadable_dir = dist / "uploadable_packs"
             input_zip = uploadable_dir / f"{pack}.zip"
-            print("Uploadable zips in", uploadable_dir)
-            if uploadable_dir.exists():
-              for p in uploadable_dir.glob("*.zip"):
-                print("  ", p)
-
             if not input_zip.exists():
               raise FileNotFoundError(f"Expected zip {input_zip} not found")
 
@@ -251,10 +301,10 @@ jobs:
           PY
 
       ############################################
-      # 5) COMMIT UPDATED FILES
+      # 3) COMMIT UPDATED FILES
       ############################################
       - name: Commit updated xsoar_config.json files
-        if: ${{ steps.changed.outputs.packs != '' }}
+        if: ${{ env.CHANGED_PACKS != '' }}
         run: |
           set -euo pipefail
 
@@ -277,16 +327,13 @@ jobs:
           git commit -m "chore: [skip ci] update xsoar_config urls (${ENVIRONMENT})"
           git push origin HEAD
 
-      ############################################
-      # 6) NOTHING CHANGED
-      ############################################
-      - name: No packs changed
-        if: ${{ steps.changed.outputs.packs == '' }}
+      - name: No packs changed (release)
+        if: ${{ env.CHANGED_PACKS == '' }}
         run: |
-          echo "No pack version changes detected. Skipping."
+          echo "No pack version changes detected. Skipping build & release."
 
   ############################################
-  # JOB 2: POV STAGING TEST VIA xsiam-pov-automation
+  # JOB 3: POV STAGING TEST VIA xsiam-pov-automation
   ############################################
   pov-staging-test:
     needs: release-packs
@@ -347,5 +394,4 @@ jobs:
         run: |
           echo "Running POV setup against $DEMISTO_BASE_URL"
           echo "Using CONTENT_REPO_RAW_LINK=$CONTENT_REPO_RAW_LINK"
-          # auto-answer verify_dotenv() prompt in setup.py
           printf 'yes\n' | python setup.py
