@@ -316,9 +316,29 @@ jobs:
           repository: annabarone/xsiam-pov-automation
           path: xsiam-pov-automation
 
-      - name: Install PoV requirements
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # Hot-fix the bad demisto-py pin in Anna's repo
+      - name: Patch POV requirements (demisto-py)
         working-directory: xsiam-pov-automation
-        run: pip install -r requirements.txt
+        run: |
+          echo "Before patch:"
+          grep -n "demisto-py" requirements.txt || true
+          
+          # Replace the non-existent 3.2.15 with a version pip can actually find
+          sed -i 's/demisto-py==3\.2\.15/demisto-py==3.2.13/' requirements.txt
+          
+          echo "After patch:"
+          grep -n "demisto-py" requirements.txt || true
+
+      - name: Install POV requirements
+        working-directory: xsiam-pov-automation
+        run: |
+          pip install -r requirements.txt
+
 
       - name: Run POV Setup
         working-directory: xsiam-pov-automation
