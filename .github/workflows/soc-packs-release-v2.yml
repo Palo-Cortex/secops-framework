@@ -126,14 +126,24 @@ jobs:
       - name: Determine environment
         id: envinfo
         run: |
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_BASE_REF=$GITHUB_BASE_REF"
+
+          # PUSH to staging or main
           if [ "$GITHUB_REF" = "refs/heads/staging" ]; then
-            echo "environment=staging" >> "$GITHUB_OUTPUT"
+            ENVIRONMENT="staging"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            echo "environment=main" >> "$GITHUB_OUTPUT"
+            ENVIRONMENT="main"
+
+          # PULL REQUEST targeting main (from staging)
+          elif [ "$GITHUB_BASE_REF" = "main" ]; then
+            ENVIRONMENT="staging"
           else
-            echo "Unsupported branch $GITHUB_REF"
+            echo "Unsupported branch context"
             exit 1
           fi
+
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
       ###################################################################
       # Build & Release Packs
