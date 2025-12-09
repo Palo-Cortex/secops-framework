@@ -55,7 +55,7 @@ jobs:
           fi
 
       ###################################################################
-      # Discover all packs
+      # Discover all packs  (outputs.packs = comma-separated list)
       ###################################################################
       - name: Discover packs
         id: discover
@@ -65,19 +65,21 @@ jobs:
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
-          packs = [
+          packs = sorted(
               p.name for p in packs_dir.iterdir()
               if (p / "pack_metadata.json").is_file()
-          ]
-          packs_str = " ".join(sorted(packs))
+          )
 
-          print("Discovered packs:", packs_str)
+          packs_str = ",".join(packs)
+          print("Discovered packs:", packs_str or "(none)")
+
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"packs={packs_str}\n")
           PY
 
       ###################################################################
       # Determine which packs changed (version bump)
+      # steps.changed.outputs.packs = comma-separated list
       ###################################################################
       - name: Compute changed packs (version bump)
         id: changed
@@ -88,7 +90,12 @@ jobs:
           import io, json, os, subprocess
           from pathlib import Path
 
-          packs = os.environ["ALL_PACKS"].split()
+          all_packs = os.environ.get("ALL_PACKS", "")
+          if all_packs:
+            packs = [p for p in all_packs.split(",") if p]
+          else:
+            packs = []
+
           packs_dir = Path(os.environ["PACKS_DIR"])
           changed = []
 
@@ -113,8 +120,8 @@ jobs:
               print(f"{pack}: version changed {old_ver} -> {new_ver}")
               changed.append(pack)
 
-          out = " ".join(changed)
-          print("Changed packs:", out)
+          out = ",".join(changed)
+          print("Changed packs:", out or "(none)")
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
             fh.write(f"packs={out}\n")
@@ -150,9 +157,14 @@ jobs:
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
-          changed = os.environ["CHANGED_PACKS"].split()
+          raw_changed = os.environ.get("CHANGED_PACKS", "")
+          changed = [p for p in raw_changed.split(",") if p]
           environment = os.environ["ENVIRONMENT"]
           repo = os.environ["GITHUB_REPOSITORY"]
+
+          if not changed:
+            print("No changed packs found at runtime, exiting.")
+            raise SystemExit(0)
 
           # fresh dist directory
           dist = Path("dist")
@@ -174,6 +186,10 @@ jobs:
             pack_path = packs_dir / pack
             meta_path = pack_path / "pack_metadata.json"
             config_path = pack_path / "xsoar_config.json"
+
+            if not meta_path.exists():
+              print(f"{pack}: pack_metadata.json not found, skipping")
+              continue
 
             meta = json.loads(meta_path.read_text())
             version = meta.get("version") or meta.get("currentVersion")
@@ -202,6 +218,8 @@ jobs:
             upload_dir.mkdir(parents=True, exist_ok=True)
 
             final_zip = upload_dir / f"{pack}.zip"
+            if final_zip.exists():
+              final_zip.unlink()
             built_zip.rename(final_zip)
 
             print("Final ZIP:", final_zip)
@@ -302,8 +320,9 @@ jobs:
     steps:
       - name: Select pack under test
         run: |
-          PK="${{ needs.release-packs.outputs.changed_packs }}"
-          PACK=$(echo "$PK" | awk '{print $1}')
+          RAW="${{ needs.release-packs.outputs.changed_packs }}"
+          # First pack from comma-separated list
+          PACK="${RAW%%,*}"
           URL="https://raw.githubusercontent.com/${{ github.repository }}/staging/Packs/${PACK}/xsoar_config.json"
 
           echo "Pack: $PACK"
@@ -338,7 +357,6 @@ jobs:
         working-directory: xsiam-pov-automation
         run: |
           pip install -r requirements.txt
-
 
       - name: Run POV Setup
         working-directory: xsiam-pov-automation
