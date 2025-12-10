@@ -1,0 +1,1112 @@
+id: SOC Analysis
+version: 30
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization
+    packName: SOC Framework
+    itemVersion: 2.1.19
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: SOC Analysis
+description: |-
+  Identify potential security events, determine whether they represent true alerts, understand their scope and impact, and establish the actionable context needed to respond effectively.
+
+  What this phase includes:
+
+  Monitoring security telemetry from logs, alerts, sensors, EDR, SIEM/XSIAM analytics, threat intel, and user reports.
+
+  Triaging events to distinguish benign activity, false positives, and true security alerts.
+
+  Enriching indicators and artifacts (e.g., IPs, hashes, domains, user accounts, processes, network connections) using internal data and external threat intelligence.
+
+  Correlating events across systems to understand the timeline, root cause, attack vector, and potential lateral movement.
+
+  Assigning alert classification, severity, priority, and category for consistent response.
+
+  Documenting findings, evidence, and hypotheses while preserving forensic integrity.
+
+  Determining the initial scope and business impact to decide how aggressive containment must be.
+
+  Outcome:
+  A validated and well-understood security alert with clear context, severity, indicators, and scope—enabling the organization to transition into Containment with confidence and accuracy.
+tags:
+- SOC
+- SOC_Framework
+- NIST 800-61
+- Analysis
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 2d9b464e-b61d-4ff1-8425-1dec11c5d731
+    type: start
+    task:
+      id: 2d9b464e-b61d-4ff1-8425-1dec11c5d731
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "10"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1175,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 57a5da65-400a-4cd5-826c-3436a01618f8
+    type: playbook
+    task:
+      id: 57a5da65-400a-4cd5-826c-3436a01618f8
+      version: -1
+      name: SOC Data Analysis
+      playbookName: SOC Data Analysis
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: 8789348a-ffb7-44b8-bf30-a449ccd3b55d
+    type: playbook
+    task:
+      id: 8789348a-ffb7-44b8-bf30-a449ccd3b55d
+      version: -1
+      name: SOC EndPoint Analysis
+      description: |-
+        This is the analyst’s core domain.
+
+        Key tasks:
+
+        Investigate alerts and anomalies.
+
+        Validate true/false positives.
+
+        Perform triage, correlation, and root cause analysis.
+
+        Classify the alert (category, severity, impact).
+
+        Document findings and escalate confirmed alerts.
+
+        Outcome: Determine whether an event is a legitimate alert and assess its scope.
+
+        This phase measures alert fidelity, investigation efficiency, and time to validate — all analyst performance metrics.
+      playbookName: SOC EndPoint Analysis
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    scriptarguments:
+      Alert_Subtype:
+        simple: ${issue.categoryname}
+      Command_Line_Patterns:
+        simple: ${issue.initiatorcmd}
+      Featured_Host:
+        simple: ${issue.containsfeaturedhost}
+      File_Hashes256:
+        simple: ${issue.filesha256}
+      Linked_Count:
+        simple: ${issue.linkedCount}
+      MITRE_Tactic:
+        simple: ${issue.mitretacticid}
+      MITRE_Technique:
+        simple: ${issue.mitretechniqueid}
+      Network_Artifacts:
+        simple: ${issue.xdrnetworkartifacts}
+      Process_Names:
+        simple: ${issue.processnames}
+      XSIAM_RiskScore:
+        simple: ${issue.riskscore}
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 1062.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: d7385c3a-2283-4938-81b3-58ea63cc75f2
+    type: playbook
+    task:
+      id: d7385c3a-2283-4938-81b3-58ea63cc75f2
+      version: -1
+      name: SOC Identity Analysis
+      playbookName: SOC Identity Analysis
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1512.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "6":
+    id: "6"
+    taskid: e2089744-16e7-4227-8a13-0c65f8278895
+    type: playbook
+    task:
+      id: e2089744-16e7-4227-8a13-0c65f8278895
+      version: -1
+      name: SOC Network Analysis
+      playbookName: SOC Network Analysis
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1962.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: 4b7573be-bd91-4fe6-8959-2bc5d4aaa78c
+    type: playbook
+    task:
+      id: 4b7573be-bd91-4fe6-8959-2bc5d4aaa78c
+      version: -1
+      name: SOC SaaS Analysis
+      playbookName: SOC SaaS Analysis
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 2412.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: 3d8bf25e-863c-4ee5-8a18-47d621adbc11
+    type: playbook
+    task:
+      id: 3d8bf25e-863c-4ee5-8a18-47d621adbc11
+      version: -1
+      name: SOC Workload Analysis
+      playbookName: SOC Workload Analysis
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 2862.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: 8ceb5aed-c39b-452d-8fd8-f5f2ed8eb896
+    type: title
+    task:
+      id: 8ceb5aed-c39b-452d-8fd8-f5f2ed8eb896
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1287.5,
+          "y": 775
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: 92178e4d-7444-47c9-8229-cca9ce09d331
+    type: condition
+    task:
+      id: 92178e4d-7444-47c9-8229-cca9ce09d331
+      version: -1
+      name: Product Category
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Data:
+      - "13"
+      Email:
+      - "18"
+      Endpoint:
+      - "12"
+      Identity:
+      - "14"
+      Network:
+      - "15"
+      SaaS:
+      - "16"
+      Workload:
+      - "17"
+    separatecontext: false
+    conditions:
+    - label: Data
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: Data
+    - label: Workload
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: Workload
+    - label: Identity
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: Identity
+    - label: SaaS
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: SaaS
+    - label: Endpoint
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: Endpoint
+    - label: Email
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: Email
+    - label: Network
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: Network
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1175,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "12":
+    id: "12"
+    taskid: 479c410e-067c-44a3-8744-28453f704ad2
+    type: condition
+    task:
+      id: 479c410e-067c-44a3-8744-28453f704ad2
+      version: -1
+      name: Endpoint Analysis Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "3"
+    separatecontext: false
+    conditions:
+    - label: Default
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Endpoint Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    - label: Custom
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Endpoint Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: custom
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 950,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "13":
+    id: "13"
+    taskid: bdabddaf-0b19-4e96-971a-d3f85479805e
+    type: condition
+    task:
+      id: bdabddaf-0b19-4e96-971a-d3f85479805e
+      version: -1
+      name: Data Analysis Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "1"
+    separatecontext: false
+    conditions:
+    - label: Default
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Data Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    - label: Custom
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Data Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: custom
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "14":
+    id: "14"
+    taskid: 1333bc58-8ac4-4522-b913-52c76f5cc116
+    type: condition
+    task:
+      id: 1333bc58-8ac4-4522-b913-52c76f5cc116
+      version: -1
+      name: Identity Analysis Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "5"
+    separatecontext: false
+    conditions:
+    - label: Default
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Identity Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    - label: Custom
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Identity Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: custom
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1400,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "15":
+    id: "15"
+    taskid: dca31f2e-7363-4767-bfdd-42af9b9a5066
+    type: condition
+    task:
+      id: dca31f2e-7363-4767-bfdd-42af9b9a5066
+      version: -1
+      name: Network Analysis Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "6"
+    separatecontext: false
+    conditions:
+    - label: Default
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Network Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    - label: Custom
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Network Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: custom
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1850,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "16":
+    id: "16"
+    taskid: 419f92e1-5c35-47f4-ae4e-8b75acf42e57
+    type: condition
+    task:
+      id: 419f92e1-5c35-47f4-ae4e-8b75acf42e57
+      version: -1
+      name: SaaS Analysis Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "7"
+    separatecontext: false
+    conditions:
+    - label: Default
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC SaaS Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    - label: Custom
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC SaaS Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: custom
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 2300,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: 866225a9-2ae1-434f-b042-8907793f102f
+    type: condition
+    task:
+      id: 866225a9-2ae1-434f-b042-8907793f102f
+      version: -1
+      name: Workload Analysis Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "8"
+    separatecontext: false
+    conditions:
+    - label: Default
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Workload Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    - label: Custom
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Workload Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: custom
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 2750,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "18":
+    id: "18"
+    taskid: e96a6c41-f225-4ae6-9939-0bb1639cdecb
+    type: condition
+    task:
+      id: e96a6c41-f225-4ae6-9939-0bb1639cdecb
+      version: -1
+      name: Email Analysis Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "19"
+    separatecontext: false
+    conditions:
+    - label: Default
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Email Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    - label: Custom
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC Email Analysis
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: custom
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 500,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "19":
+    id: "19"
+    taskid: 8d429896-10a1-417b-8289-dbaeb060bcce
+    type: playbook
+    task:
+      id: 8d429896-10a1-417b-8289-dbaeb060bcce
+      version: -1
+      name: SOC Email Analysis
+      description: |-
+        This is the analyst’s core domain.
+
+        Key tasks:
+
+        Investigate alerts and anomalies.
+
+        Validate true/false positives.
+
+        Perform triage, correlation, and root cause analysis.
+
+        Classify the alert (category, severity, impact).
+
+        Document findings and escalate confirmed alerts.
+
+        Outcome: Determine whether an event is a legitimate alert and assess its scope.
+
+        This phase measures alert fidelity, investigation efficiency, and time to validate — all analyst performance metrics.
+      playbookName: SOC Email Analysis
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 612.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {
+      "10_14_Identity": 0.88,
+      "10_16_SaaS": 0.82,
+      "10_17_Workload": 0.9,
+      "18_19_Default": 0.8
+    },
+    "paper": {
+      "dimensions": {
+        "height": 785,
+        "width": 3192.5,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: ExecutionBranch
+  value:
+    simple: ${lists.SOCExecutionList}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: ProductCategory
+  value:
+    simple: ${SOCFramework.Product.category}
+  required: false
+  description: Get The Product Category
+  playbookInputQuery:
+inputSections:
+- inputs:
+  - ExecutionBranch
+  - ProductCategory
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+sourceplaybookid: SOC Containment
+dirtyInputs: true
+adopted: true
+fromversion: 5.0.0

@@ -1,0 +1,221 @@
+id: EP_IR_NIST (800-61)
+version: 14
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization
+    packName: SOC Framework
+    itemVersion: 2.1.16
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: EP_IR_NIST (800-61)
+description: |-
+  This Entry Point playbook acts as the first stage of the alert response pipeline. It is designed to be assigned directly to the automation trigger so that every new alert entering the SOC Framework is handled in a standardized way.
+
+  Key functions:
+
+  Upon Trigger Handling – Calls the Foundation – Upon Trigger playbook to initialize context, clear routing data, and set global variables.
+
+  Alert Classification – Matches the incoming alert’s MITRE ATT&CK tactic or category against the Playbook Deployment Matrix to determine the appropriate response path.
+
+  Routing to Lifecycle – Once classified, passes control to the top-level SOC NIST IR (800-61) playbook, which orchestrates the NIST alert response phases (Preparation, Detection & Analysis, Containment, Eradication, Recovery, and Post-Alert).
+
+  This playbook ensures that every alert begins consistently, with normalization and routing handled before entering the NIST IR lifecycle. It effectively connects the raw automation trigger to the structured NIST response process, enabling modular blue/green deployment and tool-agnostic playbook execution
+tags:
+- MITRE
+- SOC
+- SOC_Framework
+- NIST 800-61
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: c6580e49-dceb-4340-8867-666b7738078e
+    type: start
+    task:
+      id: c6580e49-dceb-4340-8867-666b7738078e
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#none#':
+      - "17"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: d8799f66-e47d-409b-82e2-478b0708e021
+    type: title
+    task:
+      id: d8799f66-e47d-409b-82e2-478b0708e021
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 580
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "15":
+    id: "15"
+    taskid: b7646310-99ef-43b2-a843-a63a15dc6d0d
+    type: playbook
+    task:
+      id: b7646310-99ef-43b2-a843-a63a15dc6d0d
+      version: -1
+      name: SOC NIST IR (800-61)
+      description: |-
+        This playbook implements the NIST SP 800-61 Alert Response lifecycle in a structured, repeatable way. It serves as the top-level controller, orchestrating all downstream playbooks and automations that align to the four NIST phases:
+
+        Preparation – Normalize and stage context (entities, products, alert categories) to ensure consistent execution.
+
+        Detection & Analysis – Trigger enrichment and investigation playbooks (endpoint, network, identity, email, cloud) based on normalized entities and mapped MITRE ATT&CK tactics.
+
+        Containment, Eradication, Recovery – Call the appropriate static or product-specific playbooks to contain threats, remove malicious artifacts, and restore systems.
+
+        Post-Alert Activity – Document lessons learned, update playbook routing matrices, and feed back into SOC optimization.
+
+        The design emphasizes modularity and flexibility:
+
+        Each NIST phase is represented as a dedicated section or sub-playbook, making it easy to swap out or extend tools.
+
+        Normalization (Upon Trigger of the EntryPoint) ensures entities (hosts, users, IPs, processes, etc.) are handled consistently.
+
+        This top-level playbook is the backbone of the SOC Framework: it receives the alert trigger, applies the NIST 800-61 model, and routes execution to the appropriate detection, containment, and response sub-playbooks for standardized alert handling
+      playbookName: SOC NIST IR (800-61)
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#none#':
+      - "3"
+    scriptarguments:
+      ShadowMode:
+        simple: SOCFramework.shadow_mode
+    separatecontext: false
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 400
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: 2f777788-a89f-46bf-9843-172851700b07
+    type: playbook
+    task:
+      id: 2f777788-a89f-46bf-9843-172851700b07
+      version: -1
+      name: Foundation - Upon Trigger V2
+      playbookName: Foundation - Upon Trigger V2
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#none#':
+      - "15"
+    separatecontext: false
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 590,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: EntryPoint
+  value:
+    simple: EP_InitialAccess
+  required: false
+  description: ""
+  playbookInputQuery:
+inputSections:
+- inputs:
+  - EntryPoint
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+sourceplaybookid: 51ffcd5a-f5bb-4e09-84ae-e1efdc5165ac
+dirtyInputs: true
+adopted: true
+fromversion: 5.0.0
