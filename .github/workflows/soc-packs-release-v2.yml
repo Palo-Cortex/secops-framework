@@ -1,4 +1,4 @@
-name: SOC Packs Release + POV Staging Test
+name: SOC Packs Release + POV Staging Test (Single Pack)
 
 on:
   push:
@@ -7,36 +7,99 @@ on:
       - main
 
 permissions:
-  contents: write   # required for committing zips
+  contents: write   # required for commits + releases
 
 env:
   PACKS_DIR: Packs
-  DIST_DIR: dist
-  DEMISTO_SDK_VERSION: "1.38.14"
-  DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+  XSOAR_CONFIG_PATH: xsoar_config.json
 
 jobs:
-  ###########################################################################
-  # JOB — Build Pack Zips (no catalog logic)
-  ###########################################################################
+
+  ############################################
+  # JOB 1: BUILD, RELEASE, UPDATE CONFIG, DEPLOY
+  ############################################
   release-packs:
-    # Avoid infinite loop when we commit with [skip ci]
+    # Avoid infinite loop after committing [skip ci]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
+    # Use 'main' environment for main branch, otherwise 'staging'
     environment:
-      # For env separation if you use GitHub environments
       name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
 
+    outputs:
+      environment: ${{ steps.envinfo.outputs.environment }}
+      pack_name:   ${{ steps.changed.outputs.pack_name }}
+      version:     ${{ steps.meta.outputs.version }}
+      tag:         ${{ steps.meta.outputs.tag }}
+
     steps:
-      # 1) Checkout full history so we can diff properly
+      # ------------------------------
+      # 1. Checkout full history
+      # ------------------------------
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Needed so we can read prior commit
 
-      # 2) Setup Python + demisto-sdk
-      - name: Setup Python
+      # ------------------------------
+      # 2. Determine environment string (staging | main)
+      # ------------------------------
+      - name: Determine environment
+        id: envinfo
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "environment=main" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ------------------------------
+      # 3. Find the FIRST changed pack (single-pack behavior)
+      #    Looks for changed pack_metadata.json files
+      # ------------------------------
+      - name: Find changed pack
+        id: changed
+        run: |
+          set -e
+
+          # Handle first commit on a branch gracefully
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            BASE=HEAD~1
+          else
+            BASE=$(git hash-object -t tree /dev/null)
+          fi
+
+          CHANGED_FILES=$(git diff --name-only "$BASE" HEAD || true)
+
+          PACKS=$(echo "$CHANGED_FILES" \
+            | grep -E '^Packs/[^/]+/pack_metadata\.json$' \
+            | awk -F'/' '{print $2}' \
+            | sort -u || true)
+
+          if [[ -z "$PACKS" ]]; then
+            echo "No changed pack_metadata.json found. Nothing to do."
+            echo "pack_name=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          FIRST_PACK=$(echo "$PACKS" | head -n1)
+
+          echo "Found changed packs: $PACKS"
+          echo "Using first pack only: $FIRST_PACK"
+
+          echo "pack_name=$FIRST_PACK" >> "$GITHUB_OUTPUT"
+
+      - name: Stop if no pack
+        if: steps.changed.outputs.pack_name == ''
+        run: |
+          echo "No pack to process. Exiting."
+          exit 0
+
+      # ------------------------------
+      # 4. Setup Python & demisto-sdk (UNPINNED)
+      # ------------------------------
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -44,83 +107,172 @@ jobs:
       - name: Install demisto-sdk
         run: |
           python -m pip install --upgrade pip
-          pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
+          pip install demisto-sdk
 
-      # 3) Determine changed packs (based on pack_metadata.json)
-      - name: Detect changed packs
-        id: changed
+      # ------------------------------
+      # 5. Read pack version from pack_metadata.json
+      # ------------------------------
+      - name: Read pack version
+        id: meta
+        run: |
+          import json, os, pathlib
+          pack_name = os.environ["PACK_NAME"]
+          meta_path = pathlib.Path("Packs") / pack_name / "pack_metadata.json"
+          meta = json.loads(meta_path.read_text())
+          version = meta.get("currentVersion", meta.get("version", "0.0.0"))
+          tag = f"{pack_name}_v{version}"
+          print(f"Version: {version}")
+          print(f"Tag: {tag}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"version={version}\n")
+              f.write(f"tag={tag}\n")
+        env:
+          PACK_NAME: ${{ steps.changed.outputs.pack_name }}
+
+      # ------------------------------
+      # 6. Build ZIP for the pack (one pack, one zip)
+      # ------------------------------
+      - name: Build content artifact (zip)
         run: |
           set -e
+          PACK_NAME="${{ steps.changed.outputs.pack_name }}"
+          mkdir -p dist
+          demisto-sdk zip-packs \
+            -i "${PACKS_DIR}/${PACK_NAME}" \
+            -o dist
 
-          BASE_SHA="${{ github.event.before }}"
-          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            BASE_SHA="${{ github.sha }}~1"
-          fi
+          echo "Artifacts in dist/:"
+          ls -la dist
 
-          echo "Base SHA: $BASE_SHA"
-          echo "Head SHA: ${{ github.sha }}"
+      # ------------------------------
+      # 7. Create GitHub Release (tag per pack/version)
+      # ------------------------------
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name:     ${{ steps.meta.outputs.tag }}
+          release_name: ${{ steps.meta.outputs.tag }}
+          draft: false
+          prerelease: false
 
-          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" || true)
+      - name: Upload release asset
+        id: upload_release_asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url:  ${{ steps.create_release.outputs.upload_url }}
+          asset_path:  dist/${{ steps.changed.outputs.pack_name }}.zip
+          asset_name:  ${{ steps.changed.outputs.pack_name }}.zip
+          asset_content_type: application/zip
 
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-
-          PACKS=$(echo "$CHANGED_FILES" \
-            | grep -E '^Packs\/[^\/]+\/pack_metadata\.json$' \
-            | cut -d'/' -f2 \
-            | sort -u \
-            | tr '\n' ' ' || true)
-
-          if [ -z "$PACKS" ]; then
-            echo "No pack_metadata.json changes detected."
-            echo "packs=" >> "$GITHUB_OUTPUT"
-          else
-            echo "Changed packs: $PACKS"
-            echo "packs=$PACKS" >> "$GITHUB_OUTPUT"
-            echo "CHANGED_PACKS=$PACKS" >> "$GITHUB_ENV"
-          fi
-
-      # 4) Short-circuit if no packs changed
-      - name: Stop if no packs changed
-        if: steps.changed.outputs.packs == ''
+      # ------------------------------
+      # 8. Update xsoar_config.json for THIS environment
+      #    URL pattern:
+      #    https://github.com/<org>/<repo>/releases/download/<tag>/<pack>.zip
+      # ------------------------------
+      - name: Update xsoar_config.json
+        id: update_xsoar_config
         run: |
-          echo "No packs changed. Nothing to do."
-          exit 0
+          import json, os, pathlib
 
-      # 5) Zip all changed packs using demisto-sdk zip-packs
-      #    (this matches the command you tested)
-      - name: Zip changed packs
+          config_path = pathlib.Path(os.environ["XSOAR_CONFIG_PATH"])
+          repo = os.environ["GITHUB_REPOSITORY"]
+          pack_name = os.environ["PACK_NAME"]
+          tag = os.environ["RELEASE_TAG"]
+          environment = os.environ["ENVIRONMENT"]
+
+          pack_url = f"https://github.com/{repo}/releases/download/{tag}/{pack_name}.zip"
+          print(f"Pack URL for {environment}: {pack_url}")
+
+          if config_path.exists():
+              config = json.loads(config_path.read_text())
+          else:
+              config = {}
+
+          if "environments" not in config:
+              config["environments"] = {}
+
+          if environment not in config["environments"]:
+              config["environments"][environment] = {}
+
+          # Single-pack entry with URL for this env
+          config["environments"][environment][pack_name] = {
+              "url": pack_url
+          }
+
+          config_path.write_text(json.dumps(config, indent=2, sort_keys=True))
+        env:
+          PACK_NAME:   ${{ steps.changed.outputs.pack_name }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
+
+      # ------------------------------
+      # 9. Commit updated xsoar_config.json back to the branch
+      #    [skip ci] avoids infinite loop
+      # ------------------------------
+      - name: Commit & push xsoar_config.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          mkdir -p "${DIST_DIR}"
-
-          for pack in $CHANGED_PACKS; do
-            echo "Zipping pack: $pack"
-            demisto-sdk zip-packs \
-              -i "${PACKS_DIR}/${pack}" \
-              -o "${DIST_DIR}"
-          done
-
-          echo "Contents of ${DIST_DIR}:"
-          ls -la "${DIST_DIR}"
-
-      # 6) Commit zips back to branch (no catalog)
-      - name: Commit zips (if any changes)
-        run: |
-          set -e
-
-          git status
-
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add "${DIST_DIR}" || true
+          git add "${XSOAR_CONFIG_PATH}"
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
-          echo "Committing updated pack zips..."
-          git commit -m "Update pack zips [skip ci]"
+          git commit -m "Update xsoar_config for ${{ steps.envinfo.outputs.environment }} - ${{ steps.changed.outputs.pack_name }} [skip ci]"
           git push
+
+      # ------------------------------
+      # 10. Deploy to tenant (staging vs main)
+      #     You already had a working pattern for this piece
+      # ------------------------------
+      - name: Deploy pack to tenant
+        env:
+          ENVIRONMENT:        ${{ steps.envinfo.outputs.environment }}
+          PACK_NAME:          ${{ steps.changed.outputs.pack_name }}
+          RELEASE_TAG:        ${{ steps.meta.outputs.tag }}
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+
+          # EXPECTED SECRETS (same as before):
+          #   STAGING_XSIAM_URL, STAGING_XSIAM_KEY
+          #   MAIN_XSIAM_URL,    MAIN_XSIAM_KEY
+          STAGING_XSIAM_URL:  ${{ secrets.STAGING_XSIAM_URL }}
+          STAGING_XSIAM_KEY:  ${{ secrets.STAGING_XSIAM_KEY }}
+          MAIN_XSIAM_URL:     ${{ secrets.MAIN_XSIAM_URL }}
+          MAIN_XSIAM_KEY:     ${{ secrets.MAIN_XSIAM_KEY }}
+        run: |
+          set -e
+
+          if [[ "$ENVIRONMENT" == "main" ]]; then
+            XSIAM_URL="$MAIN_XSIAM_URL"
+            XSIAM_KEY="$MAIN_XSIAM_KEY"
+          else
+            XSIAM_URL="$STAGING_XSIAM_URL"
+            XSIAM_KEY="$STAGING_XSIAM_KEY"
+          fi
+
+          if [[ -z "$XSIAM_URL" || -z "$XSIAM_KEY" ]]; then
+            echo "Tenant URL or key not set for environment: $ENVIRONMENT"
+            exit 1
+          fi
+
+          PACK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${PACK_NAME}.zip"
+          echo "Deploying pack from: $PACK_URL"
+          echo "To tenant: $XSIAM_URL"
+
+          # Adjust endpoint/body to exactly what you had working before
+          curl -k -X POST \
+            "${XSIAM_URL}/xsoar/public/v1/system/packs/install" \
+            -H "Authorization: ${XSIAM_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"packs\":[{\"url\":\"${PACK_URL}\"}]}"
