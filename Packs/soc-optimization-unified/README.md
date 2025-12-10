@@ -129,7 +129,7 @@ Additionally, all Entry Point playbooks are driven by **MITRE Tactic tags** and 
 
 This framework uses system-level lists for dynamic context:
 
-- **`SOCOptimizationConfig`**  
+- **`SOCOptimizationConfig_V3`**  
   Stores runtime configuration flags, such as enabling/disabling Shadow Mode.
 
 - **`AssetTypes`**  
@@ -148,7 +148,7 @@ This framework uses system-level lists for dynamic context:
 Shadow Mode is a key safety mechanism. It ensures actions like `isolate_endpoint` or `disable_user` are logged but **not executed** in test scenarios. Shadow Mode decisions are:
 - Made in the `Upon Trigger` playbook.
 - Stored in the incident’s data context.
-- Controlled via `ProductionAssets` and `SOCOptimizationConfig` lists.
+- Controlled via `ProductionAssets` and `SOCOptimizationConfig_V3` lists.
 
 ---
 
@@ -180,8 +180,8 @@ The metrics collected are designed to demonstrate **operational value**:
 │   └── SOC Common Playbooks
 │
 ├── Optimization Layer (Optional)
-│   ├── EP IR NIST (800-61)             - Entry Point playbook for SOC NIST IR (800-61)
-│   ├── SOC NIST IR (800-61)            - Runs the NIST framework for incident response
+│   ├── EP IR NIST (800-61)             - Entry Point playbook for SOC NIST IR (800-61)_V3
+│   ├── SOC NIST IR (800-61)_V3            - Runs the NIST framework for incident response
 │   ├── SOC Phishing - Generic v3       - Runs a one off Phishing playbook.
 │   ├── EP MITRE Tactic                 - Entry Point playbook for MITRE Tactic playbooks. Allows for Blue / Green Deployments
 │   ├── MITRE - Execution               - Runs MITRE Execution automations
@@ -198,9 +198,9 @@ The metrics collected are designed to demonstrate **operational value**:
 ├── scripts
 │   ├── DeployPlaybook                  - Blue / Green Deployment Script
 │   ├── EntryPointGBState               - Blue / Green Router
-│   ├── ShadowModeRouter                - Conditional task script that runs the playbook in Full Run or Shadow Mode
+│   ├── ShadowModeRouter_V3                - Conditional task script that runs the playbook in Full Run or Shadow Mode
 │   ├── SOCNormalizeContext            - Normalizeds Artifacts in Data Context (i.e. user, IPs, domains, urls, etc.)
-│   └── setValueTags                    – Maintains `value_tags` table for metrics and dashboards
+│   └── setValueTags_V3                    – Maintains `value_tags` table for metrics and dashboards
 ```
 ---
 

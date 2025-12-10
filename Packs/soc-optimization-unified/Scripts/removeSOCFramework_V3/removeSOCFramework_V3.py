@@ -14,7 +14,7 @@ manual_cleanup = """
 
 - Uninstall the following content packs via Marketplace > Installed Packs:
     • POV Content Pack
-    • SOC Framework
+    • SOC Framework Unified
     • Playbook / Automation Triggers
 
 - Remove the following integration instances via Settings > Integrations:
@@ -60,4 +60,4 @@ for job in jobs_to_remove:
 print(manual_cleanup)
 
 # Final message
-return_results("✅ SOC Framework cleanup script executed.")
+return_results("✅ SOC Framework Unified cleanup script executed.")
