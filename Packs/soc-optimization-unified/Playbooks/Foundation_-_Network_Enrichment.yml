@@ -1,0 +1,405 @@
+id: Foundation - Network Enrichment_V3
+version: 4
+contentitemexportablefields:
+  contentitemfields:
+    packID: ""
+    _packName: SOC Framework Unified
+    itemVersion: 2.1.19
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: Foundation - Network Enrichment_V3
+description: |
+  Identifies the core fields present and starts tailored enrichment pipelines
+  Generates threat flags based on findings (ex: if we identify a domain controller or admin account)
+tags:
+- SOC
+- SOC_Framework_Unified
+- Enrichment
+- Network
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 8492b25a-a19c-4593-8191-9cb60e4d3007
+    type: start
+    task:
+      id: 8492b25a-a19c-4593-8191-9cb60e4d3007
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: f47e7a3c-6b3e-4222-ab52-f9c9d8046d79
+    type: condition
+    task:
+      id: f47e7a3c-6b3e-4222-ab52-f9c9d8046d79
+      version: -1
+      name: Is Source IP Defined?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "5"
+      "yes":
+      - "10"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isExists
+          left:
+            value:
+              simple: inputs.Source_IP
+            iscontext: true
+          right:
+            value: {}
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 390
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+    type: title
+    task:
+      id: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 1315
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: 6bf0ba79-2d88-4455-94ab-abd36cd2a9c0
+    type: condition
+    task:
+      id: 6bf0ba79-2d88-4455-94ab-abd36cd2a9c0
+      version: -1
+      name: Is Destination IP Defined?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "11"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isExists
+          left:
+            value:
+              simple: inputs.Remote_IP
+            iscontext: true
+          right:
+            value: {}
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: 02dc9df5-d1cf-4475-83a6-dc33e09fc4fe
+    type: title
+    task:
+      id: 02dc9df5-d1cf-4475-83a6-dc33e09fc4fe
+      version: -1
+      name: IP Enrichment
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "2"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: 0559a037-07b5-48d7-9337-eb88705657b0
+    type: regular
+    task:
+      id: 0559a037-07b5-48d7-9337-eb88705657b0
+      version: -1
+      name: Enrich Source IP
+      description: Provides data enrichment for ips.
+      script: '|||ip'
+      type: regular
+      iscommand: true
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "16"
+      '#none#':
+      - "5"
+    scriptarguments:
+      ip:
+        simple: ${inputs.SourceIP}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 377.5,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: 79031134-11e8-44ee-b825-67f7d8c3f5b6
+    type: regular
+    task:
+      id: 79031134-11e8-44ee-b825-67f7d8c3f5b6
+      version: -1
+      name: Enrich Destination IP
+      description: Provides data enrichment for ips.
+      script: '|||ip'
+      type: regular
+      iscommand: true
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "16"
+      '#none#':
+      - "4"
+    scriptarguments:
+      ip:
+        simple: ${inputs.RemoteIP}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 945
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "16":
+    id: "16"
+    taskid: 35dec624-d2e2-448e-a49c-62dc66589b2e
+    type: playbook
+    task:
+      id: 35dec624-d2e2-448e-a49c-62dc66589b2e
+      version: -1
+      name: Foundation - Error Handling_V3
+      playbookName: Foundation - Error Handling_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 397.5,
+          "y": 1130
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1325,
+        "width": 727.5,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: SourceIP
+  value:
+    simple: ${issue.hostip}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: RemoteIP
+  value:
+    simple: ${issue.remoteip}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: UserName
+  value:
+    simple: ${issue.username}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: EndpointID
+  value:
+    simple: ${issue.agentid}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: HostName
+  value:
+    simple: ${issue.hostname}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: Domain
+  value:
+    simple: ${issue.domain}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: MD5
+  value:
+    simple: ${issue.initiatormd5}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: SHA256
+  value:
+    simple: ${issue.initiatorsha256}
+  required: false
+  description: ""
+  playbookInputQuery:
+inputSections:
+- inputs:
+  - SourceIP
+  - RemoteIP
+  - UserName
+  - EndpointID
+  - HostName
+  - Domain
+  - MD5
+  - SHA256
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+sourceplaybookid: Foundation - Enrichment_V3
+dirtyInputs: true
+adopted: true
+fromversion: 5.0.0

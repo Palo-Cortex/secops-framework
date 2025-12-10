@@ -1,0 +1,231 @@
+id: SOC Close Cases_V3
+version: 1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization
+    _packName: SOC Framework Unified
+    itemVersion: 2.1.19
+    fromServerVersion: 6.5.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: SOC Close Cases_V3
+tags:
+- SOC
+- SOC_Framework_Unified
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: e3a4ffd5-adb5-49d4-8e54-715805207555
+    type: start
+    task:
+      id: e3a4ffd5-adb5-49d4-8e54-715805207555
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 195.25,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 958e2c9a-4f9e-41f8-a617-1ca32f65d965
+    type: regular
+    task:
+      id: 958e2c9a-4f9e-41f8-a617-1ca32f65d965
+      version: -1
+      name: Close Alert
+      description: send HTTP POST request.
+      script: '|||core-api-post'
+      type: regular
+      iscommand: true
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "8"
+      '#none#':
+      - "6"
+    scriptarguments:
+      body:
+        simple: '{"request_data":{"incident_id":"${inputs.incident_id}","update_data":{"status":"resolved_other","resolve_comment":"Resolved
+          by the Auto Triage Job"}}}'
+      uri:
+        simple: /public_api/v1/incidents/update_incident
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 380
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "6":
+    id: "6"
+    taskid: 30aae18e-e9ed-45b0-8572-85c9a7ca5b0e
+    type: title
+    task:
+      id: 30aae18e-e9ed-45b0-8572-85c9a7ca5b0e
+      version: -1
+      name: Fin
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 195.25,
+          "y": 720
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: 70396ca7-33b0-4663-833f-a495a53c1793
+    type: playbook
+    task:
+      id: 70396ca7-33b0-4663-833f-a495a53c1793
+      version: -1
+      name: Foundation - Error Handling_V3
+      playbookName: Foundation - Error Handling_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "6"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 340.5,
+          "y": 550
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: b20b3f16-cdd7-478f-a3e1-30e50f48027d
+    type: condition
+    task:
+      id: b20b3f16-cdd7-478f-a3e1-30e50f48027d
+      version: -1
+      name: Is there an Alert ID?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "8"
+      "yes":
+      - "1"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.incident_id
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 195.25,
+          "y": 210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 730,
+        "width": 671.5,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: incident_id
+  value: {}
+  required: true
+  description: ""
+  playbookInputQuery:
+inputSections:
+- inputs:
+  - incident_id
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+quiet: true
+dirtyInputs: true
+adopted: true
+fromversion: 5.0.0

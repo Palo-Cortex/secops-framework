@@ -1,0 +1,706 @@
+id: Foundation - Enrichment_V3
+version: 21
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization
+    _packName: SOC Framework Unified
+    itemVersion: 2.1.19
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: Foundation - Enrichment_V3
+description: |
+  Identifies the core fields present and starts tailored enrichment pipelines
+  Generates threat flags based on findings (ex: if we identify a domain controller or admin account)
+tags:
+- SOC
+- SOC_Framework_Unified
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 8492b25a-a19c-4593-8191-9cb60e4d3007
+    type: start
+    task:
+      id: 8492b25a-a19c-4593-8191-9cb60e4d3007
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "22"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+    type: title
+    task:
+      id: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: 921bdd5d-2fab-4996-8682-a5e6f80b9aca
+    type: title
+    task:
+      id: 921bdd5d-2fab-4996-8682-a5e6f80b9aca
+      version: -1
+      name: Email Enrichment
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "31"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1770,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "22":
+    id: "22"
+    taskid: eae57768-ffc1-4bfd-9b69-0341c5e4de11
+    type: condition
+    task:
+      id: eae57768-ffc1-4bfd-9b69-0341c5e4de11
+      version: -1
+      name: Product Category
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "4"
+      Email:
+      - "8"
+      EndPoint:
+      - "23"
+      Identity:
+      - "25"
+      Network:
+      - "26"
+      SaaS:
+      - "27"
+      Workload:
+      - "28"
+    separatecontext: false
+    conditions:
+    - label: EndPoint
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: SOCFramework.Product.category
+            iscontext: true
+          right:
+            value:
+              simple: Endpoint
+    - label: Email
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: SOCFramework.Product.category
+            iscontext: true
+          right:
+            value:
+              simple: Email
+    - label: Identity
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: SOCFramework.Product.category
+            iscontext: true
+          right:
+            value:
+              simple: Identity
+    - label: Network
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: SOCFramework.Product.category
+            iscontext: true
+          right:
+            value:
+              simple: Network
+    - label: SaaS
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: SOCFramework.Product.category
+            iscontext: true
+          right:
+            value:
+              simple: SaaS
+    - label: Workload
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: SOCFramework.Product.category
+            iscontext: true
+          right:
+            value:
+              simple: Workload
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: 57f577ac-9e6a-4024-8a3b-ec37f26acb4c
+    type: title
+    task:
+      id: 57f577ac-9e6a-4024-8a3b-ec37f26acb4c
+      version: -1
+      name: Endpoint Enrichment
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "24"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "24":
+    id: "24"
+    taskid: a464e64f-dfef-4851-8381-66039eadc35b
+    type: playbook
+    task:
+      id: a464e64f-dfef-4851-8381-66039eadc35b
+      version: -1
+      name: Foundation - Endpoint Enrichment_V3
+      description: |
+        Identifies the core fields present and starts tailored enrichment pipelines
+        Generates threat flags based on findings (ex: if we identify a domain controller or admin account)
+      playbookName: Foundation - Endpoint Enrichment_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      Domain:
+        simple: ${issue.domain}
+      EndpointID:
+        simple: ${issue.agentid}
+      HostName:
+        simple: ${issue.hostname}
+      MD5:
+        simple: ${issue.processmd5}
+      RemoteIP:
+        simple: ${issue.remoteip}
+      SHA256:
+        simple: ${issue.filesha256}
+      SourceIP:
+        simple: ${issue.hostip}
+      UserName:
+        simple: ${issue.username}
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "25":
+    id: "25"
+    taskid: 57f44287-1e46-44a9-92d8-1b5b49866f25
+    type: title
+    task:
+      id: 57f44287-1e46-44a9-92d8-1b5b49866f25
+      version: -1
+      name: Identity Enrichment
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "30"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "26":
+    id: "26"
+    taskid: 6c299cfa-85fd-4ed6-b4d0-ef553bf02465
+    type: title
+    task:
+      id: 6c299cfa-85fd-4ed6-b4d0-ef553bf02465
+      version: -1
+      name: Network
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "29"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "27":
+    id: "27"
+    taskid: 27b5ad01-dd78-442c-b2ac-f2632dfc5d77
+    type: title
+    task:
+      id: 27b5ad01-dd78-442c-b2ac-f2632dfc5d77
+      version: -1
+      name: SaaS
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1340,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "28":
+    id: "28"
+    taskid: 69a4b4b0-f8a2-41a5-a727-ba69921f6e97
+    type: title
+    task:
+      id: 69a4b4b0-f8a2-41a5-a727-ba69921f6e97
+      version: -1
+      name: Workload
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "32"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 2200,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "29":
+    id: "29"
+    taskid: 48b140df-d42c-4edb-8b04-5e157d87aafc
+    type: playbook
+    task:
+      id: f15d206c-c1d0-4176-877f-dbd196753dc4
+      version: -1
+      name: Foundation - Network Enrichment_V3
+      description: |
+        Identifies the core fields present and starts tailored enrichment pipelines
+        Generates threat flags based on findings (ex: if we identify a domain controller or admin account)
+      playbookName: Foundation - Network Enrichment_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      Domain:
+        simple: ${issue.domain}
+      EndpointID:
+        simple: ${issue.agentid}
+      HostName:
+        simple: ${issue.hostname}
+      MD5:
+        simple: ${issue.processmd5}
+      RemoteIP:
+        simple: ${issue.remoteip}
+      SHA256:
+        simple: ${issue.filesha256}
+      SourceIP:
+        simple: ${issue.hostip}
+      UserName:
+        simple: ${issue.username}
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "30":
+    id: "30"
+    taskid: 50ead786-58d9-47ba-82e2-c9d31c33bb15
+    type: playbook
+    task:
+      id: 50ead786-58d9-47ba-82e2-c9d31c33bb15
+      version: -1
+      name: SOC Account Enrichment - Generic v2.1
+      description: |-
+        Enrich accounts using one or more integrations.
+        Supported integrations:
+        - Active Directory
+        - Microsoft Graph User
+        - SailPoint IdentityNow
+        - SailPoint IdentityIQ
+        - PingOne
+        - Okta
+        - AWS IAM
+        - Cortex XDR (account enrichment and reputation)
+
+        Also, the playbook supports the generic command 'iam-get-user' (implemented in IAM integrations). For more information, visit https://xsoar.pan.dev/docs/integrations/iam-integrations.
+      playbookName: SOC Account Enrichment - Generic v2.1
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "31":
+    id: "31"
+    taskid: 5ec185a1-60cf-4514-a2c0-21570463f4cf
+    type: playbook
+    task:
+      id: 5ec185a1-60cf-4514-a2c0-21570463f4cf
+      version: -1
+      name: SOC Email Address Enrichment - Generic v2.1
+      description: |-
+        Enrich email addresses.
+        - Get information from Active Directory for internal addresses
+        - Get the domain-squatting reputation for external addresses
+        - Email address reputation using !email command.
+      playbookName: SOC Email Address Enrichment - Generic v2.1
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      Domain:
+        simple: ${issue.domain}
+      Email:
+        complex:
+          root: issue
+          accessor: email
+          transformers:
+          - operator: uniq
+      UseReputationCommand:
+        simple: "False"
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    view: |-
+      {
+        "position": {
+          "x": 1770,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "32":
+    id: "32"
+    taskid: 488b7a66-6e90-4139-876e-4d9d5251231a
+    type: playbook
+    task:
+      id: 488b7a66-6e90-4139-876e-4d9d5251231a
+      version: -1
+      name: Foundation - Endpoint Enrichment_V3
+      description: |
+        Identifies the core fields present and starts tailored enrichment pipelines
+        Generates threat flags based on findings (ex: if we identify a domain controller or admin account)
+      playbookName: Foundation - Endpoint Enrichment_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      Domain:
+        simple: ${issue.domain}
+      EndpointID:
+        simple: ${issue.agentid}
+      HostName:
+        simple: ${issue.hostname}
+      MD5:
+        simple: ${issue.processmd5}
+      RemoteIP:
+        simple: ${issue.remoteip}
+      SHA256:
+        simple: ${issue.filesha256}
+      SourceIP:
+        simple: ${issue.hostip}
+      UserName:
+        simple: ${issue.username}
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 2200,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 770,
+        "width": 2530,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: Source_IP
+  value:
+    simple: ${issue.remoteip}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: File_Hash
+  value:
+    simple: ${issue.initiatorsha256}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: Remote_IP
+  value:
+    simple: ${issue.remoteip}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: UserName
+  value:
+    simple: ${issue.username}
+  required: false
+  description: ""
+  playbookInputQuery:
+inputSections:
+- inputs:
+  - Source_IP
+  - File_Hash
+  - Remote_IP
+  - UserName
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+sourceplaybookid: Foundation - Enrichment_V3
+dirtyInputs: true
+adopted: true
+fromversion: 5.0.0
