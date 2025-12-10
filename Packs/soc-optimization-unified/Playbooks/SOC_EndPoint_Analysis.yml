@@ -1,0 +1,371 @@
+id: SOC EndPoint Analysis
+version: 20
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization
+    packName: SOC Framework
+    itemVersion: 2.1.19
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: SOC EndPoint Analysis
+description: |-
+  This is the analyst’s core domain.
+
+  Key tasks:
+
+  Investigate alerts and anomalies.
+
+  Validate true/false positives.
+
+  Perform triage, correlation, and root cause analysis.
+
+  Classify the alert (category, severity, impact).
+
+  Document findings and escalate confirmed alerts.
+
+  Outcome: Determine whether an event is a legitimate alert and assess its scope.
+
+  This phase measures alert fidelity, investigation efficiency, and time to validate — all analyst performance metrics.
+tags:
+- SOC
+- SOC_Framework
+- Detection & Analysis
+- NIST 800-61
+- EndPoint
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
+    type: start
+    task:
+      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "10"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+    type: title
+    task:
+      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: e4f0079d-d9a1-496b-8830-e9436d7f984f
+    type: condition
+    task:
+      id: e4f0079d-d9a1-496b-8830-e9436d7f984f
+      version: -1
+      name: Endpoint Agent?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      MS Defender:
+      - "11"
+      Trend Micro:
+      - "14"
+    separatecontext: false
+    conditions:
+    - label: XDR Agent
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: issue
+                accessor: sourceBrand
+                transformers:
+                - operator: toLowerCase
+            iscontext: true
+          right:
+            value:
+              simple: traps
+    - label: MS Defender
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: issue.originalalertsource
+            iscontext: true
+          right:
+            value:
+              simple: Microsoft Defender for Endpoint
+    - label: CrowdStrike
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: issue.tags
+            iscontext: true
+          right:
+            value:
+              simple: DS:CrowdStrike/Falcon_Event
+    - label: Trend Micro
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: issue.tags
+            iscontext: true
+          right:
+            value:
+              simple: DS:Trend Micro Vision One V3
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: 080a811b-4797-4133-b3b2-540e5bb1efb4
+    type: playbook
+    task:
+      id: 080a811b-4797-4133-b3b2-540e5bb1efb4
+      version: -1
+      name: Microsoft 365 Defender - Threat Hunting Generic
+      description: |
+        This playbook retrieves email data based on the `URLDomain`, `SHA256`, `IPAddress`. and `MessageID` inputs. The output is a unified object with all of the retrieved emails based on the following sub-playbooks outputs:
+
+        - **Microsoft 365 Defender - Get Email URL clicks**:
+                Retrieves data based on URL click events.
+
+
+        - **Microsoft 365 Defender - Emails Indicators Hunt**:
+                Retrieves data based on several different email events.
+
+        Read the playbook's descriptions in order to get the full details.
+      playbookName: Microsoft 365 Defender - Threat Hunting Generic
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "2"
+    scriptarguments:
+      IPAddress:
+        simple: ${inputs.IPAddress}
+      ListenerMailbox:
+        simple: ${inputs.ListernerMailbox}
+      MessageID:
+        simple: ${inputs.MessageID}
+      ResultsLimit:
+        simple: "50"
+      SHA256:
+        simple: ${inputs.SHA256}
+      SearchTimeframe:
+        simple: "7"
+      Timeout:
+        simple: "180"
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "14":
+    id: "14"
+    taskid: b5188a48-89ce-4695-ae0f-1834c19c7bed
+    type: playbook
+    task:
+      id: b5188a48-89ce-4695-ae0f-1834c19c7bed
+      version: -1
+      name: SOC Trend Micro Alert Enrichment
+      playbookName: SOC Trend Micro Alert Enrichment
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "2"
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 600,
+        "width": 810,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: SHA256
+  value:
+    simple: ${issue.filesha256}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: IPAddress
+  value:
+    simple: ${issue.localip}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: MessageID
+  value:
+    simple: ${issue.emailmessageid}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: ListernerMailbox
+  value:
+    simple: ${issue.xdmemailmailboxowner}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: file_name
+  value:
+    simple: ${issue.filename}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: file_path
+  value:
+    simple: ${issue.filepath}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: endpoint_id
+  value:
+    simple: ${issue.agentid}
+  required: false
+  description: ""
+  playbookInputQuery:
+- key: alert_id
+  value:
+    simple: ${issue.internal_id}
+  required: false
+  description: ""
+  playbookInputQuery:
+inputSections:
+- inputs:
+  - SHA256
+  - IPAddress
+  - MessageID
+  - ListernerMailbox
+  - file_name
+  - file_path
+  - endpoint_id
+  - alert_id
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs:
+  - SOCFramework.Analysis.Story
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs:
+- contextPath: SOCFramework.Analysis.Story
+  description: What did Analysis Find?
+  type: string
+sourceplaybookid: SOC Data Analysis
+dirtyInputs: true
+adopted: true
+fromversion: 5.0.0
