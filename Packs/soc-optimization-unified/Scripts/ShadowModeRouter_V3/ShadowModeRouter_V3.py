@@ -1,4 +1,4 @@
-demisto.debug('pack name = SOC Framework, pack version = 2.0.8')
+demisto.debug('pack name = SOC Framework Unified, pack version = 2.0.8')
 
 
 def main():

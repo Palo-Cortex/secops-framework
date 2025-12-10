@@ -20,7 +20,7 @@ manual steps still need to be done:
 ## What Next?
 1. XSIAM SOC Value Metrics Dashboard([Value Metrics](../../Documentation/Value_Metrics.md))
    * These require alerts with triggered playbooks tasks.
-2. Customize Value Metrics tasks or playbooks "Use Cases" ([setValueTags.md](../../Documentation/setValueTags.md))
+2. Customize Value Metrics tasks or playbooks "Use Cases" ([setValueTags_V3.md](../../Documentation/setValueTags_V3.md))
 3. Observe Playbooks running in Issues table.
 ---
 
