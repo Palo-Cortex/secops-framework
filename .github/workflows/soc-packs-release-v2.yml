@@ -1,285 +1,234 @@
-name: SOC Packs Release v2
+name: SOC Packs Release + POV Staging Test
 
 on:
   push:
     branches:
       - staging
       - main
+  pull_request:
+    branches:
+      - main
 
 permissions:
-  contents: write
+  contents: write   # required for committing zips + catalog
 
 env:
   PACKS_DIR: Packs
+  DIST_DIR: dist
   DEMISTO_SDK_VERSION: "1.38.14"
   DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
 
 jobs:
   ###########################################################################
-  # JOB 1 — Detect packs to build + update catalog
-  ###########################################################################
-  detect-packs:
-    runs-on: ubuntu-latest
-
-    outputs:
-      packs_json: ${{ steps.detect.outputs.packs_json }}
-      environment: ${{ steps.envinfo.outputs.environment }}
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Determine environment (main vs staging)
-        id: envinfo
-        run: |
-          if [ "${GITHUB_REF##*/}" = "main" ]; then
-            echo "environment=main" >> "$GITHUB_OUTPUT"
-          else
-            echo "environment=staging" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Detect version-bumped packs & update catalog
-        id: detect
-        env:
-          ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
-        run: |
-          import json, os, subprocess, glob, datetime, pathlib
-
-          env = os.environ["ENVIRONMENT"]
-          packs_dir = os.environ.get("PACKS_DIR", "Packs")
-          # Choose catalog file based on branch
-          catalog_file = "catalog-main.json" if env == "main" else "catalog-staging.json"
-
-          # ------------------------------------------------------------------
-          # 1) Find pack_metadata.json files whose currentVersion changed
-          # ------------------------------------------------------------------
-          # Default base commit: HEAD^ (previous commit)
-          try:
-            base_commit = subprocess.check_output(
-              ["git", "rev-parse", "HEAD^"],
-              text=True
-            ).strip()
-          except subprocess.CalledProcessError:
-            # First commit or shallow checkout – treat all packs as changed
-            base_commit = None
-
-          changed_packs = set()
-
-          if base_commit:
-            diff_files = subprocess.check_output(
-              ["git", "diff", "--name-only", f"{base_commit}..HEAD"],
-              text=True
-            ).splitlines()
-          else:
-            diff_files = []
-
-          for path in diff_files:
-            if not path.startswith(f"{packs_dir}/") or not path.endswith("pack_metadata.json"):
-              continue
-
-            # Extract pack_id from path like Packs/pack-id/pack_metadata.json
-            parts = path.split("/")
-            if len(parts) < 3:
-              continue
-            pack_id = parts[1]
-
-            # Load new metadata
-            with open(path, "r", encoding="utf-8") as f:
-              new_meta = json.load(f)
-            new_ver = new_meta.get("currentVersion")
-
-            # Load old metadata (if existed)
-            old_ver = None
-            try:
-              old_raw = subprocess.check_output(
-                ["git", "show", f"{base_commit}:{path}"],
-                text=True
-              )
-              old_meta = json.loads(old_raw)
-              old_ver = old_meta.get("currentVersion")
-            except subprocess.CalledProcessError:
-              # New file / new pack – treat as version changed
-              old_ver = None
-
-            if old_ver != new_ver:
-              changed_packs.add(pack_id)
-
-          # If base_commit is None (first run / shallow), treat ALL packs as changed
-          if base_commit is None:
-            for meta_path in glob.glob(os.path.join(packs_dir, "*/pack_metadata.json")):
-              pack_id = pathlib.Path(meta_path).parts[1]
-              changed_packs.add(pack_id)
-
-          # ------------------------------------------------------------------
-          # 2) Load existing catalog to preserve manual "visible" + "order"
-          # ------------------------------------------------------------------
-          existing_visible = {}
-          existing_order = {}
-          try:
-            with open(catalog_file, "r", encoding="utf-8") as f:
-              existing = json.load(f)
-              for p in existing.get("packs", []):
-                pid = p.get("id")
-                if not pid:
-                  continue
-                existing_visible[pid] = p.get("visible", True)
-                if "order" in p:
-                  existing_order[pid] = p["order"]
-          except FileNotFoundError:
-            pass
-
-          # ------------------------------------------------------------------
-          # 3) Rebuild catalog from ALL packs, but keep visible/order when present
-          # ------------------------------------------------------------------
-          repo = os.environ.get("GITHUB_REPOSITORY", "")
-          ref_name = os.environ.get("GITHUB_REF_NAME", "")
-          raw_base = f"https://raw.githubusercontent.com/{repo}/{ref_name}"
-
-          catalog_packs = []
-          for meta_path in sorted(glob.glob(os.path.join(packs_dir, "*/pack_metadata.json"))):
-            parts = pathlib.Path(meta_path).parts
-            pack_id = parts[1]
-
-            with open(meta_path, "r", encoding="utf-8") as f:
-              meta = json.load(f)
-
-            display_name = meta.get("name", pack_id)
-            description = meta.get("description", "")
-            version = meta.get("currentVersion", "")
-            # dependencies can be dict {"PackName": {...}}, take the keys
-            deps_raw = meta.get("dependencies", {})
-            if isinstance(deps_raw, dict):
-              dependencies = list(deps_raw.keys())
-            else:
-              dependencies = []
-
-            # Very simple category heuristic; you can refine later
-            category = meta.get("category") or "Uncategorized"
-
-            visible = existing_visible.get(pack_id, True)      # default visible
-            order = existing_order.get(pack_id, 100)           # default sort
-
-            # Assuming prepare-content drops <pack_id>.zip inside the pack folder
-            download_url = f"{raw_base}/{packs_dir}/{pack_id}/{pack_id}.zip"
-
-            catalog_packs.append({
-              "id": pack_id,
-              "display_name": display_name,
-              "category": category,
-              "description": description,
-              "version": version,
-              "download_url": download_url,
-              "dependencies": dependencies,
-              "visible": visible,
-              "order": order
-            })
-
-          catalog = {
-            "environment": env,
-            "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
-            "packs": catalog_packs,
-          }
-
-          with open(catalog_file, "w", encoding="utf-8") as f:
-            json.dump(catalog, f, indent=2)
-            f.write("\n")
-
-          # ------------------------------------------------------------------
-          # 4) Expose changed packs as job output
-          # ------------------------------------------------------------------
-          packs_list = sorted(changed_packs)
-          print("Version-bumped packs:", packs_list)
-
-          github_output = os.environ["GITHUB_OUTPUT"]
-          with open(github_output, "a", encoding="utf-8") as f:
-            f.write(f"packs_json={json.dumps(packs_list)}\n")
-
-        shell: python
-
-      - name: Show detected packs
-        run: |
-          echo "Environment: ${{ steps.envinfo.outputs.environment }}"
-          echo "Packs with version bump: ${{ steps.detect.outputs.packs_json }}"
-
-  ###########################################################################
-  # JOB 2 — Package only the packs whose versions changed
+  # JOB — Build Pack Zips + Update Catalog
   ###########################################################################
   release-packs:
-    needs: detect-packs
+    # Avoid infinite loop when we commit with [skip ci]
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
-    if: ${{ needs.detect-packs.outputs.packs_json != '[]' && needs.detect-packs.outputs.packs_json != '' }}
 
-    strategy:
-      fail-fast: false
-      matrix:
-        pack_id: ${{ fromJson(needs.detect-packs.outputs.packs_json) }}
+    environment:
+      # Just for env separation if you use GitHub environments
+      name: ${{ github.ref == 'refs/heads/main' && 'main' || 'staging' }}
 
     steps:
+      # 1) Checkout full history so we can diff properly
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install Python
+      # 2) Setup Python + demisto-sdk
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install demisto-sdk
         run: |
           python -m pip install --upgrade pip
-          pip install "demisto-sdk==${{ env.DEMISTO_SDK_VERSION }}"
+          pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
 
-      - name: Package pack with prepare-content
-        env:
-          PACK_ID: ${{ matrix.pack_id }}
-          PACKS_DIR: ${{ env.PACKS_DIR }}
+      # 3) Determine changed packs (based on pack_metadata.json)
+      - name: Detect changed packs
+        id: changed
         run: |
-          echo "Packaging pack: ${PACK_ID}"
-          ls -R
+          set -e
 
-          # Input pack folder: Packs/<pack_id>
-          INPUT_DIR="${PACKS_DIR}/${PACK_ID}"
-          OUTPUT_DIR="${PACKS_DIR}/${PACK_ID}"
-
-          if [ ! -d "$INPUT_DIR" ]; then
-            echo "ERROR: Pack directory not found: $INPUT_DIR"
-            exit 1
+          BASE_SHA="${{ github.event.before }}"
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="${{ github.sha }}~1"
           fi
 
-          demisto-sdk prepare-content \
-            -i "$INPUT_DIR" \
-            -o "$OUTPUT_DIR" \
-            -mp XSIAM \
-            -f
+          echo "Base SHA: $BASE_SHA"
+          echo "Head SHA: ${{ github.sha }}"
 
-          echo "Contents of output dir:"
-          ls -l "$OUTPUT_DIR"
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "${{ github.sha }}" || true)
 
-      # Optional: commit catalog + zips back to the repo (only on main/staging)
-      - name: Commit catalog & zips (if any changes)
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          PACKS=$(echo "$CHANGED_FILES" \
+            | grep -E '^Packs\/[^\/]+\/pack_metadata\.json$' \
+            | cut -d'/' -f2 \
+            | sort -u \
+            | tr '\n' ' ' || true)
+
+          if [ -z "$PACKS" ]; then
+            echo "No pack_metadata.json changes detected."
+            echo "packs=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changed packs: $PACKS"
+            echo "packs=$PACKS" >> "$GITHUB_OUTPUT"
+            echo "CHANGED_PACKS=$PACKS" >> "$GITHUB_ENV"
+          fi
+
+      # 4) Short-circuit if no packs changed
+      - name: Stop if no packs changed
+        if: steps.changed.outputs.packs == ''
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "No packs changed. Nothing to do."
+          exit 0
+
+      # 5) Zip all changed packs using demisto-sdk zip-packs
+      #    (this is exactly what you tested)
+      - name: Zip changed packs
+        run: |
+          set -e
+          mkdir -p "${DIST_DIR}"
+
+          for pack in $CHANGED_PACKS; do
+            echo "Zipping pack: $pack"
+            demisto-sdk zip-packs \
+              -i "${PACKS_DIR}/${pack}" \
+              -o "${DIST_DIR}"
+          done
+
+          echo "Contents of ${DIST_DIR}:"
+          ls -la "${DIST_DIR}"
+
+      # 6) Update pack_catalog.json for PoV Companion
+      #
+      # File: pack_catalog.json (at repo root)
+      # Structure:
+      # {
+      #   "packs": [
+      #     {
+      #       "id": "soc-framework-unified",
+      #       "display_name": "SOC Framework Unified",
+      #       "version": "1.3.2",
+      #       "url": "https://raw.githubusercontent.com/.../dist/soc-framework-unified.zip",
+      #       "include": true
+      #     }
+      #   ]
+      # }
+      #
+      # IMPORTANT:
+      # - New packs default to include = false, so you have manual control.
+      # - If a pack already exists in the catalog, we preserve its current
+      #   "include" flag and only refresh name/version/url.
+      #
+      - name: Update pack_catalog.json
+        run: |
+          set -e
+
+          # Ensure jq is available (usually is, but be explicit)
+          sudo apt-get update && sudo apt-get install -y jq
+
+          if [ ! -f pack_catalog.json ]; then
+            echo 'pack_catalog.json not found. Creating empty catalog.'
+            echo '{"packs": []}' > pack_catalog.json
+          fi
+
+          echo "Original pack_catalog.json:"
+          cat pack_catalog.json
+
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          REPO="${GITHUB_REPOSITORY}"
+          BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH_NAME}/${DIST_DIR}"
+
+          echo "Using base URL for zips: ${BASE_URL}"
+
+          TMP_FILE="pack_catalog.tmp.json"
+          cp pack_catalog.json "$TMP_FILE"
+
+          for pack in $CHANGED_PACKS; do
+            ZIP_NAME="${pack}.zip"
+            DOWNLOAD_URL="${BASE_URL}/${ZIP_NAME}"
+            META_FILE="${PACKS_DIR}/${pack}/pack_metadata.json"
+
+            if [ ! -f "$META_FILE" ]; then
+              echo "WARNING: Missing pack_metadata.json for ${pack}, skipping catalog update for this pack."
+              continue
+            fi
+
+            DISPLAY_NAME=$(jq -r '.name // .id // ""' "$META_FILE")
+            VERSION=$(jq -r '.currentVersion // ""' "$META_FILE")
+
+            if [ -z "$DISPLAY_NAME" ]; then
+              DISPLAY_NAME="$pack"
+            fi
+
+            echo "Updating catalog entry for pack=${pack}"
+            echo "  display_name=${DISPLAY_NAME}"
+            echo "  version=${VERSION}"
+            echo "  url=${DOWNLOAD_URL}"
+
+            # Preserve existing "include" flag if present, otherwise default false
+            EXISTING_INCLUDE=$(jq -r --arg id "$pack" '
+              (.packs // [])[]
+              | select(.id == $id)
+              | .include // ""
+            ' "$TMP_FILE" | head -n1 || true)
+
+            if [ "$EXISTING_INCLUDE" = "true" ]; then
+              INCLUDE=true
+            else
+              INCLUDE=false
+            fi
+
+            jq \
+              --arg id "$pack" \
+              --arg name "$DISPLAY_NAME" \
+              --arg ver "$VERSION" \
+              --arg url "$DOWNLOAD_URL" \
+              --argjson include "$INCLUDE" '
+              .packs = (
+                (.packs // [])
+                | map(select(.id != $id))     # remove old entry for this id
+                + [ { "id": $id,
+                      "display_name": $name,
+                      "version": $ver,
+                      "url": $url,
+                      "include": $include } ]
+              )
+            ' "$TMP_FILE" > "${TMP_FILE}.new"
+
+            mv "${TMP_FILE}.new" "$TMP_FILE"
+          done
+
+          mv "$TMP_FILE" pack_catalog.json
+
+          echo "Updated pack_catalog.json:"
+          cat pack_catalog.json
+
+      # 7) Commit zips + catalog back to branch
+      - name: Commit catalog & zips (if any changes)
+        run: |
+          set -e
 
           git status
 
-          # Stage only catalog + zip files
-          git add catalog-main.json catalog-staging.json || true
-          git add Packs/*/*.zip || true
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "${DIST_DIR}" pack_catalog.json || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
-          git commit -m "chore: update pack zips & catalog [skip ci]"
+          echo "Committing updated zips and pack catalog..."
+          git commit -m "Update pack zips & catalog [skip ci]"
           git push
