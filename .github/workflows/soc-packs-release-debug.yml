@@ -1,0 +1,172 @@
+name: SOC Packs Release DEBUG
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PACKS_DIR: Packs
+
+jobs:
+  debug-release-packs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install demisto-sdk
+        run: |
+          pip install "demisto-sdk>=1.0.0"
+
+      # 1) Discover packs
+      - name: Discover packs
+        id: discover
+        run: |
+          python - << 'PY'
+          import os
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          packs = [
+              p.name for p in packs_dir.iterdir()
+              if (p / "pack_metadata.json").is_file()
+          ]
+          packs_str = " ".join(sorted(packs))
+          print("Discovered packs:", packs_str or "(none)")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={packs_str}\n")
+          PY
+
+      # 2) Detect packs with version changes vs HEAD^
+      - name: Compute changed packs (version bump)
+        id: changed
+        env:
+          ALL_PACKS: ${{ steps.discover.outputs.packs }}
+        run: |
+          python - << 'PY'
+          import io, json, os, subprocess
+          from pathlib import Path
+
+          packs = os.environ["ALL_PACKS"].split()
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed = []
+
+          for pack in packs:
+            meta_path = packs_dir / pack / "pack_metadata.json"
+            if not meta_path.exists():
+              continue
+
+            new_meta = json.loads(meta_path.read_text())
+            new_ver = new_meta.get("version") or new_meta.get("currentVersion") or ""
+
+            try:
+                blob = subprocess.check_output(
+                    ["git", "show", f"HEAD^:{meta_path}"], text=True
+                )
+                old_meta = json.load(io.StringIO(blob))
+                old_ver = old_meta.get("version") or old_meta.get("currentVersion") or ""
+            except subprocess.CalledProcessError:
+                old_ver = ""
+
+            if new_ver != old_ver:
+              print(f"{pack}: version changed {old_ver} -> {new_ver}")
+              changed.append(pack)
+
+          changed_str = " ".join(changed)
+          print("Changed packs:", changed_str or "(none)")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={changed_str}\n")
+          PY
+
+      # 3) Build zips + show what would happen (NO gh release, NO git commit)
+      - name: Dry-run build & config update
+        if: ${{ steps.changed.outputs.packs != '' }}
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+        run: |
+          python - << 'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed = os.environ["CHANGED_PACKS"].split()
+          repo = os.environ["GITHUB_REPOSITORY"]
+
+          dist = Path("dist")
+          dist.mkdir(exist_ok=True)
+
+          def run_cmd(cmd, cwd=None, check=True):
+              print("+", " ".join(cmd), f"(cwd={cwd or os.getcwd()})")
+              return subprocess.run(cmd, check=check, cwd=cwd)
+
+          for pack in changed:
+            pack_path = packs_dir / pack
+            meta_path = pack_path / "pack_metadata.json"
+            config_path = pack_path / "xsoar_config.json"
+
+            if not meta_path.exists():
+              print(f"{pack}: no pack_metadata.json, skipping")
+              continue
+
+            meta = json.loads(meta_path.read_text())
+            version = meta.get("version") or meta.get("currentVersion") or ""
+            if not version:
+              print(f"{pack}: no version/currentVersion, skipping")
+              continue
+
+            print(f"=== DRY RUN for pack={pack}, version={version} ===")
+
+            # Build plain zip
+            zip_path = dist / f"{pack}.zip"
+            if zip_path.exists():
+              zip_path.unlink()
+            run_cmd(["zip", "-r", str(zip_path), str(pack_path)])
+
+            print(f"Built zip: {zip_path}")
+
+            # Show what release tag/asset would be
+            tag = f"{pack}-v{version}-staging"
+            asset = f"{pack}-v{version}-staging.zip"
+            url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+            print(f"Would create release tag: {tag}")
+            print(f"Would upload asset:       {asset}")
+            print(f"Resulting URL:            {url}")
+
+            # Show how xsoar_config.json would be updated
+            if not config_path.exists():
+              print(f"{pack}: no xsoar_config.json; would skip URL update")
+              continue
+
+            cfg = json.loads(config_path.read_text())
+            target_id = f"{pack}.zip"
+            custom = cfg.get("custom_packs")
+            found = False
+            if isinstance(custom, list):
+              for entry in custom:
+                if isinstance(entry, dict) and entry.get("id") == target_id:
+                  print(f"Would update custom_packs id={target_id} with url={url}")
+                  found = True
+                  break
+
+            if not found:
+              print(f"Would set top-level cfg['url'] = {url}")
+
+          print(\"\\nDRY RUN COMPLETE (no releases created, no commits pushed)\")
+          PY
+
+      - name: No packs changed
+        if: ${{ steps.changed.outputs.packs == '' }}
+        run: |
+          echo "No pack version changes detected. Skipping."
