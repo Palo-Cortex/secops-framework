@@ -56,6 +56,9 @@ def build_catalog_entry(
         pack_dir: Path,
         meta: Dict[str, Any],
         existing_entry: Optional[Dict[str, Any]],
+        org: str,
+        repo: str,
+        ref: str,
 ) -> Dict[str, Any]:
     """
     Build a single catalog entry for a pack.
@@ -65,6 +68,7 @@ def build_catalog_entry(
     - version: from metadata.currentVersion (optional)
     - path: relative path to pack (e.g., Packs/soc-framework-unified)
     - visible: preserve existing visible if present, otherwise default false
+    - xsoar_config: raw.githubusercontent.com URL to xsoar_config.json if present, else None
     """
     pack_id = pack_dir.name
     display_name = meta.get("name") or meta.get("id") or pack_id
@@ -75,12 +79,23 @@ def build_catalog_entry(
     if existing_entry is not None and isinstance(existing_entry.get("visible"), bool):
         visible = existing_entry["visible"]
 
+    # Detect xsoar_config.json and build raw URL if it exists
+    xsoar_config_path = pack_dir / "xsoar_config.json"
+    if xsoar_config_path.is_file():
+        rel_path = f"{pack_dir.as_posix()}/xsoar_config.json"
+        xsoar_config_url = (
+            f"https://raw.githubusercontent.com/{org}/{repo}/{ref}/{rel_path}"
+        )
+    else:
+        xsoar_config_url = None
+
     return {
         "id": pack_id,
         "display_name": display_name,
         "version": version,
         "path": str(pack_dir.as_posix()),
         "visible": visible,
+        "xsoar_config": xsoar_config_url,
     }
 
 
@@ -98,14 +113,38 @@ def main():
         default="pack_catalog.json",
         help="Path to the catalog JSON file (default: pack_catalog.json at repo root)",
     )
+    parser.add_argument(
+        "--org",
+        default="Palo-Cortex",
+        help="GitHub org for raw.githubusercontent URLs (default: Palo-Cortex)",
+    )
+    parser.add_argument(
+        "--repo",
+        default="secops-framework",
+        help="GitHub repo for raw.githubusercontent URLs (default: secops-framework)",
+    )
+    parser.add_argument(
+        "--ref",
+        default="refs/heads/main",
+        help=(
+            "Git ref/branch used for constructing raw.githubusercontent URLs "
+            "(default: refs/heads/main)"
+        ),
+    )
 
     args = parser.parse_args()
 
     packs_dir = Path(args.packs_dir)
     catalog_path = Path(args.catalog)
+    org = args.org
+    repo = args.repo
+    ref = args.ref
 
     print(f"Using packs directory: {packs_dir}")
     print(f"Using catalog file:    {catalog_path}")
+    print(f"Using GitHub org:      {org}")
+    print(f"Using GitHub repo:     {repo}")
+    print(f"Using Git ref:         {ref}")
 
     existing_catalog = load_existing_catalog(catalog_path)
     existing_by_id = index_catalog_by_id(existing_catalog)
@@ -118,7 +157,7 @@ def main():
         meta_path = pack_dir / "pack_metadata.json"
         meta = read_pack_metadata(meta_path)
         existing_entry = existing_by_id.get(pack_dir.name)
-        entry = build_catalog_entry(pack_dir, meta, existing_entry)
+        entry = build_catalog_entry(pack_dir, meta, existing_entry, org, repo, ref)
         new_entries.append(entry)
 
     # Sort for stable diffs
