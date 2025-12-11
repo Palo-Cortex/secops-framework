@@ -174,13 +174,15 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Build pack with demisto-sdk (XSIAM marketplace)
+            # Create a plain ZIP of the entire pack folder
+            zip_path = dist / f"{pack}.zip"
+            if zip_path.exists():
+                zip_path.unlink()
+            
             run_cmd([
-                "demisto-sdk", "zip-packs",
-                "-i", str(pack_path),
-                "-o", str(dist),
-                "-mp", "xsiam",
+                "zip", "-r", str(zip_path), str(pack_path)
             ])
+
 
             # SDK writes to dist/uploadable_packs/<pack>.zip
             uploadable_dir = dist / "uploadable_packs"
