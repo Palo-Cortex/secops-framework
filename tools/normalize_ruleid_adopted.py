@@ -199,7 +199,6 @@ def _set_rule_id_yaml(text: str) -> Tuple[str, bool]:
     return "rule_id: 0\n" + text, True
 
 
-
 def _ensure_fromversion_yaml(text: str, version: str = "6.10.0") -> Tuple[str, bool]:
     """
     Ensure fromversion: <version> exists and is set correctly in YAML.
