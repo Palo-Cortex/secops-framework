@@ -28,7 +28,7 @@ jobs:
     outputs:
       changed_packs: ${{ steps.changed.outputs.packs }}
       environment:   ${{ steps.envinfo.outputs.environment }}
-      commit_sha:    ${{ steps.commit_meta.outputs.sha }}
+      commit_sha:    ${{ steps.commit.outputs.sha }}
 
     steps:
       - name: Checkout repo
@@ -127,7 +127,7 @@ jobs:
           fi
 
       ############################################
-      # 4) BUILD PACKS WITH SDK, CREATE RELEASES, UPDATE CONFIG
+      # 4) BUILD PACKS, CREATE RELEASES, UPDATE CONFIG
       ############################################
       - name: Build & release changed packs
         if: ${{ steps.changed.outputs.packs != '' }}
@@ -174,26 +174,14 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Create a plain ZIP of the entire pack folder
+            # --- plain zip build (no uploadable_packs dir) ---
             zip_path = dist / f"{pack}.zip"
             if zip_path.exists():
-                zip_path.unlink()
-            
+              zip_path.unlink()
+
             run_cmd([
                 "zip", "-r", str(zip_path), str(pack_path)
             ])
-
-
-            # SDK writes to dist/uploadable_packs/<pack>.zip
-            uploadable_dir = dist / "uploadable_packs"
-            input_zip = uploadable_dir / f"{pack}.zip"
-            print("Uploadable zips in", uploadable_dir)
-            if uploadable_dir.exists():
-              for p in uploadable_dir.glob("*.zip"):
-                print("  ", p)
-
-            if not input_zip.exists():
-              raise FileNotFoundError(f"Expected zip {input_zip} not found")
 
             # Decide tag & asset name based on environment
             if environment == "staging":
@@ -210,7 +198,7 @@ jobs:
             final_zip = dist / asset
             if final_zip.exists():
               final_zip.unlink()
-            input_zip.rename(final_zip)
+            zip_path.rename(final_zip)
             print("Final asset zip:", final_zip)
 
             # Create or update GitHub Release
@@ -258,7 +246,7 @@ jobs:
       # 5) COMMIT UPDATED FILES
       ############################################
       - name: Commit updated xsoar_config.json files
-        id: commit_meta
+        id: commit
         if: ${{ steps.changed.outputs.packs != '' }}
         run: |
           set -euo pipefail
@@ -280,7 +268,7 @@ jobs:
             fi
           fi
 
-          # Always expose the final HEAD SHA (even if no commit happened)
+          # Always expose the final HEAD SHA
           FINAL_SHA=$(git rev-parse HEAD)
           echo "Final HEAD SHA: $FINAL_SHA"
           echo "sha=$FINAL_SHA" >> "$GITHUB_OUTPUT"
