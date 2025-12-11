@@ -64,23 +64,23 @@ def build_catalog_entry(
     - display_name: from metadata.name (fallback to id)
     - version: from metadata.currentVersion (optional)
     - path: relative path to pack (e.g., Packs/soc-framework-unified)
-    - include: preserve existing include if present, otherwise default false
+    - visible: preserve existing visible if present, otherwise default false
     """
     pack_id = pack_dir.name
     display_name = meta.get("name") or meta.get("id") or pack_id
     version = meta.get("currentVersion", "")
 
-    # Preserve existing "include" if present; otherwise default to False
-    include = False
-    if existing_entry is not None and isinstance(existing_entry.get("include"), bool):
-        include = existing_entry["include"]
+    # Preserve existing "visible" if present; otherwise default to False
+    visible = False
+    if existing_entry is not None and isinstance(existing_entry.get("visible"), bool):
+        visible = existing_entry["visible"]
 
     return {
         "id": pack_id,
         "display_name": display_name,
         "version": version,
         "path": str(pack_dir.as_posix()),
-        "include": include,
+        "visible": visible,
     }
 
 
