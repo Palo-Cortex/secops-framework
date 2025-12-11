@@ -28,6 +28,7 @@ jobs:
     outputs:
       changed_packs: ${{ steps.changed.outputs.packs }}
       environment:   ${{ steps.envinfo.outputs.environment }}
+      commit_sha:    ${{ steps.commit.outputs.sha }}
 
     steps:
       - name: Checkout repo
@@ -173,21 +174,21 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Build pack with demisto-sdk
+            # Build XSIAM-ready pack zip with prepare-content
+            # NOTE: -mp xsiam ensures the zip is built for the XSIAM marketplace.
+            output_zip = dist / f"{pack}.zip"
+            if output_zip.exists():
+              output_zip.unlink()
+
             run_cmd([
-                "demisto-sdk", "zip-packs",
+                "demisto-sdk", "prepare-content",
                 "-i", str(pack_path),
-                "-o", str(dist)
+                "-o", str(dist),
+                "-mp", "xsiam",
             ])
 
-            # SDK writes to dist/uploadable_packs/<pack>.zip
-            uploadable_dir = dist / "uploadable_packs"
-            input_zip = uploadable_dir / f"{pack}.zip"
-            print("Uploadable zips in", uploadable_dir)
-            if uploadable_dir.exists():
-              for p in uploadable_dir.glob("*.zip"):
-                print("  ", p)
-
+            input_zip = output_zip
+            print("Pack zip:", input_zip)
             if not input_zip.exists():
               raise FileNotFoundError(f"Expected zip {input_zip} not found")
 
@@ -254,28 +255,37 @@ jobs:
       # 5) COMMIT UPDATED FILES
       ############################################
       - name: Commit updated xsoar_config.json files
+        id: commit
         if: ${{ steps.changed.outputs.packs != '' }}
         run: |
           set -euo pipefail
 
+          # Record original HEAD (debugging only)
+          ORIG_SHA=$(git rev-parse HEAD)
+          echo "Original HEAD SHA: $ORIG_SHA"
+
+          # If nothing changed at all, skip commit but still output HEAD
           if git diff --quiet; then
             echo "No changes detected"
-            exit 0
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add "${PACKS_DIR}"/*/xsoar_config.json || true
+
+            if git diff --cached --quiet; then
+              echo "No staged changes"
+            else
+              ENVIRONMENT="${{ steps.envinfo.outputs.environment }}"
+              git commit -m "chore: [skip ci] update xsoar_config urls (${ENVIRONMENT})"
+              git push origin HEAD
+            fi
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add "${PACKS_DIR}"/*/xsoar_config.json || true
-
-          if git diff --cached --quiet; then
-            echo "No staged changes"
-            exit 0
-          fi
-
-          ENVIRONMENT="${{ steps.envinfo.outputs.environment }}"
-          git commit -m "chore: [skip ci] update xsoar_config urls (${ENVIRONMENT})"
-          git push origin HEAD
+          # Always expose the final HEAD SHA (may be original or new commit)
+          FINAL_SHA=$(git rev-parse HEAD)
+          echo "Final HEAD SHA: $FINAL_SHA"
+          echo "sha=$FINAL_SHA" >> "$GITHUB_OUTPUT"
 
       ############################################
       # 6) NOTHING CHANGED
@@ -311,8 +321,13 @@ jobs:
           fi
 
           REPO="${{ github.repository }}"
-          BRANCH="staging"
-          URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/Packs/${PACK}/xsoar_config.json"
+          SHA="${{ needs.release-packs.outputs.commit_sha }}"
+          if [ -z "$SHA" ]; then
+            echo "Missing commit_sha output from release-packs job"; exit 1
+          fi
+
+          # Use the exact commit SHA that includes the updated xsoar_config.json
+          URL="https://raw.githubusercontent.com/${REPO}/${SHA}/Packs/${PACK}/xsoar_config.json"
 
           echo "Pack under test: $PACK"
           echo "CONTENT_REPO_RAW_LINK: $URL"
