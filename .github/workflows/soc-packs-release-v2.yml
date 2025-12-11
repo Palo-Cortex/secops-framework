@@ -175,14 +175,19 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Plain zip of the pack folder
+            # Build pack zip with contents at top level (no extra folder)
             zip_path = dist / f"{pack}.zip"
             if zip_path.exists():
-              zip_path.unlink()
+                zip_path.unlink()
+            
+            run_cmd(
+                ["zip", "-r", str(zip_path), "."],
+                cwd=str(pack_path)  # <- important: run inside Packs/<pack>
+            )
+            
+            input_zip = zip_path
+            print("Created pack zip:", input_zip)
 
-            run_cmd([
-                "zip", "-r", str(zip_path), str(pack_path)
-            ])
 
             # Decide tag & asset name based on environment
             if environment == "staging":
