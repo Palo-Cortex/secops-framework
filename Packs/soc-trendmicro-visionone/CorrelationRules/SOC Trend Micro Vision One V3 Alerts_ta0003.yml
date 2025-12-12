@@ -1,0 +1,230 @@
+fromversion: 6.10.0
+action: ALERTS
+adopted: true
+alert_category: OTHER
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  originalalertid: id
+  externallink: workbench_link
+  external_pivot_url: workbench_link
+  originalalertname: alert_name
+  originalalertsource: alert_source
+  externalstatus: status
+  source_insert_ts: alert_time
+  severity: severity
+  agent_hostname: v1_host_name
+  agent_id: v1_host_guid
+  action_local_ip: local_ip
+  mac: mac_address
+  actor_effective_username: user_name
+  userid: user_id
+  actor_process_command_line: cmdline
+  actor_process_image_name: filename
+  actor_process_image_path: filepath
+  parentprocessname: parent_process_name
+  parentprocesspath: parent_process_path
+  action_remote_ip: remote_ip_str
+  action_file_md5: md5
+  action_file_sha256: sha256
+  action_file_path: filepath
+  agent_device_domain: domain
+  additionalindicators: ioc_value
+  tim_main_indicator: ioc_value
+  trendmicrovisiononexdrindicators: indicators_json
+  trendmicrovisiononexdrindicatorsjson: indicators_json
+  trendmicrovisiononexdrinvestigationstatus: investigation_status
+  trendmicrovisiononexdrpriorityscore: score
+  mitretechniqueid: mitre_technique_ids_str
+alert_name: Trend Micro - $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+description: null
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC_Trend_Micro_Vision_One_V3_ta0003
+name: SOC Trend Micro Vision One V3 - Persistence
+investigation_query_link: ''
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0003 - Persistence: []
+rule_id: 0
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- id
+- workbench_link
+- alert_name
+timezone: null
+user_defined_category: null
+user_defined_severity: severity
+xql_query: |
+  dataset = trend_micro_vision_one_v3_generic_alert_raw
+  | filter alert_provider = "SAE"
+
+  /* ---- Base JSON ---- */
+  | alter j = _alert_data -> raw_json
+  | alter j_str = to_string(j)
+
+  /* ---- Core metadata (only what you map/layout) ---- */
+  | alter
+      id                   = j -> id,
+      status               = j -> status,
+      investigation_status = j -> investigation_status,
+      investigation_result = j -> investigation_result,
+      workbench_link       = j -> workbench_link,
+      alert_provider       = j -> alert_provider,
+      alert_name           = j -> model,
+      score                = to_integer(j -> score),
+      severity             = j -> severity,
+      alert_time           = j -> created_date_time,
+      alert_description    = j -> description
+
+  /* =========================================================
+     MITRE: extract ONLY first tactic/technique (no array loops)
+     ========================================================= */
+  | alter
+      mitre_tactic_id_raw =
+        coalesce(
+          json_extract_scalar(j_str, "$.matched_rules.matched_filters[0].mitre_tactic_ids[0]"),
+          json_extract_scalar(j_str, "$.matched_rules[0].matched_filters[0].mitre_tactic_ids[0]")
+        ),
+      mitre_tactic_raw =
+        coalesce(
+          json_extract_scalar(j_str, "$.matched_rules.matched_filters[0].mitre_tactic_names[0]"),
+          json_extract_scalar(j_str, "$.matched_rules[0].matched_filters[0].mitre_tactic_names[0]")
+        ),
+      mitre_technique_id_raw =
+        coalesce(
+          json_extract_scalar(j_str, "$.matched_rules.matched_filters[0].mitre_technique_ids[0]"),
+          json_extract_scalar(j_str, "$.matched_rules[0].matched_filters[0].mitre_technique_ids[0]")
+        )
+
+  | alter mitre_technique_id_short = replace(mitre_technique_id_raw, "\\.[0-9]+$", "")
+
+  /* Required by your mapping */
+  | alter mitre_technique_ids_str =
+      if(mitre_technique_id_short != null and mitre_technique_id_short != "",
+         mitre_technique_id_short,
+         "—")
+
+  /* ---- Split Anchor (required by splitter) ---- */
+  | alter
+      mitre_tactic       = mitre_tactic_raw,
+      mitre_tactic_id    = mitre_tactic_id_raw,
+      mitre_technique    = mitre_technique_id_raw,
+      mitre_technique_id = mitre_technique_id_short
+  | filter mitre_tactic_id = "TA0003" or mitre_tactic = "Persistence"
+
+  /* (Splitter injects its | filter ... line RIGHT HERE) */
+
+  /* Drop big json-string column ASAP */
+  | alter j_str = null
+
+  /* =========================================================
+     NO ARRAYMAP: direct JSONPath pulls from j_str-ish source
+     Use json_extract_scalar on j (raw_json) for indexed/filtered reads.
+     ========================================================= */
+
+  /* ---- Host (best-effort: check first two entities) ---- */
+  | alter
+      _e0_type = json_extract_scalar(j, "$.impact_scope.entities[0].entity_type"),
+      _e1_type = json_extract_scalar(j, "$.impact_scope.entities[1].entity_type"),
+      _e0_name = json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.name"),
+      _e1_name = json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.name"),
+      _e0_guid = json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.guid"),
+      _e1_guid = json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.guid"),
+      _e0_ip   = json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.ips[0]"),
+      _e1_ip   = json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.ips[0]"),
+      _e0_mac  = coalesce(
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.mac"),
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.mac_address"),
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.macs[0]"),
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.macAddresses[0]")
+                ),
+      _e1_mac  = coalesce(
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.mac"),
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.mac_address"),
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.macs[0]"),
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.macAddresses[0]")
+                )
+
+  | alter
+      v1_host_name = if(_e0_type = "host", _e0_name, if(_e1_type = "host", _e1_name, null)),
+      v1_host_guid = if(_e0_type = "host", _e0_guid, if(_e1_type = "host", _e1_guid, null)),
+      local_ip     = if(_e0_type = "host", _e0_ip,   if(_e1_type = "host", _e1_ip,   null)),
+      mac_address  = if(_e0_type = "host", _e0_mac,  if(_e1_type = "host", _e1_mac,  null))
+
+  /* ---- User (best-effort: check first two entities) ---- */
+  | alter
+      _u0_type = _e0_type,
+      _u1_type = _e1_type,
+      _u0_name = coalesce(
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.name"),
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.username")
+                ),
+      _u1_name = coalesce(
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.name"),
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.username")
+                ),
+      _u0_id   = coalesce(
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.id"),
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.sid"),
+                  json_extract_scalar(j, "$.impact_scope.entities[0].entity_value.userId")
+                ),
+      _u1_id   = coalesce(
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.id"),
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.sid"),
+                  json_extract_scalar(j, "$.impact_scope.entities[1].entity_value.userId")
+                )
+
+  | alter
+      user_name = if(_u0_type = "user", _u0_name, if(_u1_type = "user", _u1_name, null)),
+      user_id   = if(_u0_type = "user", _u0_id,   if(_u1_type = "user", _u1_id,   null))
+
+  /* ---- Indicators (no arraymap): JSONPath filter reads ---- */
+  | alter
+      remote_ip_str =
+        json_extract_scalar(j, "$.indicators[?(@.field=='peerIp')].value[0]"),
+      cmdline =
+        json_extract_scalar(j, "$.indicators[?(@.type=='command_line')].value[0]"),
+      md5 =
+        json_extract_scalar(j, "$.indicators[?(@.type=='file_md5')].value[0]"),
+      sha256 =
+        json_extract_scalar(j, "$.indicators[?(@.type=='file_sha256')].value[0]"),
+      filename =
+        json_extract_scalar(j, "$.indicators[?(@.field=='filename')].value[0]"),
+      filepath =
+        json_extract_scalar(j, "$.indicators[?(@.field=='processFilePath')].value[0]"),
+      parent_process_path =
+        json_extract_scalar(j, "$.indicators[?(@.field=='parentFilePath')].value[0]"),
+      domain =
+        json_extract_scalar(j, "$.indicators[?(@.field=='domain')].value[0]")
+
+  | alter parent_process_name = replace(parent_process_path, "^.*[\\\\/]", "")
+
+  /* ---- IOC + source ---- */
+  | alter
+      ioc_value    = coalesce(sha256, md5),
+      alert_source = "Trend Micro Vision One"
+
+  /* ---- indicators_json (required) ---- */
+  | alter indicators_json = to_string(j -> indicators[])
+
+  | fields
+      id, workbench_link, alert_name, alert_source, status,
+      investigation_status, investigation_result,
+      score, severity, alert_time, alert_description,
+      v1_host_guid, v1_host_name, local_ip, mac_address,
+      user_name, user_id,
+      filename, filepath, parent_process_path, parent_process_name, cmdline,
+      md5, sha256, ioc_value, domain, remote_ip_str,
+      indicators_json,
+      mitre_technique_ids_str,
+      mitre_tactic, mitre_tactic_id, mitre_technique, mitre_technique_id
