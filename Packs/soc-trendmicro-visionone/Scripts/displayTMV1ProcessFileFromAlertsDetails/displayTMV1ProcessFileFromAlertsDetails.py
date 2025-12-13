@@ -1,13 +1,9 @@
-import demistomock as demisto  # noqa: F401
-from CommonServerPython import *  # noqa: F401
 # Script name: displayTMV1ProcessFile_FromAlertDetails
-# Purpose: Render a Process & File view using VisionOne Alert Details already in context.
+# Purpose: Render a Process & File view using VisionOne Alert Details already in context OR from mapped fields.
 # Notes:
-#  - No external calls; reads what's already in the alert object.
-#  - Finds the alert anywhere in context (dynamic keys supported).
-#  - Sections:
-#      Process: Command Lines + Matched Process Events
-#      File: File Paths + File Hashes
+#  - No external calls; reads what's already in context / incident custom fields.
+#  - Works with correlation-rule output where indicators are stored as JSON string.
+#  - Matched Process Events require the full alert object (matched_rules) to exist in context.
 
 import json
 from collections import defaultdict
@@ -31,8 +27,23 @@ def flat_join(seq, sep=", "):
         return ""
     return sep.join(str(x) for x in seq if x not in (None, ""))
 
+def safe_json_loads(maybe_json):
+    if maybe_json is None:
+        return None
+    if isinstance(maybe_json, (list, dict)):
+        return maybe_json
+    if isinstance(maybe_json, str):
+        s = maybe_json.strip()
+        if not s:
+            return None
+        try:
+            return json.loads(s)
+        except Exception:
+            return None
+    return None
+
+# -------------------- alert discovery (old path) --------------------
 def looks_like_alert_obj(obj: dict) -> bool:
-    """Heuristics to identify a Vision One alert object."""
     if not isinstance(obj, dict):
         return False
     if not obj.get("id"):
@@ -45,11 +56,8 @@ def looks_like_alert_obj(obj: dict) -> bool:
     return False
 
 def find_alert_in_context(ctx):
-    """
-    Recursively walk the entire context dict/list to find the first Vision One alert object.
-    Handles keys like 'VisionOne.Alert_Details(val.etag && val.etag == obj.etag)' and more.
-    """
     seen = set()
+
     def _walk(node):
         nid = id(node)
         if nid in seen:
@@ -71,8 +79,62 @@ def find_alert_in_context(ctx):
                 if found is not None:
                     return found
         return None
+
     return _walk(ctx)
 
+# -------------------- indicators discovery (new rule path) --------------------
+def find_indicators_payload(ctx):
+    """
+    Preferred for correlation-rule output:
+      incident.CustomFields.trendmicrovisiononexdrindicatorsjson
+      incident.CustomFields.trendmicrovisiononexdrindicators
+      incident.CustomFields.indicators_json
+    """
+    try:
+        inc = demisto.incident() or {}
+        cf = inc.get("CustomFields") or {}
+        for k in ("trendmicrovisiononexdrindicatorsjson", "trendmicrovisiononexdrindicators", "indicators_json"):
+            if cf.get(k):
+                parsed = safe_json_loads(cf.get(k))
+                if isinstance(parsed, list):
+                    return parsed, f"incident.CustomFields.{k}"
+    except Exception:
+        pass
+
+    # fallback: scan context for any of these keys
+    wanted = {"trendmicrovisiononexdrindicatorsjson", "trendmicrovisiononexdrindicators", "indicators_json"}
+    seen = set()
+
+    def _walk(node):
+        nid = id(node)
+        if nid in seen:
+            return None
+        seen.add(nid)
+
+        if isinstance(node, dict):
+            for k in wanted:
+                if node.get(k):
+                    parsed = safe_json_loads(node.get(k))
+                    if isinstance(parsed, list):
+                        return parsed, f"context.{k}"
+            for v in node.values():
+                found = _walk(v)
+                if found is not None:
+                    return found
+        elif isinstance(node, list):
+            for it in node:
+                found = _walk(it)
+                if found is not None:
+                    return found
+        return None
+
+    found = _walk(ctx)
+    if found:
+        return found[0], found[1]
+
+    return None, None
+
+# -------------------- rendering helpers --------------------
 def make_table(headers, rows):
     if not rows:
         return "_none_\n"
@@ -82,13 +144,7 @@ def make_table(headers, rows):
         md += "|" + "|".join(str(r.get(h, "")) for h in headers) + "|\n"
     return md
 
-# -------------------- normalization --------------------
 def normalize_indicator(ind):
-    """
-    Return a flat dict for table rendering.
-    Expected fields:
-      id, type, value, related_entities, provenance, field, filter_ids
-    """
     row = {
         "ID": ind.get("id"),
         "Type": ind.get("type"),
@@ -99,40 +155,39 @@ def normalize_indicator(ind):
         "Filter IDs": "",
     }
 
-    # value can be scalar or object (e.g., host {name, ips, guid})
     val = ind.get("value")
     if isinstance(val, dict):
-        # Render compactly for file/host objects if they appear
         name = val.get("name")
         ips = flat_join(val.get("ips"))
         guid = val.get("guid")
         parts = []
-        if name: parts.append(f"name={name}")
-        if ips: parts.append(f"ips=[{ips}]")
-        if guid: parts.append(f"guid={guid}")
+        if name:
+            parts.append(f"name={name}")
+        if ips:
+            parts.append(f"ips=[{ips}]")
+        if guid:
+            parts.append(f"guid={guid}")
         row["Value"] = ", ".join(parts) if parts else esc(val)
     else:
         row["Value"] = esc(val)
 
-    # lists
     row["Related Entities"] = flat_join(ind.get("related_entities"))
     row["Provenance"] = flat_join(ind.get("provenance"))
     row["Filter IDs"] = flat_join(ind.get("filter_ids"))
 
-    # stringify for markdown
     for k in list(row.keys()):
         row[k] = esc(row[k])
     return row
 
 def extract_matched_process_events(alert):
     """
-    Flatten matched_rules -> matched_filters -> matched_events (process-centric).
-    Returns rows with: Time, Type, UUID, Filter Name, Rule Name
+    Only works if full alert object exists and includes matched_rules[*].matched_filters[*].matched_events[*]
     """
     rows = []
     rules = alert.get("matched_rules") or []
     if not isinstance(rules, list):
         return rows
+
     for r in rules:
         rule_name = r.get("name") or r.get("id") or ""
         mfs = r.get("matched_filters") or []
@@ -141,7 +196,6 @@ def extract_matched_process_events(alert):
             events = f.get("matched_events") or []
             for ev in events:
                 ev_type = ev.get("type") or ""
-                # keep it if it looks like a process event (very light heuristic)
                 if "PROCESS" in ev_type.upper():
                     rows.append({
                         "Time": esc(ev.get("matched_date_time") or ""),
@@ -155,57 +209,75 @@ def extract_matched_process_events(alert):
 # -------------------- main --------------------
 def main():
     ctx = demisto.context() or {}
-    alert = find_alert_in_context(ctx)
-    if not isinstance(alert, dict):
-        md_out("### Trend Micro Vision One — Process & File\n❌ Couldn’t locate a Vision One alert object anywhere in context.")
-        return
 
-    wb_id = alert.get("id") or "—"
-    indicators = alert.get("indicators") or []
+    alert = find_alert_in_context(ctx)
+    source = None
+    wb_id = "—"
+
+    if isinstance(alert, dict):
+        wb_id = alert.get("id") or "—"
+        indicators = alert.get("indicators") or []
+        source = "context.alert.indicators"
+    else:
+        indicators, source = find_indicators_payload(ctx)
+        if indicators is None:
+            md_out(
+                "### Trend Micro Vision One — Process & File\n"
+                "❌ Couldn’t locate a Vision One alert object in context, and couldn’t find mapped indicators JSON "
+                "(trendmicrovisiononexdrindicatorsjson / trendmicrovisiononexdrindicators / indicators_json)."
+            )
+            return
+
     if not isinstance(indicators, list):
         indicators = []
 
-    # Bucket indicators for process/file
+    # Normalize & bucket
     buckets = defaultdict(list)
     for ind in indicators:
+        if not isinstance(ind, dict):
+            continue
         row = normalize_indicator(ind)
         t = (row.get("Type") or "").lower()
         buckets[t].append(row)
 
-    # Compose markdown
+    # Additional “file path” bucket: VisionOne often uses fields (processFilePath/objectRegistryData/etc.)
+    file_path_rows = []
+    for t, rows in buckets.items():
+        for r in rows:
+            f = (r.get("Field") or "").lower()
+            if f in ("processfilepath", "objectregistrydata", "fullpath", "filename", "parentfilepath"):
+                file_path_rows.append(r)
+
     md = []
     md.append("### Trend Micro Vision One — Process & File")
-    md.append(f"**Workbench ID:** `{wb_id}`  \n")
+    md.append(f"**Workbench ID:** `{wb_id}`  ")
+    md.append(f"**Source:** `{esc(source or '—')}`  \n")
 
     # ---- Process section ----
     md.append("#### Process")
-    # Command lines (from indicators)
+
     cmd_headers = ["ID", "Field", "Value", "Related Entities", "Provenance", "Filter IDs"]
-    cmd_rows = [
-        {k: r.get(k, "") for k in cmd_headers}
-        for r in buckets.get("command_line", [])
-    ]
+    cmd_rows = [{k: r.get(k, "") for k in cmd_headers} for r in buckets.get("command_line", [])]
     md.append("**Command Lines**")
     md.append(make_table(cmd_headers, cmd_rows))
 
-    # Matched process events (from matched_rules.*)
     proc_evt_headers = ["Time", "Type", "UUID", "Filter", "Rule"]
-    proc_evt_rows = extract_matched_process_events(alert)
-    md.append("**Matched Process Events**")
-    md.append(make_table(proc_evt_headers, proc_evt_rows))
+    if isinstance(alert, dict) and alert.get("matched_rules"):
+        proc_evt_rows = extract_matched_process_events(alert)
+        md.append("**Matched Process Events**")
+        md.append(make_table(proc_evt_headers, proc_evt_rows))
+    else:
+        md.append("**Matched Process Events**")
+        md.append("_none (matched_rules not available in correlation-rule output)_\n")
 
     # ---- File section ----
     md.append("#### File")
-    # File paths (from indicators: fullpath)
-    path_headers = ["ID", "Field", "Value", "Related Entities", "Provenance", "Filter IDs"]
-    path_rows = [
-        {k: r.get(k, "") for k in path_headers}
-        for r in buckets.get("fullpath", [])
-    ]
+
+    path_headers = ["ID", "Type", "Field", "Value", "Related Entities", "Provenance", "Filter IDs"]
+    path_rows = [{k: r.get(k, "") for k in path_headers} for r in file_path_rows]
     md.append("**File Paths**")
     md.append(make_table(path_headers, path_rows))
 
-    # File hashes (from indicators: file_sha256, file_md5, file_sha1 if present)
     hash_headers = ["ID", "Type", "Value", "Related Entities", "Provenance", "Filter IDs"]
     hash_rows = []
     for t in ("file_sha256", "file_sha1", "file_md5"):
