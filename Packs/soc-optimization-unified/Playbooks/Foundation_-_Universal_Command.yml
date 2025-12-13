@@ -1,0 +1,454 @@
+id: Foundation - Universal Command
+version: 1
+vcShouldKeepItemLegacyProdMachine: false
+name: Foundation - Universal Command
+description: Executes a SOC Framework action using brand_source mappings and SOCFramework.Artifacts.
+tags:
+- SOC
+- SOC_Framework
+- Commands
+- Foundation
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 782fc978-3f2e-4660-8833-f17c75312385
+    type: start
+    task:
+      id: 782fc978-3f2e-4660-8833-f17c75312385
+      version: -1
+      name: Start
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "10"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 347.5,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: 390aee22-5dbd-4445-8221-6408947653a0
+    type: regular
+    task:
+      id: 390aee22-5dbd-4445-8221-6408947653a0
+      version: -1
+      name: Get Required Artifacts
+      script: SOCFramework-GetRequiredArtifacts
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "105"
+      '#none#':
+      - "20"
+    scriptarguments:
+      action:
+        simple: ${inputs.action}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 347.5,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: 50a0ef9f-ce3d-4eac-84d5-24110b15ebb5
+    type: regular
+    task:
+      id: 50a0ef9f-ce3d-4eac-84d5-24110b15ebb5
+      version: -1
+      name: Validate Artifacts
+      script: SOCFramework-ValidateArtifacts
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "105"
+      '#none#':
+      - "30"
+    scriptarguments:
+      artifacts:
+        simple: ${inputs.artifacts}
+      required:
+        simple: ${SOCFramework.RequiredArtifacts}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 460,
+          "y": 400
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "30":
+    id: "30"
+    taskid: 40d7d5d0-abd8-47ac-8fec-523476a3bdf1
+    type: regular
+    task:
+      id: 40d7d5d0-abd8-47ac-8fec-523476a3bdf1
+      version: -1
+      name: Get Brand Command
+      script: SOCFramework-GetBrandCommand
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "105"
+      '#none#':
+      - "103"
+    scriptarguments:
+      action:
+        simple: ${inputs.action}
+      brand_source:
+        simple: ${inputs.brand_source}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 572.5,
+          "y": 580
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "40":
+    id: "40"
+    taskid: 793ea9a2-6997-4835-8bb7-df5e32c51ea9
+    type: regular
+    task:
+      id: 793ea9a2-6997-4835-8bb7-df5e32c51ea9
+      version: -1
+      name: Run Command Wrapper
+      script: SOC_CommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "105"
+      '#none#':
+      - "101"
+    scriptarguments:
+      args_map:
+        simple: ${SOCFramework.BrandCommand.args}
+      artifacts:
+        simple: ${inputs.artifacts}
+      command:
+        simple: ${SOCFramework.BrandCommand.command}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": 940
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "100":
+    id: "100"
+    taskid: a9fb931f-e24a-4222-83d7-afa48d3dec7d
+    type: title
+    task:
+      id: a9fb931f-e24a-4222-83d7-afa48d3dec7d
+      version: -1
+      name: Complete
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1002.5,
+          "y": 1305
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "101":
+    id: "101"
+    taskid: 0604890b-2563-4aaa-8be8-dcda01a212e3
+    type: regular
+    task:
+      id: 0604890b-2563-4aaa-8be8-dcda01a212e3
+      version: -1
+      name: Write Action History
+      script: SOCFramework-ActionHistoryAdd
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "105"
+      '#none#':
+      - "100"
+    scriptarguments:
+      action:
+        simple: ${inputs.action}
+      brand_source:
+        simple: ${inputs.brand_source}
+      command:
+        simple: ${SOCFramework.BrandCommand.command}
+      output:
+        simple: ${SOCFramework.ActionOutput}
+      product_category:
+        simple: ${inputs.product_category}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 582.5,
+          "y": 1120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "103":
+    id: "103"
+    taskid: 06b6afdb-20ec-4afe-82ff-51e551d8c935
+    type: condition
+    task:
+      id: 06b6afdb-20ec-4afe-82ff-51e551d8c935
+      version: -1
+      name: Full Run or Shadow Mode?
+      scriptName: ShadowModeRouter_V3
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      Full Run:
+      - "40"
+      Shadow Mode:
+      - "104"
+    scriptarguments:
+      ShadowMode_V3:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 685,
+          "y": 760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "104":
+    id: "104"
+    taskid: 143e1d1c-8440-4069-861a-0734e7c36f5a
+    type: regular
+    task:
+      id: 143e1d1c-8440-4069-861a-0734e7c36f5a
+      version: -1
+      name: Print Command
+      description: Prints text to war room (Markdown supported)
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "100"
+    scriptarguments:
+      value:
+        simple: |
+          Shadow Mode
+          cmd: ${SOCFramework.BrandCommand.command}
+          args: ${SOCFramework.BrandCommand.args}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1012.5,
+          "y": 1120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "105":
+    id: "105"
+    taskid: 9d5a3f45-7b4c-48bb-84cc-6d1b9db757f2
+    type: playbook
+    task:
+      id: 9d5a3f45-7b4c-48bb-84cc-6d1b9db757f2
+      version: -1
+      name: Foundation - Error Handling_V3
+      playbookName: Foundation - Error Handling_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": -45.6201171875,
+          "y": 1297.5
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {
+      "101_105_#error#": 0.89,
+      "40_105_#error#": 0.86
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1322.5,
+        "width": 1438.1201171875,
+        "x": -45.6201171875,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: product_category
+  value: {}
+  required: false
+  description: Product Category (Email, Endpoint, Identity, etc.)
+  playbookInputQuery:
+- key: brand_source
+  value: {}
+  required: false
+  description: Integration sourceBrand pulled from issue/source.
+  playbookInputQuery:
+- key: action
+  value:
+    simple: soc-quarantine-email
+  required: true
+  description: The SOC action to execute (e.g. soc-quarantine-email)
+  playbookInputQuery:
+- key: artifacts
+  value:
+    simple: ${inputs.artifacts}
+  required: false
+  description: ${inputs.Artifacts}
+  playbookInputQuery:
+- key: ShadowMode
+  value:
+    simple: "true"
+  required: false
+  description: ""
+  playbookInputQuery:
+inputSections:
+- inputs:
+  - product_category
+  - brand_source
+  - action
+  - artifacts
+  - ShadowMode
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs:
+  - SOCFramework.ActionOutput
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs:
+- contextPath: SOCFramework.ActionOutput
+  description: Output from the executed command.
+dirtyInputs: true
+adopted: true
+fromversion: 5.0.0
