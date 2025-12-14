@@ -1,15 +1,10 @@
-import demistomock as demisto  # noqa: F401
-from CommonServerPython import *  # noqa: F401
 # Script name: displayTMV1Metadata_FromAlertDetails
-# Purpose: Render Vision One "Metadata" from Alert Details already in context (no external calls).
-# Sections:
-#   - Core
-#   - Status
-#   - Timestamps
-#   - Impact Scope (counts)
-#   - Matched Rules (summary)
-#
-# Safe on any python3 image (no CommonServerPython import).
+# Purpose: Render Vision One "Metadata" from Alert Details already in context OR from rule-mapped fields.
+# Notes:
+#  - No external calls.
+#  - Prefers full VisionOne alert object in context (matched_rules / impact_scope available).
+#  - Falls back to correlation-rule mapped incident custom fields when alert object isn't present.
+#  - Degrades gracefully when impact_scope / matched_rules aren't available.
 
 import json
 
@@ -32,8 +27,23 @@ def flat_join(seq, sep=", "):
         return ""
     return sep.join(str(x) for x in seq if x not in (None, ""))
 
+def safe_json_loads(maybe_json):
+    if maybe_json is None:
+        return None
+    if isinstance(maybe_json, (list, dict)):
+        return maybe_json
+    if isinstance(maybe_json, str):
+        s = maybe_json.strip()
+        if not s:
+            return None
+        try:
+            return json.loads(s)
+        except Exception:
+            return None
+    return None
+
+# -------------------- alert discovery (old path) --------------------
 def looks_like_alert_obj(obj: dict) -> bool:
-    """Heuristics to identify a Vision One alert object."""
     if not isinstance(obj, dict):
         return False
     if not obj.get("id"):
@@ -43,53 +53,43 @@ def looks_like_alert_obj(obj: dict) -> bool:
     return False
 
 def find_alert_and_meta_in_context(ctx):
-    """
-    Recursively walk the entire context to locate the Vision One alert object.
-    Return (alert_obj, meta_dict) where meta_dict may include 'etag' if available
-    (e.g., on the wrapper object "VisionOne.Alert_Details(...)" that contains both
-    'alert' and 'etag').
-    """
     seen = set()
 
-    def _walk(node, parent=None):
+    def _walk(node):
         nid = id(node)
         if nid in seen:
             return (None, None)
         seen.add(nid)
 
         if isinstance(node, dict):
-            # If node has 'alert', prefer that
             if "alert" in node and looks_like_alert_obj(node["alert"]):
                 meta = {}
-                # Common wrapper includes 'etag'
                 if "etag" in node and isinstance(node["etag"], (str, int)):
                     meta["etag"] = node["etag"]
                 return (node["alert"], meta)
-            # If node itself looks like the alert
+
             if looks_like_alert_obj(node):
                 return (node, {})
-            # Recurse into children
+
             for v in node.values():
-                a, m = _walk(v, node)
+                a, m = _walk(v)
                 if a is not None:
-                    # If wrapper info (etag) is on current node and not in child, add it
-                    if not m and isinstance(node, dict) and "etag" in node:
+                    if not m and "etag" in node:
                         m = {"etag": node.get("etag")}
                     return (a, m)
+
         elif isinstance(node, list):
             for it in node:
-                a, m = _walk(it, parent)
+                a, m = _walk(it)
                 if a is not None:
                     return (a, m)
+
         return (None, None)
 
-    return _walk(ctx, None)
+    return _walk(ctx)
 
+# -------------------- markdown table helpers --------------------
 def make_kv_table(pairs):
-    """
-    Render a simple two-column markdown table from (key, value) tuples.
-    Filters out empty values.
-    """
     rows = [(k, v) for (k, v) in pairs if v not in (None, "", [], {})]
     if not rows:
         return "_none_\n"
@@ -98,6 +98,16 @@ def make_kv_table(pairs):
         md += f"|{esc(k)}|{esc(v)}|\n"
     return md
 
+def make_table(headers, rows):
+    if not rows:
+        return "_none_\n"
+    md = "|" + "|".join(headers) + "|\n"
+    md += "|" + "|".join(["---"] * len(headers)) + "|\n"
+    for r in rows:
+        md += "|" + "|".join(esc(str(r.get(h, ""))) for h in headers) + "|\n"
+    return md
+
+# -------------------- summary helpers (old path only) --------------------
 def summarize_impact_scope(iscope):
     if not isinstance(iscope, dict):
         return None, None
@@ -110,10 +120,6 @@ def summarize_impact_scope(iscope):
     return counts, entities
 
 def summarize_matched_rules(alert):
-    """
-    Flatten matched_rules -> matched_filters, capture key info.
-    Returns a list of dict rows.
-    """
     out = []
     rules = alert.get("matched_rules") or []
     if not isinstance(rules, list):
@@ -126,7 +132,6 @@ def summarize_matched_rules(alert):
         for f in mfs:
             filt_name = f.get("name") or f.get("id") or ""
             when = ""
-            # pick first matched event time if available
             evs = f.get("matched_events") or []
             if isinstance(evs, list) and evs:
                 when = evs[0].get("matched_date_time") or ""
@@ -139,71 +144,107 @@ def summarize_matched_rules(alert):
             })
     return out
 
-def make_table(headers, rows):
-    if not rows:
-        return "_none_\n"
-    md = "|" + "|".join(headers) + "|\n"
-    md += "|" + "|".join(["---"] * len(headers)) + "|\n"
-    for r in rows:
-        md += "|" + "|".join(esc(str(r.get(h, ""))) for h in headers) + "|\n"
-    return md
+# -------------------- new rule fallback (incident fields) --------------------
+def get_incident_cf():
+    inc = demisto.incident() or {}
+    return inc.get("CustomFields") or {}
+
+def get_first_nonempty(*vals):
+    for v in vals:
+        if v not in (None, "", [], {}):
+            return v
+    return ""
+
+def count_indicators_from_cf(cf):
+    for k in ("trendmicrovisiononexdrindicatorsjson", "trendmicrovisiononexdrindicators", "indicators_json"):
+        if cf.get(k):
+            parsed = safe_json_loads(cf.get(k))
+            if isinstance(parsed, list):
+                return len(parsed)
+    return 0
 
 # -------------------- main --------------------
 def main():
     ctx = demisto.context() or {}
-
     alert, meta = find_alert_and_meta_in_context(ctx)
-    if not isinstance(alert, dict):
-        md_out("### Trend Micro Vision One — Metadata\n❌ Couldn’t locate a Vision One alert object anywhere in context.")
-        return
 
-    # Core fields
-    wb_id = alert.get("id") or "—"
-    workbench_link = alert.get("workbench_link") or ""
-    provider = alert.get("alert_provider") or alert.get("provider") or ""
-    model = alert.get("model") or ""
-    model_type = alert.get("model_type") or ""
-    model_id = alert.get("model_id") or ""
-    severity = alert.get("severity") or ""
-    score = alert.get("score")
-    schema_version = alert.get("schema_version") or ""
-    incident_id = alert.get("incident_id") or ""
-    case_id = alert.get("case_id") or ""
-    owner_ids = alert.get("owner_ids")
-    owner_txt = flat_join(owner_ids) if isinstance(owner_ids, list) else (owner_ids or "")
+    cf = get_incident_cf()
 
-    # Status fields
-    status = alert.get("status") or ""
-    inv_status = alert.get("investigation_status") or ""
-    inv_result = alert.get("investigation_result") or ""
+    # If full alert exists, use it (old rich mode). Otherwise use rule-mapped fields (fallback mode).
+    mode = "context-alert" if isinstance(alert, dict) else "rule-mapped"
 
-    # Timestamps
-    t_created = alert.get("created_date_time") or ""
-    t_updated = alert.get("updated_date_time") or ""
-    t_first_investigated = alert.get("first_investigated_date_time") or ""
+    if isinstance(alert, dict):
+        wb_id = alert.get("id") or "—"
+        workbench_link = alert.get("workbench_link") or ""
+        provider = alert.get("alert_provider") or alert.get("provider") or ""
+        model = alert.get("model") or ""
+        model_type = alert.get("model_type") or ""
+        model_id = alert.get("model_id") or ""
+        severity = alert.get("severity") or ""
+        score = alert.get("score")
+        schema_version = alert.get("schema_version") or ""
+        incident_id = alert.get("incident_id") or ""
+        case_id = alert.get("case_id") or ""
+        owner_ids = alert.get("owner_ids")
+        owner_txt = flat_join(owner_ids) if isinstance(owner_ids, list) else (owner_ids or "")
 
-    # Impact scope
-    counts, entities = summarize_impact_scope(alert.get("impact_scope") or {})
+        status = alert.get("status") or ""
+        inv_status = alert.get("investigation_status") or ""
+        inv_result = alert.get("investigation_result") or ""
 
-    # Matched rules summary
-    mr_rows = summarize_matched_rules(alert)
+        t_created = alert.get("created_date_time") or ""
+        t_updated = alert.get("updated_date_time") or ""
+        t_first_investigated = alert.get("first_investigated_date_time") or ""
 
-    # Indicators count (quick hint)
-    indicators = alert.get("indicators") or []
-    ind_count = len(indicators) if isinstance(indicators, list) else 0
+        counts, _entities = summarize_impact_scope(alert.get("impact_scope") or {})
+        mr_rows = summarize_matched_rules(alert)
 
-    # ETag (from wrapper meta if we saw one)
-    etag = meta.get("etag") if isinstance(meta, dict) else None
+        indicators = alert.get("indicators") or []
+        ind_count = len(indicators) if isinstance(indicators, list) else 0
+
+        etag = meta.get("etag") if isinstance(meta, dict) else None
+
+    else:
+        # ---- Fallback to rule-mapped fields ----
+        # These are based on your correlation-rule mappings:
+        # - originalalertid, externallink/external_pivot_url, externalstatus
+        # - trendmicrovisiononexdrpriorityscore, trendmicrovisiononexdrinvestigationstatus
+        # - source_insert_ts, severity
+        wb_id = get_first_nonempty(cf.get("originalalertid"), "—")
+        workbench_link = get_first_nonempty(cf.get("externallink"), cf.get("external_pivot_url"), "")
+        provider = get_first_nonempty(cf.get("originalalertsource"), "Trend Micro Vision One")
+        model = get_first_nonempty(cf.get("originalalertname"), "")
+        model_type = ""
+        model_id = ""
+        severity = get_first_nonempty(cf.get("severity"), "")
+        score = get_first_nonempty(cf.get("trendmicrovisiononexdrpriorityscore"), "")
+        schema_version = ""
+        incident_id = ""
+        case_id = ""
+        owner_txt = ""
+
+        status = get_first_nonempty(cf.get("externalstatus"), "")
+        inv_status = get_first_nonempty(cf.get("trendmicrovisiononexdrinvestigationstatus"), "")
+        inv_result = ""  # not mapped in your rule output unless you add it
+
+        t_created = get_first_nonempty(cf.get("source_insert_ts"), "")
+        t_updated = ""
+        t_first_investigated = ""
+
+        counts = None
+        mr_rows = []  # not available without matched_rules
+        ind_count = count_indicators_from_cf(cf)
+        etag = None
 
     # ----- Compose Markdown -----
     md = []
     md.append("### Trend Micro Vision One — Metadata")
-    md.append(f"**Workbench ID:** `{wb_id}`  ")
+    md.append(f"**Mode:** `{esc(mode)}`  ")
+    md.append(f"**Workbench ID:** `{esc(wb_id)}`  ")
     if workbench_link:
         md.append(f"**Workbench Link:** {esc(workbench_link)}  ")
     md.append("")
 
-    # Core
     core_pairs = [
         ("Provider", provider),
         ("Model", model),
@@ -221,7 +262,6 @@ def main():
     md.append("#### Core")
     md.append(make_kv_table(core_pairs))
 
-    # Status
     status_pairs = [
         ("Status", status),
         ("Investigation Status", inv_status),
@@ -230,7 +270,6 @@ def main():
     md.append("#### Status")
     md.append(make_kv_table(status_pairs))
 
-    # Timestamps
     time_pairs = [
         ("Created", t_created),
         ("Updated", t_updated),
@@ -239,17 +278,17 @@ def main():
     md.append("#### Timestamps")
     md.append(make_kv_table(time_pairs))
 
-    # Impact scope counts
     md.append("#### Impact Scope")
     if counts:
         md.append(make_kv_table(counts))
     else:
-        md.append("_none_\n")
+        md.append("_none (impact_scope not available in rule-mapped mode)_\n")
 
-    # Matched Rules summary
     md.append("#### Matched Rules")
-    mr_headers = ["Rule", "Filter", "When", "MITRE"]
-    md.append(make_table(mr_headers, mr_rows))
+    if mr_rows:
+        md.append(make_table(["Rule", "Filter", "When", "MITRE"], mr_rows))
+    else:
+        md.append("_none (matched_rules not available in rule-mapped mode)_\n")
 
     md_out("\n".join(md))
 
