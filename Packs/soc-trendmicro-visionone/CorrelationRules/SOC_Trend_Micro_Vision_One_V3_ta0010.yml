@@ -47,7 +47,7 @@ dataset: alerts
 description: null
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
-global_rule_id: c6eeabcc-3842-40e5-b327-7989f7f835be_ta0010
+global_rule_id: c6eeabcc-3842-40e5-b327-7989f7f835be_ta0003_ta0010
 investigation_query_link: ''
 lookup_mapping: []
 mapping_strategy: CUSTOM
@@ -203,58 +203,42 @@ xql_query: |
         )
 
   /* ---- Indicators (minimal set) ---- */
+  /* extract each indicator object once */
   | alter
-      peer0 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "peerIp"), 0),
-      cmd0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type")  = "command_line"), 0),
-      pfp0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "parentFilePath"), 0)
+  cmd0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type")  = "command_line"), 0),
+  reg0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "objectRegistryData"), 0),
+  peer0 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "peerIp"), 0),
+  pfp0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "parentFilePath"), 0),
+  sha0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type")  = "file_sha256"), 0),
+  md50  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type")  = "file_md5"), 0),
+  dom0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "domain"), 0)
 
-  /* cmdline */
-  | alter cmd0 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type") = "command_line"), 0)
-  | alter cmdline = json_extract_scalar(cmd0, "$.value")
+  /* values from the extracted indicator objects */
+  | alter
+  cmdline            = json_extract_scalar(cmd0,  "$.value"),
+  reg_path           = json_extract_scalar(reg0,  "$.value"),
+  remote_ip_str      = json_extract_scalar(peer0, "$.value"),
+  parent_process_path= json_extract_scalar(pfp0,  "$.value"),
+  sha256             = json_extract_scalar(sha0,  "$.value"),
+  md5                = json_extract_scalar(md50,  "$.value"),
+  domain             = json_extract_scalar(dom0,  "$.value")
 
-  /* file path fallback from registry_value_data/objectRegistryData */
-  | alter reg0 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "objectRegistryData"), 0)
-  | alter reg_path = json_extract_scalar(reg0, "$.value")
-
-  /* filepath = registry path if present, else first token of cmdline */
+  /* filepath + derived */
   | alter filepath =
-      coalesce(
-        reg_path,
-        arrayindex(regextract(cmdline, "^\\s*([^\\s]+)"), 0)
-      )
-
-  /* filename from filepath */
-  | alter filename = replace(filepath, "^.*[\\\\/]", "")
-
-  /* --- Get Remote IP --- */
-  | alter peer0 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "peerIp"), 0)
-  | alter remote_ip_str = json_extract_scalar(peer0, "$.value")
-
-  /* --- Get File SHA256 and MD5 --- */
-  | alter sha256 =
-      json_extract_scalar(
-        arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type") = "file_sha256"), 0),
-        "$.value"
-      )
-
-  | alter md5 =
-      json_extract_scalar(
-        arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type") = "file_md5"), 0),
-        "$.value"
-      )
-
-  | alter ioc_value = coalesce(sha256, md5)
-
-  | alter parent_process_path = json_extract_scalar(to_string(pfp0), "$.value")
-
-  | alter dom0 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "domain"), 0)
-  | alter domain = json_extract_scalar(dom0, "$.value")
-
-  | alter parent_process_name = replace(parent_process_path, "^.*[\\\\/]", "")
-
+  coalesce(
+    reg_path,
+    arrayindex(regextract(cmdline, "^\\s*([^\\s]+)"), 0)
+  )
   | alter
-      alert_source    = coalesce(alert_provider, "Trend Micro Vision One"),
-      indicators_json = to_string(indicators)
+  filename = replace(filepath, "^.*[\\\\/]", ""),
+  parent_process_name = replace(parent_process_path, "^.*[\\\\/]", "")
+
+  /* convenience */
+  | alter
+  ioc_value       = coalesce(sha256, md5),
+  alert_source    = coalesce(alert_provider, "Trend Micro Vision One"),
+  indicators_json = to_string(indicators)
+
 
   | fields
       id, workbench_link, alert_name, alert_source, status,
