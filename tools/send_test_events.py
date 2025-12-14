@@ -29,14 +29,51 @@ def read_events(path: str):
 # ---------- Timestamp helpers ----------
 
 def simple_set_timestamps(events: List[Dict[str, Any]]) -> None:
-    """
-    Original behavior: set only _time and _insert_time to now().
-    """
     now_iso = datetime.now(timezone.utc).isoformat()
+
+    # fields that often drive "observation time" or event time
+    top_level_time_fields = [
+        "alert_time",
+        "created_date_time",
+        "updated_date_time",
+        "@timestamp",
+        "timestamp",
+        "event_creation_time",
+        "eventCreationTime",
+        "EventTimestamp",
+        "observation_time",
+        "observationTime",
+        "source_insert_ts",
+    ]
+
     for ev in events:
         ev["_time"] = now_iso
         ev["_insert_time"] = now_iso
-    print(f"[*] (simple) Updated _time/_insert_time on {len(events)} event(s) → {now_iso}")
+
+        # update top-level fields if they exist
+        for k in top_level_time_fields:
+            if k in ev:
+                ev[k] = now_iso
+
+        # also update inside _alert_data.raw_json if present (dict or json string)
+        ad = ev.get("_alert_data")
+        if isinstance(ad, dict):
+            rj = ad.get("raw_json")
+            if isinstance(rj, str):
+                try:
+                    rj_obj = json.loads(rj)
+                except Exception:
+                    rj_obj = None
+                if isinstance(rj_obj, dict):
+                    rj_obj["created_date_time"] = now_iso
+                    rj_obj["updated_date_time"] = now_iso
+                    ad["raw_json"] = json.dumps(rj_obj)
+            elif isinstance(rj, dict):
+                rj["created_date_time"] = now_iso
+                rj["updated_date_time"] = now_iso
+
+    print(f"[*] (simple) Updated timestamps on {len(events)} event(s) → {now_iso}")
+
 
 
 def parse_event_time(raw: str, time_format: Optional[str]) -> datetime:
