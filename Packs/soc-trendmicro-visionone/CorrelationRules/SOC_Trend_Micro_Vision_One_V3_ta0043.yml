@@ -35,8 +35,6 @@ alert_fields:
   severity: severity
   source_insert_ts: alert_time
   tim_main_indicator: ioc_value
-  trendmicrovisiononexdrindicators: indicators_json
-  trendmicrovisiononexdrindicatorsjson: indicators_json
   trendmicrovisiononexdrinvestigationstatus: investigation_status
   trendmicrovisiononexdrpriorityscore: score
   userid: user_id
@@ -47,7 +45,7 @@ dataset: alerts
 description: null
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
-global_rule_id: c6eeabcc-3842-40e5-b327-7989f7f835be_ta0003_ta0043
+global_rule_id: 49b609a6-5fd8-4021-8b3c-982048cca0be_ta0043
 investigation_query_link: ''
 lookup_mapping: []
 mapping_strategy: CUSTOM
@@ -67,7 +65,7 @@ xql_query: |
 
   | alter j = _alert_data -> raw_json
 
-  /* --- MITRE technique (cheap: first rule/filter only) --- */
+  /* --- MITRE technique (cheap) --- */
   | alter j_str = to_string(j)
   | alter mitre_technique_id_raw =
       json_extract_scalar(j_str, "$.matched_rules[0].matched_filters[0].mitre_technique_ids[0]")
@@ -79,8 +77,6 @@ xql_query: |
         replace(replace(mitre_technique_id_raw, "\"",""), "\\.[0-9]+$",""),
         "—"
       )
-
-  /* --- Strip sub-technique: T1547.001 -> T1547 (only if it has a dot) --- */
   | alter mitre_ids_str =
       if(mitre_ids_str contains ".", arrayindex(regextract(mitre_ids_str, "(.*)\."), 0), mitre_ids_str)
 
@@ -100,7 +96,7 @@ xql_query: |
   | alter ta0010_exfiltration         = arraycreate("T1041","T1567","T1020")
   | alter ta0040_impact               = arraycreate("T1485","T1486","T1490","T1499","T1561")
 
-  /* --- Match Tactic Name (Impact -> Recon, no overwrite) --- */
+  /* --- Match Tactic Name + ID --- */
   | alter mitre_tactic = if (ta0040_impact contains mitre_ids_str, "Impact")
   | alter mitre_tactic = if (ta0010_exfiltration contains mitre_ids_str, "Exfiltration", mitre_tactic)
   | alter mitre_tactic = if (ta0011_command_and_control contains mitre_ids_str, "Command and Control", mitre_tactic)
@@ -116,7 +112,6 @@ xql_query: |
   | alter mitre_tactic = if (ta0042_resource_development contains mitre_ids_str, "Resource Development", mitre_tactic)
   | alter mitre_tactic = if (ta0043_reconnaissance contains mitre_ids_str, "Reconnaissance", mitre_tactic)
 
-  /* --- Match Tactic ID (Impact -> Recon, no overwrite) --- */
   | alter mitre_tactic_id = if (ta0040_impact contains mitre_ids_str, "TA0040")
   | alter mitre_tactic_id = if (ta0010_exfiltration contains mitre_ids_str, "TA0010", mitre_tactic_id)
   | alter mitre_tactic_id = if (ta0011_command_and_control contains mitre_ids_str, "TA0011", mitre_tactic_id)
@@ -132,7 +127,7 @@ xql_query: |
   | alter mitre_tactic_id = if (ta0042_resource_development contains mitre_ids_str, "TA0042", mitre_tactic_id)
   | alter mitre_tactic_id = if (ta0043_reconnaissance contains mitre_ids_str, "TA0043", mitre_tactic_id)
 
-  /* ---- Split Anchor (required by mitre split script) ---- */
+  /* ---- Split Anchor (required) ---- */
   | alter
       mitre_technique_id = mitre_ids_str,
       mitre_technique    = null,
@@ -140,7 +135,7 @@ xql_query: |
       mitre_tactic       = mitre_tactic
   | filter mitre_tactic_id = "TA0043" or mitre_tactic = "Reconnaissance"
 
-  /* ---- Core metadata ---- */
+  /* ---- Core metadata (keep legacy field names you mapped) ---- */
   | alter
       id                   = j -> id,
       status               = j -> status,
@@ -152,93 +147,67 @@ xql_query: |
       score                = to_integer(j -> score),
       severity             = j -> severity,
       alert_time           = j -> created_date_time,
-      alert_description    = j -> description
+      alert_description    = j -> description,
+      alert_source         = coalesce(j -> alert_provider, "Trend Micro Vision One"),
+      indicators           = j -> indicators[]
 
+  /* ---- FAST indicator extraction (no arraymap/indexof) ---- */
+  /* host */
+  | alter i_host = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type") = "host"), 0)
   | alter
-      indicators = j -> indicators[],
-      entities   = j -> impact_scope.entities[]
+      v1_host_guid = json_extract_scalar(i_host, "$.value.guid"),
+      v1_host_name = json_extract_scalar(i_host, "$.value.name"),
+      local_ip     = replace(json_extract_scalar(i_host, "$.value.ips[0]"), "\"", "")
 
-  /* ---- Host / User ---- */
-  | alter ent_hosts = arrayfilter(entities, json_extract_scalar("@element","$.entity_type") = "host")
-  | alter ent_users = arrayfilter(entities, json_extract_scalar("@element","$.entity_type") = "user")
-
-  | alter host0 = arrayindex(ent_hosts, 0)
-
-  | alter
-      v1_host_guid = json_extract_scalar(host0, "$.entity_value.guid"),
-      v1_host_name = json_extract_scalar(host0, "$.entity_value.name"),
-      local_ip     = replace(json_extract_scalar(host0, "$.entity_value.ips[0]"), "\"", "")
-
+  /* mac (host indicator value has multiple possibilities in some feeds; keep best-effort) */
   | alter mac_address =
       coalesce(
-        json_extract_scalar(host0, "$.entity_value.mac"),
-        json_extract_scalar(host0, "$.entity_value.mac_address"),
-        json_extract_scalar(host0, "$.entity_value.macs[0]"),
-        json_extract_scalar(host0, "$.entity_value.macAddresses[0]")
+        json_extract_scalar(i_host, "$.value.mac"),
+        json_extract_scalar(i_host, "$.value.mac_address"),
+        json_extract_scalar(i_host, "$.value.macs[0]"),
+        json_extract_scalar(i_host, "$.value.macAddresses[0]")
       )
 
-  | alter user0 =
-      arrayindex(
-        arrayfilter(
-          entities,
-          json_extract_scalar("@element","$.entity_type") = "user"
-          or json_extract_scalar("@element","$.entity_type") = "account"
-        ),
-        0
-      )
-
+  /* user */
+  | alter i_user = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type") = "user_account"), 0)
   | alter
-      user_name =
-        coalesce(
-          json_extract_scalar(user0, "$.entity_value.name"),
-          json_extract_scalar(user0, "$.entity_value.username"),
-          json_extract_scalar(user0, "$.entity_value") /* handles account string */
-        ),
-      user_id =
-        coalesce(
-          json_extract_scalar(user0, "$.entity_value.id"),
-          json_extract_scalar(user0, "$.entity_value.userId"),
-          json_extract_scalar(user0, "$.entity_value.sid"),
-          json_extract_scalar(user0, "$.entity_id") /* fallback */
-        )
+      user_name = json_extract_scalar(i_user, "$.value"),
+      user_id   = null
 
-  /* ---- Indicators (minimal set) ---- */
-  /* extract each indicator object once */
-  | alter
-  cmd0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type")  = "command_line"), 0),
-  reg0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "objectRegistryData"), 0),
-  peer0 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "peerIp"), 0),
-  pfp0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "parentFilePath"), 0),
-  sha0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type")  = "file_sha256"), 0),
-  md50  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type")  = "file_md5"), 0),
-  dom0  = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "domain"), 0)
+  /* cmdline */
+  | alter i_cmd1 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type") = "command_line"), 0)
+  | alter i_cmd2 = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "processCmd"), 0)
+  | alter cmdline = coalesce(json_extract_scalar(i_cmd1, "$.value"), json_extract_scalar(i_cmd2, "$.value"))
 
-  /* values from the extracted indicator objects */
-  | alter
-  cmdline            = json_extract_scalar(cmd0,  "$.value"),
-  reg_path           = json_extract_scalar(reg0,  "$.value"),
-  remote_ip_str      = json_extract_scalar(peer0, "$.value"),
-  parent_process_path= json_extract_scalar(pfp0,  "$.value"),
-  sha256             = json_extract_scalar(sha0,  "$.value"),
-  md5                = json_extract_scalar(md50,  "$.value"),
-  domain             = json_extract_scalar(dom0,  "$.value")
+  /* sha256 (main) */
+  | alter i_sha = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.type") = "file_sha256"), 0)
+  | alter sha256 = json_extract_scalar(i_sha, "$.value")
 
-  /* filepath + derived */
+  /* remote ip + domain */
+  | alter i_peer = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "peerIp"), 0)
+  | alter remote_ip_str = json_extract_scalar(i_peer, "$.value")
+
+  | alter i_dom = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "domain"), 0)
+  | alter domain = json_extract_scalar(i_dom, "$.value")
+
+  /* parent process path */
+  | alter i_pfp = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "parentFilePath"), 0)
+  | alter parent_process_path = json_extract_scalar(i_pfp, "$.value")
+  | alter parent_process_name = replace(parent_process_path, "^.*[\\\\/]", "")
+
+  /* filepath / filename (from registry object or cmdline fallback) */
+  | alter i_reg = arrayindex(arrayfilter(indicators, json_extract_scalar("@element","$.field") = "objectRegistryData"), 0)
+  | alter reg_path = json_extract_scalar(i_reg, "$.value")
+
   | alter filepath =
-  coalesce(
-    reg_path,
-    arrayindex(regextract(cmdline, "^\\s*([^\\s]+)"), 0)
-  )
-  | alter
-  filename = replace(filepath, "^.*[\\\\/]", ""),
-  parent_process_name = replace(parent_process_path, "^.*[\\\\/]", "")
+      coalesce(
+        reg_path,
+        arrayindex(regextract(cmdline, "^\\s*([^\\s]+)"), 0)
+      )
+  | alter filename = replace(filepath, "^.*[\\\\/]", "")
 
   /* convenience */
-  | alter
-  ioc_value       = coalesce(sha256, md5),
-  alert_source    = coalesce(alert_provider, "Trend Micro Vision One"),
-  indicators_json = to_string(indicators)
-
+  | alter ioc_value = coalesce(sha256, null)
 
   | fields
       id, workbench_link, alert_name, alert_source, status,
@@ -248,5 +217,4 @@ xql_query: |
       user_name, user_id,
       filename, filepath, parent_process_path, parent_process_name, cmdline,
       sha256, ioc_value, domain, remote_ip_str,
-      indicators_json,
       mitre_technique, mitre_technique_id, mitre_tactic, mitre_tactic_id, mitre_ids_str
