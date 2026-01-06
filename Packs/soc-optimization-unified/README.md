@@ -16,6 +16,7 @@ This repository outlines a scalable SOC optimization approach tailored for Palo 
 3. Check Auto Triage
 4. Click Enable Button
 
+
 ![Auto_Triage_Enable.png](../../docs/soc-optimization/Auto_Triage_Enable.png)
 ---
 
