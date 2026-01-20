@@ -172,18 +172,28 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Build zip with contents at top-level
-            zip_path = (dist / f"{pack}.zip").resolve()
-            if zip_path.exists():
-              zip_path.unlink()
+            # Build zip the CORRECT way for core-api-install-packs
+            # (demisto-sdk removes junk files and writes metadata.json)
+            before = set(dist.glob("*.zip"))
 
-            # Run from inside Packs/<pack> so '.' = its contents
-            run_cmd(
-              ["zip", "-r", str(zip_path), "."],
-              cwd=str(pack_path)
-            )
+            run_cmd([
+              "demisto-sdk", "zip-packs",
+              "-i", str(pack_path),
+              "-o", str(dist)
+            ])
 
-            input_zip = zip_path
+            after = set(dist.glob("*.zip"))
+            created = sorted(after - before)
+
+            if not created:
+              raise RuntimeError(f"{pack}: demisto-sdk zip-packs produced no zip in {dist}")
+
+            # Prefer a zip that contains the pack name, otherwise take the newest
+            candidates = [z for z in created if pack in z.name]
+            input_zip = (sorted(candidates) or created)[-1]
+
+            print("Created demisto-sdk pack zip:", input_zip)
+
             print("Created pack zip:", input_zip)
 
             # Decide tag & asset name based on environment
@@ -207,6 +217,12 @@ jobs:
             # Create or update GitHub Release
             exists = gh("release", "view", tag, check=False).returncode == 0
             if exists:
+              exists = gh("release", "view", tag, check=False).returncode == 0
+              if environment == "main":
+                  raise RuntimeError(
+                      f"Release tag {tag} already exists on main. Refusing to clobber. "
+                      f"Bump the pack version to publish a new immutable release."
+                  )
               gh("release", "upload", tag, str(final_zip), "--clobber")
             else:
               args = ["release", "create", tag, str(final_zip), "-t", title]
