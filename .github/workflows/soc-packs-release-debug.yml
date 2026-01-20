@@ -95,6 +95,7 @@ jobs:
         if: ${{ steps.changed.outputs.packs != '' }}
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
         run: |
           python - << 'PY'
           import json, os, subprocess
@@ -104,8 +105,14 @@ jobs:
           changed = os.environ["CHANGED_PACKS"].split()
           repo = os.environ["GITHUB_REPOSITORY"]
 
+          repo_root = Path.cwd()
+
           dist = Path("dist")
           dist.mkdir(exist_ok=True)
+
+          # demisto-sdk zip-packs writes here by default when -o dist is used
+          uploadable_dir = dist / "uploadable_packs"
+          uploadable_dir.mkdir(parents=True, exist_ok=True)
 
           def run_cmd(cmd, cwd=None, check=True):
               print("+", " ".join(cmd), f"(cwd={cwd or os.getcwd()})")
@@ -128,30 +135,32 @@ jobs:
 
             print(f"=== DRY RUN for pack={pack}, version={version} ===")
 
-            # Build plain zip
-            zip_path = dist / f"{pack}.zip"
-            if zip_path.exists():
-              zip_path.unlink()
-            before = set(dist.glob("*.zip"))
+            # Remove any prior zip-packs outputs for this pack so detection is reliable
+            for z in uploadable_dir.glob(f"*{pack}*.zip"):
+              try:
+                z.unlink()
+              except Exception:
+                pass
+
+            before = set(uploadable_dir.glob("*.zip"))
 
             run_cmd([
               "demisto-sdk", "zip-packs",
               "-i", str(pack_path),
               "-o", str(dist)
-            ])
+            ], cwd=str(repo_root))
 
-            after = set(dist.glob("*.zip"))
+            after = set(uploadable_dir.glob("*.zip"))
             created = sorted(after - before)
 
             if not created:
-              raise RuntimeError(f"{pack}: demisto-sdk zip-packs produced no zip in {dist}")
+              print(f"{pack}: demisto-sdk zip-packs produced no zip in {uploadable_dir} (skipping)")
+              continue
 
             candidates = [z for z in created if pack in z.name]
-            zip_path = (sorted(candidates) or created)[-1]
+            built_zip = (sorted(candidates) or created)[-1]
 
-            print(f"Built demisto-sdk zip: {zip_path}")
-
-            print(f"Built zip: {zip_path}")
+            print(f"Built demisto-sdk zip: {built_zip}")
 
             # Show what release tag/asset would be
             tag = f"{pack}-v{version}-staging"
@@ -180,7 +189,7 @@ jobs:
             if not found:
               print(f"Would set top-level cfg['url'] = {url}")
 
-          print(\"\\nDRY RUN COMPLETE (no releases created, no commits pushed)\")
+          print("\nDRY RUN COMPLETE (no releases created, no commits pushed)")
           PY
 
       - name: No packs changed

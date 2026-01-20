@@ -145,8 +145,14 @@ jobs:
           environment = os.environ["ENVIRONMENT"]
           repo = os.environ["GITHUB_REPOSITORY"]
 
+          repo_root = Path.cwd()
+
           dist = Path("dist")
           dist.mkdir(exist_ok=True)
+
+          # demisto-sdk zip-packs writes here by default when -o dist is used
+          uploadable_dir = dist / "uploadable_packs"
+          uploadable_dir.mkdir(parents=True, exist_ok=True)
 
           def run_cmd(cmd, cwd=None):
               print("+", " ".join(cmd), f"(cwd={cwd or os.getcwd()})")
@@ -172,21 +178,27 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # Build zip the CORRECT way for core-api-install-packs
-            # (demisto-sdk removes junk files and writes metadata.json)
-            before = set(dist.glob("*.zip"))
+            # ---- IMPORTANT: ensure we detect the zip produced by zip-packs ----
+            # Remove any previous zip-packs output for this pack so before/after works reliably.
+            for z in uploadable_dir.glob(f"*{pack}*.zip"):
+              try:
+                z.unlink()
+              except Exception:
+                pass
+
+            before = set(uploadable_dir.glob("*.zip"))
 
             run_cmd([
               "demisto-sdk", "zip-packs",
               "-i", str(pack_path),
               "-o", str(dist)
-            ])
+            ], cwd=str(repo_root))
 
-            after = set(dist.glob("*.zip"))
+            after = set(uploadable_dir.glob("*.zip"))
             created = sorted(after - before)
 
             if not created:
-              print(f"{pack}: no uploadable zip produced by demisto-sdk (skipping)")
+              print(f"{pack}: demisto-sdk zip-packs produced no zip in {uploadable_dir} (skipping)")
               continue
 
             # Prefer a zip that contains the pack name, otherwise take the newest
@@ -194,8 +206,6 @@ jobs:
             input_zip = (sorted(candidates) or created)[-1]
 
             print("Created demisto-sdk pack zip:", input_zip)
-
-            print("Created pack zip:", input_zip)
 
             # Decide tag & asset name based on environment
             if environment == "develop":
@@ -212,13 +222,14 @@ jobs:
             final_zip = dist / asset
             if final_zip.exists():
               final_zip.unlink()
+
+            # Move the demisto-sdk produced zip to the release asset name/location
             input_zip.rename(final_zip)
             print("Final asset zip:", final_zip)
 
             # Create or update GitHub Release
             exists = gh("release", "view", tag, check=False).returncode == 0
             if exists:
-              exists = gh("release", "view", tag, check=False).returncode == 0
               if environment == "main":
                   raise RuntimeError(
                       f"Release tag {tag} already exists on main. Refusing to clobber. "
