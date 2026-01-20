@@ -132,7 +132,24 @@ jobs:
             zip_path = dist / f"{pack}.zip"
             if zip_path.exists():
               zip_path.unlink()
-            run_cmd(["zip", "-r", str(zip_path), str(pack_path)])
+            before = set(dist.glob("*.zip"))
+
+            run_cmd([
+              "demisto-sdk", "zip-packs",
+              "-i", str(pack_path),
+              "-o", str(dist)
+            ])
+
+            after = set(dist.glob("*.zip"))
+            created = sorted(after - before)
+
+            if not created:
+              raise RuntimeError(f"{pack}: demisto-sdk zip-packs produced no zip in {dist}")
+
+            candidates = [z for z in created if pack in z.name]
+            zip_path = (sorted(candidates) or created)[-1]
+
+            print(f"Built demisto-sdk zip: {zip_path}")
 
             print(f"Built zip: {zip_path}")
 
