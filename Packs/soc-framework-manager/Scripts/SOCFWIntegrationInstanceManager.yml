@@ -1,0 +1,156 @@
+commonfields:
+  id: SOCFWIntegrationInstanceManager
+  version: 4
+vcShouldKeepItemLegacyProdMachine: false
+name: SOCFWIntegrationInstanceManager
+script: |-
+  register_module_line('IntegrationInstanceCreator', 'start', __line__())
+  demisto.debug('pack name = POVContentPack, pack version = 1.0.0')
+
+
+
+  SCRIPT_NAME = 'IntegrationInstanceCreator'
+
+
+  def configure_instance(integration_instance_name: str, existing_instance: Optional[Dict[str, Any]] = None, instance_name: str = None) -> str:
+      """Configures the integration instance in the XSOAR instance.
+      """
+      context = demisto.context()
+      instance_params = existing_instance or {}
+
+      config_setup = context.get("ConfigurationSetup", [])
+      if isinstance(config_setup, dict):
+          config_setup = [config_setup]
+
+      for config in config_setup:
+          for instance in config.get('IntegrationInstances', []):
+              if instance.get('name') == integration_instance_name:
+                  instance_params.update(instance)
+                  break
+          if instance_params:
+              break
+
+      if not instance_params:
+          return f"Failure. No integration instance definition found in context for {integration_instance_name}"
+
+      args = {'uri': 'xsoar/public/v1/settings/integration', 'body': instance_params}
+
+      if instance_name:
+          args['using'] = instance_name
+
+      status, res = execute_command(
+          'core-api-put',
+          args,
+          fail_on_error=False,
+      )
+
+      if not status:
+          error_message = f'{SCRIPT_NAME} - {res}'
+          demisto.debug(error_message)
+          raise Exception(f"POST to xsoar/public/v1/settings/integration failed with error: {error_message}")
+
+      return "Success"
+
+
+  def search_existing_instance(integration_instance_name: str, instance_name: str = None) -> Dict[str, Any]:
+      """Searches the machine for previously configured integration instances with the given name.
+
+      Args:
+          integration_instance_name (str): The name of the instance to update it's past configurations.
+          instance_name (str): Core REST API instance name.
+
+      Returns:
+          Dict[str, Any]. The integration data as configured on the machine.
+      """
+
+      args = {'uri': 'xsoar/public/v1/settings/integration/search', 'body': {}}
+
+      if instance_name:
+          args['using'] = instance_name
+
+      status, res = execute_command(
+          'core-api-post',
+          args,
+          fail_on_error=False,
+      )
+
+      if not status:
+          error_message = f'{SCRIPT_NAME} - {res}'
+          demisto.debug(error_message)
+          raise Exception(f"POST to xsoar/public/v1/settings/integration/search failed with error: {error_message}")
+
+      if isinstance(res, list):
+          res = res[0]
+
+      search_results = res.get('response', {}).get('instances', [])
+      name_results = [x for x in search_results if integration_instance_name in x.get('name')]
+      if name_results:
+          return name_results[0]
+
+      return {}
+
+
+  def main():
+      args = demisto.args()
+      instance_name = args.get('using')
+      integration_instance_name = args.get('integration_instance_name')
+
+      try:
+          existing_instance = search_existing_instance(integration_instance_name, instance_name)
+          if existing_instance:
+              configuration_status = "Already existing on the machine."
+          else:
+              configuration_status = configure_instance(integration_instance_name, existing_instance, instance_name)
+
+          return_results(
+              CommandResults(
+                  outputs_prefix='ConfigurationSetup.IntegrationInstances',
+                  outputs_key_field='name',
+                  outputs={
+                      'name': integration_instance_name,
+                      'integrationinstancename': integration_instance_name,
+                      'creationstatus': configuration_status,
+                  },
+              )
+          )
+
+      except Exception as e:
+          return_error(f'{SCRIPT_NAME} - Error occurred while configuring integration instance "{integration_instance_name}".\n{e}')
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+
+  register_module_line('IntegrationInstanceCreator', 'end', __line__())
+type: python
+tags:
+- configuration
+- Content Management
+- SOC
+- SOC_Framework
+- SOC_Framework_Unified
+- SOCFWBootloader
+comment: Integration Instance Creator for the Content Management pack.
+enabled: true
+args:
+- supportedModules: []
+  name: integration_instance_name
+  required: true
+  default: true
+  description: The name of the integration instance to configure.
+outputs:
+- contextPath: ConfigurationSetup.IntegrationInstances.creationstatus
+  description: The creation status of the integration instance.
+  type: Unknown
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/xsoar-tools:1.0.0.1902141
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+id: SOCFWIntegrationInstanceManager
+fromversion: 5.0.0

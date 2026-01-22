@@ -42,6 +42,7 @@ jobs:
 
       - name: Install demisto-sdk
         run: |
+          python -m pip install --upgrade pip
           pip install "demisto-sdk>=1.0.0"
 
       ############################################
@@ -134,7 +135,9 @@ jobs:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
           ENVIRONMENT: ${{ steps.envinfo.outputs.environment }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+
+          # IMPORTANT: run SDK in content-repo context to avoid "external-" rewrites
+          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
           python - << 'PY'
           import json, os, subprocess
@@ -150,10 +153,6 @@ jobs:
           dist = Path("dist")
           dist.mkdir(exist_ok=True)
 
-          # demisto-sdk zip-packs writes here by default when -o dist is used
-          uploadable_dir = dist / "uploadable_packs"
-          uploadable_dir.mkdir(parents=True, exist_ok=True)
-
           def run_cmd(cmd, cwd=None):
               print("+", " ".join(cmd), f"(cwd={cwd or os.getcwd()})")
               subprocess.run(cmd, check=True, cwd=cwd)
@@ -161,6 +160,14 @@ jobs:
           def gh(*args, check=True):
               print("+ gh", " ".join(args))
               return subprocess.run(["gh", *args], check=check)
+
+          def newest_zip_created(before_set):
+              after = {p.resolve() for p in dist.rglob("*.zip")}
+              created = sorted(after - before_set)
+              if created:
+                  created.sort(key=lambda p: p.stat().st_mtime)
+                  return created[-1]
+              return None
 
           for pack in changed:
             pack_path = packs_dir / pack
@@ -178,34 +185,40 @@ jobs:
 
             print(f"Processing pack={pack}, version={version}")
 
-            # ---- IMPORTANT: ensure we detect the zip produced by zip-packs ----
-            # Remove any previous zip-packs output for this pack so before/after works reliably.
-            for z in uploadable_dir.glob(f"*{pack}*.zip"):
-              try:
-                z.unlink()
-              except Exception:
-                pass
+            # Snapshot zips so we can detect what prepare-content created
+            before = {p.resolve() for p in dist.rglob("*.zip")}
 
-            before = set(uploadable_dir.glob("*.zip"))
-
+            # Build pack zip for XSIAM (marketplacev2)
             run_cmd([
-              "demisto-sdk", "zip-packs",
+              "demisto-sdk", "prepare-content",
               "-i", str(pack_path),
-              "-o", str(dist)
+              "-o", str(dist),
+              "--marketplace", "marketplacev2",
             ], cwd=str(repo_root))
 
-            after = set(uploadable_dir.glob("*.zip"))
-            created = sorted(after - before)
+            built_zip = newest_zip_created(before)
+            if not built_zip or not built_zip.exists():
+              # fallback: find newest zip in dist that contains pack name
+              candidates = [z for z in dist.rglob("*.zip") if pack in z.name]
+              if candidates:
+                  candidates.sort(key=lambda p: p.stat().st_mtime)
+                  built_zip = candidates[-1]
 
-            if not created:
-              print(f"{pack}: demisto-sdk zip-packs produced no zip in {uploadable_dir} (skipping)")
+            if not built_zip or not built_zip.exists():
+              print(f"{pack}: prepare-content produced no zip under dist/ (skipping)")
               continue
 
-            # Prefer a zip that contains the pack name, otherwise take the newest
-            candidates = [z for z in created if pack in z.name]
-            input_zip = (sorted(candidates) or created)[-1]
+            print("Created demisto-sdk pack zip:", built_zip)
 
-            print("Created demisto-sdk pack zip:", input_zip)
+            # Optional sanity check: ensure XSIAM-specific folders appear in the zip
+            try:
+              listing = subprocess.check_output(["unzip", "-l", str(built_zip)], text=True)
+              has_xsiam = ("CorrelationRules" in listing) or ("XSIAMDashboards" in listing)
+              print(f"Zip contains CorrelationRules/XSIAMDashboards: {has_xsiam}")
+              if not has_xsiam:
+                  print("WARNING: zip does not appear to include CorrelationRules/ or XSIAMDashboards/")
+            except Exception as e:
+              print(f"WARNING: could not inspect zip contents: {e}")
 
             # Decide tag & asset name based on environment
             if environment == "develop":
@@ -223,8 +236,8 @@ jobs:
             if final_zip.exists():
               final_zip.unlink()
 
-            # Move the demisto-sdk produced zip to the release asset name/location
-            input_zip.rename(final_zip)
+            # Move the prepare-content produced zip to the release asset name/location
+            built_zip.rename(final_zip)
             print("Final asset zip:", final_zip)
 
             # Create or update GitHub Release
@@ -293,7 +306,6 @@ jobs:
           echo "PACK_UNDER_TEST=$PACK" >> "$GITHUB_ENV"
           echo "CONTENT_REPO_RAW_LINK=$URL" >> "$GITHUB_ENV"
 
-
       - name: Checkout xsiam-pov-automation
         uses: actions/checkout@v4
         with:
@@ -317,7 +329,9 @@ jobs:
           DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
           XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
           CONTENT_REPO_RAW_LINK: ${{ env.CONTENT_REPO_RAW_LINK }}
-          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+
+          # Also run SDK in content-repo context in case setup.py calls SDK (some flows do)
+          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
           echo "Running POV setup against $DEMISTO_BASE_URL"
           echo "Using CONTENT_REPO_RAW_LINK=$CONTENT_REPO_RAW_LINK"
