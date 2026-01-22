@@ -1,0 +1,276 @@
+commonfields:
+  id: SOCFWLookupManager
+  version: 4
+vcShouldKeepItemLegacyProdMachine: false
+name: SOCFWLookupManager
+script: |-
+  register_module_line('LookupDatasetCreator', 'start', __line__())
+  demisto.debug('pack name = POVContentPack, pack version = 1.0.0')
+
+
+  SCRIPT_NAME = 'LookupDatasetCreator'
+  OMITTED_FIELDS = ['_collector_name', '_collector_type', '_insert_time', '_update_time']
+
+
+  def remove_omitted_fields(data: List[dict]) -> List[dict]:
+      for item in data:
+          for field in OMITTED_FIELDS:
+              item.pop(field, None)
+      return data
+
+
+  def parse_data_from_file(dataset_name: str) -> List[dict]:
+      """
+      Parse a File from the demisto context to grab the Lookup Dataset dta
+
+      :param dataset_name: str, name of the Lookup Dataset
+      :return: List of data
+      """
+      dataset_file_entry_id = None
+
+      instance_context = demisto.context()
+      context_files = instance_context.get('File', [])
+      if not isinstance(context_files, list):
+          context_files = [context_files]
+
+      # Search through all Context Files to grab the File's EntryID
+      for file_in_context in context_files:
+          file_in_context_name = file_in_context.get('Name', '')
+          if file_in_context_name == dataset_name:
+              dataset_file_entry_id = file_in_context.get('EntryID')
+              dataset_file_entry_type = file_in_context.get('Type')
+              break
+
+      if not dataset_file_entry_id:
+          error_message = f'Could not find file entry ID: {dataset_name} .'
+          demisto.debug(f'{SCRIPT_NAME}, "{dataset_name}" - {error_message}.')
+          raise Exception(error_message)
+
+      # Use the entry ID to grab the file's path
+      try:
+          file_path = demisto.getFilePath(dataset_file_entry_id)['path']
+      except Exception:
+          error_message = f'Could not find a file with entry ID {dataset_file_entry_id}'
+          demisto.debug(f'{SCRIPT_NAME}, "{dataset_file_entry_id}" - {error_message}.')
+          raise Exception(error_message)
+
+      with open(file_path, 'r') as f:
+          raw_file_data = f.read()
+
+      if dataset_file_entry_type == "JSON text data":
+          parsed_data = json.loads(raw_file_data)
+      elif dataset_file_entry_type == "New Line Delimited JSON text data":
+          parsed_data = [json.loads(x.strip()) for x in raw_file_data.split("\n") if x]
+      else:
+          error_message = f'Could not determine file type for entry ID {dataset_file_entry_id}'
+          demisto.debug(f'{SCRIPT_NAME}, "{dataset_file_entry_id}" - {error_message}.')
+          raise Exception(error_message)
+
+      return parsed_data
+
+
+  def add_data(dataset_name: str, instance_name: str = None) -> str:
+      """Adds data from context to a specific lookup dataset.
+      """
+      context = demisto.context()
+      instance_params = {}
+
+      config_setup = context.get("ConfigurationSetup", [])
+      if isinstance(config_setup, dict):
+          config_setup = [config_setup]
+
+      for config in config_setup:
+          for instance in config.get('LookupDatasets', []):
+              if instance.get('dataset_name') == dataset_name:
+                  data = instance.get('data')
+                  if not data:
+                      data = parse_data_from_file(dataset_name)
+
+                  data = remove_omitted_fields(data)
+
+                  instance_params = {
+                      'dataset_name': dataset_name,
+                      'data': data
+                  }
+                  break
+          if instance_params:
+              break
+
+      if not instance_params:
+          return f"Failure. No lookup dataset definition found in context for {dataset_name}"
+
+      args = {'uri': '/public_api/v1/xql/lookups/add_data', 'body': {'request_data': instance_params}}
+
+      if instance_name:
+          args['using'] = instance_name
+
+      status, res = execute_command(
+          'core-api-post',
+          args,
+          fail_on_error=False,
+      )
+
+      if not status:
+          error_message = f'{SCRIPT_NAME} - add_data - {res}'
+          demisto.debug(error_message)
+          raise Exception(f"POST to /public_api/v1/xql/lookups/add_data failed with error: {error_message}")
+
+      if isinstance(res, list):
+          res = res[0]
+
+      return str(res.get("response", {}).get("reply"))
+
+
+  def create_dataset(dataset_name: str, instance_name: str = None) -> str:
+      """Creates a new dataset in the XSOAR instance.
+      """
+      context = demisto.context()
+      instance_params = {}
+
+      config_setup = context.get("ConfigurationSetup", [])
+      if isinstance(config_setup, dict):
+          config_setup = [config_setup]
+
+      for config in config_setup:
+
+          for instance in config.get('LookupDatasets', []):
+              if instance.get('dataset_name') == dataset_name:
+                  instance_params = {
+                      'dataset_name': dataset_name,
+                      'dataset_type': instance.get('dataset_type'),
+                      'dataset_schema': instance.get('dataset_schema')
+                  }
+                  break
+          if instance_params:
+              break
+
+      if not instance_params:
+          return f"Failure. No lookup dataset definition found in context for {dataset_name}"
+
+      args = {'uri': '/public_api/v1/xql/add_dataset', 'body': {'request_data': instance_params}}
+
+      if instance_name:
+          args['using'] = instance_name
+
+      status, res = execute_command(
+          'core-api-post',
+          args,
+          fail_on_error=False,
+      )
+
+      if not status:
+          error_message = f'{SCRIPT_NAME} - create_dataset - {res}'
+          demisto.debug(error_message)
+          raise Exception(f"POST to /public_api/v1/xql/add_dataset failed with error: {error_message}")
+
+      return "Success"
+
+
+  def search_existing_dataset(dataset_name: str, instance_name: str = None) -> Dict[str, Any]:
+      """Searches the machine for previously configured integration instances with the given name.
+
+      Args:
+          integration_instance_name (str): The name of the instance to update it's past configurations.
+          instance_name (str): Core REST API instance name.
+
+      Returns:
+          Dict[str, Any]. The integration data as configured on the machine.
+      """
+
+      args = {'uri': '/public_api/v1/xql/get_datasets', 'body': {}}
+
+      if instance_name:
+          args['using'] = instance_name
+
+      status, res = execute_command(
+          'core-api-post',
+          args,
+          fail_on_error=False,
+      )
+
+      if not status:
+          error_message = f'{SCRIPT_NAME} - search_existing_dataset - {res}'
+          demisto.debug(error_message)
+          raise Exception(f"POST to /public_api/v1/xql/get_datasets failed with error: {error_message}")
+
+      if isinstance(res, list):
+          res = res[0]
+      search_results = res.get('response', {}).get("reply", [])
+      name_results = [x for x in search_results if dataset_name == x.get('Dataset Name')]
+      if name_results:
+          return name_results[0]
+
+      return {}
+
+
+  def main():
+      args = demisto.args()
+      instance_name = args.get('using')
+      lookup_dataset_name = args.get('lookup_dataset_name')
+
+      try:
+          # Check to see if the Dataset exists before adding data
+          existing_dataset = search_existing_dataset(lookup_dataset_name, instance_name)
+          if not existing_dataset:
+              dataset_creation_status = create_dataset(lookup_dataset_name, instance_name)
+
+              # If dataset created successfully, add data to the dataset
+              if dataset_creation_status == "Success":
+                  lookup_data_status = add_data(lookup_dataset_name, instance_name)
+              else:
+                  lookup_data_status = dataset_creation_status
+
+          else:
+              lookup_data_status = "Dataset already exists."
+
+          return_results(
+              CommandResults(
+                  outputs_prefix='ConfigurationSetup.LookupDatasets',
+                  outputs_key_field='dataset_name',
+                  outputs={
+                      'dataset_name': lookup_dataset_name,
+                      'creationstatus': lookup_data_status,
+                  },
+              )
+          )
+
+      except Exception as e:
+          return_error(f'{SCRIPT_NAME} - Error occurred while configuring lookup dataset "{lookup_dataset_name}".\n{e}')
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+
+  register_module_line('LookupDatasetCreator', 'end', __line__())
+type: python
+tags:
+- configuration
+- Content Management
+- SOC
+- SOC_Framework
+- SOC_Framework_Unified
+- SOCFWBootloader
+comment: Lookup Dataset Creator for the Content Management pack.
+enabled: true
+args:
+- supportedModules: []
+  name: lookup_dataset_name
+  required: true
+  default: true
+  description: The name of the lookup_dataset to configure.
+outputs:
+- contextPath: ConfigurationSetup.LookupDatasets.creationstatus
+  description: The creation status of the integration instance.
+  type: Unknown
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/xsoar-tools:1.0.0.1902141
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+id: SOCFWLookupManager
+fromversion: 5.0.0

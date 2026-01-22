@@ -26,6 +26,7 @@ jobs:
 
       - name: Install demisto-sdk
         run: |
+          python -m pip install --upgrade pip
           pip install "demisto-sdk>=1.0.0"
 
       # 1) Discover packs
@@ -95,28 +96,35 @@ jobs:
         if: ${{ steps.changed.outputs.packs != '' }}
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
-          DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+          # IMPORTANT: run SDK in a content-repo context (prevents "external-" rewrite issues)
+          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
           python - << 'PY'
-          import json, os, subprocess
+          import json, os, subprocess, time
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
           changed = os.environ["CHANGED_PACKS"].split()
           repo = os.environ["GITHUB_REPOSITORY"]
-
           repo_root = Path.cwd()
 
           dist = Path("dist")
           dist.mkdir(exist_ok=True)
 
-          # demisto-sdk zip-packs writes here by default when -o dist is used
-          uploadable_dir = dist / "uploadable_packs"
-          uploadable_dir.mkdir(parents=True, exist_ok=True)
-
           def run_cmd(cmd, cwd=None, check=True):
               print("+", " ".join(cmd), f"(cwd={cwd or os.getcwd()})")
               return subprocess.run(cmd, check=check, cwd=cwd)
+
+          def newest_matching_zip(pack: str) -> Path | None:
+              # prepare-content output location can vary by SDK version/config; search dist recursively
+              zips = list(dist.rglob("*.zip"))
+              # Prefer zips that contain the pack name, otherwise take newest zip
+              candidates = [z for z in zips if pack in z.name]
+              pool = candidates or zips
+              if not pool:
+                  return None
+              pool.sort(key=lambda p: p.stat().st_mtime)
+              return pool[-1]
 
           for pack in changed:
             pack_path = packs_dir / pack
@@ -135,32 +143,44 @@ jobs:
 
             print(f"=== DRY RUN for pack={pack}, version={version} ===")
 
-            # Remove any prior zip-packs outputs for this pack so detection is reliable
-            for z in uploadable_dir.glob(f"*{pack}*.zip"):
-              try:
-                z.unlink()
-              except Exception:
-                pass
+            # Snapshot current zips so we can detect what got created
+            before = {p.resolve() for p in dist.rglob("*.zip")}
 
-            before = set(uploadable_dir.glob("*.zip"))
-
+            # Build using prepare-content for marketplacev2 (XSIAM)
             run_cmd([
-              "demisto-sdk", "zip-packs",
+              "demisto-sdk", "prepare-content",
               "-i", str(pack_path),
-              "-o", str(dist)
+              "-o", str(dist),
+              "--marketplace", "marketplacev2",
             ], cwd=str(repo_root))
 
-            after = set(uploadable_dir.glob("*.zip"))
+            after = {p.resolve() for p in dist.rglob("*.zip")}
             created = sorted(after - before)
 
-            if not created:
-              print(f"{pack}: demisto-sdk zip-packs produced no zip in {uploadable_dir} (skipping)")
+            built_zip = None
+            if created:
+                # Prefer a zip with the pack name if present
+                candidates = [z for z in created if pack in z.name]
+                built_zip = (sorted(candidates) or created)[-1]
+            else:
+                # Fallback: pick newest matching zip in dist
+                built_zip = newest_matching_zip(pack)
+
+            if not built_zip or not built_zip.exists():
+              print(f"{pack}: prepare-content produced no zip under dist/ (skipping)")
               continue
 
-            candidates = [z for z in created if pack in z.name]
-            built_zip = (sorted(candidates) or created)[-1]
-
             print(f"Built demisto-sdk zip: {built_zip}")
+
+            # Optional sanity check: ensure XSIAM-specific content exists in the zip
+            try:
+                listing = subprocess.check_output(["unzip", "-l", str(built_zip)], text=True)
+                has_xsiam_bits = ("CorrelationRules" in listing) or ("XSIAMDashboards" in listing)
+                print(f"Zip contains CorrelationRules/XSIAMDashboards: {has_xsiam_bits}")
+                if not has_xsiam_bits:
+                    print("WARNING: zip does not appear to include XSIAMDashboards/CorrelationRules")
+            except Exception as e:
+                print(f"WARNING: could not inspect zip contents ({e})")
 
             # Show what release tag/asset would be
             tag = f"{pack}-v{version}-staging"

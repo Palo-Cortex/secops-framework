@@ -1,0 +1,526 @@
+commonfields:
+  id: SOCFWPackManager
+  version: 37
+vcShouldKeepItemLegacyProdMachine: false
+name: SOCFWPackManager
+script: |
+  import json
+  import time
+  import requests
+
+  # ---------------------------
+  # Helpers
+  # ---------------------------
+  def is_timeout_error(err_text: str) -> bool:
+      if not err_text:
+          return False
+      t = err_text.lower()
+      return (
+          "timeout" in t
+          or "timed out" in t
+          or "read timed out" in t
+          or "request timed out" in t
+          or "context deadline exceeded" in t
+      )
+
+
+  def core_api_post(path: str, body: dict, using: str = "", execution_timeout: int = 600):
+      """
+      Wrapper around core-api-post.
+      """
+      args = {
+          "uri": path,
+          "body": json.dumps(body or {}),
+          "execution-timeout": str(execution_timeout),
+      }
+      if using:
+          args["using"] = using
+
+      res = demisto.executeCommand("core-api-post", args)
+      if not res or isError(res[0]):
+          raise Exception(get_error(res))
+      return get_contents(res) or {}
+
+
+  def lookup_dataset_exists_via_get_datasets(dataset_name: str, using: str = "", execution_timeout: int = 600) -> bool:
+      """
+      Uses /public_api/v1/xql/get_datasets to check dataset existence.
+      Returns True if dataset_name is present.
+      """
+      data = core_api_post("/public_api/v1/xql/get_datasets", {}, using=using, execution_timeout=execution_timeout)
+
+      candidates = []
+      if isinstance(data, dict):
+          for k in ("datasets", "reply", "data", "result", "results"):
+              v = data.get(k)
+              if isinstance(v, list):
+                  candidates = v
+                  break
+          if not candidates and isinstance(data.get("Contents"), list):
+              candidates = data.get("Contents")
+      elif isinstance(data, list):
+          candidates = data
+
+      target = (dataset_name or "").strip().lower()
+      for item in candidates or []:
+          if not isinstance(item, dict):
+              continue
+          dn = (item.get("dataset_name") or item.get("name") or "").strip().lower()
+          if dn == target:
+              return True
+
+      return False
+
+
+  def arg_to_bool(val, default=False):
+      """
+      Accepts: True/False, "True"/"False", "true"/"false", 1/0, yes/no, on/off.
+      """
+      if val is None:
+          return default
+      if isinstance(val, bool):
+          return val
+      s = str(val).strip().lower()
+      if s == "":
+          return default
+      return s in ("true", "1", "yes", "y", "on")
+
+
+  def to_int(val, default):
+      try:
+          return int(val)
+      except Exception:
+          return default
+
+
+  def bool_str_tf(val: bool) -> str:
+      return "True" if bool(val) else "False"
+
+
+  def get_contents(res):
+      if not res or not isinstance(res, list) or not res[0]:
+          return {}
+      return res[0].get("Contents") or {}
+
+
+  def emit_progress(message: str, stage: str = None, data: dict = None):
+      """
+      Emit a visible War Room note entry so the user sees progress.
+      """
+      try:
+          title = "SOCFW Pack Manager"
+          if stage:
+              title = f"SOCFW Pack Manager — {stage}"
+          hr = f"### {title}\n{message}"
+          entry = {
+              "Type": 1,  # note
+              "ContentsFormat": "json",
+              "Contents": data or {"message": message, "stage": stage},
+              "HumanReadable": hr,
+          }
+          demisto.results(entry)
+      except Exception:
+          pass
+
+
+  def is_cluster_busy_error(err_text: str) -> bool:
+      if not err_text:
+          return False
+      t = err_text.lower()
+      return (
+          "can't acquire cluster lock" in t
+          or "cannot acquire cluster lock" in t
+          or "state must be 'idle'" in t
+          or "state must be \"idle\"" in t
+          or "but is 'installing'" in t
+          or "but is \"installing\"" in t
+          or ("erruploadcontentpacks" in t and "installing" in t)
+      )
+
+
+  def exec_with_retry(command_name: str, command_args: dict, retry_count: int, retry_sleep_seconds: int, context_for_error: str):
+      """
+      Execute a command and retry only for transient errors (cluster lock/installing OR timeouts).
+      Returns the raw demisto.executeCommand result.
+      """
+      retry_count = max(0, int(retry_count))
+      retry_sleep_seconds = max(1, int(retry_sleep_seconds))
+
+      attempt = 0
+      last_err = None
+
+      while True:
+          attempt += 1
+          res = demisto.executeCommand(command_name, command_args)
+
+          if res and not isError(res[0]):
+              return res
+
+          last_err = get_error(res) if res else "No response returned"
+
+          # ✅ Retry on BOTH cluster busy and timeout-style errors
+          if (is_cluster_busy_error(last_err) or is_timeout_error(last_err)) and attempt <= retry_count:
+              sleep_s = retry_sleep_seconds * attempt
+              emit_progress(
+                  message=(
+                      f"Transient error detected. Retrying **{attempt}/{retry_count}** in **{sleep_s}s**.\n\n"
+                      f"**Command:** `{command_name}`\n\n"
+                      f"**Error:** {last_err}"
+                  ),
+                  stage="retry",
+                  data={
+                      "command": command_name,
+                      "attempt": attempt,
+                      "retry_count": retry_count,
+                      "sleep_seconds": sleep_s,
+                      "error": last_err,
+                  },
+              )
+              time.sleep(sleep_s)
+              continue
+
+          raise Exception(f"{context_for_error}\nError: {last_err}")
+
+
+  def http_get_json(url: str, timeout: int = 60):
+      """
+      Fetch JSON from URL.
+      Supports:
+        - standard JSON object or array
+        - NDJSON (newline-delimited JSON objects), returns a list
+      """
+      try:
+          r = requests.get(url, timeout=timeout)
+          r.raise_for_status()
+          text = r.text.lstrip("\ufeff").strip()
+
+          try:
+              return json.loads(text)
+          except Exception as e:
+              msg = str(e)
+              if "Extra data" in msg or "Expecting value" in msg:
+                  items = []
+                  for line in text.splitlines():
+                      line = line.strip()
+                      if not line:
+                          continue
+                      items.append(json.loads(line))
+                  if items:
+                      return items
+              raise
+      except Exception as e:
+          raise Exception(f"Failed to fetch/parse JSON from {url}: {e}")
+
+
+  def set_configuration_setup_in_context(xsoar_config: dict, timeout: int = 60):
+      """
+      Build ConfigurationSetup context in the shape expected by managers.
+      Also hydrates lookup_datasets[].url -> lookup_datasets[].data
+      """
+      integration_instances = xsoar_config.get("integration_instances", []) or []
+      jobs = xsoar_config.get("jobs", []) or []
+
+      lookup_datasets = xsoar_config.get("lookup_datasets", []) or []
+      hydrated_lookups = []
+
+      for lk in lookup_datasets:
+          if not isinstance(lk, dict):
+              continue
+
+          item = dict(lk)
+          url = (item.get("url") or "").strip()
+
+          if not item.get("data") and url:
+              item["data"] = http_get_json(url, timeout=timeout)
+
+          hydrated_lookups.append(item)
+
+      cfg = {
+          "IntegrationInstances": integration_instances,
+          "Jobs": jobs,
+          "LookupDatasets": hydrated_lookups,
+      }
+
+      demisto.setContext("ConfigurationSetup", [cfg])
+
+
+  def _now_ms():
+      return int(time.time() * 1000)
+
+
+  def main():
+      start_ms = _now_ms()
+      args = demisto.args()
+
+      action = (args.get("action") or "apply").strip().lower()
+      if action not in ("list", "apply"):
+          return_error("action must be one of: list, apply")
+
+      include_hidden = arg_to_bool(args.get("include_hidden", "True"), True)
+      dry_run = arg_to_bool(args.get("dry_run", "False"), False)
+      catalog_url = (args.get("catalog_url") or "").strip()
+
+      execution_timeout = to_int(args.get("execution_timeout", 600), 600)
+      retry_count = to_int(args.get("retry_count", 5), 5)
+      retry_sleep_seconds = to_int(args.get("retry_sleep_seconds", 15), 15)
+
+      using = (args.get("using") or "").strip()
+
+      # -------------------------
+      # ACTION: LIST
+      # -------------------------
+      if action == "list":
+          emit_progress("Fetching catalog…", stage="list")
+
+          cat_args = {}
+          if catalog_url:
+              cat_args["catalog_url"] = catalog_url
+
+          res = demisto.executeCommand("socfw-get-catalog", cat_args)
+          if not res or isError(res[0]):
+              return_error(f"Failed to fetch catalog: {get_error(res)}")
+
+          return_results(res)
+          return
+
+      # -------------------------
+      # ACTION: APPLY
+      # -------------------------
+      pack_id = (args.get("pack_id") or "").strip()
+      if not pack_id:
+          return_error("pack_id is required when action=apply")
+
+      install_marketplace = arg_to_bool(args.get("install_marketplace", "True"), True)
+
+      apply_configure = arg_to_bool(args.get("apply_configure", "True"), True)
+      configure_jobs = arg_to_bool(args.get("configure_jobs", "True"), True)
+      configure_integrations = arg_to_bool(args.get("configure_integrations", "True"), True)
+      configure_lookups = arg_to_bool(args.get("configure_lookups", "True"), True)
+
+      overwrite_lookup = arg_to_bool(args.get("overwrite_lookup", "False"), False)
+
+      skip_verify = arg_to_bool(args.get("skip_verify", "True"), True)
+      skip_validation = arg_to_bool(args.get("skip_validation", "True"), True)
+
+      emit_progress(
+          message=(
+              f"Starting apply for **{pack_id}**\n\n"
+              f"- include_hidden={bool_str_tf(include_hidden)}\n"
+              f"- dry_run={bool_str_tf(dry_run)}\n"
+              f"- install_marketplace={bool_str_tf(install_marketplace)}\n"
+              f"- apply_configure={bool_str_tf(apply_configure)} "
+              f"(jobs={bool_str_tf(configure_jobs)}, integrations={bool_str_tf(configure_integrations)}, lookups={bool_str_tf(configure_lookups)})\n"
+              f"- overwrite_lookup={bool_str_tf(overwrite_lookup)}\n"
+              f"- retries={retry_count}, retry_sleep_seconds={retry_sleep_seconds}\n"
+              f"- using={(using or '(default)')}"
+          ),
+          stage="start",
+      )
+
+      # 1) Resolve manifest
+      emit_progress("Resolving install manifest…", stage="manifest")
+
+      manifest_args = {"pack_id": pack_id, "include_hidden": bool_str_tf(include_hidden)}
+      if catalog_url:
+          manifest_args["catalog_url"] = catalog_url
+
+      res = demisto.executeCommand("socfw-get-install-manifest", manifest_args)
+      if not res or isError(res[0]):
+          return_error(f"Failed to resolve install manifest for {pack_id}: {get_error(res)}")
+
+      manifest = get_contents(res) or {}
+      custom_packs = manifest.get("custom_packs", []) or []
+      marketplace_packs = manifest.get("marketplace_packs", []) or []
+      xsoar_config_url = (manifest.get("xsoar_config_url") or "").strip()
+
+      custom_urls = []
+      for cp in custom_packs:
+          if isinstance(cp, dict) and cp.get("url"):
+              custom_urls.append(cp.get("url"))
+
+      summary = {
+          "action": "apply",
+          "pack_id": manifest.get("pack_id") or pack_id,
+          "display_name": manifest.get("display_name"),
+          "pack_version": manifest.get("pack_version"),
+          "xsoar_config_url": xsoar_config_url,
+          "dry_run": dry_run,
+          "include_hidden": include_hidden,
+          "install_marketplace": install_marketplace,
+          "apply_configure": apply_configure,
+          "configure_jobs": configure_jobs,
+          "configure_integrations": configure_integrations,
+          "configure_lookups": configure_lookups,
+          "overwrite_lookup": overwrite_lookup,
+          "skip_verify": skip_verify,
+          "skip_validation": skip_validation,
+          "execution_timeout": execution_timeout,
+          "retry_count": retry_count,
+          "retry_sleep_seconds": retry_sleep_seconds,
+          "custom_pack_urls": custom_urls,
+          "using": using or None,
+          "timing_ms": {"total": None, "manifest": None, "marketplace": None, "custom": None, "configure": None},
+          "results": {
+              "marketplace": {"status": "skipped"},
+              "custom": {"total": len(custom_urls), "ok": 0, "failed": 0, "items": []},
+              "configure": {"status": "skipped", "details": {}},
+          },
+      }
+
+      emit_progress(
+          message=(
+              "Manifest resolved.\n\n"
+              f"- Pack: **{summary['pack_id']}** ({summary.get('display_name')}) v{summary.get('pack_version')}\n"
+              f"- Marketplace packs listed: **{len(marketplace_packs) if isinstance(marketplace_packs, list) else 0}**\n"
+              f"- Custom ZIP URLs: **{len(custom_urls)}**"
+          ),
+          stage="manifest",
+      )
+
+      summary["timing_ms"]["manifest"] = _now_ms() - start_ms
+
+      # 2) Dry run
+      if dry_run:
+          md = (
+              "### SOCFW Pack Manager (dry run)\n"
+              f"- Pack: **{summary['pack_id']}** ({summary.get('display_name')}) v{summary.get('pack_version')}\n"
+              f"- Marketplace listed: **{len(marketplace_packs) if isinstance(marketplace_packs, list) else 0}**\n"
+              f"- Custom ZIP URLs: **{len(custom_urls)}**\n"
+          )
+          if custom_urls:
+              md += "\n" + "\n".join([f"  - {u}" for u in custom_urls])
+
+          if apply_configure:
+              md += (
+                  "\n\n"
+                  f"- Configure: **True** "
+                  f"(jobs={bool_str_tf(configure_jobs)}, integrations={bool_str_tf(configure_integrations)}, "
+                  f"lookups={bool_str_tf(configure_lookups)}, overwrite_lookup
+type: python
+tags:
+- configuration
+- Content Management
+- SOC
+- SOC_Framework
+- SOC_Framework_Unified
+- SOCFWBootloader
+enabled: true
+args:
+- supportedModules: []
+  name: action
+  required: true
+  auto: PREDEFINED
+  predefined:
+  - list
+  - apply
+  description: 'What to do. Suggested values: list or apply. Apply requires pack_id'
+  defaultValue: apply
+- supportedModules: []
+  name: pack_id
+  description: The pack ID from pack_catalog.json (e.g., soc-optimization-unified).
+    Required for Apply
+- supportedModules: []
+  name: catalog_url
+  description: Override the catalog URL without touching the integration instance
+    params.
+- supportedModules: []
+  name: include_hidden
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  description: Allow installing packs where visible=false in the catalog.
+  defaultValue: "False"
+- supportedModules: []
+  name: dry_run
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  description: Don’t install or configure — just show what would happen.
+  defaultValue: "False"
+- supportedModules: []
+  name: install_marketplace
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  description: Whether to install marketplace_packs from xsoar_config.json.
+  defaultValue: "False"
+- supportedModules: []
+  name: execution_timeout
+  description: Timeout for the core installs and core-api REST calls.
+  defaultValue: "600"
+- supportedModules: []
+  name: skip_verify
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  description: Passed through to core-api-install-packs for ZIP installs.
+  defaultValue: "True"
+- supportedModules: []
+  name: skip_validation
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  description: Passed through to core-api-install-packs for ZIP installs.
+  defaultValue: "False"
+- supportedModules: []
+  name: apply_configure
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  description: Whether to apply config sections from xsoar_config.json (instances,
+    jobs, lookups).
+  defaultValue: "True"
+- supportedModules: []
+  name: overwrite_lookup
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  description: To over-write the SOC Framework Lookup Table.  If you have a custom
+    lookup table save it first.
+  defaultValue: "False"
+- supportedModules: []
+  name: configure_jobs
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  defaultValue: "True"
+- supportedModules: []
+  name: configure_integrations
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  defaultValue: "True"
+- supportedModules: []
+  name: configure_lookups
+  auto: PREDEFINED
+  predefined:
+  - "True"
+  - "False"
+  defaultValue: "True"
+- supportedModules: []
+  name: retry_count
+  defaultValue: "5"
+- supportedModules: []
+  name: retry_sleep_seconds
+  defaultValue: "15"
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.6796194
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+id: SOCFWPackManager
+fromversion: 5.0.0
