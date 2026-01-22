@@ -1,16 +1,66 @@
 commonfields:
-  id: SOCFWPackManager
-  version: 37
+  id: e5c63c0b-e4ea-4928-8eed-5e51b9ad9ce8
+  version: 57
 vcShouldKeepItemLegacyProdMachine: false
 name: SOCFWPackManager
 script: |
   import json
   import time
+  from typing import Any, Dict, List, Optional
+
   import requests
 
+  # ============================================================
+  # SOCFWPackManager (bootloader)
+  # - list: shows SOC Framework pack catalog (like your screenshot)
+  # - apply: resolves pack_id via secops-framework pack_catalog.json (not "manifest URL only")
+  # - marketplace install: uses XSIAMContentPackInstaller (Anna’s) when available
+  # - custom ZIP install: uses core-api-install-packs with file_url (NOT pack_url)
+  # - configure: runs your SOCFW* manager scripts (instances/jobs/lookups)
+  # ============================================================
+
+  SCRIPT_NAME = "SOCFWPackManager"
+
   # ---------------------------
-  # Helpers
+  # Basic Demisto helpers
   # ---------------------------
+
+  def get_error(res):
+      try:
+          return res[0].get("Contents") or res[0].get("HumanReadable") or str(res[0])
+      except Exception:
+          return str(res)
+
+  def is_error(res0):
+      try:
+          return bool(res0.get("Type") == 4)  # entryTypes["error"] == 4
+      except Exception:
+          return False
+
+  def get_contents(res):
+      if not res or not isinstance(res, list) or not res[0]:
+          return {}
+      return res[0].get("Contents") or {}
+
+  def arg_to_bool(val, default=False) -> bool:
+      if val is None:
+          return default
+      if isinstance(val, bool):
+          return val
+      s = str(val).strip().lower()
+      if s == "":
+          return default
+      return s in ("true", "1", "yes", "y", "on")
+
+  def to_int(val, default: int) -> int:
+      try:
+          return int(val)
+      except Exception:
+          return default
+
+  def bool_str_tf(val: bool) -> str:
+      return "True" if bool(val) else "False"
+
   def is_timeout_error(err_text: str) -> bool:
       if not err_text:
           return False
@@ -23,379 +73,598 @@ script: |
           or "context deadline exceeded" in t
       )
 
+  def emit_progress(message: str, stage: Optional[str] = None):
+      title = f"{SCRIPT_NAME} — {stage}" if stage else SCRIPT_NAME
+      demisto.results(
+          {
+              "Type": 1,
+              "ContentsFormat": "markdown",
+              "Contents": message,
+              "HumanReadable": f"### {title}\n{message}",
+          }
+      )
 
-  def core_api_post(path: str, body: dict, using: str = "", execution_timeout: int = 600):
+  def exec_cmd(command: str, args: Dict[str, Any], fail_on_error: bool = True):
+      res = demisto.executeCommand(command, args)
+      if not res:
+          if fail_on_error:
+              raise Exception(f"{command} returned empty response")
+          return res
+      if is_error(res[0]):
+          if fail_on_error:
+              raise Exception(get_error(res))
+          return res
+      return res
+
+  def exec_with_retry(
+      command: str,
+      args: Dict[str, Any],
+      retry_count: int,
+      retry_sleep_seconds: int,
+      context_for_error: str,
+      fail_on_error: bool = True,
+  ):
+      last_err = None
+      for attempt in range(1, max(1, retry_count) + 1):
+          try:
+              return exec_cmd(command, args, fail_on_error=fail_on_error)
+          except Exception as e:
+              last_err = str(e)
+              if attempt >= retry_count:
+                  break
+              # retry on timeouts, otherwise still retry after sleep (tenant flakiness)
+              time.sleep(max(1, retry_sleep_seconds))
+              continue
+      if fail_on_error:
+          raise Exception(f"{context_for_error}\nError: {last_err}")
+      return None
+
+  # ---------------------------
+  # Core API wrappers
+  # ---------------------------
+
+  def core_api_get(path: str, using: str = "", execution_timeout: int = 600) -> Dict[str, Any]:
+      args = {"uri": path, "execution-timeout": str(execution_timeout)}
+      if using:
+          args["using"] = using
+      res = exec_cmd("core-api-get", args)
+      return get_contents(res) or {}
+
+  def core_api_post(path: str, body: Any, using: str = "", execution_timeout: int = 600) -> Dict[str, Any]:
+      args = {"uri": path, "body": json.dumps(body if body is not None else {}), "execution-timeout": str(execution_timeout)}
+      if using:
+          args["using"] = using
+      res = exec_cmd("core-api-post", args)
+      return get_contents(res) or {}
+
+  # ---------------------------
+  # HTTP JSON helpers
+  # ---------------------------
+
+  def http_get_json(url: str, timeout: int = 30) -> Any:
+      r = requests.get(url, timeout=timeout)
+      r.raise_for_status()
+      return r.json()
+
+  # ---------------------------
+  # Catalog + Manifest resolver (RESTORED)
+  # ---------------------------
+
+  DEFAULT_CATALOG_URL = "https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/pack_catalog.json"
+
+  def fetch_pack_catalog(catalog_url: str = DEFAULT_CATALOG_URL) -> Dict[str, Any]:
+      data = http_get_json(catalog_url)
+      if not isinstance(data, dict):
+          raise Exception(f"pack_catalog.json unexpected format at {catalog_url}")
+      return data
+
+  def find_pack_in_catalog(catalog: Dict[str, Any], pack_id: str) -> Optional[Dict[str, Any]]:
+      packs = catalog.get("packs") or catalog.get("Packs") or catalog.get("items") or []
+      if not isinstance(packs, list):
+          return None
+      for p in packs:
+          if isinstance(p, dict) and (p.get("id") == pack_id):
+              return p
+      return None
+
+  def resolve_manifest(pack_id: str, include_hidden: bool) -> Dict[str, Any]:
       """
-      Wrapper around core-api-post.
+      Restored behavior:
+      - If pack_id is a URL -> treat it as a manifest JSON URL
+      - Else -> resolve using secops-framework pack_catalog.json + standard repo conventions
       """
+      if pack_id.startswith("http://") or pack_id.startswith("https://"):
+          return http_get_json(pack_id)
+
+      catalog = fetch_pack_catalog(DEFAULT_CATALOG_URL)
+      pack = find_pack_in_catalog(catalog, pack_id)
+      if not pack:
+          raise Exception(f"Pack '{pack_id}' not found in pack_catalog.json")
+
+      visible = bool(pack.get("visible", True))
+      if (not include_hidden) and (not visible):
+          # still allow apply for hidden packs if user explicitly provides it
+          # but list will hide it. For apply, we won’t block.
+          pass
+
+      version = (pack.get("version") or "").strip()
+      if not version:
+          raise Exception(f"Pack '{pack_id}' missing version in pack_catalog.json")
+
+      # Standard conventions you’ve been using:
+      # - xsoar_config.json lives in Packs/{pack_id}/xsoar_config.json on main
+      xsoar_config_url = f"https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/Packs/{pack_id}/xsoar_config.json"
+
+      # - release ZIP asset/tag is {pack_id}-v{version}/{pack_id}-v{version}.zip
+      release_tag = f"{pack_id}-v{version}"
+      zip_url = f"https://github.com/Palo-Cortex/secops-framework/releases/download/{release_tag}/{release_tag}.zip"
+
+      # If you need pack-specific marketplace dependencies later, add them to catalog and read them here.
+      # For now keep your known baseline behavior for soc-optimization.
+      marketplace_packs = [
+          {"id": "Base", "version": "latest"},
+          {"id": "CommonScripts", "version": "latest"},
+          {"id": "CommonPlaybooks", "version": "latest"},
+          {"id": "DemistoRESTAPI", "version": "latest"},
+          {"id": "Whois", "version": "latest"},
+      ]
+
+      return {
+          "marketplace_packs": marketplace_packs,
+          "custom_zip_urls": [{"url": zip_url, "name": release_tag}],
+          "xsoar_config_url": xsoar_config_url,
+          "pack_catalog_entry": pack,
+          "pack_version": version,
+      }
+
+  # ---------------------------
+  # list action (RESTORED like screenshot)
+  # ---------------------------
+
+  def do_list(args: Dict[str, Any]):
+      using = (args.get("using") or "").strip()
+      include_hidden = arg_to_bool(args.get("include_hidden"), False)
+
+      emit_progress("Fetching catalog…", stage="list")
+
+      catalog = fetch_pack_catalog(DEFAULT_CATALOG_URL)
+      packs = catalog.get("packs") or catalog.get("Packs") or catalog.get("items") or []
+      if not isinstance(packs, list):
+          raise Exception("pack_catalog.json is missing 'packs' list")
+
+      rows = []
+      for p in packs:
+          if not isinstance(p, dict):
+              continue
+          visible = bool(p.get("visible", True))
+          if (not include_hidden) and (not visible):
+              continue
+          rows.append(
+              {
+                  "id": p.get("id", ""),
+                  "display_name": p.get("display_name") or p.get("name") or "",
+                  "version": p.get("version", ""),
+                  "visible": str(visible).lower(),
+                  "path": p.get("path") or f"Packs/{p.get('id','')}",
+              }
+          )
+
+      rows.sort(key=lambda x: (x["id"] or ""))
+
+      # Render markdown table (matches your screenshot format)
+      header = "SOC Framework Pack Catalog\n\nAvailable Packs\n"
+      table = "| id | display_name | version | visible | path |\n|---|---|---:|---:|---|\n"
+      for r in rows:
+          table += f'| {r["id"]} | {r["display_name"]} | {r["version"]} | {r["visible"]} | {r["path"]} |\n'
+
+      emit_progress(
+          f"using: {(using or '(default)')}\ninclude_hidden: {include_hidden}\n\n{header}\n{table}",
+          stage="list",
+      )
+      return
+
+  # ---------------------------
+  # Marketplace install (USE ANNA’S SCRIPT)
+  # ---------------------------
+
+  def install_marketplace_packs(
+      marketplace_packs: List[Dict[str, str]],
+      using: str,
+      retry_count: int,
+      retry_sleep_seconds: int,
+  ) -> Dict[str, Any]:
+      emit_progress(
+          "Installing marketplace packs via **XSIAMContentPackInstaller**…\n"
+          + "\n".join([f'{p.get("id")} @ {p.get("version")}' for p in marketplace_packs]),
+          stage="packs.marketplace",
+      )
+
       args = {
-          "uri": path,
-          "body": json.dumps(body or {}),
-          "execution-timeout": str(execution_timeout),
+          "packs_data": marketplace_packs,
+          "pack_id_key": "id",
+          "pack_version_key": "version",
+          "install_dependencies": "true",
       }
       if using:
           args["using"] = using
 
-      res = demisto.executeCommand("core-api-post", args)
-      if not res or isError(res[0]):
-          raise Exception(get_error(res))
-      return get_contents(res) or {}
+      res = exec_with_retry(
+          "XSIAMContentPackInstaller",
+          args,
+          retry_count=retry_count,
+          retry_sleep_seconds=retry_sleep_seconds,
+          context_for_error="Failed installing marketplace packs via XSIAMContentPackInstaller",
+          fail_on_error=True,
+      )
+      return get_contents(res) if res else {}
 
-
-  def lookup_dataset_exists_via_get_datasets(dataset_name: str, using: str = "", execution_timeout: int = 600) -> bool:
-      """
-      Uses /public_api/v1/xql/get_datasets to check dataset existence.
-      Returns True if dataset_name is present.
-      """
-      data = core_api_post("/public_api/v1/xql/get_datasets", {}, using=using, execution_timeout=execution_timeout)
-
-      candidates = []
-      if isinstance(data, dict):
-          for k in ("datasets", "reply", "data", "result", "results"):
-              v = data.get(k)
-              if isinstance(v, list):
-                  candidates = v
-                  break
-          if not candidates and isinstance(data.get("Contents"), list):
-              candidates = data.get("Contents")
-      elif isinstance(data, list):
-          candidates = data
-
-      target = (dataset_name or "").strip().lower()
-      for item in candidates or []:
-          if not isinstance(item, dict):
-              continue
-          dn = (item.get("dataset_name") or item.get("name") or "").strip().lower()
-          if dn == target:
-              return True
-
-      return False
-
-
-  def arg_to_bool(val, default=False):
-      """
-      Accepts: True/False, "True"/"False", "true"/"false", 1/0, yes/no, on/off.
-      """
-      if val is None:
-          return default
-      if isinstance(val, bool):
-          return val
-      s = str(val).strip().lower()
-      if s == "":
-          return default
-      return s in ("true", "1", "yes", "y", "on")
-
-
-  def to_int(val, default):
+  def fetch_installed_marketplace_pack_ids(using: str) -> List[str]:
       try:
-          return int(val)
+          r = core_api_get("/contentpacks/metadata/installed", using=using)
+          packs = (r.get("response") or []) if isinstance(r, dict) else []
+          ids = []
+          for p in packs:
+              pid = p.get("id")
+              if pid:
+                  ids.append(pid)
+          return ids
       except Exception:
-          return default
+          return []
 
+  # ---------------------------
+  # xsoar_config
+  # ---------------------------
 
-  def bool_str_tf(val: bool) -> str:
-      return "True" if bool(val) else "False"
+  def fetch_xsoar_config(xsoar_config_url: str) -> Dict[str, Any]:
+      data = http_get_json(xsoar_config_url)
+      if not isinstance(data, dict):
+          raise Exception(f"xsoar_config.json unexpected format at {xsoar_config_url}")
+      return data
 
+  # ---------------------------
+  # Custom packs install (FIXED: file_url, NOT pack_url)
+  # ---------------------------
 
-  def get_contents(res):
-      if not res or not isinstance(res, list) or not res[0]:
-          return {}
-      return res[0].get("Contents") or {}
+  def install_custom_pack_zip(url: str, using: str, execution_timeout: int, retry_count: int, retry_sleep_seconds: int):
+      args = {"file_url": url, "execution-timeout": str(max(1200, execution_timeout))}
+      if using:
+          args["using"] = using
 
-
-  def emit_progress(message: str, stage: str = None, data: dict = None):
-      """
-      Emit a visible War Room note entry so the user sees progress.
-      """
-      try:
-          title = "SOCFW Pack Manager"
-          if stage:
-              title = f"SOCFW Pack Manager — {stage}"
-          hr = f"### {title}\n{message}"
-          entry = {
-              "Type": 1,  # note
-              "ContentsFormat": "json",
-              "Contents": data or {"message": message, "stage": stage},
-              "HumanReadable": hr,
-          }
-          demisto.results(entry)
-      except Exception:
-          pass
-
-
-  def is_cluster_busy_error(err_text: str) -> bool:
-      if not err_text:
-          return False
-      t = err_text.lower()
-      return (
-          "can't acquire cluster lock" in t
-          or "cannot acquire cluster lock" in t
-          or "state must be 'idle'" in t
-          or "state must be \"idle\"" in t
-          or "but is 'installing'" in t
-          or "but is \"installing\"" in t
-          or ("erruploadcontentpacks" in t and "installing" in t)
+      exec_with_retry(
+          "core-api-install-packs",
+          args,
+          retry_count=retry_count,
+          retry_sleep_seconds=retry_sleep_seconds,
+          context_for_error=f"Failed installing custom pack ZIP: {url}",
+          fail_on_error=True,
       )
 
+  # ---------------------------
+  # Configure (jobs / integrations / lookups)
+  # ---------------------------
 
-  def exec_with_retry(command_name: str, command_args: dict, retry_count: int, retry_sleep_seconds: int, context_for_error: str):
-      """
-      Execute a command and retry only for transient errors (cluster lock/installing OR timeouts).
-      Returns the raw demisto.executeCommand result.
-      """
-      retry_count = max(0, int(retry_count))
-      retry_sleep_seconds = max(1, int(retry_sleep_seconds))
+  def configure_integrations_from_xsoar_config(
+      xsoar_cfg: Dict[str, Any],
+      using: str,
+      retry_count: int,
+      retry_sleep_seconds: int,
+      installed_pack_ids: List[str],
+  ):
+      emit_progress("Configuring integration instances…", stage="configure.integrations")
 
-      attempt = 0
-      last_err = None
-
-      while True:
-          attempt += 1
-          res = demisto.executeCommand(command_name, command_args)
-
-          if res and not isError(res[0]):
-              return res
-
-          last_err = get_error(res) if res else "No response returned"
-
-          # ✅ Retry on BOTH cluster busy and timeout-style errors
-          if (is_cluster_busy_error(last_err) or is_timeout_error(last_err)) and attempt <= retry_count:
-              sleep_s = retry_sleep_seconds * attempt
-              emit_progress(
-                  message=(
-                      f"Transient error detected. Retrying **{attempt}/{retry_count}** in **{sleep_s}s**.\n\n"
-                      f"**Command:** `{command_name}`\n\n"
-                      f"**Error:** {last_err}"
-                  ),
-                  stage="retry",
-                  data={
-                      "command": command_name,
-                      "attempt": attempt,
-                      "retry_count": retry_count,
-                      "sleep_seconds": sleep_s,
-                      "error": last_err,
-                  },
-              )
-              time.sleep(sleep_s)
+      for inst in xsoar_cfg.get("integration_instances", []) or []:
+          if not isinstance(inst, dict):
               continue
 
-          raise Exception(f"{context_for_error}\nError: {last_err}")
+          name = (inst.get("name") or "").strip()
+          if not name:
+              continue
 
+          required_pack = (
+              (inst.get("required_pack_id") or inst.get("marketplace_pack") or inst.get("pack_id") or "").strip()
+          )
+          if required_pack and required_pack not in installed_pack_ids:
+              emit_progress(
+                  f"Skipping integration instance **{name}** — marketplace pack **{required_pack}** not installed.",
+                  stage="configure.integrations",
+              )
+              continue
 
-  def http_get_json(url: str, timeout: int = 60):
-      """
-      Fetch JSON from URL.
-      Supports:
-        - standard JSON object or array
-        - NDJSON (newline-delimited JSON objects), returns a list
-      """
-      try:
-          r = requests.get(url, timeout=timeout)
-          r.raise_for_status()
-          text = r.text.lstrip("\ufeff").strip()
+          emit_progress(f"Configuring integration instance: **{name}**", stage="configure.integrations")
+
+          cmd_args = {
+              "integration_instance_name": name,
+              "integration_instance_data": json.dumps(inst),
+          }
+          if using:
+              cmd_args["using"] = using
+
+          res = exec_with_retry(
+              "SOCFWIntegrationInstanceManager",
+              cmd_args,
+              retry_count=retry_count,
+              retry_sleep_seconds=retry_sleep_seconds,
+              context_for_error=f"Failed configuring integration instance: {name}",
+              fail_on_error=True,
+          )
 
           try:
-              return json.loads(text)
-          except Exception as e:
-              msg = str(e)
-              if "Extra data" in msg or "Expecting value" in msg:
-                  items = []
-                  for line in text.splitlines():
-                      line = line.strip()
-                      if not line:
-                          continue
-                      items.append(json.loads(line))
-                  if items:
-                      return items
-              raise
-      except Exception as e:
-          raise Exception(f"Failed to fetch/parse JSON from {url}: {e}")
+              c = get_contents(res)
+              emit_progress(
+                  f"Integration instance **{name}** result: Contents keys: {list((c or {}).keys())}",
+                  stage="configure.integrations.result",
+              )
+          except Exception:
+              pass
 
+  def configure_jobs_from_xsoar_config(
+      xsoar_cfg: Dict[str, Any],
+      using: str,
+      retry_count: int,
+      retry_sleep_seconds: int,
+  ):
+      emit_progress("Configuring jobs…", stage="configure.jobs")
 
-  def set_configuration_setup_in_context(xsoar_config: dict, timeout: int = 60):
-      """
-      Build ConfigurationSetup context in the shape expected by managers.
-      Also hydrates lookup_datasets[].url -> lookup_datasets[].data
-      """
-      integration_instances = xsoar_config.get("integration_instances", []) or []
-      jobs = xsoar_config.get("jobs", []) or []
-
-      lookup_datasets = xsoar_config.get("lookup_datasets", []) or []
-      hydrated_lookups = []
-
-      for lk in lookup_datasets:
-          if not isinstance(lk, dict):
+      for job in xsoar_cfg.get("jobs", []) or []:
+          if not isinstance(job, dict):
               continue
 
-          item = dict(lk)
-          url = (item.get("url") or "").strip()
+          name = (job.get("name") or job.get("job_name") or "").strip()
+          if not name:
+              continue
 
-          if not item.get("data") and url:
-              item["data"] = http_get_json(url, timeout=timeout)
+          emit_progress(f"Configuring job: **{name}**", stage="configure.jobs")
 
-          hydrated_lookups.append(item)
+          cmd_args = {
+              "job_name": name,
+              "job_data": json.dumps(job),
+          }
+          if using:
+              cmd_args["using"] = using
 
-      cfg = {
-          "IntegrationInstances": integration_instances,
-          "Jobs": jobs,
-          "LookupDatasets": hydrated_lookups,
-      }
+          res = exec_with_retry(
+              "SOCFWJobManager",
+              cmd_args,
+              retry_count=retry_count,
+              retry_sleep_seconds=retry_sleep_seconds,
+              context_for_error=f"Failed configuring job: {name}",
+              fail_on_error=True,
+          )
 
-      demisto.setContext("ConfigurationSetup", [cfg])
+          try:
+              c = get_contents(res)
+              emit_progress(
+                  f"Job **{name}** result: Contents keys: {list((c or {}).keys())}",
+                  stage="configure.jobs.result",
+              )
+          except Exception:
+              pass
 
+  def configure_lookups_from_xsoar_config(
+      xsoar_cfg: Dict[str, Any],
+      using: str,
+      retry_count: int,
+      retry_sleep_seconds: int,
+      overwrite_lookup: bool,
+  ):
+      emit_progress("Configuring lookup datasets…", stage="configure.lookups")
 
-  def _now_ms():
-      return int(time.time() * 1000)
+      for ds in xsoar_cfg.get("lookup_datasets", []) or []:
+          if not isinstance(ds, dict):
+              continue
 
+          name = (ds.get("name") or ds.get("dataset_name") or "").strip()
+          if not name:
+              continue
+
+          emit_progress(f"Configuring lookup dataset: **{name}**", stage="configure.lookups")
+
+          cmd_args = {
+              "lookup_dataset_name": name,
+              "lookup_dataset_data": json.dumps(ds),
+              "overwrite_lookup": bool_str_tf(overwrite_lookup),
+          }
+          if using:
+              cmd_args["using"] = using
+
+          res = exec_with_retry(
+              "SOCFWLookupManager",
+              cmd_args,
+              retry_count=retry_count,
+              retry_sleep_seconds=retry_sleep_seconds,
+              context_for_error=f"Failed configuring lookup dataset: {name}",
+              fail_on_error=True,
+          )
+
+          try:
+              c = get_contents(res)
+              emit_progress(
+                  f"Lookup **{name}** result: Contents keys: {list((c or {}).keys())}",
+                  stage="configure.lookups.result",
+              )
+          except Exception:
+              pass
+
+  # ---------------------------
+  # Main
+  # ---------------------------
 
   def main():
-      start_ms = _now_ms()
       args = demisto.args()
 
       action = (args.get("action") or "apply").strip().lower()
-      if action not in ("list", "apply"):
-          return_error("action must be one of: list, apply")
-
-      include_hidden = arg_to_bool(args.get("include_hidden", "True"), True)
-      dry_run = arg_to_bool(args.get("dry_run", "False"), False)
-      catalog_url = (args.get("catalog_url") or "").strip()
-
-      execution_timeout = to_int(args.get("execution_timeout", 600), 600)
-      retry_count = to_int(args.get("retry_count", 5), 5)
-      retry_sleep_seconds = to_int(args.get("retry_sleep_seconds", 15), 15)
-
-      using = (args.get("using") or "").strip()
-
-      # -------------------------
-      # ACTION: LIST
-      # -------------------------
-      if action == "list":
-          emit_progress("Fetching catalog…", stage="list")
-
-          cat_args = {}
-          if catalog_url:
-              cat_args["catalog_url"] = catalog_url
-
-          res = demisto.executeCommand("socfw-get-catalog", cat_args)
-          if not res or isError(res[0]):
-              return_error(f"Failed to fetch catalog: {get_error(res)}")
-
-          return_results(res)
-          return
-
-      # -------------------------
-      # ACTION: APPLY
-      # -------------------------
       pack_id = (args.get("pack_id") or "").strip()
+      include_hidden = arg_to_bool(args.get("include_hidden"), False)
+      dry_run = arg_to_bool(args.get("dry_run"), False)
+
+      install_marketplace_flag = arg_to_bool(args.get("install_marketplace"), True)
+      apply_configure = arg_to_bool(args.get("apply_configure"), True)
+      configure_jobs = arg_to_bool(args.get("configure_jobs"), True)
+      configure_integrations = arg_to_bool(args.get("configure_integrations"), True)
+      configure_lookups = arg_to_bool(args.get("configure_lookups"), True)
+      overwrite_lookup = arg_to_bool(args.get("overwrite_lookup"), False)
+
+      retry_count = to_int(args.get("retry_count"), 5)
+      retry_sleep_seconds = to_int(args.get("retry_sleep_seconds"), 15)
+      using = (args.get("using") or "").strip()
+      execution_timeout = to_int(args.get("execution_timeout"), 1200)
+
+      fail_on_marketplace_errors = arg_to_bool(args.get("fail_on_marketplace_errors"), False)
+
+      if action not in ("apply", "list"):
+          raise Exception(f"Unsupported action: {action}")
+
+      if action == "list":
+          return do_list(args)
+
       if not pack_id:
-          return_error("pack_id is required when action=apply")
-
-      install_marketplace = arg_to_bool(args.get("install_marketplace", "True"), True)
-
-      apply_configure = arg_to_bool(args.get("apply_configure", "True"), True)
-      configure_jobs = arg_to_bool(args.get("configure_jobs", "True"), True)
-      configure_integrations = arg_to_bool(args.get("configure_integrations", "True"), True)
-      configure_lookups = arg_to_bool(args.get("configure_lookups", "True"), True)
-
-      overwrite_lookup = arg_to_bool(args.get("overwrite_lookup", "False"), False)
-
-      skip_verify = arg_to_bool(args.get("skip_verify", "True"), True)
-      skip_validation = arg_to_bool(args.get("skip_validation", "True"), True)
+          raise Exception("pack_id is required for action=apply")
 
       emit_progress(
-          message=(
-              f"Starting apply for **{pack_id}**\n\n"
-              f"- include_hidden={bool_str_tf(include_hidden)}\n"
-              f"- dry_run={bool_str_tf(dry_run)}\n"
-              f"- install_marketplace={bool_str_tf(install_marketplace)}\n"
-              f"- apply_configure={bool_str_tf(apply_configure)} "
-              f"(jobs={bool_str_tf(configure_jobs)}, integrations={bool_str_tf(configure_integrations)}, lookups={bool_str_tf(configure_lookups)})\n"
-              f"- overwrite_lookup={bool_str_tf(overwrite_lookup)}\n"
-              f"- retries={retry_count}, retry_sleep_seconds={retry_sleep_seconds}\n"
-              f"- using={(using or '(default)')}"
+          "\n".join(
+              [
+                  f"Starting {action} for {pack_id}",
+                  f"include_hidden={include_hidden}",
+                  f"dry_run={dry_run}",
+                  f"install_marketplace={install_marketplace_flag}",
+                  f"apply_configure={apply_configure} (jobs={configure_jobs}, integrations={configure_integrations}, lookups={configure_lookups})",
+                  f"overwrite_lookup={overwrite_lookup}",
+                  f"retries={retry_count}, retry_sleep_seconds={retry_sleep_seconds}",
+                  f"using={(using or '(default)')}",
+                  f"execution_timeout={execution_timeout}",
+                  f"fail_on_marketplace_errors={fail_on_marketplace_errors}",
+              ]
           ),
           stage="start",
       )
 
-      # 1) Resolve manifest
       emit_progress("Resolving install manifest…", stage="manifest")
+      manifest = resolve_manifest(pack_id, include_hidden=include_hidden)
 
-      manifest_args = {"pack_id": pack_id, "include_hidden": bool_str_tf(include_hidden)}
-      if catalog_url:
-          manifest_args["catalog_url"] = catalog_url
-
-      res = demisto.executeCommand("socfw-get-install-manifest", manifest_args)
-      if not res or isError(res[0]):
-          return_error(f"Failed to resolve install manifest for {pack_id}: {get_error(res)}")
-
-      manifest = get_contents(res) or {}
-      custom_packs = manifest.get("custom_packs", []) or []
-      marketplace_packs = manifest.get("marketplace_packs", []) or []
-      xsoar_config_url = (manifest.get("xsoar_config_url") or "").strip()
-
-      custom_urls = []
-      for cp in custom_packs:
-          if isinstance(cp, dict) and cp.get("url"):
-              custom_urls.append(cp.get("url"))
-
-      summary = {
-          "action": "apply",
-          "pack_id": manifest.get("pack_id") or pack_id,
-          "display_name": manifest.get("display_name"),
-          "pack_version": manifest.get("pack_version"),
-          "xsoar_config_url": xsoar_config_url,
-          "dry_run": dry_run,
-          "include_hidden": include_hidden,
-          "install_marketplace": install_marketplace,
-          "apply_configure": apply_configure,
-          "configure_jobs": configure_jobs,
-          "configure_integrations": configure_integrations,
-          "configure_lookups": configure_lookups,
-          "overwrite_lookup": overwrite_lookup,
-          "skip_verify": skip_verify,
-          "skip_validation": skip_validation,
-          "execution_timeout": execution_timeout,
-          "retry_count": retry_count,
-          "retry_sleep_seconds": retry_sleep_seconds,
-          "custom_pack_urls": custom_urls,
-          "using": using or None,
-          "timing_ms": {"total": None, "manifest": None, "marketplace": None, "custom": None, "configure": None},
-          "results": {
-              "marketplace": {"status": "skipped"},
-              "custom": {"total": len(custom_urls), "ok": 0, "failed": 0, "items": []},
-              "configure": {"status": "skipped", "details": {}},
-          },
-      }
+      marketplace_packs = manifest.get("marketplace_packs") or []
+      custom_zip_urls = manifest.get("custom_zip_urls") or []
+      xsoar_config_url = manifest.get("xsoar_config_url") or ""
 
       emit_progress(
-          message=(
-              "Manifest resolved.\n\n"
-              f"- Pack: **{summary['pack_id']}** ({summary.get('display_name')}) v{summary.get('pack_version')}\n"
-              f"- Marketplace packs listed: **{len(marketplace_packs) if isinstance(marketplace_packs, list) else 0}**\n"
-              f"- Custom ZIP URLs: **{len(custom_urls)}**"
+          "\n".join(
+              [
+                  "Manifest resolved.",
+                  f"marketplace_packs: {len(marketplace_packs)}",
+                  f"custom ZIP URLs: {len(custom_zip_urls)}",
+                  f"xsoar_config_url: {xsoar_config_url or '(none)'}",
+              ]
           ),
-          stage="manifest",
+          stage="manifest.summary",
       )
 
-      summary["timing_ms"]["manifest"] = _now_ms() - start_ms
-
-      # 2) Dry run
-      if dry_run:
-          md = (
-              "### SOCFW Pack Manager (dry run)\n"
-              f"- Pack: **{summary['pack_id']}** ({summary.get('display_name')}) v{summary.get('pack_version')}\n"
-              f"- Marketplace listed: **{len(marketplace_packs) if isinstance(marketplace_packs, list) else 0}**\n"
-              f"- Custom ZIP URLs: **{len(custom_urls)}**\n"
+      xsoar_cfg = {}
+      if xsoar_config_url:
+          emit_progress("Fetching xsoar_config.json…", stage="xsoar_config.fetch")
+          xsoar_cfg = fetch_xsoar_config(xsoar_config_url) or {}
+          emit_progress(
+              "\n".join(
+                  [
+                      "xsoar_config loaded.",
+                      f"integration_instances: {len(xsoar_cfg.get('integration_instances', []) or [])}",
+                      f"jobs: {len(xsoar_cfg.get('jobs', []) or [])}",
+                      f"lookup_datasets: {len(xsoar_cfg.get('lookup_datasets', []) or [])}",
+                  ]
+              ),
+              stage="xsoar_config.summary",
           )
-          if custom_urls:
-              md += "\n" + "\n".join([f"  - {u}" for u in custom_urls])
 
-          if apply_configure:
-              md += (
-                  "\n\n"
-                  f"- Configure: **True** "
-                  f"(jobs={bool_str_tf(configure_jobs)}, integrations={bool_str_tf(configure_integrations)}, "
-                  f"lookups={bool_str_tf(configure_lookups)}, overwrite_lookup
+      if dry_run:
+          emit_progress("dry_run=True — not installing or configuring anything.", stage="done")
+          return
+
+      marketplace_errors: List[str] = []
+      if install_marketplace_flag and marketplace_packs:
+          # normalize
+          mp = []
+          for p in marketplace_packs:
+              if isinstance(p, dict) and p.get("id"):
+                  mp.append({"id": p.get("id"), "version": p.get("version", "latest")})
+          try:
+              install_marketplace_packs(mp, using, retry_count, retry_sleep_seconds)
+          except Exception as e:
+              marketplace_errors.append(str(e))
+              emit_progress(f"Marketplace install failed.\nError: {e}", stage="packs.marketplace.error")
+              if fail_on_marketplace_errors:
+                  raise
+
+      if custom_zip_urls:
+          emit_progress("Installing custom pack ZIPs…", stage="packs.custom")
+          for item in custom_zip_urls:
+              url = None
+              label = None
+              if isinstance(item, str):
+                  url = item
+                  label = item
+              elif isinstance(item, dict):
+                  url = item.get("url") or item.get("zip_url")
+                  label = item.get("name") or url
+              if not url:
+                  continue
+              emit_progress(f"Installing custom pack ZIP: **{label}**", stage="packs.custom")
+              install_custom_pack_zip(url, using, execution_timeout, retry_count, retry_sleep_seconds)
+
+      if apply_configure and xsoar_cfg:
+          emit_progress("Configuring from xsoar_config…", stage="configure")
+          emit_progress(
+              "\n".join(
+                  [
+                      "Configure plan from xsoar_config.json:",
+                      f"integration_instances: {len(xsoar_cfg.get('integration_instances', []) or [])}",
+                      f"jobs: {len(xsoar_cfg.get('jobs', []) or [])}",
+                      f"lookup_datasets: {len(xsoar_cfg.get('lookup_datasets', []) or [])}",
+                  ]
+              ),
+              stage="configure.plan",
+          )
+
+          installed_pack_ids = fetch_installed_marketplace_pack_ids(using)
+
+          if configure_integrations:
+              configure_integrations_from_xsoar_config(
+                  xsoar_cfg=xsoar_cfg,
+                  using=using,
+                  retry_count=retry_count,
+                  retry_sleep_seconds=retry_sleep_seconds,
+                  installed_pack_ids=installed_pack_ids,
+              )
+
+          if configure_jobs:
+              configure_jobs_from_xsoar_config(
+                  xsoar_cfg=xsoar_cfg,
+                  using=using,
+                  retry_count=retry_count,
+                  retry_sleep_seconds=retry_sleep_seconds,
+              )
+
+          if configure_lookups:
+              configure_lookups_from_xsoar_config(
+                  xsoar_cfg=xsoar_cfg,
+                  using=using,
+                  retry_count=retry_count,
+                  retry_sleep_seconds=retry_sleep_seconds,
+                  overwrite_lookup=overwrite_lookup,
+              )
+
+      msg = "Done."
+      if marketplace_errors:
+          msg += f"\nMarketplace errors: {len(marketplace_errors)} (see logs above)."
+      emit_progress(msg, stage="done")
+
+      return_results(
+          {
+              "pack_id": pack_id,
+              "xsoar_config_url": xsoar_config_url,
+              "marketplace_errors": marketplace_errors,
+          }
+      )
+
+  if __name__ in ("__main__", "__builtin__", "builtins"):
+      main()
 type: python
 tags:
 - configuration
@@ -446,11 +715,11 @@ args:
   - "True"
   - "False"
   description: Whether to install marketplace_packs from xsoar_config.json.
-  defaultValue: "False"
+  defaultValue: "True"
 - supportedModules: []
   name: execution_timeout
   description: Timeout for the core installs and core-api REST calls.
-  defaultValue: "600"
+  defaultValue: "1200"
 - supportedModules: []
   name: skip_verify
   auto: PREDEFINED
@@ -514,6 +783,7 @@ args:
   defaultValue: "15"
 scripttarget: 0
 subtype: python3
+timeout: 30m0s
 pswd: ""
 runonce: false
 dockerimage: demisto/python3:3.12.12.6796194
@@ -522,5 +792,3 @@ engineinfo: {}
 mainengineinfo: {}
 restrictioncenter: {}
 signature: ""
-id: SOCFWPackManager
-fromversion: 5.0.0
