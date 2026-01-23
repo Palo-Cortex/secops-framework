@@ -4,15 +4,16 @@ fix_errors.py
 -------------
 
 Automates fixing demisto-sdk validation and parsing errors.
-This script is designed to run from any subdirectory (e.g., 'tools/')
-and find content files relative to the current working directory,
-based ONLY on the path extracted from the SDK error output.
+
+Design goals:
+- Can run from ANY subdirectory (e.g., 'tools/')
+- Auto-detect repo root (prefer git top-level; fallback to walking up until Packs/ exists)
+- Resolve paths based ONLY on the path extracted from SDK output
 """
 import argparse
 import json
 import os
 import re
-import glob
 import subprocess
 
 # --- Optional YAML libs (ruamel preferred for formatting preservation) -------
@@ -32,8 +33,11 @@ except Exception:
 
 # Strip ANSI color codes that may appear in demisto-sdk output
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+
+
 def de_ansi(s: str) -> str:
     return ANSI_RE.sub('', s).strip()
+
 
 # NEW AGGRESSIVE REGEXES (Note the leading '.*?' to ignore progress bar noise)
 
@@ -62,8 +66,9 @@ BA106_RE = re.compile(
     re.IGNORECASE
 )
 
+# Hardened BA101 matcher for the current demisto-sdk output format you showed
 BA101_RE = re.compile(
-    r'^(?P<path>[^:]+):\s*\[BA101\].*?name attribute.*?\(currently (?P<name>.+?)\).*?id.*?\((?P<id>.+?)\)',
+    r'^(?P<path>[^:]+):\s*\[BA101\]\s*-\s*The name attribute\s*\(currently\s*(?P<name>.+?)\)\s*should be identical to its.*?id.*?\((?P<id>[^)]+)\)',
     re.IGNORECASE
 )
 
@@ -79,6 +84,7 @@ BA102_RE = re.compile(
 
 SEMVER_NUM_RE = re.compile(r'\d+')
 
+
 def parse_semver(v: str):
     if not v or not isinstance(v, str):
         return (0, 0, 0)
@@ -88,8 +94,49 @@ def parse_semver(v: str):
         nums.append(0)
     return tuple(nums[:3])
 
+
 def max_version(a: str, b: str) -> str:
     return a if parse_semver(a) >= parse_semver(b) else b
+
+
+def detect_repo_root(start_dir: str) -> str:
+    """
+    Detect repo root robustly:
+    1) prefer `git rev-parse --show-toplevel`
+    2) otherwise walk up until a `Packs/` directory exists
+    """
+    start_dir = os.path.abspath(start_dir)
+
+    # 1) git top-level
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=start_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True,
+        )
+        root = (res.stdout or "").strip()
+        if root:
+            # If it's a real content repo, Packs/ should exist (but not strictly required)
+            if os.path.isdir(os.path.join(root, "Packs")):
+                return root
+            return root
+    except Exception:
+        pass
+
+    # 2) walk up looking for Packs/
+    cur = start_dir
+    while True:
+        if os.path.isdir(os.path.join(cur, "Packs")):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            # reached filesystem root
+            return start_dir
+        cur = parent
+
 
 def resolve_path(repo_root: str, rel_path: str) -> str:
     """
@@ -98,17 +145,16 @@ def resolve_path(repo_root: str, rel_path: str) -> str:
     # 1. Clean up and normalize the path extracted from the error log
     clean_rel_path = rel_path.strip().rstrip(':').replace('\\', os.sep).lstrip('/')
 
-    # 2. CRITICAL FIX: Find the 'Packs/' segment and discard everything before it.
-    # This handles the noise from the multiprocessing pool output.
+    # 2. Find the 'Packs/' segment and discard everything before it (handles noisy prefixes).
     if 'Packs' in clean_rel_path:
         clean_rel_path = clean_rel_path[clean_rel_path.index('Packs'):]
 
-    # 3. Join it directly to the determined repo_root (which defaults to CWD).
+    # 3. Join it directly to the determined repo_root
     resolved_path = os.path.normpath(os.path.join(repo_root, clean_rel_path))
-
     return resolved_path
 
-# --- YAML/JSON IO (Rest of the script omitted for brevity, it's unchanged) ---
+
+# --- YAML/JSON IO ------------------------------------------------------------
 
 def load_yaml(path):
     if _HAVE_RUAMEL:
@@ -124,6 +170,7 @@ def load_yaml(path):
     else:
         raise RuntimeError("Need ruamel.yaml or PyYAML to parse YAML files.")
 
+
 def dump_yaml(path, data, engine):
     if engine == 'ruamel':
         y = YAML()
@@ -134,7 +181,8 @@ def dump_yaml(path, data, engine):
         with open(path, 'w', encoding='utf-8') as f:
             pyyaml.safe_dump(data, f, sort_keys=False)
 
-# --- Parsing Error Fixer (JSON) --------------------------------------------
+
+# --- Parsing Error Fixer (JSON) ---------------------------------------------
 
 def fix_json_layout_null(path: str, dry_run: bool):
     """
@@ -167,6 +215,7 @@ def fix_json_layout_null(path: str, dry_run: bool):
 
     return False, f"OK (no change): {path}"
 
+
 # --- Layout Group Fixer (JSON) -----------------------------------------------
 
 def fix_layout_group_alert(path: str, dry_run: bool):
@@ -183,7 +232,7 @@ def fix_layout_group_alert(path: str, dry_run: bool):
     except Exception as e:
         return False, f"SKIP (bad JSON/read error): {path} -> {e}"
 
-    group_key = data.get('group', '').lower()
+    group_key = (data.get('group') or '').lower()
 
     # Define bad groups and their intended replacement
     bad_groups = {'alert': 'incident', 'incidents': 'incident'}
@@ -196,15 +245,17 @@ def fix_layout_group_alert(path: str, dry_run: bool):
             with open(path, 'w', encoding='utf-8') as wf:
                 json.dump(data, wf, indent=2, ensure_ascii=False)
 
-        return True, f"PATCHED: {path} -> Changed 'group': '{group_key}' to 'group': '{new_value}'"
+        return True, f"PATCHED: {path} -> Changed 'group': '{group_key}' to '{new_value}'"
 
     return False, f"OK (no change): {path}"
+
 
 # --- Textual fallback for malformed YAML ------------------------------------
 
 FROMVERSION_LINE_RE = re.compile(r'(?mi)^(?P<indent>\s*)fromversion\s*:\s*(?P<val>[^\n#]+)')
 ID_LINE_RE = re.compile(r'(?mi)^(?P<indent>\s*)id\s*:\s*(?P<val>[^\n#]+)')
 NAME_LINE_RE = re.compile(r'(?mi)^(?P<indent>\s*)name\s*:\s*(?P<val>[^\n#]+)')
+
 
 def textual_fix_yaml_fromversion(path: str, min_version: str, dry_run: bool):
     """
@@ -235,7 +286,7 @@ def textual_fix_yaml_fromversion(path: str, min_version: str, dry_run: bool):
     insert_idx = 0
     while insert_idx < len(lines):
         s = lines[insert_idx].lstrip()
-        if s.startswith('---') or s.startswith('#') or s == '':
+        if s.startswith('---') or s.startswith('#') or s.strip() == '':
             insert_idx += 1
             continue
         break
@@ -247,9 +298,14 @@ def textual_fix_yaml_fromversion(path: str, min_version: str, dry_run: bool):
             f.write(''.join(new_lines))
     return True, f"INSERTED (textual): {path} -> fromversion={min_version}"
 
+
 def textual_fix_yaml_id_equals_name(path: str, dry_run: bool):
     """
-    Fallback when YAML parser fails. Sets `id: <name>` via regex if both lines exist.
+    Fallback when YAML parser fails.
+    For Scripts, the real id is usually under:
+      commonfields:
+        id: <...>
+    This updates that (or inserts it) to match name.
     """
     try:
         with open(path, 'r', encoding='utf-8') as f:
@@ -262,19 +318,42 @@ def textual_fix_yaml_id_equals_name(path: str, dry_run: bool):
         return False, f"SKIP (no name found, textual): {path}"
     name_val = m_name.group('val').strip()
 
+    # Try to update "commonfields:\n  id: ..."
+    COMMONFIELDS_BLOCK_RE = re.compile(
+        r'(?ms)^(?P<indent>\s*)commonfields\s*:\s*\n(?P<body>(?:^(?P=indent)[ \t]+.*\n)*)'
+    )
+    m_cf = COMMONFIELDS_BLOCK_RE.search(text)
+    if m_cf:
+        indent = m_cf.group('indent')
+        body = m_cf.group('body') or ""
+        # Replace id inside the commonfields body
+        ID_IN_COMMONFIELDS_RE = re.compile(r'(?mi)^(?P<i>' + re.escape(indent) + r'[ \t]+)id\s*:\s*(?P<val>[^\n#]+)')
+        if ID_IN_COMMONFIELDS_RE.search(body):
+            new_body = ID_IN_COMMONFIELDS_RE.sub(lambda m: f"{m.group('i')}id: {name_val}", body, count=1)
+        else:
+            # Insert id at top of the commonfields body
+            new_body = f"{indent}  id: {name_val}\n" + body
+
+        new_text = text[:m_cf.start('body')] + new_body + text[m_cf.end('body'):]
+        if not dry_run:
+            with open(path, 'w', encoding='utf-8') as wf:
+                wf.write(new_text)
+        return True, f"UPDATED (textual): {path} -> commonfields.id={name_val}"
+
+    # No commonfields block found; fall back to top-level id behavior
     if ID_LINE_RE.search(text):
         new_text = ID_LINE_RE.sub(lambda m: f"{m.group('indent')}id: {name_val}", text, count=1)
     else:
-        # No id line: insert an id right after name
         idx = m_name.end()
-        new_text = text[:idx] + f"\n{m_name.group('indent')}id: {name_val}" + text[idx:]
+        new_text = text[:idx] + f"\nid: {name_val}" + text[idx:]
 
     if not dry_run:
         with open(path, 'w', encoding='utf-8') as wf:
             wf.write(new_text)
     return True, f"UPDATED (textual): {path} -> id={name_val}"
 
-# --- BA106 fixers (rest of the functions omitted for brevity, they are unchanged) ---
+# --- BA106 fixers ------------------------------------------------------------
+
 def fix_yaml_fromversion(path: str, min_version: str, dry_run: bool):
     # Try structured YAML first; on failure, do textual fallback
     try:
@@ -305,6 +384,7 @@ def fix_yaml_fromversion(path: str, min_version: str, dry_run: bool):
     if not dry_run:
         dump_yaml(path, data, engine)
     return True, f"UPDATED: {path} -> fromversion={new_val}"
+
 
 def fix_json_fromversion(path: str, min_version: str, dry_run: bool):
     with open(path, 'r', encoding='utf-8') as f:
@@ -341,6 +421,7 @@ def fix_json_fromversion(path: str, min_version: str, dry_run: bool):
             json.dump(data, wf, indent=2, ensure_ascii=False)
     return True, f"UPDATED: {path} -> fromVersion={new_val}"
 
+
 def fix_file_ba106(path: str, min_version: str, dry_run: bool = False):
     ext = os.path.splitext(path)[1].lower()
     if not os.path.exists(path):
@@ -351,7 +432,18 @@ def fix_file_ba106(path: str, min_version: str, dry_run: bool = False):
         return fix_json_fromversion(path, min_version, dry_run)
     return False, f"SKIP (unknown ext): {path}"
 
+
+# --- BA101 fixers ------------------------------------------------------------
+
 def fix_id_name(path: str, dry_run: bool = False):
+    """
+    BA101 requires: name == id
+
+    IMPORTANT:
+    - For Script YAMLs, the ID is typically `commonfields.id`
+    - For other items, it may be top-level `id`
+    This fixer updates whichever is present (prefers commonfields.id when available).
+    """
     ext = os.path.splitext(path)[1].lower()
     if not os.path.exists(path):
         return False, f"SKIP (missing): {path}"
@@ -364,10 +456,25 @@ def fix_id_name(path: str, dry_run: bool = False):
             return False, f"SKIP (bad JSON): {path} -> {e}"
 
         nm = data.get('name')
-        idv = data.get('id')
         if nm is None:
             return False, f"SKIP (no name): {path}"
-        if nm == idv:
+
+        # Prefer commonfields.id when present
+        cf = data.get('commonfields')
+        if isinstance(cf, dict) and 'id' in cf:
+            cur = cf.get('id')
+            if cur == nm:
+                return False, f"OK (no change): {path} (commonfields.id=name={nm})"
+            if not dry_run:
+                cf['id'] = nm
+                data['commonfields'] = cf
+                with open(path, 'w', encoding='utf-8') as wf:
+                    json.dump(data, wf, indent=2, ensure_ascii=False)
+            return True, f"UPDATED: {path} -> commonfields.id={nm}"
+
+        # Fall back to top-level id
+        cur = data.get('id')
+        if cur == nm:
             return False, f"OK (no change): {path} (id=name={nm})"
         if not dry_run:
             data['id'] = nm
@@ -375,25 +482,40 @@ def fix_id_name(path: str, dry_run: bool = False):
                 json.dump(data, wf, indent=2, ensure_ascii=False)
         return True, f"UPDATED: {path} -> id={nm}"
 
-    elif ext in ('.yml', '.yaml'):
-        # Try structured first
+    if ext in ('.yml', '.yaml'):
         try:
             data, engine = load_yaml(path)
             nm = data.get('name')
-            idv = data.get('id')
             if nm is None:
                 return False, f"SKIP (no name): {path}"
-            if nm == idv:
+
+            # Prefer commonfields.id when present (Script YAMLs)
+            cf = data.get('commonfields')
+            if isinstance(cf, dict):
+                cur = cf.get('id')
+                if cur == nm:
+                    return False, f"OK (no change): {path} (commonfields.id=name={nm})"
+                if not dry_run:
+                    cf['id'] = nm
+                    data['commonfields'] = cf
+                    dump_yaml(path, data, engine)
+                return True, f"UPDATED: {path} -> commonfields.id={nm}"
+
+            # Fall back to top-level id
+            cur = data.get('id')
+            if cur == nm:
                 return False, f"OK (no change): {path} (id=name={nm})"
             if not dry_run:
                 data['id'] = nm
                 dump_yaml(path, data, engine)
             return True, f"UPDATED: {path} -> id={nm}"
+
         except Exception:
-            # Fallback textual edit
             return textual_fix_yaml_id_equals_name(path, dry_run)
 
     return False, f"SKIP (unsupported ext): {path}"
+
+# --- PA128 (pack required files) --------------------------------------------
 
 def fix_pack_required_files(pack_root: str, dry_run: bool = False):
     created = []
@@ -413,6 +535,9 @@ def fix_pack_required_files(pack_root: str, dry_run: bool = False):
     if created:
         return True, f"CREATED in {pack_root}: {', '.join(created)}"
     return False, f"OK (no change): {pack_root} has required files"
+
+
+# --- BA102 (format) ----------------------------------------------------------
 
 def run_demisto_format(target_path: str, dry_run: bool = False):
     """
@@ -434,29 +559,32 @@ def run_demisto_format(target_path: str, dry_run: bool = False):
         if res.returncode == 0:
             tail = res.stdout.strip().splitlines()[-1] if res.stdout else "format completed"
             return True, f"FORMAT OK: {target_path} ({tail})"
-        else:
-            return False, f"FORMAT FAILED ({res.returncode}): {target_path}\n{res.stdout}"
+        return False, f"FORMAT FAILED ({res.returncode}): {target_path}\n{res.stdout}"
     except FileNotFoundError:
         return False, "ERROR: `demisto-sdk` not found in PATH. Install it or add to PATH."
     except Exception as e:
         return False, f"FORMAT ERROR: {target_path} -> {e}"
 
+
 # --- Main --------------------------------------------------------------------
 
 def main():
-    ap = argparse.ArgumentParser(description="Fix common demisto-sdk errors (Parsing, Layout Group, BA106, BA101, PA128, BA102).")
+    ap = argparse.ArgumentParser(
+        description="Fix common demisto-sdk errors (Parsing, Layout Group, BA106, BA101, PA128, BA102)."
+    )
     ap.add_argument("sdk_output", help="Path to saved SDK validation output (e.g., sdk_errors.txt)")
-    # We remove the use of --repo-root to fulfill the design goal of automatic resolution.
-    # We keep the argument but default it to '.', and rely on resolve_path's new logic.
-    ap.add_argument("--repo-root", default=".", help=argparse.SUPPRESS)
+    ap.add_argument("--repo-root", default=".", help=argparse.SUPPRESS)  # kept for compatibility; ignored unless user sets it
     ap.add_argument("--dry-run", action="store_true", help="Show what would change without writing files")
     args = ap.parse_args()
 
-    # The repo_root is the directory from which the script is run (CWD)
-    repo_root = os.path.abspath(args.repo_root)
+    # Auto-detect repo root (fixes the 'run from tools/' problem)
+    # If user explicitly passes --repo-root, honor it.
+    explicit_root = os.path.abspath(args.repo_root) if args.repo_root and args.repo_root != "." else None
+    repo_root = explicit_root or detect_repo_root(os.getcwd())
 
     total = 0
     changes = 0
+
     with open(args.sdk_output, 'r', encoding='utf-8', errors='ignore') as f:
         for raw in f:
             line = de_ansi(raw)
@@ -478,11 +606,9 @@ def main():
                     changes += 1
                 continue
 
-            # --- 2. LAYOUT GROUP FIX (ValueError: Unknown group "alert" / "incidents") ---
+            # --- 2. LAYOUT GROUP FIX (Unknown group "alert" / "incidents") ----------
             m_layout_group_alert = LAYOUT_GROUP_RE.search(line)
             m_layout_group_plural = LAYOUT_PLURAL_GROUP_RE.search(line)
-
-            # If either of the layout errors match, we proceed to fix it.
             if m_layout_group_alert or m_layout_group_plural:
                 m_match = m_layout_group_alert or m_layout_group_plural
                 total += 1
@@ -493,15 +619,13 @@ def main():
                     print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
                     continue
 
-                # The fix_layout_group_alert function now handles both 'alert' and 'incidents'
                 changed, msg = fix_layout_group_alert(resolved, args.dry_run)
                 print(msg)
                 if changed:
                     changes += 1
                 continue
 
-
-            # --- 3. PA128 (Pack Required Files) -------------------------------------
+            # --- 3. PA128 (Pack Required Files) ------------------------------------
             m128 = PA128_RE.search(line)
             if m128:
                 total += 1
@@ -518,7 +642,7 @@ def main():
                     changes += 1
                 continue
 
-            # --- 4. BA101 (ID = Name) -----------------------------------------------
+            # --- 4. BA101 (ID = Name) ----------------------------------------------
             m101 = BA101_RE.search(line)
             if m101:
                 total += 1
@@ -535,7 +659,7 @@ def main():
                     changes += 1
                 continue
 
-            # --- 5. BA106 (fromversion) ---------------------------------------------
+            # --- 5. BA106 (fromversion) --------------------------------------------
             m106 = BA106_RE.search(line)
             if m106:
                 total += 1
@@ -553,14 +677,13 @@ def main():
                     changes += 1
                 continue
 
-            # --- 6. BA102 (Run Format) ----------------------------------------------
+            # --- 6. BA102 (Run Format) ---------------------------------------------
             m102 = BA102_RE.search(line)
             if m102:
                 total += 1
                 rel_path = m102.group('path').strip()
                 resolved = resolve_path(repo_root, rel_path)
 
-                # If the reported path is a pack root, formatting recursively is fine.
                 if not os.path.exists(resolved):
                     print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
                     continue
@@ -574,6 +697,7 @@ def main():
             # ignore other lines
 
     print(f"\nMatched lines (Parsing/Layout/BA101/BA102/BA106/PA128): {total}. Files changed: {changes}. Dry-run: {args.dry_run}")
+
 
 if __name__ == "__main__":
     main()
