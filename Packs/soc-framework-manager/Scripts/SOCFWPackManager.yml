@@ -1,7 +1,7 @@
 fromversion: 5.0.0
 commonfields:
   id: SOCFWPackManager
-  version: 5
+  version: 10
 contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-manager
@@ -30,7 +30,11 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   shows installed, then continue\n# - LOUD pre_config_docs + post_config_docs (+ optional
   README previews)\n# - NEW: pre-config gate (default ON): print PRE docs then STOP
   unless pre_config_done=true\n# - NEW: POST docs printed as the VERY LAST War Room
-  entry (after return_results)\n# ============================================================\n\nSCRIPT_NAME
+  entry (after return_results)\n#\n# JOBS FIX (NO PARAM CHANGES):\n# - Stop trusting
+  SOCFWJobManager output alone.\n# - After running SOCFWJobManager, VERIFY via Jobs
+  API that the job exists.\n# - If SOCFWJobManager fails (or doesn't create the job),
+  FALL BACK to direct Jobs API upsert.\n# - If Jobs API cannot be reached, we will
+  NOT claim jobs were configured.\n# ============================================================\n\nSCRIPT_NAME
   = \"SOCFWPackManager\"\n\n# ---------------------------\n# Basic helpers\n# ---------------------------\n\ndef
   _norm(s: Any) -> str:\n    return (str(s) if s is not None else \"\").strip()\n\ndef
   _to_lower(s: Any) -> str:\n    return _norm(s).lower()\n\ndef _parse_csv(val: Any)
@@ -101,28 +105,25 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   isinstance(d, str) and _norm(d):\n            return True\n    return False\n\ndef
   print_config_docs(\n    xsoar_cfg: Dict[str, Any],\n    when: str,\n    debug: bool,\n
   \   include_doc_content: bool = False,\n    doc_content_max_chars: int = 6000,\n
-  \   doc_content_max_lines: int = 200,\n):\n    \"\"\"\n    when: \"pre\" or \"post\"\n
-  \   Prints docs listed in xsoar_config.json:\n      pre_config_docs:  [{name,url},
-  ...]\n      post_config_docs: [{name,url}, ...]\n    If include_doc_content=True
-  (or debug=True), fetches and embeds doc text (truncated).\n    \"\"\"\n    key =
-  \"pre_config_docs\" if when == \"pre\" else \"post_config_docs\"\n    docs = xsoar_cfg.get(key)
-  or []\n    if not isinstance(docs, list) or not docs:\n        log(f\"No {key} found
-  in xsoar_config.json.\", stage=f\"docs.{when}\", debug=debug)\n        return\n\n
-  \   banner_title = \" \U0001F6A7 PRE-INSTALL / PRE-CONFIG REQUIRED STEPS\" if when
-  == \"pre\" else \"✅ POST-INSTALL / POST-CONFIG MANUAL STEPS\"\n    banner_sub =
-  (\n        \"_These docs usually contain prerequisites / manual steps you must complete
-  BEFORE install._\"\n        if when == \"pre\"\n        else \"_These docs usually
-  contain manual follow-ups and validation steps AFTER completion._\"\n    )\n\n    banner
-  = \"\\n\".join([\"---\", f\"## {banner_title}\", banner_sub, \"---\"])\n\n    link_lines:
-  List[str] = []\n    normalized_docs: List[Dict[str, str]] = []\n    for d in docs:\n
-  \       if isinstance(d, dict):\n            name = _norm(d.get(\"name\") or \"\")\n
-  \           url = _norm(d.get(\"url\") or \"\")\n            if url or name:\n                link_lines.append(_md_link(name,
+  \   doc_content_max_lines: int = 200,\n):\n    key = \"pre_config_docs\" if when
+  == \"pre\" else \"post_config_docs\"\n    docs = xsoar_cfg.get(key) or []\n    if
+  not isinstance(docs, list) or not docs:\n        log(f\"No {key} found in xsoar_config.json.\",
+  stage=f\"docs.{when}\", debug=debug)\n        return\n\n    banner_title = \" \U0001F6A7
+  PRE-INSTALL / PRE-CONFIG REQUIRED STEPS\" if when == \"pre\" else \"✅ POST-INSTALL
+  / POST-CONFIG MANUAL STEPS\"\n    banner_sub = (\n        \"_These docs usually
+  contain prerequisites / manual steps you must complete BEFORE install._\"\n        if
+  when == \"pre\"\n        else \"_These docs usually contain manual follow-ups and
+  validation steps AFTER completion._\"\n    )\n\n    banner = \"\\n\".join([\"---\",
+  f\"## {banner_title}\", banner_sub, \"---\"])\n\n    link_lines: List[str] = []\n
+  \   normalized_docs: List[Dict[str, str]] = []\n    for d in docs:\n        if isinstance(d,
+  dict):\n            name = _norm(d.get(\"name\") or \"\")\n            url = _norm(d.get(\"url\")
+  or \"\")\n            if url or name:\n                link_lines.append(_md_link(name,
   url))\n                normalized_docs.append({\"name\": name or url, \"url\": url})\n
   \       elif isinstance(d, str):\n            s = _norm(d)\n            if s:\n
   \               link_lines.append(f\"- {s}\")\n                normalized_docs.append({\"name\":
   s, \"url\": s})\n\n    if not link_lines:\n        log(f\"No valid entries in {key}.\",
   stage=f\"docs.{when}\", debug=debug)\n        return\n\n    want_content = bool(include_doc_content
-  or debug)\n\n    body: List[str] = [banner, \"### Links\", *link_lines]\n\n    if
+  or debug)\n    body: List[str] = [banner, \"### Links\", *link_lines]\n\n    if
   want_content and normalized_docs:\n        body += [\"\", \"### Doc contents (preview)\",
   \" _Showing a truncated preview._\", \"\"]\n\n        for d in normalized_docs:\n
   \           name = d.get(\"name\") or \"\"\n            url = d.get(\"url\") or
@@ -150,11 +151,78 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   int = 600) -> Dict[str, Any]:\n    args = {\"uri\": path, \"body\": json.dumps(body
   if body is not None else {}), \"execution-timeout\": str(execution_timeout)}\n    if
   using:\n        args[\"using\"] = using\n    res = exec_cmd(\"core-api-put\", args)\n
-  \   return get_contents(res) or {}\n\n# ---------------------------\n# HTTP JSON
-  helpers\n# ---------------------------\n\ndef http_get_json(url: str, timeout: int
-  = 30) -> Any:\n    r = requests.get(url, timeout=timeout)\n    r.raise_for_status()\n
-  \   return r.json()\n\n# ---------------------------\n# Catalog + Manifest resolver\n#
-  ---------------------------\n\nDEFAULT_CATALOG_URL = \"https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/pack_catalog.json\"\n\ndef
+  \   return get_contents(res) or {}\n\n# ---------------------------\n# Jobs verification
+  + upsert (NO NEW PARAMETERS)\n# ---------------------------\n\ndef _extract_list(resp:
+  Any) -> List[Dict[str, Any]]:\n    if isinstance(resp, dict):\n        # common
+  response shapes\n        v = resp.get(\"response\")\n        if isinstance(v, dict):\n
+  \           data = v.get(\"data\")\n            if isinstance(data, list):\n                return
+  [x for x in data if isinstance(x, dict)]\n        if isinstance(v, list):\n            return
+  [x for x in v if isinstance(x, dict)]\n        for k in (\"data\", \"jobs\", \"result\"):\n
+  \           vv = resp.get(k)\n            if isinstance(vv, list):\n                return
+  [x for x in vv if isinstance(x, dict)]\n    if isinstance(resp, list):\n        return
+  [x for x in resp if isinstance(x, dict)]\n    return []\n\ndef _job_name(job_obj:
+  Dict[str, Any]) -> str:\n    return _norm(\n        job_obj.get(\"name\")\n        or
+  job_obj.get(\"jobName\")\n        or job_obj.get(\"job_name\")\n        or job_obj.get(\"displayName\")\n
+  \       or \"\"\n    )\n\ndef _job_id(job_obj: Dict[str, Any]) -> str:\n    return
+  _norm(job_obj.get(\"id\") or job_obj.get(\"_id\") or job_obj.get(\"jobId\") or \"\")\n\ndef
+  jobs_api_endpoints() -> Dict[str, str]:\n    \"\"\"\n    Centralize URIs so we can
+  try both /xsoar/public/v1 and /public/v1.\n    \"\"\"\n    return {\n        \"search_xsoar\":
+  \"/xsoar/public/v1/jobs/search\",\n        \"search_public\": \"/public/v1/jobs/search\",\n
+  \       \"create_xsoar\": \"/xsoar/public/v1/jobs\",\n        \"create_public\":
+  \"/public/v1/jobs\",\n        \"update_xsoar\": \"/xsoar/public/v1/jobs\",   # +
+  /{id}\n        \"update_public\": \"/public/v1/jobs\",        # + /{id}\n    }\n\ndef
+  jobs_api_search_probe(using: str) -> Optional[str]:\n    \"\"\"\n    Return the
+  working search endpoint path, or None.\n    \"\"\"\n    eps = jobs_api_endpoints()\n
+  \   probe_body = {\"page\": 0, \"size\": 1, \"query\": \"\", \"sort\": [{\"field\":
+  \"id\", \"asc\": True}]}\n    for p in (eps[\"search_xsoar\"], eps[\"search_public\"]):\n
+  \       try:\n            _ = core_api_post(p, body=probe_body, using=using, execution_timeout=600)\n
+  \           return p\n        except Exception:\n            continue\n    return
+  None\n\ndef jobs_api_find_by_name(name: str, using: str, search_path: Optional[str],
+  debug: bool) -> Optional[Dict[str, Any]]:\n    n = _norm(name).lower()\n\n    if
+  search_path:\n        try:\n            body = {\"page\": 0, \"size\": 50, \"query\":
+  f'name:\"{name}\"', \"sort\": [{\"field\": \"id\", \"asc\": True}]}\n            resp
+  = core_api_post(search_path, body=body, using=using, execution_timeout=600)\n            rows
+  = _extract_list(resp)\n            for r in rows:\n                if _job_name(r).lower()
+  == n:\n                    return r\n        except Exception as e:\n            if
+  debug:\n                emit_progress(f\"Job search failed on {search_path}: {e}\",
+  stage=\"configure.jobs.debug\")\n\n    # last-resort: try empty query list via search
+  anyway (if we have it)\n    if search_path:\n        try:\n            body = {\"page\":
+  0, \"size\": 200, \"query\": \"\", \"sort\": [{\"field\": \"id\", \"asc\": True}]}\n
+  \           resp = core_api_post(search_path, body=body, using=using, execution_timeout=600)\n
+  \           rows = _extract_list(resp)\n            for r in rows:\n                if
+  _job_name(r).lower() == n:\n                    return r\n        except Exception:\n
+  \           pass\n\n    return None\n\ndef jobs_api_upsert(job: Dict[str, Any],
+  using: str, search_path: str, debug: bool) -> Dict[str, Any]:\n    \"\"\"\n    Upsert
+  via Jobs API:\n      - search by name\n      - if found, try PUT /jobs/{id}\n      -
+  else, POST /jobs\n    Returns a dict describing what we did.\n    \"\"\"\n    eps
+  = jobs_api_endpoints()\n    name = _job_name(job)\n    if not name:\n        raise
+  Exception(\"Job object missing name\")\n\n    existing = jobs_api_find_by_name(name,
+  using=using, search_path=search_path, debug=debug)\n    existing_id = _job_id(existing)
+  if existing else \"\"\n\n    # Prefer xsoar/public first; fall back to public\n
+  \   create_paths = [eps[\"create_xsoar\"], eps[\"create_public\"]]\n    update_paths
+  = [eps[\"update_xsoar\"], eps[\"update_public\"]]\n\n    if existing_id:\n        #
+  try PUT update first\n        last_err = None\n        for base in update_paths:\n
+  \           try:\n                resp = core_api_put(f\"{base}/{existing_id}\",
+  body=job, using=using, execution_timeout=600)\n                return {\"action\":
+  \"updated\", \"endpoint\": f\"{base}/{existing_id}\", \"response\": resp, \"job_id\":
+  existing_id}\n            except Exception as e:\n                last_err = str(e)\n
+  \               continue\n\n        # if PUT isn't supported, fall back to POST
+  (some tenants treat POST as upsert)\n        for base in create_paths:\n            try:\n
+  \               resp = core_api_post(base, body=job, using=using, execution_timeout=600)\n
+  \               return {\"action\": \"created_via_post_fallback\", \"endpoint\":
+  base, \"response\": resp, \"job_id\": existing_id, \"warning\": last_err}\n            except
+  Exception as e:\n                last_err = str(e)\n                continue\n\n
+  \       raise Exception(f\"Failed updating job '{name}'. Last error: {last_err}\")\n\n
+  \   # create\n    last_err = None\n    for base in create_paths:\n        try:\n
+  \           resp = core_api_post(base, body=job, using=using, execution_timeout=600)\n
+  \           return {\"action\": \"created\", \"endpoint\": base, \"response\": resp}\n
+  \       except Exception as e:\n            last_err = str(e)\n            continue\n\n
+  \   raise Exception(f\"Failed creating job '{name}'. Last error: {last_err}\")\n\n#
+  ---------------------------\n# HTTP JSON helpers\n# ---------------------------\n\ndef
+  http_get_json(url: str, timeout: int = 30) -> Any:\n    r = requests.get(url, timeout=timeout)\n
+  \   r.raise_for_status()\n    return r.json()\n\n# ---------------------------\n#
+  Catalog + Manifest resolver\n# ---------------------------\n\nDEFAULT_CATALOG_URL
+  = \"https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/pack_catalog.json\"\n\ndef
   fetch_pack_catalog(catalog_url: str = DEFAULT_CATALOG_URL) -> Dict[str, Any]:\n
   \   data = http_get_json(catalog_url)\n    if not isinstance(data, dict):\n        raise
   Exception(f\"pack_catalog.json unexpected format at {catalog_url}\")\n    return
@@ -162,13 +230,12 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   Any]]:\n    packs = catalog.get(\"packs\") or catalog.get(\"Packs\") or catalog.get(\"items\")
   or []\n    if not isinstance(packs, list):\n        return None\n    for p in packs:\n
   \       if isinstance(p, dict) and (p.get(\"id\") == pack_id):\n            return
-  p\n    return None\n\ndef resolve_manifest(pack_id: str, include_hidden: bool) ->
-  Dict[str, Any]:\n    if pack_id.startswith(\"http://\") or pack_id.startswith(\"https://\"):\n
-  \       return http_get_json(pack_id)\n\n    catalog = fetch_pack_catalog(DEFAULT_CATALOG_URL)\n
+  p\n    return None\n\ndef resolve_manifest(pack_id: str, include_hidden: bool, catalog_url:
+  str) -> Dict[str, Any]:\n    if pack_id.startswith(\"http://\") or pack_id.startswith(\"https://\"):\n
+  \       return http_get_json(pack_id)\n\n    catalog = fetch_pack_catalog(catalog_url)\n
   \   pack = find_pack_in_catalog(catalog, pack_id)\n    if not pack:\n        raise
   Exception(f\"Pack '{pack_id}' not found in pack_catalog.json\")\n\n    visible =
   bool(pack.get(\"visible\", True))\n    if (not include_hidden) and (not visible):\n
-  \       # Back-compat: allow resolution; list hides it unless include_hidden=True\n
   \       pass\n\n    version = (pack.get(\"version\") or \"\").strip()\n    if not
   version:\n        raise Exception(f\"Pack '{pack_id}' missing version in pack_catalog.json\")\n\n
   \   xsoar_config_url = f\"https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/Packs/{pack_id}/xsoar_config.json\"\n
@@ -183,14 +250,17 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   ---------------------------\n# list action (filter + paging)\n# ---------------------------\n\ndef
   do_list(args: Dict[str, Any]):\n    using = _norm(args.get(\"using\") or \"\")\n
   \   include_hidden = arg_to_bool(args.get(\"include_hidden\"), False)\n\n    # list
-  args\n    text_filter = _to_lower(args.get(\"filter\") or args.get(\"q\") or \"\")\n
-  \   visible_only = arg_to_bool(args.get(\"visible_only\"), True)\n    limit = max(1,
-  to_int(args.get(\"limit\"), 50))\n    offset = max(0, to_int(args.get(\"offset\"),
+  args\n    text_filter = _to_lower(args.get(\"filter\") or args.get(\"q\") or \"\")\n\n
+  \   # IMPORTANT FIX:\n    # include_hidden=True MUST win. If include_hidden=True,
+  visible_only must behave as False.\n    visible_only_raw = arg_to_bool(args.get(\"visible_only\"),
+  True)\n    visible_only = bool(visible_only_raw) and (not include_hidden)\n\n    limit
+  = max(1, to_int(args.get(\"limit\"), 50))\n    offset = max(0, to_int(args.get(\"offset\"),
   0))\n    sort_by = (_norm(args.get(\"sort_by\")) or \"id\").strip()\n    sort_dir
   = (_norm(args.get(\"sort_dir\")) or \"asc\").strip().lower()\n    fields = _parse_csv(args.get(\"fields\"))
   or [\"id\", \"display_name\", \"version\", \"visible\", \"path\"]\n    show_total
-  = arg_to_bool(args.get(\"show_total\"), True)\n\n    emit_progress(\"Fetching catalog…\",
-  stage=\"list\")\n\n    catalog = fetch_pack_catalog(DEFAULT_CATALOG_URL)\n    packs
+  = arg_to_bool(args.get(\"show_total\"), True)\n\n    # honor catalog_url parameter\n
+  \   catalog_url = _norm(args.get(\"catalog_url\") or DEFAULT_CATALOG_URL)\n\n    emit_progress(\"Fetching
+  catalog…\", stage=\"list\")\n\n    catalog = fetch_pack_catalog(catalog_url)\n    packs
   = catalog.get(\"packs\") or catalog.get(\"Packs\") or catalog.get(\"items\") or
   []\n    if not isinstance(packs, list):\n        raise Exception(\"pack_catalog.json
   is missing 'packs' list\")\n\n    rows: List[Dict[str, Any]] = []\n    for p in
@@ -214,13 +284,14 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   + \" |\\n\"\n    sep_line = \"| \" + \" | \".join([\"---\"] * len(fields)) + \"
   |\\n\"\n    table = header_line + sep_line\n    for r in page:\n        table +=
   \"| \" + \" | \".join([_norm(r.get(f, \"\")) for f in fields]) + \" |\\n\"\n\n    summary_lines
-  = [\n        f\"using: {(using or '(default)')}\",\n        f\"include_hidden: {include_hidden}\",\n
-  \       f\"visible_only: {visible_only}\",\n    ]\n    if text_filter:\n        summary_lines.append(f\"filter:
-  `{text_filter}`\")\n    summary_lines.append(f\"sort: {sort_by} {sort_dir}\")\n
-  \   summary_lines.append(f\"page: limit={limit}, offset={offset}\")\n    if show_total:\n
-  \       summary_lines.append(f\"showing: {start}-{end} of {total}\")\n\n    emit_progress(\"\\n\".join(summary_lines)
-  + \"\\n\\n\" + table, stage=\"list\")\n    return\n\n# ---------------------------\n#
-  Marketplace install (USE ANNA’S SCRIPT)\n# ---------------------------\n\ndef install_marketplace_packs(\n
+  = [\n        f\"using: {(using or '(default)')}\",\n        f\"catalog_url: {catalog_url}\",\n
+  \       f\"include_hidden: {include_hidden}\",\n        f\"visible_only: {visible_only}\",\n
+  \   ]\n    if text_filter:\n        summary_lines.append(f\"filter: `{text_filter}`\")\n
+  \   summary_lines.append(f\"sort: {sort_by} {sort_dir}\")\n    summary_lines.append(f\"page:
+  limit={limit}, offset={offset}\")\n    if show_total:\n        summary_lines.append(f\"showing:
+  {start}-{end} of {total}\")\n\n    emit_progress(\"\\n\".join(summary_lines) + \"\\n\\n\"
+  + table, stage=\"list\")\n    return\n\n# ---------------------------\n# Marketplace
+  install (USE ANNA’S SCRIPT)\n# ---------------------------\n\ndef install_marketplace_packs(\n
   \   marketplace_packs: List[Dict[str, str]],\n    using: str,\n    retry_count:
   int,\n    retry_sleep_seconds: int,\n    debug: bool,\n) -> Dict[str, Any]:\n    if
   debug:\n        emit_progress(\n            \"Installing marketplace packs via **XSIAMContentPackInstaller**…\\n\"\n
@@ -345,23 +416,68 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   Any],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds: int,\n    debug:
   bool,\n) -> Dict[str, Any]:\n    jobs = [x for x in (xsoar_cfg.get(\"jobs\", [])
   or []) if isinstance(x, dict)]\n    emit_progress(f\"Configuring jobs… ({len(jobs)}
-  job(s))\", stage=\"configure.jobs\")\n\n    summary = {\"attempted\": 0, \"ok\":
-  0, \"failed\": 0, \"failed_items\": []}\n\n    for job in jobs:\n        name =
-  (job.get(\"name\") or job.get(\"job_name\") or \"\").strip()\n        if not name:\n
-  \           continue\n\n        summary[\"attempted\"] += 1\n        log(f\"Configuring
-  job: **{name}**\", stage=\"configure.jobs.debug\", debug=debug)\n\n        cmd_args
-  = {\"job_name\": name, \"job_data\": json.dumps(job)}\n        if using:\n            cmd_args[\"using\"]
-  = using\n\n        try:\n            _ = exec_with_retry(\n                \"SOCFWJobManager\",\n
+  job(s))\", stage=\"configure.jobs\")\n\n    summary = {\n        \"attempted\":
+  0,\n        \"ok\": 0,\n        \"failed\": 0,\n        \"failed_items\": [],\n
+  \       \"notes\": [],\n    }\n\n    # Determine if we can verify jobs in this tenant\n
+  \   search_path = jobs_api_search_probe(using=using)\n    if not search_path:\n
+  \       emit_progress(\n            \"\\n\".join(\n                [\n                    \"❌
+  Jobs API is not reachable (permissions/endpoint).\",\n                    \"This
+  script will NOT claim jobs were configured if it cannot verify them.\",\n                    \"Fix
+  permissions/role or confirm the correct jobs endpoint, then rerun.\",\n                ]\n
+  \           ),\n            stage=\"configure.jobs.error\",\n        )\n        #
+  We still attempt SOCFWJobManager (for visibility), but we will mark failures because
+  we cannot verify.\n        summary[\"notes\"].append(\"jobs_api_unreachable=true\")\n\n
+  \   for job in jobs:\n        name = _norm(job.get(\"name\") or job.get(\"job_name\")
+  or \"\")\n        if not name:\n            continue\n\n        summary[\"attempted\"]
+  += 1\n        log(f\"Configuring job: **{name}**\", stage=\"configure.jobs.debug\",
+  debug=debug)\n\n        # 1) Try SOCFWJobManager first (for backward compatibility)\n
+  \       manager_ran = False\n        manager_err = None\n        try:\n            cmd_args
+  = {\"job_name\": name, \"job_data\": json.dumps(job)}\n            if using:\n                cmd_args[\"using\"]
+  = using\n\n            res = exec_with_retry(\n                \"SOCFWJobManager\",\n
   \               cmd_args,\n                retry_count=retry_count,\n                retry_sleep_seconds=retry_sleep_seconds,\n
-  \               context_for_error=f\"Failed configuring job: {name}\",\n                fail_on_error=True,\n
-  \           )\n            summary[\"ok\"] += 1\n            log(f\"Job **{name}**
-  ok\", stage=\"configure.jobs.result\", debug=debug)\n        except Exception as
-  e:\n            summary[\"failed\"] += 1\n            summary[\"failed_items\"].append({\"name\":
-  name, \"error\": str(e)})\n            emit_progress(f\"Failed configuring job **{name}**.\\nError:
-  {e}\", stage=\"configure.jobs.error\")\n\n    emit_progress(\n        \"\\n\".join(\n
-  \           [\n                \"Jobs summary:\",\n                f\"- attempted:
-  {summary['attempted']}\",\n                f\"- ok: {summary['ok']}\",\n                f\"-
-  failed: {summary['failed']}\",\n            ]\n        ),\n        stage=\"configure.jobs.summary\",\n
+  \               context_for_error=f\"Failed running SOCFWJobManager for job: {name}\",\n
+  \               fail_on_error=False,\n            )\n            manager_ran = True\n\n
+  \           if debug:\n                emit_progress(\n                    \"\\n\".join(\n
+  \                       [\n                            f\"SOCFWJobManager response
+  for **{name}**:\",\n                            \"```json\",\n                            json.dumps(get_contents(res)
+  or {}, indent=2),\n                            \"```\",\n                        ]\n
+  \                   ),\n                    stage=\"configure.jobs.debug\",\n                )\n
+  \       except Exception as e:\n            manager_err = str(e)\n\n        # 2)
+  Verify job exists (required to count success)\n        if not search_path:\n            summary[\"failed\"]
+  += 1\n            summary[\"failed_items\"].append(\n                {\"name\":
+  name, \"error\": \"Jobs API verification unavailable; cannot confirm job creation/update.\"}\n
+  \           )\n            continue\n\n        # Give the platform a moment for
+  eventual consistency\n        verified = None\n        for _i in range(1, 8):\n
+  \           verified = jobs_api_find_by_name(name, using=using, search_path=search_path,
+  debug=debug)\n            if verified:\n                break\n            time.sleep(2)\n\n
+  \       if verified:\n            summary[\"ok\"] += 1\n            log(f\"✅ Job
+  **{name}** verified in tenant.\", stage=\"configure.jobs.result\", debug=debug,
+  always=True)\n            continue\n\n        # 3) If not verified, fall back to
+  direct Jobs API upsert\n        try:\n            upsert_result = jobs_api_upsert(job,
+  using=using, search_path=search_path, debug=debug)\n            if debug:\n                emit_progress(\n
+  \                   \"\\n\".join(\n                        [\n                            f\"Jobs
+  API upsert result for **{name}**:\",\n                            \"```json\",\n
+  \                           json.dumps(upsert_result, indent=2),\n                            \"```\",\n
+  \                       ]\n                    ),\n                    stage=\"configure.jobs.debug\",\n
+  \               )\n\n            # Verify again\n            verified2 = None\n
+  \           for _i in range(1, 8):\n                verified2 = jobs_api_find_by_name(name,
+  using=using, search_path=search_path, debug=debug)\n                if verified2:\n
+  \                   break\n                time.sleep(2)\n\n            if not verified2:\n
+  \               raise Exception(\"Upsert ran but job still not visible via Jobs
+  API.\")\n\n            summary[\"ok\"] += 1\n            log(f\"✅ Job **{name}**
+  created/updated via Jobs API fallback and verified.\", stage=\"configure.jobs.result\",
+  debug=debug, always=True)\n\n        except Exception as e:\n            summary[\"failed\"]
+  += 1\n            err_parts = []\n            if manager_err:\n                err_parts.append(f\"SOCFWJobManager
+  error: {manager_err}\")\n            elif manager_ran:\n                err_parts.append(\"SOCFWJobManager
+  ran but did not create/verify the job.\")\n            err_parts.append(f\"Jobs
+  API fallback error: {e}\")\n            summary[\"failed_items\"].append({\"name\":
+  name, \"error\": \" | \".join(err_parts)})\n            emit_progress(f\"Failed
+  configuring job **{name}**.\\nError: {' | '.join(err_parts)}\", stage=\"configure.jobs.error\")\n\n
+  \   emit_progress(\n        \"\\n\".join(\n            [\n                \"Jobs
+  summary:\",\n                f\"- attempted: {summary['attempted']}\",\n                f\"-
+  ok (verified): {summary['ok']}\",\n                f\"- failed: {summary['failed']}\",\n
+  \               f\"- notes: {', '.join(summary['notes']) if summary['notes'] else
+  '(none)'}\",\n            ]\n        ),\n        stage=\"configure.jobs.summary\",\n
   \   )\n    return summary\n\ndef configure_lookups_from_xsoar_config(\n    xsoar_cfg:
   Dict[str, Any],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds:
   int,\n    overwrite_lookup: bool,\n    debug: bool,\n) -> Dict[str, Any]:\n    dsets
@@ -397,9 +513,9 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   False)\n\n    include_doc_content = arg_to_bool(args.get(\"include_doc_content\"),
   False)\n    doc_content_max_chars = to_int(args.get(\"doc_content_max_chars\"),
   6000)\n    doc_content_max_lines = to_int(args.get(\"doc_content_max_lines\"), 200)\n\n
-  \   # NEW: pre-config gate\n    pre_config_done = arg_to_bool(args.get(\"pre_config_done\"),
-  False)\n    pre_config_gate = arg_to_bool(args.get(\"pre_config_gate\"), True)  #
-  default True\n\n    retry_count = to_int(args.get(\"retry_count\"), 5)\n    retry_sleep_seconds
+  \   # pre-config gate\n    pre_config_done = arg_to_bool(args.get(\"pre_config_done\"),
+  False)\n    pre_config_gate = arg_to_bool(args.get(\"pre_config_gate\"), True)\n\n
+  \   retry_count = to_int(args.get(\"retry_count\"), 5)\n    retry_sleep_seconds
   = to_int(args.get(\"retry_sleep_seconds\"), 15)\n    using = (args.get(\"using\")
   or \"\").strip()\n    execution_timeout = to_int(args.get(\"execution_timeout\"),
   1200)\n\n    skip_verify = arg_to_bool(args.get(\"skip_verify\"), True)\n    skip_validation
@@ -408,11 +524,13 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   1800)\n    post_install_poll_interval_seconds = to_int(args.get(\"post_install_poll_interval_seconds\"),
   60)\n    continue_on_install_timeout = arg_to_bool(args.get(\"continue_on_install_timeout\"),
   False)\n\n    fail_on_marketplace_errors = arg_to_bool(args.get(\"fail_on_marketplace_errors\"),
-  False)\n\n    debug = arg_to_bool(args.get(\"debug\"), False)\n\n    if action not
-  in (\"apply\", \"list\"):\n        raise Exception(f\"Unsupported action: {action}\")\n\n
-  \   if action == \"list\":\n        return do_list(args)\n\n    if not pack_id:\n
-  \       raise Exception(\"pack_id is required for action=apply\")\n\n    emit_progress(\n
-  \       \"\\n\".join(\n            [\n                f\"Starting {action} for **{pack_id}**\",\n
+  False)\n\n    debug = arg_to_bool(args.get(\"debug\"), False)\n\n    # honor catalog_url
+  parameter\n    catalog_url = _norm(args.get(\"catalog_url\") or DEFAULT_CATALOG_URL)\n\n
+  \   if action not in (\"apply\", \"list\"):\n        raise Exception(f\"Unsupported
+  action: {action}\")\n\n    if action == \"list\":\n        return do_list(args)\n\n
+  \   if not pack_id:\n        raise Exception(\"pack_id is required for action=apply\")\n\n
+  \   emit_progress(\n        \"\\n\".join(\n            [\n                f\"Starting
+  {action} for **{pack_id}**\",\n                f\"- catalog_url={catalog_url}\",\n
   \               f\"- include_hidden={include_hidden}\",\n                f\"- dry_run={dry_run}\",\n
   \               f\"- install_marketplace={install_marketplace_flag}\",\n                f\"-
   apply_configure={apply_configure} (jobs={configure_jobs}, integrations={configure_integrations},
@@ -430,15 +548,16 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   \               f\"- pre_config_done={pre_config_done}\",\n                f\"-
   debug={debug}\",\n            ]\n        ),\n        stage=\"start\",\n    )\n\n
   \   emit_progress(\"Resolving install manifest…\", stage=\"manifest\")\n    manifest
-  = resolve_manifest(pack_id, include_hidden=include_hidden)\n\n    marketplace_packs
-  = manifest.get(\"marketplace_packs\") or []\n    custom_zip_urls = manifest.get(\"custom_zip_urls\")
-  or []\n    xsoar_config_url = manifest.get(\"xsoar_config_url\") or \"\"\n\n    emit_progress(\n
-  \       \"\\n\".join(\n            [\n                \"Manifest resolved.\",\n
-  \               f\"- marketplace_packs: {len(marketplace_packs)}\",\n                f\"-
-  custom ZIP URLs: {len(custom_zip_urls)}\",\n                f\"- xsoar_config_url:
-  {xsoar_config_url or '(none)'}\",\n            ]\n        ),\n        stage=\"manifest.summary\",\n
-  \   )\n\n    xsoar_cfg: Dict[str, Any] = {}\n    if xsoar_config_url:\n        emit_progress(\"Fetching
-  xsoar_config.json…\", stage=\"xsoar_config.fetch\")\n        xsoar_cfg = fetch_xsoar_config(xsoar_config_url)
+  = resolve_manifest(pack_id, include_hidden=include_hidden, catalog_url=catalog_url)\n\n
+  \   marketplace_packs = manifest.get(\"marketplace_packs\") or []\n    custom_zip_urls
+  = manifest.get(\"custom_zip_urls\") or []\n    xsoar_config_url = manifest.get(\"xsoar_config_url\")
+  or \"\"\n\n    emit_progress(\n        \"\\n\".join(\n            [\n                \"Manifest
+  resolved.\",\n                f\"- marketplace_packs: {len(marketplace_packs)}\",\n
+  \               f\"- custom ZIP URLs: {len(custom_zip_urls)}\",\n                f\"-
+  xsoar_config_url: {xsoar_config_url or '(none)'}\",\n            ]\n        ),\n
+  \       stage=\"manifest.summary\",\n    )\n\n    xsoar_cfg: Dict[str, Any] = {}\n
+  \   if xsoar_config_url:\n        emit_progress(\"Fetching xsoar_config.json…\",
+  stage=\"xsoar_config.fetch\")\n        xsoar_cfg = fetch_xsoar_config(xsoar_config_url)
   or {}\n\n        cfg_marketplace_packs = xsoar_cfg.get(\"marketplace_packs\") or
   []\n        if isinstance(cfg_marketplace_packs, list) and cfg_marketplace_packs:\n
   \           marketplace_packs = cfg_marketplace_packs\n\n        emit_progress(\n
@@ -449,12 +568,11 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   []) or [])}\",\n                    f\"- has_pre_config_docs: {has_config_docs(xsoar_cfg,
   'pre')}\",\n                    f\"- has_post_config_docs: {has_config_docs(xsoar_cfg,
   'post')}\",\n                ]\n            ),\n            stage=\"xsoar_config.summary\",\n
-  \       )\n\n        # Print PRE docs immediately\n        print_config_docs(\n
-  \           xsoar_cfg,\n            when=\"pre\",\n            debug=debug,\n            include_doc_content=include_doc_content,\n
+  \       )\n\n        print_config_docs(\n            xsoar_cfg,\n            when=\"pre\",\n
+  \           debug=debug,\n            include_doc_content=include_doc_content,\n
   \           doc_content_max_chars=doc_content_max_chars,\n            doc_content_max_lines=doc_content_max_lines,\n
-  \       )\n\n        # DEFAULT: stop after printing PRE docs if they exist (unless
-  acknowledged/bypassed)\n        if pre_config_gate and has_config_docs(xsoar_cfg,
-  \"pre\") and not pre_config_done:\n            emit_progress(\n                \"\\n\".join(\n
+  \       )\n\n        if pre_config_gate and has_config_docs(xsoar_cfg, \"pre\")
+  and not pre_config_done:\n            emit_progress(\n                \"\\n\".join(\n
   \                   [\n                        \"\U0001F6D1 **Pre-config required**\",\n
   \                       \"Pre-config docs were printed above.\",\n                        \"\",\n
   \                       \"After completing those steps, rerun with:\",\n                        \"-
@@ -510,17 +628,16 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   \               retry_sleep_seconds=retry_sleep_seconds,\n                overwrite_lookup=overwrite_lookup,\n
   \               debug=debug,\n            )\n\n    emit_progress(\"Done.\", stage=\"done\")\n\n
   \   results_obj = {\n        \"pack_id\": pack_id,\n        \"xsoar_config_url\":
-  xsoar_config_url,\n        \"marketplace_errors\": marketplace_errors,\n        \"debug\":
-  debug,\n        \"install_timeout\": install_timeout,\n        \"skip_verify\":
-  skip_verify,\n        \"skip_validation\": skip_validation,\n        \"post_install_poll_seconds\":
-  post_install_poll_seconds,\n        \"post_install_poll_interval_seconds\": post_install_poll_interval_seconds,\n
-  \       \"continue_on_install_timeout\": continue_on_install_timeout,\n        \"configure_summary\":
-  {\n            \"integrations\": integration_summary,\n            \"jobs\": jobs_summary,\n
-  \           \"lookups\": lookups_summary,\n        },\n    }\n\n    # Return the
-  machine-readable result first...\n    return_results(results_obj)\n\n    # ...then
-  print POST docs as the FINAL War Room entry (so users don't scroll)\n    if xsoar_cfg:\n
-  \       print_config_docs(\n            xsoar_cfg,\n            when=\"post\",\n
-  \           debug=debug,\n            include_doc_content=include_doc_content,\n
+  xsoar_config_url,\n        \"catalog_url\": catalog_url,\n        \"marketplace_errors\":
+  marketplace_errors,\n        \"debug\": debug,\n        \"install_timeout\": install_timeout,\n
+  \       \"skip_verify\": skip_verify,\n        \"skip_validation\": skip_validation,\n
+  \       \"post_install_poll_seconds\": post_install_poll_seconds,\n        \"post_install_poll_interval_seconds\":
+  post_install_poll_interval_seconds,\n        \"continue_on_install_timeout\": continue_on_install_timeout,\n
+  \       \"configure_summary\": {\n            \"integrations\": integration_summary,\n
+  \           \"jobs\": jobs_summary,\n            \"lookups\": lookups_summary,\n
+  \       },\n    }\n\n    # Return machine-readable first\n    return_results(results_obj)\n\n
+  \   # Print POST docs last\n    if xsoar_cfg:\n        print_config_docs(\n            xsoar_cfg,\n
+  \           when=\"post\",\n            debug=debug,\n            include_doc_content=include_doc_content,\n
   \           doc_content_max_chars=doc_content_max_chars,\n            doc_content_max_lines=doc_content_max_lines,\n
   \       )\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()\n"
 type: python
