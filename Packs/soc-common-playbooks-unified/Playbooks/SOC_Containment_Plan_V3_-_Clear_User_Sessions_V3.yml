@@ -1,0 +1,945 @@
+id: SOC Containment Plan_V3 - Clear User Sessions_V3
+version: 4
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-common-playbooks-unified
+    packName: SOC Common Playbooks Unified
+    itemVersion: 2.7.52
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: SOC Containment Plan_V3 - Clear User Sessions_V3
+description: |-
+  ## Containment Plan - Clear User Sessions
+
+  This playbook is a sub-playbook within the containment plan playbook.
+  The playbook uses the 'Okta v2' and 'MSGraph User' integrations to clear user sessions.
+tags:
+- SOC
+- SOC_Framework
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: f2a578bb-7b26-4477-8391-2e40e77fb9d5
+    type: start
+    task:
+      id: f2a578bb-7b26-4477-8391-2e40e77fb9d5
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "17"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 770,
+          "y": -150
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 0dbcce9a-afe8-4533-a5c4-368906fd2625
+    type: regular
+    task:
+      id: 0dbcce9a-afe8-4533-a5c4-368906fd2625
+      version: -1
+      name: Okta clear user sessions
+      description: |-
+        Removes all active identity provider sessions. This forces the user to authenticate on the next operation. Optionally revokes OpenID Connect and OAuth refresh and access tokens issued to the user.
+        For more information and examples:
+        https://developer.okta.com/docs/reference/api/users/#user-sessions
+      script: Okta v2|||okta-clear-user-sessions
+      type: regular
+      iscommand: true
+      brand: Okta v2
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "33"
+      '#none#':
+      - "9"
+    scriptarguments:
+      userId:
+        complex:
+          root: Account
+          accessor: ID
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 530,
+          "y": 985
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: 581b7da6-4c88-41a6-8175-a2116add396c
+    type: title
+    task:
+      id: 581b7da6-4c88-41a6-8175-a2116add396c
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 770,
+          "y": 1320
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: d70a5b0e-0686-4ad0-80c1-af9817310138
+    type: regular
+    task:
+      id: d70a5b0e-0686-4ad0-80c1-af9817310138
+      version: -1
+      name: Get Okta user ID
+      description: Fetches information for a single user. You must enter one or more
+        parameters for the command to run.
+      script: '|||okta-get-user'
+      type: regular
+      iscommand: true
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "33"
+      '#none#':
+      - "25"
+    scriptarguments:
+      username:
+        simple: ${OktaUsersSessionToClear}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 530,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: bda090c7-6749-46e5-8453-31f56d8b778c
+    type: regular
+    task:
+      id: bda090c7-6749-46e5-8453-31f56d8b778c
+      version: -1
+      name: Set the username to the Alert context
+      description: commands.local.cmd.set.parent.alert.context
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      iscommand: true
+      brand: Builtin
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "2"
+    scriptarguments:
+      key:
+        simple: UsersSessionCleared
+      value:
+        complex:
+          root: Account
+          accessor: Username
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 530,
+          "y": 1145
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: 70665d82-a946-4a6c-9201-e8a8c7cfe79a
+    type: regular
+    task:
+      id: 70665d82-a946-4a6c-9201-e8a8c7cfe79a
+      version: -1
+      name: Set users to clear the session with Okta
+      description: Set a value in context under the key you entered.
+      scriptName: Set
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "33"
+      '#none#':
+      - "7"
+    scriptarguments:
+      key:
+        simple: OktaUsersSessionToClear
+      value:
+        complex:
+          root: inputs.Username
+          filters:
+          - - operator: notContainsGeneral
+              left:
+                value:
+                  simple: inputs.Username
+                iscontext: true
+              right:
+                value:
+                  simple: administrator
+              ignorecase: true
+          - - operator: notContainsGeneral
+              left:
+                value:
+                  simple: inputs.Username
+                iscontext: true
+              right:
+                value:
+                  simple: system
+              ignorecase: true
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 530,
+          "y": 410
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "15":
+    id: "15"
+    taskid: 4025c083-2630-4171-889e-5f05b1fc51eb
+    type: condition
+    task:
+      id: 4025c083-2630-4171-889e-5f05b1fc51eb
+      version: -1
+      name: Is Okta enabled?
+      description: Returns 'yes' if integration brand is available. Otherwise returns
+        'no'.
+      scriptName: IsIntegrationAvailable
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "11"
+    scriptarguments:
+      brandname:
+        simple: Okta v2
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 530,
+          "y": 210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: f1d3409f-55f4-4804-8a48-354971cae04e
+    type: condition
+    task:
+      id: f1d3409f-55f4-4804-8a48-354971cae04e
+      version: -1
+      name: Should clear the user sessions?
+      description: Whether to clear the user sessions based on the input values.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "15"
+      - "18"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ClearUserSessions
+            iscontext: true
+          right:
+            value:
+              simple: "True"
+          ignorecase: true
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.Username
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 770,
+          "y": 0
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "18":
+    id: "18"
+    taskid: 64c30075-eba8-4222-8251-cf075b841898
+    type: condition
+    task:
+      id: 64c30075-eba8-4222-8251-cf075b841898
+      version: -1
+      name: Is MsGraphUser enabled?
+      description: Returns 'yes' if integration brand is available. Otherwise returns
+        'no'.
+      scriptName: IsIntegrationAvailable
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "27"
+    scriptarguments:
+      brandname:
+        simple: Microsoft Graph User
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1010,
+          "y": 210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: 95e4dd34-41f7-4300-a2d9-d021c6779085
+    type: regular
+    task:
+      id: 95e4dd34-41f7-4300-a2d9-d021c6779085
+      version: -1
+      name: Get MsGraph user ID
+      description: |-
+        Retrieves the properties and relationships of a user object. For more information, visit: https://docs.microsoft.com/en-us/graph/api/user-update?view=graph-rest-1.0).
+        Permissions: - User.Read (Delegated) - User.Read.All (Application).
+      script: Microsoft Graph User|||msgraph-user-get
+      type: regular
+      iscommand: true
+      brand: Microsoft Graph User
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "33"
+      '#none#':
+      - "23"
+    scriptarguments:
+      user:
+        simple: ${MsGraphUsersSessionToClear}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 1010,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "21":
+    id: "21"
+    taskid: e6092911-c270-4133-8a71-a0fe04050fbd
+    type: regular
+    task:
+      id: e6092911-c270-4133-8a71-a0fe04050fbd
+      version: -1
+      name: MSGraph clear user sessions
+      description: |-
+        Revoke a user session - Invalidates all the refresh tokens issued to applications for a user.
+        Permission: Directory.AccessAsUser.All(Delegated).
+      script: Microsoft Graph User|||msgraph-user-session-revoke
+      type: regular
+      iscommand: true
+      brand: Microsoft Graph User
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "33"
+      '#none#':
+      - "22"
+    scriptarguments:
+      user:
+        simple: ${MSGraphUser.ID}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 1010,
+          "y": 985
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "22":
+    id: "22"
+    taskid: aaafcc54-e334-42a5-8a5c-f4dea1d0c158
+    type: regular
+    task:
+      id: aaafcc54-e334-42a5-8a5c-f4dea1d0c158
+      version: -1
+      name: Set the username to the Alert context
+      description: commands.local.cmd.set.parent.alert.context
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      iscommand: true
+      brand: Builtin
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "2"
+    scriptarguments:
+      key:
+        simple: UsersSessionCleared
+      value:
+        simple: ${MSGraphUser.UserPrincipalName}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1010,
+          "y": 1145
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: 4655db74-8104-4510-88b0-d9a081911b34
+    type: condition
+    task:
+      id: 4655db74-8104-4510-88b0-d9a081911b34
+      version: -1
+      name: Does the username exist?
+      description: Verify that the user exists.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "30"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isExists
+          left:
+            value:
+              simple: MSGraphUser.ID
+            iscontext: true
+          right:
+            value: {}
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1010,
+          "y": 785
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "25":
+    id: "25"
+    taskid: c1ba5bf5-e37f-41ee-8392-7709acc40e8f
+    type: condition
+    task:
+      id: c1ba5bf5-e37f-41ee-8392-7709acc40e8f
+      version: -1
+      name: Does the username exist?
+      description: Verify that the user exists.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "31"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isExists
+          left:
+            value:
+              complex:
+                root: Account
+                filters:
+                - - operator: isEqualString
+                    left:
+                      value:
+                        simple: Account.Type
+                      iscontext: true
+                    right:
+                      value:
+                        simple: Okta
+                    ignorecase: true
+                accessor: ID
+            iscontext: true
+          right:
+            value: {}
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 530,
+          "y": 785
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "27":
+    id: "27"
+    taskid: 4e220d72-c0cf-4e44-b371-b41bea0fd859
+    type: regular
+    task:
+      id: 4e220d72-c0cf-4e44-b371-b41bea0fd859
+      version: -1
+      name: Set users to clear the session with MsGraph
+      description: Set a value in context under the key you entered.
+      scriptName: Set
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "33"
+      '#none#':
+      - "20"
+    scriptarguments:
+      key:
+        simple: MsGraphUsersSessionToClear
+      value:
+        complex:
+          root: inputs.Username
+          filters:
+          - - operator: notContainsGeneral
+              left:
+                value:
+                  simple: inputs.Username
+                iscontext: true
+              right:
+                value:
+                  simple: administrator
+              ignorecase: true
+          - - operator: notContainsGeneral
+              left:
+                value:
+                  simple: inputs.Username
+                iscontext: true
+              right:
+                value:
+                  simple: system
+              ignorecase: true
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 1010,
+          "y": 410
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "29":
+    id: "29"
+    taskid: d8d0bae3-cff1-4511-a902-f81f6f34d5a4
+    type: regular
+    task:
+      id: d8d0bae3-cff1-4511-a902-f81f6f34d5a4
+      version: -1
+      name: 'Shadow: MSGraph clear user sessions'
+      description: Prints text to war room (Markdown supported)
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "22"
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: MSGraph clear user sessions
+          Command: msgraph-user-session-revoke ${inputs.Username}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1720,
+          "y": 985
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "30":
+    id: "30"
+    taskid: 3995dd09-419e-49df-88ed-a907aac1755e
+    type: condition
+    task:
+      id: 3995dd09-419e-49df-88ed-a907aac1755e
+      version: -1
+      name: Run Mode?
+      scriptName: ShadowModeRouter_V3
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      Full Run:
+      - "21"
+      Shadow Mode:
+      - "29"
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1720,
+          "y": 830
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "31":
+    id: "31"
+    taskid: a14222a1-2f3d-45db-80e7-864cde88d15c
+    type: condition
+    task:
+      id: a14222a1-2f3d-45db-80e7-864cde88d15c
+      version: -1
+      name: Run Mode?
+      scriptName: ShadowModeRouter_V3
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      Full Run:
+      - "1"
+      Shadow Mode:
+      - "32"
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 40,
+          "y": 870
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "32":
+    id: "32"
+    taskid: f978e210-7ba2-467c-b20d-d4705a2703ba
+    type: regular
+    task:
+      id: f978e210-7ba2-467c-b20d-d4705a2703ba
+      version: -1
+      name: 'Shadow: Okta clear user sessions'
+      description: Prints text to war room (Markdown supported)
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Okta clear user sessions
+          Command: okta-clear-user-sessions ${inputs.Username}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 40,
+          "y": 1030
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "33":
+    id: "33"
+    taskid: a04e5786-6e0f-40f1-85c5-10523271f210
+    type: playbook
+    task:
+      id: a04e5786-6e0f-40f1-85c5-10523271f210
+      version: -1
+      name: Foundation - Error Handling_V3
+      playbookName: Foundation - Error Handling_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1390,
+          "y": 1260
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {
+      "15_2_#default#": 0.15,
+      "17_15_yes": 0.48,
+      "17_2_#default#": 0.11,
+      "18_2_#default#": 0.16,
+      "23_2_#default#": 0.25,
+      "25_2_#default#": 0.33,
+      "25_31_yes": 0.83
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1530,
+        "width": 2060,
+        "x": 40,
+        "y": -150
+      }
+    }
+  }
+inputs:
+- key: ClearUserSessions
+  value:
+    simple: "True"
+  required: false
+  description: Set to 'True' to clear the user active sessions.
+  playbookInputQuery: null
+- key: Username
+  value: {}
+  required: false
+  description: The username to disable.
+  playbookInputQuery: null
+- key: IAMUserDomain
+  value: {}
+  required: false
+  description: The Okta IAM users domain. The domain will be appended to the username.
+    E.g., username@IAMUserDomain.
+  playbookInputQuery: null
+- key: ShadowMode
+  value:
+    simple: "true"
+  required: false
+  description: ""
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - ClearUserSessions
+  - Username
+  - IAMUserDomain
+  - ShadowMode
+  name: General (Inputs group)
+  description: Generic group for inputs.
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+sourceplaybookid: Containment Plan - Clear User Sessions
+dirtyInputs: true
+adopted: true
