@@ -1,0 +1,399 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 2.1.24
+    packID: ""
+    packName: Cybereason
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: This playbook accepts an MD5 hash and blocks the file using the Cybereason
+  integration.
+dirtyInputs: true
+id: 'SOC Block File - Cybereason_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - MD5
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The MD5 hash of the file to block.
+  key: MD5
+  playbookInputQuery:
+  required: false
+  value:
+    complex:
+      accessor: MD5
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: File.Malicious
+          operator: isExists
+      root: File
+      transformers:
+      - operator: uniq
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block File - Cybereason_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - CbResponse.BlockedHashes.LastBlock.Time
+  - CbResponse.BlockedHashes.LastBlock.Hostname
+  - CbResponse.BlockedHashes.LastBlock.CbSensorID
+outputs:
+- contextPath: CbResponse.BlockedHashes.LastBlock.Time
+  description: Last block time.
+- contextPath: CbResponse.BlockedHashes.LastBlock.Hostname
+  description: Last block hostname.
+- contextPath: CbResponse.BlockedHashes.LastBlock.CbSensorID
+  description: Last block sensor ID.
+sourceplaybookid: Block File - Cybereason
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5e4385e3-76c2-48e2-80a4-c3798cdae027
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 5e4385e3-76c2-48e2-80a4-c3798cdae027
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 50
+        }
+      }
+  "6":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Cybereason
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "8"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if Cybereason is enabled.
+      id: 9cf85355-9028-4a01-8304-3a371020c9b3
+      iscommand: false
+      name: Is Cybereason integration enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 9cf85355-9028-4a01-8304-3a371020c9b3
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 200
+        }
+      }
+  "8":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.MD5
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is a value for the MD5 input field. This task does
+        not verify that the value is actually an MD5 hash, just that a value exists
+        in the MD5 field.
+      id: 0f02e921-eb9a-47bd-8d9c-93759602036f
+      iscommand: false
+      name: Is there an MD5 to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 0f02e921-eb9a-47bd-8d9c-93759602036f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 520,
+          "y": 370
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2c14bf01-7fd9-45f8-8554-86d0c1332d81
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 2c14bf01-7fd9-45f8-8554-86d0c1332d81
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 260,
+          "y": 910
+        }
+      }
+  "10":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      md5:
+        complex:
+          root: inputs.MD5
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Cybereason
+      description: Prevent malop process file
+      id: 964932d8-a418-488c-ae60-225aec4a50b5
+      iscommand: true
+      name: Cybereason Prevent File
+      playbooktaskmissingcomponent:
+      script: Cybereason|||cybereason-prevent-file
+      type: regular
+      version: -1
+    taskid: 964932d8-a418-488c-ae60-225aec4a50b5
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 830,
+          "y": 640
+        }
+      }
+  "11":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "10"
+      Shadow Mode:
+      - "13"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0333bc63-330a-401b-9ebd-574a974b916f
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter_V3'
+      type: condition
+      version: -1
+    taskid: 0333bc63-330a-401b-9ebd-574a974b916f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1230,
+          "y": 410
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 4444bcde-43c6-4b09-8741-f6ab024cc3f1
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 4444bcde-43c6-4b09-8741-f6ab024cc3f1
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1230,
+          "y": 890
+        }
+      }
+  "13":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "12"
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: Cybereason Ban File
+          Command: cybereason-prevent-file ${inputs.MD5}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 02ffb955-84eb-4ab1-b9f7-a919795491c8
+      iscommand: false
+      name: 'Shadow: Cybereason Ban File'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 02ffb955-84eb-4ab1-b9f7-a919795491c8
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1580,
+          "y": 640
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "6_8_yes": 0.55,
+      "6_9_#default#": 0.65,
+      "8_9_#default#": 0.35
+    },
+    "paper": {
+      "dimensions": {
+        "height": 920,
+        "width": 1700,
+        "x": 260,
+        "y": 50
+      }
+    }
+  }
+fromversion: 5.0.0

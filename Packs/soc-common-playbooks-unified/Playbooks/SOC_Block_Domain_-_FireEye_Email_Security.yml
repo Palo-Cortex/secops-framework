@@ -1,0 +1,372 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.0.0
+    isoverridable: false
+    itemVersion: 2.0.35
+    packID: ""
+    packName: FireEye Email Security (EX)
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: |-
+  This playbook blocks domains using FireEye Email Security.
+  The playbook checks whether the FireEye Email Security integration is enabled, whether the Domain input has been provided and if so, blocks the domain.
+dirtyInputs: true
+id: 'SOC Block Domain - FireEye Email Security_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Domain
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The Domain to block.
+  key: Domain
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block Domain - FireEye Email Security_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Block Domain - FireEye Email Security
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 94163ae0-f7a8-4641-803d-11ce2e35a27a
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 94163ae0-f7a8-4641-803d-11ce2e35a27a
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -250
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: FireEye Email Security
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of Check Point Firewall enabled.
+      id: e1a529d9-ad4c-4392-8249-128a5b760eba
+      iscommand: false
+      name: Is FireEye Email Security  enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: e1a529d9-ad4c-4392-8249-128a5b760eba
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 670,
+          "y": 60
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "5"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      entry_value:
+        complex:
+          root: inputs.Domain
+      type:
+        simple: sender_domain
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: FireEye Email Security
+      description: Creates the blocked sender domain.
+      id: 47c008a0-3e4a-47f5-a4ab-89b1f7fda908
+      iscommand: true
+      name: Block Domain
+      playbooktaskmissingcomponent:
+      script: FireEye Email Security|||fireeye-ex-create-blockedlist
+      type: regular
+      version: -1
+    taskid: 47c008a0-3e4a-47f5-a4ab-89b1f7fda908
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 710,
+          "y": 380
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3b6ec932-ffb3-43c5-8666-13b769935c00
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 3b6ec932-ffb3-43c5-8666-13b769935c00
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 560
+        }
+      }
+  "4":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Domain
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check whether the necessary inputs were provided
+      id: 8a98155b-9114-4772-8676-5dea5fa7809c
+      iscommand: false
+      name: Check if Domain input was provided
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 8a98155b-9114-4772-8676-5dea5fa7809c
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -100
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0985c48b-dbb2-406f-81fa-da7ed2b65954
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 0985c48b-dbb2-406f-81fa-da7ed2b65954
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1200,
+          "y": 555
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "2"
+      Shadow Mode:
+      - "7"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 8eb42e90-87d1-4aaa-92bc-62d8d51a195f
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: ShadowModeRouter_V3
+      type: condition
+      version: -1
+    taskid: 8eb42e90-87d1-4aaa-92bc-62d8d51a195f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 820,
+          "y": 210
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: FireEye Email Security Block Domain
+          Command: fireeye-ex-create-blockedlist
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 3db1b406-a2dd-4b4e-aeaf-8209488d795a
+      iscommand: false
+      name: 'Shadow: FireEye Email Security Block Domain'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 3db1b406-a2dd-4b4e-aeaf-8209488d795a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1160,
+          "y": 380
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 875,
+        "width": 1130,
+        "x": 450,
+        "y": -250
+      }
+    }
+  }
+fromversion: 5.0.0
