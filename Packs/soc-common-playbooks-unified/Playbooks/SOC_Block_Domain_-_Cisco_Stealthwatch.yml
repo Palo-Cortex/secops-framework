@@ -1,0 +1,374 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.5.0
+    isoverridable: false
+    itemVersion: 1.0.36
+    packID: ""
+    packName: Cisco Secure Network Analytics (Stealthwatch)
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: This playbook blocks domains using Cisco Stealthwatch Cloud.
+dirtyInputs: true
+id: 'SOC Block Domain - Cisco Stealthwatch_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Domain
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The Domain to block.
+  key: Domain
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block Domain - Cisco Stealthwatch_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Block Domain - Cisco Stealthwatch
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b124cfe7-a56f-4490-880b-78cf3274b99b
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: b124cfe7-a56f-4490-880b-78cf3274b99b
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -340
+        }
+      }
+  "2":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Stealthwatch Cloud
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Active
+                root: modules
+          operator: isExists
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "7"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of Check Point Firewall enabled.
+      id: 1268fa81-6e6d-4d75-8f22-f6893af3cb9c
+      iscommand: false
+      name: Is Cisco Stealthwatch enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 1268fa81-6e6d-4d75-8f22-f6893af3cb9c
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 670,
+          "y": -40
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "6"
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      domain:
+        complex:
+          root: inputs.Domain
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Stealthwatch Cloud
+      description: Add a domain or IP to the block list
+      id: ae728956-b777-4846-a4d3-5edbdf95af4b
+      iscommand: true
+      name: Block Domain
+      playbooktaskmissingcomponent:
+      script: Stealthwatch Cloud|||sw-block-domain-or-ip
+      type: regular
+      version: -1
+    taskid: ae728956-b777-4846-a4d3-5edbdf95af4b
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 670,
+          "y": 390
+        }
+      }
+  "4":
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 897a00db-2a04-48d5-8630-e55b5443f0b9
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 897a00db-2a04-48d5-8630-e55b5443f0b9
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 560
+        }
+      }
+  "5":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Domain
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check whether the necessary inputs were provided
+      id: cfdef7e9-5188-4715-8a20-4cf22f75f1ee
+      iscommand: false
+      name: Check if Domain input was provided
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: cfdef7e9-5188-4715-8a20-4cf22f75f1ee
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -210
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5801ed19-0f8a-47da-889f-b0034b1b1a76
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 5801ed19-0f8a-47da-889f-b0034b1b1a76
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1230,
+          "y": 555
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "3"
+      Shadow Mode:
+      - "8"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7179cdf6-d566-42b4-b908-71f84a7d5b1e
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: ShadowModeRouter_V3
+      type: condition
+      version: -1
+    taskid: 7179cdf6-d566-42b4-b908-71f84a7d5b1e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 860,
+          "y": 220
+        }
+      }
+  "8":
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Cisco Stealthwatch Block Domain
+          Command: sw-block-domain-or-ip
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: e0f12968-7aaa-4c09-b4bb-41e2ba5b629d
+      iscommand: false
+      name: 'Shadow: Cisco Stealthwatch Block Domain'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: e0f12968-7aaa-4c09-b4bb-41e2ba5b629d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1110,
+          "y": 390
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "2_4_#default#": 0.27,
+      "5_2_yes": 0.61,
+      "5_4_#default#": 0.66
+    },
+    "paper": {
+      "dimensions": {
+        "height": 965,
+        "width": 1160,
+        "x": 450,
+        "y": -340
+      }
+    }
+  }
+fromversion: 5.0.0

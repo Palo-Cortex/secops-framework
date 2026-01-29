@@ -1,0 +1,1107 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.6.0
+    isoverridable: false
+    itemVersion: 2.7.15
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    toServerVersion: ""
+description: |-
+  ## Containment Plan - Block Indicators
+
+  This playbook is a sub-playbook within the containment plan playbook.
+
+  ### Indicator Blocking
+
+  The playbook block indicators by two methods:
+
+  1. It adds the malicious hashes into the XSIAM hash block list
+  2. It utilizes the sub-playbook "Block Indicators - Generic v3"
+dirtyInputs: true
+id: 'SOC Containment Plan_V3 - Block Indicators_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - BlockIndicators
+  - UserVerification
+  - AutoBlockIndicators
+  - FileHash
+  - IP
+  - Domain
+  - URL
+  - Username
+  - FilePath
+  - AutoContainment
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: Set to 'True' to block the indicators.
+  key: BlockIndicators
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "True"
+- description: "Possible values: True/False.\nWhether to provide user verification
+    for blocking those IPs. \n\nFalse - No prompt will be displayed to the user.\n
+    True - The server will ask the user for blocking verification and will display
+    the blocking list."
+  key: UserVerification
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "False"
+- description: |-
+    Possible values: True/False.  Default: True.
+    Should the given indicators be automatically blocked, or should the user be given the option to choose?
+
+    If set to False - no prompt will appear, and all provided indicators will be blocked automatically.
+    If set to True - the user will be prompted to select which indicators to block.
+  key: AutoBlockIndicators
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "True"
+- description: The file hash to block.
+  key: FileHash
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The IP indicators.
+  key: IP
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The domain indicators.
+  key: Domain
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The URL indicator.
+  key: URL
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The username to disable.
+  key: Username
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The path of the file to block.
+  key: FilePath
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Whether to execute containment plan automatically.
+  key: AutoContainment
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Containment Plan_V3 - Block Indicators_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - Core.blocklist.added_hashes
+outputs:
+- contextPath: Core.blocklist.added_hashes
+  description: The file Hash that was added to the blocklist.
+sourceplaybookid: Containment Plan - Block Indicators
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0eab88db-3b97-46e9-8040-fc0e5ccdd72b
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 0eab88db-3b97-46e9-8040-fc0e5ccdd72b
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": -190
+        }
+      }
+  "1":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "32"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      comment:
+        complex:
+          accessor: alertname
+          root: alert
+      hash_list:
+        complex:
+          accessor: initiatorsha256
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: foundIncidents.CustomFields.initiatorpath
+              operator: isNotEqualString
+              right:
+                value:
+                  simple: c:\windows\explorer.exe
+          root: foundIncidents.CustomFields
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                iscontext: true
+                value:
+                  simple: inputs.FileHash
+            operator: SetIfEmpty
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Block lists requested files which have not already been block listed
+        or added to allow list.
+      id: 42177fdd-e676-4494-8430-473b77c4d326
+      iscommand: true
+      name: Add to XSIAM hash block list
+      playbooktaskmissingcomponent:
+      script: '|||core-blocklist-files'
+      type: regular
+      version: -1
+    taskid: 42177fdd-e676-4494-8430-473b77c4d326
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": 590
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 6555f437-9362-4b64-8416-9a207801acc8
+      iscommand: false
+      name: Done - Block Indicators
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 6555f437-9362-4b64-8416-9a207801acc8
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 690,
+          "y": 1710
+        }
+      }
+  "3":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.BlockIndicators
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      label: "yes"
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "25"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Whether to block the indicators based on the input values.
+      id: c769a542-379a-42a7-8cb0-325e6b48e2b4
+      iscommand: false
+      name: Should block indicators?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: c769a542-379a-42a7-8cb0-325e6b48e2b4
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": -50
+        }
+      }
+  "10":
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "34"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: BlockedFilesHash
+      value:
+        complex:
+          accessor: fileHash
+          root: Core.blocklist.added_hashes
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.parent.alert.context
+      id: 58da2cac-8a9e-4f4f-88de-623361cde61f
+      iscommand: true
+      name: Set Block list files to the Alert context
+      playbooktaskmissingcomponent:
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      version: -1
+    taskid: 58da2cac-8a9e-4f4f-88de-623361cde61f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": 990
+        }
+      }
+  "11":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "35"
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: IndicatorsToBlock
+      value:
+        complex:
+          root: IndicatorsToBlock
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.parent.alert.context
+      id: b111b0e2-c64f-4ab9-9a4f-772b44a01a20
+      iscommand: true
+      name: Set Blocked Indicators to the Alert context
+      playbooktaskmissingcomponent:
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      version: -1
+    taskid: b111b0e2-c64f-4ab9-9a4f-772b44a01a20
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": 1530
+        }
+      }
+  "24":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: initiatorsha256
+                root: foundIncidents.CustomFields
+          operator: isNotEmpty
+          right:
+            value: {}
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileHash
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "34"
+      "yes":
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the file hash exists.
+      id: df934c6a-4169-41f4-8cbe-76de251da626
+      iscommand: false
+      name: Is file hash exist?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: df934c6a-4169-41f4-8cbe-76de251da626
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": 390
+        }
+      }
+  "25":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.AutoContainment
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      label: "yes"
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "26"
+      "yes":
+      - "24"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Whether to disable the account automatically based on the input
+        values.
+      id: 56214186-2922-4165-820b-062ad475cf73
+      iscommand: false
+      name: Should block indicators automatically?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 56214186-2922-4165-820b-062ad475cf73
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": 160
+        }
+      }
+  "26":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileHash
+                transformers:
+                - operator: uniq
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "34"
+      "yes":
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the file hash exists.
+      id: 6401c6c9-8ff7-4f49-8676-fd99f48da60f
+      iscommand: false
+      name: Is file hash exist?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 6401c6c9-8ff7-4f49-8676-fd99f48da60f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -10,
+          "y": 390
+        }
+      }
+  "27":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "31"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      comment:
+        complex:
+          accessor: alertname
+          root: alert
+      hash_list:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.FileHash
+              operator: in
+              right:
+                iscontext: true
+                value:
+                  simple: inputs.FileHash
+          - - left:
+                iscontext: true
+                value:
+                  simple: inputs.FileHash
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "64"
+          root: inputs.FileHash
+          transformers:
+          - operator: uniq
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Block lists requested files which have not already been block listed
+        or added to allow list.
+      id: fca5352e-ba68-4776-8b35-903387490051
+      iscommand: true
+      name: Add to XSIAM hash block list
+      playbooktaskmissingcomponent:
+      script: '|||core-blocklist-files'
+      type: regular
+      version: -1
+    taskid: fca5352e-ba68-4776-8b35-903387490051
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -10,
+          "y": 590
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "34"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: BlockedFilesHash
+      value:
+        complex:
+          accessor: fileHash
+          root: Core.blocklist.added_hashes
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.parent.alert.context
+      id: cb04e962-15e3-4189-8fcc-73efa9cb71fb
+      iscommand: true
+      name: Set Block list files to the Alert context
+      playbooktaskmissingcomponent:
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      version: -1
+    taskid: cb04e962-15e3-4189-8fcc-73efa9cb71fb
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -10,
+          "y": 990
+        }
+      }
+  "30":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: IndicatorsToBlock
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check if there are any indicators that are blocked.
+      id: 0a63acdb-6497-4f96-8318-5231aefde427
+      iscommand: false
+      name: Are there any indicators that are blocked?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 0a63acdb-6497-4f96-8318-5231aefde427
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": 1340
+        }
+      }
+  "31":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Core.blocklist.added_hashes.fileHash
+          operator: isNotEmpty
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "31"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "34"
+      "yes":
+      - "29"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the file hash exists.
+      id: 5e12fc6b-2fa0-43d0-8a46-d2f213525a45
+      iscommand: false
+      name: Is the file hash was added to the block list?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 5e12fc6b-2fa0-43d0-8a46-d2f213525a45
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -10,
+          "y": 780
+        }
+      }
+  "32":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Core.blocklist.added_hashes.fileHash
+          operator: isNotEmpty
+          right:
+            value: {}
+      label: "yes"
+    continueonerrortype: ""
+    id: "32"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "34"
+      "yes":
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks whether the file hash exists.
+      id: 5df17f17-1825-4ac0-8edf-c0e89f437551
+      iscommand: false
+      name: Is the file hash was added to the block list?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 5df17f17-1825-4ac0-8edf-c0e89f437551
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 470,
+          "y": 780
+        }
+      }
+  "34":
+    continueonerrortype: ""
+    id: "34"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "30"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      AutoBlockIndicators:
+        simple: "True"
+      AutoCommit:
+        simple: "No"
+      CustomBlockRule:
+        simple: "True"
+      CustomURLCategory:
+        simple: XSOAR Remediation - Malicious URLs
+      DomainToBlock:
+        complex:
+          accessor: Indicator
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: domain
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          root: DBotScore
+          transformers:
+          - operator: uniq
+      EmailToBlock:
+        complex:
+          accessor: Indicator
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: email
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          root: DBotScore
+          transformers:
+          - operator: uniq
+      FilesToBlock:
+        complex:
+          accessor: Indicator
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: file
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          root: DBotScore
+          transformers:
+          - operator: uniq
+      IP:
+        complex:
+          accessor: Indicator
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: ip
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          root: DBotScore
+          transformers:
+          - operator: uniq
+      InputEnrichment:
+        simple: "False"
+      InternalRange:
+        complex:
+          accessor: PrivateIPs
+          root: lists
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: (\b(?:\d{1,3}\.){3}\d{1,3}\b/\d{1,2})
+              unpack_matches: {}
+            operator: RegexExtractAll
+          - args:
+              separator:
+                value:
+                  simple: ','
+            operator: join
+      MD5:
+        complex:
+          accessor: Indicator
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Indicator
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "32"
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: file
+            - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: hash
+          root: DBotScore
+          transformers:
+          - operator: uniq
+      RuleDirection:
+        simple: outbound
+      RuleName:
+        simple: XSOAR - Block Indicators playbook - ${alert.id}
+      SHA256:
+        complex:
+          accessor: Indicator
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Indicator
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "64"
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: file
+            - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: hash
+          root: DBotScore
+          transformers:
+          - operator: uniq
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+      Tag:
+        simple: Blocked Indicator In Systems
+      URL:
+        complex:
+          accessor: Indicator
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: url
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          root: DBotScore
+          transformers:
+          - operator: uniq
+      UserVerification:
+        simple: "True"
+      Username:
+        complex:
+          accessor: Indicator
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Type
+              operator: isEqualString
+              right:
+                value:
+                  simple: username
+          - - left:
+                iscontext: true
+                value:
+                  simple: DBotScore.Score
+              operator: greaterThanOrEqual
+              right:
+                value:
+                  simple: "3"
+          root: DBotScore
+          transformers:
+          - operator: uniq
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 29e6755d-f4a0-4f25-af8d-182c56e423d3
+      iscommand: false
+      name: SOC Block Indicators - Generic v3_V3
+      playbookId: Block Indicators - Generic v3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 29e6755d-f4a0-4f25-af8d-182c56e423d3
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": 1180
+        }
+      }
+  "35":
+    continueonerrortype: ""
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 747af5d3-8599-4dc0-8c09-bd995d98e922
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 747af5d3-8599-4dc0-8c09-bd995d98e922
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 190,
+          "y": 1705
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "24_1_yes": 0.44,
+      "24_34_#default#": 0.89,
+      "26_34_#default#": 0.9,
+      "30_11_yes": 0.52,
+      "30_2_#default#": 0.38,
+      "31_29_yes": 0.51,
+      "31_34_#default#": 0.9,
+      "32_10_yes": 0.57,
+      "32_34_#default#": 0.9,
+      "3_25_yes": 0.43,
+      "3_2_#default#": 0.12
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1965,
+        "width": 1080,
+        "x": -10,
+        "y": -190
+      }
+    }
+  }
+fromversion: 5.0.0

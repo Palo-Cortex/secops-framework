@@ -1,0 +1,375 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 1.0.22
+    packID: ""
+    packName: Symantec Messaging Gateway
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: This playbook will block email address at your email gateway.
+dirtyInputs: true
+id: 'SOC Symantec block Email_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - EmailToBlock
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The email address that will be blocked.
+  key: EmailToBlock
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: ${inputs.ShadowMode}
+name: SOC Symantec block Email_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Symantec block Email
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7b8687ab-feda-41dd-8278-57eb915dc305
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 7b8687ab-feda-41dd-8278-57eb915dc305
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": -260
+        }
+      }
+  "1":
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      "no":
+      - "3"
+      "yes":
+      - "7"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      brandname:
+        simple: Symantec Messaging Gateway
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns 'yes' if the integration brand is available. Otherwise
+        returns 'no'.
+      id: 1e1d8837-f6b9-4e13-8764-7a6e3437f11a
+      iscommand: false
+      name: Is Symantec available
+      playbooktaskmissingcomponent:
+      script: IsIntegrationAvailable
+      type: condition
+      version: -1
+    taskid: 1e1d8837-f6b9-4e13-8764-7a6e3437f11a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 860,
+          "y": 150
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "6"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      email:
+        complex:
+          root: inputs.EmailToBlock
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Symantec Messaging Gateway
+      description: Adds email address to the Local Bad Sender domains.
+      id: 765d1cfc-e79f-46eb-baa7-77029eb133fe
+      iscommand: true
+      name: Block email
+      playbooktaskmissingcomponent:
+      script: Symantec Messaging Gateway|||smg-block-email
+      type: regular
+      version: -1
+    taskid: 765d1cfc-e79f-46eb-baa7-77029eb133fe
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 680,
+          "y": 510
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: ec96196e-14ac-4d19-826f-b68e4fc5fc86
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: ec96196e-14ac-4d19-826f-b68e4fc5fc86
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 420,
+          "y": 700
+        }
+      }
+  "4":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.EmailToBlock
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b8c6256c-f6d0-41e6-8dca-c1a2096ccef7
+      iscommand: false
+      name: 'Is there email to block? '
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: b8c6256c-f6d0-41e6-8dca-c1a2096ccef7
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 440,
+          "y": -130
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 281ad972-56f1-41e6-8e7d-00d400b079e4
+      iscommand: false
+      name: Symantec
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 281ad972-56f1-41e6-8e7d-00d400b079e4
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 860,
+          "y": 25
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 75209827-3790-40b3-8a1b-452765fb148d
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 75209827-3790-40b3-8a1b-452765fb148d
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 940,
+          "y": 695
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "2"
+      Shadow Mode:
+      - "8"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 775b8b62-3493-4a55-8692-9335a4d070f7
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter_V3'
+      type: condition
+      version: -1
+    taskid: 775b8b62-3493-4a55-8692-9335a4d070f7
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 860,
+          "y": 320
+        }
+      }
+  "8":
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Symantec Block Email
+          Command: smg-block-email ${inputs.EmailToBlock}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: cd39f06b-3fe9-4d0d-b438-6f3902e386d7
+      iscommand: false
+      name: 'Shadow: Symantec Block Email'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: cd39f06b-3fe9-4d0d-b438-6f3902e386d7
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1080,
+          "y": 510
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "1_3_no": 0.51,
+      "4_3_#default#": 0.49
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1025,
+        "width": 1040,
+        "x": 420,
+        "y": -260
+      }
+    }
+  }
+fromversion: 5.0.0
