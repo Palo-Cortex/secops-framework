@@ -1,0 +1,464 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: ""
+    isoverridable: false
+    itemVersion: 2.7.18
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: Determine the correct playbook to run for the correct endpoint product.
+dirtyInputs: true
+id: 'SOC Isolation Router_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Endpoint ID
+  - Endpoint hostname
+  - Endpoint IP
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: Device/Endpoint ID
+  key: Endpoint ID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: Endpoint hostname
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: Endpoint IP
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Isolation Router_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: SOC Isolation Router_V3
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 44ba6af3-46b9-4441-84c1-53dff0085128
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 44ba6af3-46b9-4441-84c1-53dff0085128
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 460,
+          "y": -900
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      EndpointHostName:
+        simple: ${inputs.Endpoint hostname}
+      EndpointID:
+        simple: ${inputs.Endpoint ID}
+      HostContainment:
+        simple: "True"
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        ## Containment Plan - Isolate Device
+
+        This playbook is a sub-playbook within the containment plan playbook.
+        The playbook isolates devices using core commands.
+      id: a9edc2b4-6d58-48d5-979f-2cb7a388a7ae
+      iscommand: false
+      name: SOC Containment Plan_V3 - Isolate Device_V3
+      playbookId: SOC Containment Plan_V3 - Isolate Device_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: a9edc2b4-6d58-48d5-979f-2cb7a388a7ae
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 0,
+          "y": 510
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Manually isolated:
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 4730edbe-fbf7-4b3e-8493-6412b77a541c
+      iscommand: false
+      name: No endpoint agent found
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 4730edbe-fbf7-4b3e-8493-6412b77a541c
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1310,
+          "y": 510
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: e6bedef3-8f7b-4fb9-8362-137ad712aa79
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: e6bedef3-8f7b-4fb9-8362-137ad712aa79
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 850
+        }
+      }
+  "8":
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      "no":
+      - "9"
+      "yes":
+      - "13"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      brandname:
+        simple: CrowdStrike Falcon
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns 'yes' if integration brand is available. Otherwise returns
+        'no'.
+      id: 1ff7d8a6-af00-4ab7-8e0d-63860e481cdd
+      iscommand: false
+      name: Verify Crowdstrike integration
+      playbooktaskmissingcomponent:
+      script: IsIntegrationAvailable
+      type: condition
+      version: -1
+    taskid: 1ff7d8a6-af00-4ab7-8e0d-63860e481cdd
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -80
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      "no":
+      - "5"
+      "yes":
+      - "12"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      brandname:
+        simple: Microsoft Defender for Endpoint
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns 'yes' if integration brand is available. Otherwise returns
+        'no'.
+      id: 7a5fbae4-f0b0-487b-84ef-956ad7c29b90
+      iscommand: false
+      name: Verify MDE integration
+      playbooktaskmissingcomponent:
+      script: IsIntegrationAvailable
+      type: condition
+      version: -1
+    taskid: 7a5fbae4-f0b0-487b-84ef-956ad7c29b90
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 920,
+          "y": 160
+        }
+      }
+  "10":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Gets a list of endpoints, according to the passed filters. If there
+        are no filters, all endpoints are returned. Filtering by multiple fields will
+        be concatenated using AND condition (OR is not supported). Maximum result
+        set size is 100. Offset is the zero-based number of endpoint from the start
+        of the result set (start by counting from 0).
+      id: 09bcc377-61ab-48e5-843f-16cd3046d704
+      iscommand: true
+      name: Check XDR for host
+      playbooktaskmissingcomponent:
+      script: '|||core-get-endpoints'
+      type: regular
+      version: -1
+    taskid: 09bcc377-61ab-48e5-843f-16cd3046d704
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 460,
+          "y": -630
+        }
+      }
+  "11":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: Core.Endpoint.endpoint_id
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "8"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d3e1b590-48d4-440b-8fe5-4b93884ff37e
+      iscommand: false
+      name: XDR Agent found?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: d3e1b590-48d4-440b-8fe5-4b93884ff37e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 460,
+          "y": -450
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      Device_IP:
+        simple: ${inputs.Endpoint IP}
+      Device_id:
+        simple: ${issue.deviceid}
+      Hostname:
+        simple: ${inputs.Endpoint hostname}
+      Isolation_type:
+        simple: Full
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: This playbook accepts an endpoint ID, IP, or host name and isolates
+        it using the Microsoft Defender For Endpoint integration.
+      id: e40517f0-b04d-4d49-ba32-5aeb875ffafc
+      iscommand: false
+      name: SOC Microsoft Defender For Endpoint - Isolate Endpoint_V3
+      playbookId: Microsoft Defender For Endpoint - Isolate Endpoint
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: e40517f0-b04d-4d49-ba32-5aeb875ffafc
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 890,
+          "y": 510
+        }
+      }
+  "13":
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      Device_id:
+        simple: ${inputs.Endpoint ID}
+      ShadowMode:
+        simple: "true"
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: This playbook will auto isolate endpoints by the device ID that
+        was provided in the playbook.
+      id: fb81e1f1-8573-4018-a9e5-ac987199f858
+      iscommand: false
+      name: SOC Crowdstrike Falcon - Isolate Endpoint_V3
+      playbookId: SOC Crowdstrike Falcon - Isolate Endpoint_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: fb81e1f1-8573-4018-a9e5-ac987199f858
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 510
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "8_13_yes": 0.84
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1810,
+        "width": 1690,
+        "x": 0,
+        "y": -900
+      }
+    }
+  }
+fromversion: 5.0.0

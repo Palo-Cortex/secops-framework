@@ -1,0 +1,440 @@
+fromversion: 5.0.0
+id: SOC Crowdstrike Falcon - Isolate Endpoint_V3
+version: 3
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-common-playbooks-unified
+    packName: SOC Common Playbooks Unified
+    itemVersion: 2.7.52
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: SOC Crowdstrike Falcon - Isolate Endpoint_V3
+description: This playbook will auto isolate endpoints by the device ID that was provided
+  in the playbook.
+tags:
+- SOC
+- SOC_Framework
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: d0e090fd-5e1f-4b5c-82e9-eb62105b6220
+    type: start
+    task:
+      id: d0e090fd-5e1f-4b5c-82e9-eb62105b6220
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 40
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: ee96dc16-3b22-4d74-83fe-b5a86fb60115
+    type: condition
+    task:
+      id: ee96dc16-3b22-4d74-83fe-b5a86fb60115
+      version: -1
+      name: Is Crowdstrike Falcon  enabled?
+      description: Returns 'yes' if the integration brand is available. Otherwise
+        returns 'no'.
+      scriptName: IsIntegrationAvailable
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      "no":
+      - "2"
+      "yes":
+      - "3"
+    scriptarguments:
+      brandname:
+        simple: CrowdstrikeFalcon
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: 44f92e5b-01a2-4070-881c-c6a931266009
+    type: title
+    task:
+      id: 44f92e5b-01a2-4070-881c-c6a931266009
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 1760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: 1fd37726-4b11-46ea-802f-46fc9e2fe715
+    type: condition
+    task:
+      id: 1fd37726-4b11-46ea-802f-46fc9e2fe715
+      version: -1
+      name: Is there Device ID?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "4"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.Device_id
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 810,
+          "y": 490
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: 66d5a0a9-f7c9-4f23-abf4-a8ab5d888534
+    type: regular
+    task:
+      id: 66d5a0a9-f7c9-4f23-abf4-a8ab5d888534
+      version: -1
+      name: Get device info
+      description: Searches for a device that matches the query.
+      script: CrowdstrikeFalcon|||cs-falcon-search-device
+      type: regular
+      iscommand: true
+      brand: CrowdstrikeFalcon
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "5"
+    scriptarguments:
+      ids:
+        simple: ${inputs.Device_id}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 990,
+          "y": 690
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: 5255531d-7314-4223-8efc-ac53607d0b52
+    type: condition
+    task:
+      id: 5255531d-7314-4223-8efc-ac53607d0b52
+      version: -1
+      name: Is the device ready for isolation?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "7"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: CrowdStrike.Device.Status
+            iscontext: true
+          right:
+            value:
+              simple: normal
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 990,
+          "y": 890
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "6":
+    id: "6"
+    taskid: 8d83b1ad-dbe6-4fe7-ba1c-755241c23a84
+    type: regular
+    task:
+      id: 8d83b1ad-dbe6-4fe7-ba1c-755241c23a84
+      version: -1
+      name: Isolate endpoint
+      description: Contains containment for a specified host. When contained, a host
+        can only communicate with the CrowdStrike cloud and any IPs specified in your
+        containment policy.
+      script: CrowdstrikeFalcon|||cs-falcon-contain-host
+      type: regular
+      iscommand: true
+      brand: CrowdstrikeFalcon
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "10"
+      '#none#':
+      - "2"
+    scriptarguments:
+      ids:
+        simple: ${inputs.Device_id}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 990,
+          "y": 1330
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: 3e9098e5-20d2-40f9-abf9-800a6900cc58
+    type: condition
+    task:
+      id: 3e9098e5-20d2-40f9-abf9-800a6900cc58
+      version: -1
+      name: Run Mode?
+      scriptName: ShadowModeRouter_V3
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      Full Run:
+      - "6"
+      Shadow Mode:
+      - "8"
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 990,
+          "y": 1090
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: e46e3518-e612-4d9b-ad76-48a9e841cc5d
+    type: regular
+    task:
+      id: e46e3518-e612-4d9b-ad76-48a9e841cc5d
+      version: -1
+      name: 'Shadow: CrowdStrike Falcon Isolate EndPoint'
+      description: Prints text to war room (Markdown supported)
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "2"
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: CrowdStrike Falcon Isolate EndPoint
+          Command: cs-falcon-contain-host
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1430,
+          "y": 1330
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: 19d3d20a-0aac-471b-82c0-0cd504f383aa
+    type: playbook
+    task:
+      id: 19d3d20a-0aac-471b-82c0-0cd504f383aa
+      version: -1
+      name: Foundation - Error Handling_V3
+      playbookName: Foundation - Error Handling_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1313.75,
+          "y": 1752.5
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {
+      "1_2_no": 0.85,
+      "3_2_#default#": 0.2,
+      "3_4_yes": 0.51,
+      "5_2_#default#": 0.38
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1787.5,
+        "width": 1360,
+        "x": 450,
+        "y": 40
+      }
+    }
+  }
+inputs:
+- key: Device_id
+  value: {}
+  required: false
+  description: The device ID to isolate.
+  playbookInputQuery: null
+- key: ShadowMode
+  value:
+    simple: "true"
+  required: false
+  description: ""
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - Device_id
+  - ShadowMode
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+sourceplaybookid: Crowdstrike Falcon - Isolate Endpoint
+dirtyInputs: true
+adopted: true

@@ -1,0 +1,370 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 6.2.33
+    packID: ""
+    packName: Cortex XDR by Palo Alto Networks
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: Use this playbook to add files to Cortex XDR block list with a given
+  file SHA256 playbook input.
+dirtyInputs: true
+id: 'SOC Cortex XDR - Block File_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - HashList
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: List of hashed files you want to add to block list. Must be a valid
+    SHA256 hash.
+  key: HashList
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Cortex XDR - Block File_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Cortex XDR - Block File
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: a93b6633-bfe0-4f17-8278-abb9a6ab931d
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: a93b6633-bfe0-4f17-8278-abb9a6ab931d
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": -180
+        }
+      }
+  "1":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "6"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      hash_list:
+        complex:
+          root: inputs.HashList
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: ""
+      description: Block lists requested files which have not already been block listed
+        or added to allow lists.
+      id: fc4ecaac-87c0-4991-8072-edada376a47e
+      iscommand: true
+      name: Cortex XDR add a file SHA256 to block list
+      playbooktaskmissingcomponent:
+      script: '|||core-blocklist-files'
+      type: regular
+      version: -1
+    taskid: fc4ecaac-87c0-4991-8072-edada376a47e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 560,
+          "y": 430
+        }
+      }
+  "2":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.HashList
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: ''''''
+      id: 73f0ad54-16ef-4e21-844f-d77e4b0d1af4
+      iscommand: false
+      name: Is there a file to block?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 73f0ad54-16ef-4e21-844f-d77e4b0d1af4
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 390,
+          "y": 110
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2f82d128-202d-45bd-803b-638abe146a38
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 2f82d128-202d-45bd-803b-638abe146a38
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": 630
+        }
+      }
+  "4":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isEqualString
+          right:
+            value:
+              simple: Cortex XDR - IR
+      label: "yes"
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Returns 'yes' if Cortex XDR integration brand is available. Otherwise
+        returns 'no'
+      id: 4cc56c7e-927f-4219-8fec-ee36fa0fae5a
+      iscommand: false
+      name: Is Cortex XDR integration enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 4cc56c7e-927f-4219-8fec-ee36fa0fae5a
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": -40
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "1"
+      Shadow Mode:
+      - "7"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: "true"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 1cf1a934-5d44-4e09-a494-1195be570ae0
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter_V3'
+      type: condition
+      version: -1
+    taskid: 1cf1a934-5d44-4e09-a494-1195be570ae0
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 830,
+          "y": 260
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: c82f0d5f-77c6-47fd-8c34-b6e9eabaa67b
+      iscommand: false
+      name: Foundation - Foundation - Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: c82f0d5f-77c6-47fd-8c34-b6e9eabaa67b
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 625
+        }
+      }
+  "7":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "6"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Cortex XDR Add file to SHA256 Block List
+          Command:  core-blocklist-files ${inputs.HashList}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 02186a05-4cf9-46bc-90e6-969e2945c90a
+      iscommand: false
+      name: Cortex XDR Add file to SHA256 Block
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 02186a05-4cf9-46bc-90e6-969e2945c90a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1100,
+          "y": 430
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "2_3_#default#": 0.26
+    },
+    "paper": {
+      "dimensions": {
+        "height": 875,
+        "width": 1330,
+        "x": 150,
+        "y": -180
+      }
+    }
+  }
+fromversion: 5.0.0
