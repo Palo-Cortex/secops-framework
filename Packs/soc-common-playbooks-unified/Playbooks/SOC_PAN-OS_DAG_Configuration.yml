@@ -1,0 +1,751 @@
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.10.0
+    isoverridable: false
+    itemVersion: 1.0.0
+    packID: ""
+    packName: SOC Common Playbooks
+    prevname: ""
+    toServerVersion: ""
+description: "This playbook utilizes the Dynamic Address Group (DAG) capability of
+  PAN-OS.\nDAG enables analysts to create a rule one time, where the group is the
+  source/destination, and adds IP addresses dynamically without the need to commit
+  the configuration every time.\n\nThe playbook checks if the given tag already exists.
+  If the tag exists, then the IP address is added to the tag.\n\nIf the tag does not
+  exist, a new address group is created with the given tag and a matching rule, and
+  the configuration is committed. \n"
+dirtyInputs: true
+id: 'SOC PAN-OS DAG Configuration_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - tag_name
+  - ip_list
+  - address_group_name
+  - rule_name
+  - auto_commit
+  - log-forwarding-object-name
+  - rule-position
+  - relative-rule-name
+  - inbound-or-outbound-rule
+  - action-type
+  - pre-post-rulebase
+  - device-group
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The name of the tag to add to PAN-OS. This can be a single tag.
+  key: tag_name
+  playbookInputQuery:
+  required: true
+  value: {}
+- description: The list of the IP addresses to block.
+  key: ip_list
+  playbookInputQuery:
+  required: true
+  value: {}
+- description: The name of the group that will be created if the tag does not exist.
+  key: address_group_name
+  playbookInputQuery:
+  required: true
+  value: {}
+- description: The name of the rule to update, or the name of the rule that will be
+    created.
+  key: rule_name
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Whether the rule will be committed automatically.
+  key: auto_commit
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The server address to which to forward logs.
+  key: log-forwarding-object-name
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    The position of the rule in the ruleset. Valid values are:
+      * Top
+      * Bottom
+      * Before
+      * After
+
+    The default position is 'Top'
+  key: rule-position
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: If the rule-position that is chosen is before or after, specify the
+    rule name to which it is related.
+  key: relative-rule-name
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Determines if the rule is inbound or outbound.
+  key: inbound-or-outbound-rule
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: |-
+    The action that will be defined in the rule. Valid values are:
+    * allow
+    * deny
+    * drop
+  key: action-type
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Determines whether the rule is a pre-rulebase or post-rulebase rule,
+    according to the rule structure. Exists only in panorama!
+  key: pre-post-rulebase
+  playbookInputQuery:
+  required: true
+  value: {}
+- description: the device group for which to return results. for panorama only!
+  key: device-group
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Shadow Mode is a key safety mechanism. It ensures actions like isolate_endpoint
+    or disable_user are logged but not executed in test scenarios.
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC PAN-OS DAG Configuration_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: PAN-OS DAG Configuration
+starttaskid: "0"
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5ee527a7-506f-4f02-88c0-c8a2701138cd
+      iscommand: false
+      name: ""
+      version: -1
+    taskid: 5ee527a7-506f-4f02-88c0-c8a2701138cd
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 385.75,
+          "y": 50
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Panorama
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "5"
+      "yes":
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if there is an active instance of PAN-OS enabled.
+      id: e016bd2c-ae83-4cd4-878b-097fd9462b86
+      iscommand: false
+      name: Is PAN-OS integration enabled?
+      type: condition
+      version: -1
+    taskid: e016bd2c-ae83-4cd4-878b-097fd9462b86
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 385.75,
+          "y": 210
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "23"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Lists all address groups in PAN-OS.
+      id: 322533d7-6f80-4740-9b5b-cc273fe6a78e
+      iscommand: true
+      name: List Address Groups
+      script: '|||pan-os-list-address-groups'
+      type: regular
+      version: -1
+    taskid: 322533d7-6f80-4740-9b5b-cc273fe6a78e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 531,
+          "y": 380
+        }
+      }
+  "3":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              simple: inputs.tag_name
+          operator: inList
+          right:
+            iscontext: true
+            value:
+              complex:
+                accessor: AddressGroups.Match
+                root: Panorama
+      label: "yes"
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "26"
+      "yes":
+      - "28"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if the given tag exists in the address groups.
+      id: 6523233b-4db1-4691-8ce8-51803456138b
+      iscommand: false
+      name: Check if tag exists in address groups
+      type: condition
+      version: -1
+    taskid: 6523233b-4db1-4691-8ce8-51803456138b
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 676.25,
+          "y": 550
+        }
+      }
+  "4":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "23"
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      IPs:
+        simple: ${inputs.ip_list}
+      tag:
+        simple: ${inputs.tag_name}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Registers IP addresses to a tag.
+      id: 38d7697b-ea8a-4542-bf55-91862e67b8e6
+      iscommand: true
+      name: Register IP address to a tag
+      script: '|||pan-os-register-ip-tag'
+      type: regular
+      version: -1
+    taskid: 38d7697b-ea8a-4542-bf55-91862e67b8e6
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 485.75,
+          "y": 1740
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7686cb45-06bb-4891-8aeb-8ff9b29f1fbf
+      iscommand: false
+      name: Done
+      type: title
+      version: -1
+    taskid: 7686cb45-06bb-4891-8aeb-8ff9b29f1fbf
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 290.5,
+          "y": 2080
+        }
+      }
+  "6":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "23"
+      '#none#':
+      - "25"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      match:
+        simple: ${inputs.tag_name}
+      name:
+        simple: ${inputs.address_group_name}
+      type:
+        simple: dynamic
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Creates an address group. Can be "static" or "dynamic".
+      id: 3e581c1a-129d-47a4-8225-9cfc16c30a24
+      iscommand: true
+      name: Create Address Group
+      script: '|||pan-os-create-address-group'
+      type: regular
+      version: -1
+    taskid: 3e581c1a-129d-47a4-8225-9cfc16c30a24
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 240.5,
+          "y": 890
+        }
+      }
+  "15":
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "28"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Allows the analyst to manually commit the changes. This will be
+        operational if auto-commit is "false".
+      id: ec9cdad5-afdf-46c8-8255-c3e6091753b5
+      iscommand: false
+      name: Manually commit
+      type: regular
+      version: -1
+    taskid: ec9cdad5-afdf-46c8-8255-c3e6091753b5
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 435.75,
+          "y": 1400
+        }
+      }
+  "17":
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "15"
+      "yes":
+      - "24"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      left:
+        simple: ${inputs.auto_commit}
+      right:
+        simple: "Yes"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if the values provided in arguments are equal. If either
+        of the arguments are missing, "no" is returned.
+      id: 9c646c84-8ba3-4f49-8028-17e466d6f10e
+      iscommand: false
+      name: Is auto-commit defined?
+      script: AreValuesEqual
+      type: condition
+      version: -1
+    taskid: 9c646c84-8ba3-4f49-8028-17e466d6f10e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 676.25,
+          "y": 1230
+        }
+      }
+  "23":
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7fcc2fcd-2b91-4498-8c03-b597d3ef3167
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      type: playbook
+      version: -1
+    taskid: 7fcc2fcd-2b91-4498-8c03-b597d3ef3167
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1910
+        }
+      }
+  "24":
+    continueonerrortype: ""
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "28"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: e12dd355-9fcf-40e0-86e2-4437f7e889b3
+      iscommand: false
+      name: SOC PAN-OS Commit Configuration v2_V3
+      playbookId: SOC PAN-OS Commit Configuration v2_V3
+      type: playbook
+      version: -1
+    taskid: e12dd355-9fcf-40e0-86e2-4437f7e889b3
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 916.75,
+          "y": 1400
+        }
+      }
+  "25":
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "17"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 782a6bc3-5f55-42d5-8bd2-f6f0de74534b
+      iscommand: false
+      name: SOC PAN-OS - Create Or Edit Rule_V3
+      playbookId: SOC PAN-OS - Create Or Edit Rule_V3
+      type: playbook
+      version: -1
+    taskid: 782a6bc3-5f55-42d5-8bd2-f6f0de74534b
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 676.25,
+          "y": 1060
+        }
+      }
+  "26":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ShadowMode
+          operator: isFalse
+          right:
+            value: {}
+      label: "no"
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "27"
+      "no":
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 82030d70-b28c-4c10-b963-07420b2c3298
+      iscommand: false
+      name: Shadow Run?
+      type: condition
+      version: -1
+    taskid: 82030d70-b28c-4c10-b963-07420b2c3298
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 531,
+          "y": 720
+        }
+      }
+  "27":
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "25"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: PAN-OS Create Address Group
+          Command: pan-os-create-address-group
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: efd408e7-da40-4241-81b4-43484418656f
+      iscommand: false
+      name: Print To WarRoom
+      script: Print
+      type: regular
+      version: -1
+    taskid: efd408e7-da40-4241-81b4-43484418656f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 916.75,
+          "y": 890
+        }
+      }
+  "28":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ShadowMode
+          operator: isFalse
+          right:
+            value: {}
+      label: "no"
+    continueonerrortype: ""
+    id: "28"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "29"
+      "no":
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: ee82376b-2f13-4296-9cc9-21f12240247f
+      iscommand: false
+      name: Shadow Run?
+      type: condition
+      version: -1
+    taskid: ee82376b-2f13-4296-9cc9-21f12240247f
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 871.5,
+          "y": 1570
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "5"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: PAN-OS Register IP address to a tag
+          Command: pan-os-register-ip-tag
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: adda4e55-ae69-480f-9087-f54a4c0e1569
+      iscommand: false
+      name: Print To WarRoom
+      script: Print
+      type: regular
+      version: -1
+    taskid: adda4e55-ae69-480f-9087-f54a4c0e1569
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1016.75,
+          "y": 1910
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "17_15_#default#": 0.54,
+      "17_24_yes": 0.85,
+      "1_5_#default#": 0.1,
+      "3_28_yes": 0.9
+    },
+    "paper": {
+      "dimensions": {
+        "height": 2090,
+        "width": 1346.75,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+adopted: true
+fromversion: 5.0.0

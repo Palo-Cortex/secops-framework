@@ -1,0 +1,1077 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 6.6.0
+    isoverridable: false
+    itemVersion: 2.7.15
+    packID: ""
+    packName: Common Playbooks
+    prevname: ""
+    supportedModules:
+    - X1
+    - X3
+    - X5
+    - ENT_PLUS
+    toServerVersion: ""
+description: |-
+  ## Containment Plan - Quarantine File
+
+  This playbook is a sub-playbook within the containment plan playbook.
+  The playbook quarantines files using core commands.
+dirtyInputs: true
+id: 'SOC Containment Plan_V3 - Quarantine File_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - FileContainment
+  - FileRemediation
+  - FilePath
+  - FileHash
+  - EndpointID
+  - AutoContainment
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: Set to 'True' to quarantine the identified file.
+  key: FileContainment
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "True"
+- description: "Choose 'Quarantine' or 'Delete'  to avoid file remediation conflicts.
+    \nFor example, choosing 'Quarantine' ignores the 'Delete file' task under the
+    eradication playbook and will execute only file quarantine."
+  key: FileRemediation
+  playbookInputQuery:
+  required: false
+  value:
+    simple: Quarantine
+- description: The path of the file to block.
+  key: FilePath
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The file hash to block.
+  key: FileHash
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: The endpoint ID to run commands over.
+  key: EndpointID
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: Whether to execute containment plan automatically.
+  key: AutoContainment
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Containment Plan_V3 - Quarantine File_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - QuarantinedFilesFromEndpoints
+outputs:
+- contextPath: QuarantinedFilesFromEndpoints
+  description: The quarantined files from endpoint.
+  type: unknown
+sourceplaybookid: Containment Plan - Quarantine File
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "17"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0c4f76b8-840e-49d6-83ea-28853fed1128
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: 0c4f76b8-840e-49d6-83ea-28853fed1128
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": -40,
+          "y": -369
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 397f4b57-3b4f-40ed-8871-59fb281d5a77
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 397f4b57-3b4f-40ed-8871-59fb281d5a77
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": -254,
+          "y": 1026
+        }
+      }
+  "7":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      endpoint_id:
+        complex:
+          root: inputs.EndpointID
+      file_hash:
+        complex:
+          accessor: initiatorsha256
+          root: foundIncidents.CustomFields
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                iscontext: true
+                value:
+                  simple: inputs.FileHash
+            operator: SetIfEmpty
+      file_path:
+        complex:
+          accessor: initiatorpath
+          root: foundIncidents.CustomFields
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                iscontext: true
+                value:
+                  simple: inputs.FilePath
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Retrieves the quarantine status for a selected file.
+      id: a0ceb1ef-9c66-4295-8ab8-8ff9b8cbbf2f
+      iscommand: true
+      name: Get file quarantine status
+      playbooktaskmissingcomponent:
+      script: '|||core-get-quarantine-status'
+      type: regular
+      version: -1
+    taskid: a0ceb1ef-9c66-4295-8ab8-8ff9b8cbbf2f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 453,
+          "y": -83
+        }
+      }
+  "8":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "15"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      endpoint_id_list:
+        complex:
+          root: inputs.EndpointID
+      file_hash:
+        complex:
+          accessor: initiatorsha256
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: foundIncidents.CustomFields.initiatorpath
+              operator: isNotEqualString
+              right:
+                value:
+                  simple: c:\windows\explorer.exe
+          root: foundIncidents.CustomFields
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                iscontext: true
+                value:
+                  simple: inputs.FileHash
+            operator: SetIfEmpty
+      file_path:
+        complex:
+          filters:
+          - - ignorecase: true
+              left:
+                iscontext: true
+                value:
+                  simple: foundIncidents.CustomFields.initiatorpath
+              operator: isNotEqualString
+              right:
+                value:
+                  simple: c:\windows\explorer.exe
+          root: foundIncidents.CustomFields.initiatorpath
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                iscontext: true
+                value:
+                  simple: inputs.FilePath
+            operator: SetIfEmpty
+      interval_in_seconds:
+        simple: "20"
+      timeout_in_seconds:
+        simple: "120"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Quarantines a file on selected endpoints. You can select up to
+        1000 endpoints.
+      id: 30398ddb-5182-4c19-84f2-6f06e62eabca
+      iscommand: true
+      name: File quarantine
+      playbooktaskmissingcomponent:
+      script: '|||core-quarantine-files'
+      type: regular
+      version: -1
+    taskid: 30398ddb-5182-4c19-84f2-6f06e62eabca
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 453,
+          "y": 399
+        }
+      }
+  "9":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "26"
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: QuarantinedFilesFromEndpoints
+      value:
+        complex:
+          accessor: actionIds
+          root: Core.quarantineFiles
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: Builtin
+      description: commands.local.cmd.set.parent.alert.context
+      id: ceb94556-4fbc-4a33-8cfe-3fbe2669a059
+      iscommand: true
+      name: Set quarantine files per endpoints to the Alert context
+      playbooktaskmissingcomponent:
+      script: Builtin|||setParentIncidentContext
+      type: regular
+      version: -1
+    taskid: ceb94556-4fbc-4a33-8cfe-3fbe2669a059
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 453,
+          "y": 887
+        }
+      }
+  "13":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileContainment
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileRemediation
+          operator: isEqualString
+          right:
+            value:
+              simple: Quarantine
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: status
+                root: Core.quarantineFiles.status
+          operator: isEqualString
+          right:
+            value:
+              simple: "False"
+      label: "yes"
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "27"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Whether to quarantine the files based on the input values and the
+        alert context.
+      id: 1208d3af-a6d7-4126-86f2-1c84f8659895
+      iscommand: false
+      name: Should quarantine file?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 1208d3af-a6d7-4126-86f2-1c84f8659895
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 453,
+          "y": 42
+        }
+      }
+  "15":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: status
+                root: Core.GetActionStatus
+          operator: isNotEqualString
+          right:
+            value:
+              simple: FAILED
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                accessor: status
+                root: Core.GetActionStatus
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "15"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "25"
+      "yes":
+      - "16"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Checks if the quarantining of the file was successful.
+      id: 410c04ef-0afc-4578-8b1b-b1a3de96debf
+      iscommand: false
+      name: Was the file quarantined?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 410c04ef-0afc-4578-8b1b-b1a3de96debf
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 227,
+          "y": 631
+        }
+      }
+  "16":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "16"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "26"
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: QuarantinedFilesFromEndpoints
+      value:
+        complex:
+          accessor: actionIds
+          root: Core.quarantineFiles
+    separatecontext: false
+    skipunavailable: true
+    task:
+      brand: Builtin
+      description: Set a value in context under the key you entered.
+      id: c5d82818-9538-471e-9ccc-98507a64ba2c
+      iscommand: false
+      name: Set quarantine files to the context
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: c5d82818-9538-471e-9ccc-98507a64ba2c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 453,
+          "y": 767
+        }
+      }
+  "17":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.AutoContainment
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.EndpointID
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FilePath
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileHash
+          operator: isNotEmpty
+      label: Auto
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.AutoContainment
+          operator: isNotEqualString
+          right:
+            value:
+              simple: "True"
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.EndpointID
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FilePath
+          operator: isNotEmpty
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileHash
+          operator: isNotEmpty
+      label: Manual
+    continueonerrortype: ""
+    id: "17"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      Auto:
+      - "7"
+      Manual:
+      - "23"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Whether to isolate the device automatically based on the input
+        values.
+      id: fd83526a-3995-475b-8ea6-60233a3f1636
+      iscommand: false
+      name: Should isolate automatically?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: fd83526a-3995-475b-8ea6-60233a3f1636
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -40,
+          "y": -251
+        }
+      }
+  "18":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      endpoint_id:
+        complex:
+          root: inputs.EndpointID
+      file_hash:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: FileHash
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "64"
+          root: FileHash
+      file_path:
+        complex:
+          root: FilePath
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Retrieves the quarantine status for a selected file.
+      id: 8395bf84-b9be-42af-8c0b-cdf64c82b8fa
+      iscommand: true
+      name: Get file quarantine status
+      playbooktaskmissingcomponent:
+      script: '|||core-get-quarantine-status'
+      type: regular
+      version: -1
+    taskid: 8395bf84-b9be-42af-8c0b-cdf64c82b8fa
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -40,
+          "y": 184
+        }
+      }
+  "19":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileContainment
+          operator: isEqualString
+          right:
+            value:
+              simple: "True"
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.FileRemediation
+          operator: isEqualString
+          right:
+            value:
+              simple: Quarantine
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: status
+                root: Core.quarantineFiles.status
+          operator: isEqualString
+          right:
+            value:
+              simple: "False"
+      label: "yes"
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "2"
+      "yes":
+      - "20"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Whether to quarantine the files based on the input values and the
+        alert context.
+      id: a04c8ae8-b9a2-4a06-8d64-8463dd6582d9
+      iscommand: false
+      name: Should quarantine file?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: a04c8ae8-b9a2-4a06-8d64-8463dd6582d9
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": -40,
+          "y": 329
+        }
+      }
+  "20":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "15"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      endpoint_id_list:
+        complex:
+          root: inputs.EndpointID
+      file_hash:
+        complex:
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: FileHash
+              operator: stringHasLength
+              right:
+                value:
+                  simple: "64"
+          root: FileHash
+      file_path:
+        complex:
+          root: FilePath
+      interval_in_seconds:
+        simple: "20"
+      timeout_in_seconds:
+        simple: "120"
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Quarantines a file on selected endpoints. You can select up to
+        1000 endpoints.
+      id: 48f240fd-334d-4f88-8e66-726f9971ba3c
+      iscommand: true
+      name: File quarantine
+      playbooktaskmissingcomponent:
+      script: '|||core-quarantine-files'
+      type: regular
+      version: -1
+    taskid: 48f240fd-334d-4f88-8e66-726f9971ba3c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -40,
+          "y": 497
+        }
+      }
+  "23":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "26"
+      '#none#':
+      - "24"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: FilePath
+      value:
+        complex:
+          root: inputs.FilePath
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: Path\":\"(.+?)\"
+              unpack_matches: {}
+            operator: RegexExtractAll
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: No value
+            operator: SetIfEmpty
+          - args:
+              limit: {}
+              replaceWith:
+                value:
+                  simple: \
+              toReplace:
+                value:
+                  simple: \\
+            operator: replace
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 20bedb31-7ad0-4de2-a1a1-ed12eabd305e
+      iscommand: false
+      name: Set file path to quarantine
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 20bedb31-7ad0-4de2-a1a1-ed12eabd305e
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -40,
+          "y": -85
+        }
+      }
+  "24":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "24"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "26"
+      '#none#':
+      - "18"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: FileHash
+      value:
+        complex:
+          root: inputs.FileHash
+          transformers:
+          - args:
+              error_if_no_match: {}
+              ignore_case: {}
+              multi_line: {}
+              period_matches_newline: {}
+              regex:
+                value:
+                  simple: Hash\":\"(.+?)\"
+              unpack_matches: {}
+            operator: RegexExtractAll
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: No value
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Set a value in context under the key you entered.
+      id: 68f2e56a-d26e-45a3-847d-75e10d287811
+      iscommand: false
+      name: Set file hash to quarantine
+      playbooktaskmissingcomponent:
+      script: Set
+      type: regular
+      version: -1
+    taskid: 68f2e56a-d26e-45a3-847d-75e10d287811
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -40,
+          "y": 40
+        }
+      }
+  "25":
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        Dear Analyst,
+
+        The playbook was unable to quarantine the file due to the following possible reasons:
+
+        - The file is not located on the local host.
+        - The endpoint is currently disconnected.
+
+        Please take manual action to quarantine the file.
+      id: 942487c5-0c60-4be2-aa56-4c85d6718a0f
+      iscommand: false
+      name: Manual action needed – file couldn't be quarantined
+      playbooktaskmissingcomponent:
+      type: regular
+      version: -1
+    taskid: 942487c5-0c60-4be2-aa56-4c85d6718a0f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -37,
+          "y": 767
+        }
+      }
+  "26":
+    continueonerrortype: ""
+    id: "26"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d461544a-86db-492d-8df1-aa928c0fd6b9
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: d461544a-86db-492d-8df1-aa928c0fd6b9
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": -717,
+          "y": 1021
+        }
+      }
+  "27":
+    continueonerrortype: ""
+    id: "27"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "8"
+      Shadow Mode:
+      - "28"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 8fb7eafb-23ef-461b-87ab-e1eaf7098eaa
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: 'ShadowModeRouter_V3'
+      type: condition
+      version: -1
+    taskid: 8fb7eafb-23ef-461b-87ab-e1eaf7098eaa
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 453,
+          "y": 200
+        }
+      }
+  "28":
+    continueonerrortype: ""
+    id: "28"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "16"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Palo XDR File Qurantine
+          Command: core-quarantine-file ${inputs.EndpointID}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: 00c1159f-3a14-4cce-99d4-19615b7eedc3
+      iscommand: false
+      name: 'Shadow: Palo XDR File Qurantine'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: 00c1159f-3a14-4cce-99d4-19615b7eedc3
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 870,
+          "y": 399
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "13_2_#default#": 0.88,
+      "15_16_yes": 0.6,
+      "17_23_Manual": 0.42,
+      "17_2_#default#": 0.12,
+      "19_20_yes": 0.44,
+      "19_2_#default#": 0.15
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1460,
+        "width": 1967,
+        "x": -717,
+        "y": -369
+      }
+    }
+  }
+fromversion: 5.0.0

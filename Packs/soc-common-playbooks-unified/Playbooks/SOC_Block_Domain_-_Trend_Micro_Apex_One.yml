@@ -1,0 +1,387 @@
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.5.0
+    isoverridable: false
+    itemVersion: 2.0.11
+    packID: ""
+    packName: Trend Micro Apex One
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: |-
+  This playbook blocks domains using Trend Micro Apex One.
+  The playbook checks whether the Trend Micro Apex One integration is enabled, whether the Domain input has been provided and if so, blocks the domain.
+dirtyInputs: true
+id: 'SOC Block Domain - Trend Micro Apex One_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - Domain
+  - Expiration
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: The Domain to block.
+  key: Domain
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: 'The UTC expiration date and time of the suspicious object, for example:
+    2020-01-25T09:00:00Z.'
+  key: Expiration
+  playbookInputQuery:
+  required: false
+  value: {}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery:
+  required: false
+  value:
+    simple: "true"
+name: SOC Block Domain - Trend Micro Apex One_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+sourceplaybookid: Block Domain - Trend Micro Apex One
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d333e30b-b0ba-4578-820f-116443c2fa50
+      iscommand: false
+      name: ""
+      playbooktaskmissingcomponent:
+      version: -1
+    taskid: d333e30b-b0ba-4578-820f-116443c2fa50
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -320
+        }
+      }
+  "1":
+    conditions:
+    - condition:
+      - - ignorecase: true
+          left:
+            iscontext: true
+            value:
+              complex:
+                accessor: brand
+                filters:
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.brand
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Trend Micro Apex
+                - - ignorecase: true
+                    left:
+                      iscontext: true
+                      value:
+                        simple: modules.state
+                    operator: isEqualString
+                    right:
+                      value:
+                        simple: Active
+                root: modules
+          operator: isExists
+      label: "yes"
+    continueonerrortype: ""
+    id: "1"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Verify that there is a valid instance of Check Point Firewall enabled.
+      id: b414b6be-6e40-48a4-8612-d7cc449eb0cf
+      iscommand: false
+      name: Is Trend Micro Apex One enabled?
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: b414b6be-6e40-48a4-8612-d7cc449eb0cf
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 700,
+          "y": -20
+        }
+      }
+  "2":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "5"
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      content:
+        complex:
+          root: inputs.Domain
+      expiration:
+        complex:
+          root: inputs.Expiration
+      scan_action:
+        simple: block
+      type:
+        simple: domain
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: Trend Micro Apex
+      description: Add suspicious file SHA-1, IP address, domain, or URL objects to
+        the User-Defined Suspicious Object list.
+      id: 10ba9071-af0d-4729-b7d2-43b8440b292a
+      iscommand: true
+      name: Block Domain
+      playbooktaskmissingcomponent:
+      script: Trend Micro Apex|||trendmicro-apex-udso-add
+      type: regular
+      version: -1
+    taskid: 10ba9071-af0d-4729-b7d2-43b8440b292a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 730,
+          "y": 360
+        }
+      }
+  "3":
+    continueonerrortype: ""
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 410a42e0-2997-42fb-8b86-99085fe3168b
+      iscommand: false
+      name: Done
+      playbooktaskmissingcomponent:
+      type: title
+      version: -1
+    taskid: 410a42e0-2997-42fb-8b86-99085fe3168b
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 540
+        }
+      }
+  "4":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Domain
+          operator: isNotEmpty
+      label: "yes"
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "3"
+      "yes":
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Check whether the necessary inputs were provided
+      id: 36454014-dd62-4832-8cfe-f60877860910
+      iscommand: false
+      name: Check if Domain input was provided
+      playbooktaskmissingcomponent:
+      type: condition
+      version: -1
+    taskid: 36454014-dd62-4832-8cfe-f60877860910
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": -180
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 6a0fcac1-eb92-4fec-88c2-50c48b6b03fc
+      iscommand: false
+      name: Foundation - Foundation - Error Handling_V3
+      playbookId: Foundation - Foundation - Error Handling_V3
+      playbooktaskmissingcomponent:
+      type: playbook
+      version: -1
+    taskid: 6a0fcac1-eb92-4fec-88c2-50c48b6b03fc
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1360,
+          "y": 550
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "2"
+      Shadow Mode:
+      - "7"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 44c5c5d3-873f-4ed2-8743-35fae5dce766
+      iscommand: false
+      name: Run Mode?
+      playbooktaskmissingcomponent:
+      script: ShadowModeRouter_V3
+      type: condition
+      version: -1
+    taskid: 44c5c5d3-873f-4ed2-8743-35fae5dce766
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 800,
+          "y": 190
+        }
+      }
+  "7":
+    continueonerrortype: ""
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow: Trend Micro Apex Block Domain
+          Command: trendmicro-apex-udso-add
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: fb2015e7-c26b-4b9b-be73-0115b47753bd
+      iscommand: false
+      name: 'Shadow: Trend Micro Apex Block Domain'
+      playbooktaskmissingcomponent:
+      script: Print
+      type: regular
+      version: -1
+    taskid: fb2015e7-c26b-4b9b-be73-0115b47753bd
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1210,
+          "y": 350
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "1_3_#default#": 0.4
+    },
+    "paper": {
+      "dimensions": {
+        "height": 940,
+        "width": 1290,
+        "x": 450,
+        "y": -320
+      }
+    }
+  }
+fromversion: 5.0.0
