@@ -1,7 +1,6 @@
-fromversion: 5.0.0
 commonfields:
   id: SOCFWPackManager
-  version: 10
+  version: 8
 contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-manager
@@ -17,37 +16,50 @@ vcShouldKeepItemLegacyProdMachine: false
 name: SOCFWPackManager
 script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\n\nimport
   requests\n\n# ============================================================\n# SOCFWPackManager
-  (bootloader)\n# - list: shows SOC Framework pack catalog (now supports paging/filtering)\n#
-  - apply: resolves pack_id via secops-framework pack_catalog.json\n# - marketplace
-  install: uses XSIAMContentPackInstaller (Anna’s) when available\n# - custom ZIP
-  install: uses core-api-install-packs with file_url (NOT pack_url)\n# - configure:
-  runs your SOCFW* manager scripts (jobs/lookups)\n#\n# FIX:\n# - Create integration
-  instances directly via core-api-put to\n#   /xsoar/public/v1/settings/integration\n#
-  - Treat \"already exists (33)\" as success so reruns are idempotent.\n#\n# CHANGE:\n#
-  - Reduce logging by default + debug flag\n# - Fix Trend/large pack uploads by:\n#
-  \  - honoring skip_verify/skip_validation args\n#   - adding install_timeout (default
-  3600s) for core-api-install-packs\n#   - if upload call times out: poll until pack
-  shows installed, then continue\n# - LOUD pre_config_docs + post_config_docs (+ optional
-  README previews)\n# - NEW: pre-config gate (default ON): print PRE docs then STOP
-  unless pre_config_done=true\n# - NEW: POST docs printed as the VERY LAST War Room
-  entry (after return_results)\n#\n# JOBS FIX (NO PARAM CHANGES):\n# - Stop trusting
-  SOCFWJobManager output alone.\n# - After running SOCFWJobManager, VERIFY via Jobs
-  API that the job exists.\n# - If SOCFWJobManager fails (or doesn't create the job),
-  FALL BACK to direct Jobs API upsert.\n# - If Jobs API cannot be reached, we will
-  NOT claim jobs were configured.\n# ============================================================\n\nSCRIPT_NAME
+  (bootloader)\n# - list: shows SOC Framework pack catalog (paging/filtering)\n# -
+  apply: resolves pack_id via secops-framework pack_catalog.json\n# - marketplace
+  install: uses XSIAMContentPackInstaller (when available)\n# - custom ZIP install:
+  uses core-api-install-packs with file_url\n# - configure: integrations/jobs/lookups
+  from xsoar_config.json\n#\n# FIXES INCLUDED:\n# - Lookups: reliably CREATE dataset
+  if missing (direct /public_api/v1/xql/add_dataset),\n#           then POPULATE if
+  empty (even when overwrite_lookup=false).\n# - Lookups: add_data uses same request
+  shape as LookupDatasetCreator.\n# - Avoid /xsoar routes that 303 redirect in some
+  tenants (prefer /public_api).\n# - http_get_json supports JSON-stream / concatenated
+  JSON objects\n#           (prevents \"Extra data: line 2 column 1 ...\")\n# - Dependencies:
+  install custom pack dependencies from xsoar_config.json \"custom_packs\"\n# - Polling:
+  timeout fallback checks for REAL pack id (not zip filename)\n# - Stream normalize:
+  handles stream-returned list containing list-of-dicts\n# ============================================================\n\nSCRIPT_NAME
   = \"SOCFWPackManager\"\n\n# ---------------------------\n# Basic helpers\n# ---------------------------\n\ndef
   _norm(s: Any) -> str:\n    return (str(s) if s is not None else \"\").strip()\n\ndef
   _to_lower(s: Any) -> str:\n    return _norm(s).lower()\n\ndef _parse_csv(val: Any)
   -> List[str]:\n    s = _norm(val)\n    if not s:\n        return []\n    return
   [x.strip() for x in s.split(\",\") if x.strip()]\n\ndef _safe_sort_key(row: Dict[str,
-  Any], key: str) -> str:\n    return _norm(row.get(key, \"\")).lower()\n\n# ---------------------------\n#
-  Demisto helpers\n# ---------------------------\n\ndef get_error(res):\n    try:\n
-  \       return res[0].get(\"Contents\") or res[0].get(\"HumanReadable\") or str(res[0])\n
-  \   except Exception:\n        return str(res)\n\ndef is_error(res0):\n    try:\n
-  \       return bool(res0.get(\"Type\") == 4)  # entryTypes[\"error\"] == 4\n    except
-  Exception:\n        return False\n\ndef get_contents(res):\n    if not res or not
-  isinstance(res, list) or not res[0]:\n        return {}\n    return res[0].get(\"Contents\")
-  or {}\n\ndef arg_to_bool(val, default=False) -> bool:\n    if val is None:\n        return
+  Any], key: str) -> str:\n    return _norm(row.get(key, \"\")).lower()\n\ndef _guess_pack_id_from_label(label:
+  str) -> str:\n    \"\"\"\n    Convert:\n      - soc-common-playbooks-unified.zip
+  \              -> soc-common-playbooks-unified\n      - soc-common-playbooks-unified-v2.7.53.zip
+  \      -> soc-common-playbooks-unified\n      - soc-common-playbooks-unified-v2.7.53
+  \          -> soc-common-playbooks-unified\n      - soc-common-playbooks-unified
+  \                  -> soc-common-playbooks-unified\n    Used ONLY for polling detection
+  (timeout fallback).\n    \"\"\"\n    s = _norm(label)\n    if not s:\n        return
+  s\n    if s.endswith(\".zip\"):\n        s = s[:-4]\n    # Strip release suffix
+  \"-vX.Y.Z\" if present\n    if \"-v\" in s:\n        s = s.split(\"-v\")[0]\n    return
+  s.strip()\n\ndef _extract_custom_packs_from_xsoar_cfg(xsoar_cfg: Dict[str, Any])
+  -> List[Dict[str, str]]:\n    \"\"\"\n    Returns a normalized list of custom packs
+  to install from xsoar_config.json.\n    Expected input key: custom_packs\n    Each
+  item: { \"id\": \"...\", \"url\": \"...\", \"system\": \"yes\" }\n    Output: [{
+  \"name\": \"<id>\", \"url\": \"<url>\" }, ...]\n    \"\"\"\n    packs = xsoar_cfg.get(\"custom_packs\")
+  or []\n    out: List[Dict[str, str]] = []\n\n    if isinstance(packs, list):\n        for
+  p in packs:\n            if not isinstance(p, dict):\n                continue\n
+  \           url = _norm(p.get(\"url\"))\n            pid = _norm(p.get(\"id\") or
+  p.get(\"name\") or url)\n            if url:\n                out.append({\"name\":
+  pid or url, \"url\": url})\n    return out\n\n# ---------------------------\n# Demisto
+  helpers\n# ---------------------------\n\ndef get_error(res):\n    try:\n        return
+  res[0].get(\"Contents\") or res[0].get(\"HumanReadable\") or str(res[0])\n    except
+  Exception:\n        return str(res)\n\ndef is_error(res0):\n    try:\n        return
+  bool(res0.get(\"Type\") == 4)  # entryTypes[\"error\"] == 4\n    except Exception:\n
+  \       return False\n\ndef get_contents(res):\n    if not res or not isinstance(res,
+  list) or not res[0]:\n        return {}\n    return res[0].get(\"Contents\") or
+  {}\n\ndef arg_to_bool(val, default=False) -> bool:\n    if val is None:\n        return
   default\n    if isinstance(val, bool):\n        return val\n    s = str(val).strip().lower()\n
   \   if s == \"\":\n        return default\n    return s in (\"true\", \"1\", \"yes\",
   \"y\", \"on\")\n\ndef to_int(val, default: int) -> int:\n    try:\n        return
@@ -62,35 +74,34 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   stage: Optional[str] = None):\n    title = f\"{SCRIPT_NAME} — {stage}\" if stage
   else SCRIPT_NAME\n    demisto.results(\n        {\n            \"Type\": 1,\n            \"ContentsFormat\":
   \"markdown\",\n            \"Contents\": message,\n            \"HumanReadable\":
-  f\"### {title}\\n{message}\",\n        }\n    )\n\ndef log(message: str, stage:
-  Optional[str], debug: bool, always: bool = False):\n    if always or debug:\n        emit_progress(message,
-  stage=stage)\n\ndef exec_cmd(command: str, args: Dict[str, Any], fail_on_error:
-  bool = True):\n    res = demisto.executeCommand(command, args)\n    if not res:\n
-  \       if fail_on_error:\n            raise Exception(f\"{command} returned empty
-  response\")\n        return res\n    if is_error(res[0]):\n        if fail_on_error:\n
-  \           raise Exception(get_error(res))\n        return res\n    return res\n\ndef
-  exec_with_retry(\n    command: str,\n    args: Dict[str, Any],\n    retry_count:
-  int,\n    retry_sleep_seconds: int,\n    context_for_error: str,\n    fail_on_error:
-  bool = True,\n):\n    last_err = None\n    for attempt in range(1, max(1, retry_count)
-  + 1):\n        try:\n            return exec_cmd(command, args, fail_on_error=fail_on_error)\n
-  \       except Exception as e:\n            last_err = str(e)\n            if attempt
-  >= retry_count:\n                break\n            time.sleep(max(1, retry_sleep_seconds))\n
-  \           continue\n    if fail_on_error:\n        raise Exception(f\"{context_for_error}\\nError:
-  {last_err}\")\n    return None\n\ndef is_instance_already_exists_error(err_text:
-  str) -> bool:\n    if not err_text:\n        return False\n    return \"already
-  exists (33)\" in err_text.lower()\n\n# ---------------------------\n# Pre/Post docs
-  helpers (LOUD + optional content)\n# ---------------------------\n\ndef _md_link(name:
-  str, url: str) -> str:\n    n = (name or \"\").strip() or url\n    u = (url or \"\").strip()\n
-  \   if not u:\n        return f\"- {n}\"\n    return f\"- [{n}]({u})\"\n\ndef _github_blob_to_raw(url:
-  str) -> str:\n    \"\"\"\n    Convert:\n      https://github.com/org/repo/blob/branch/path/file.md\n
-  \   To:\n      https://raw.githubusercontent.com/org/repo/branch/path/file.md\n
-  \   If it's already a raw URL, return as-is.\n    \"\"\"\n    u = (url or \"\").strip()\n
-  \   if not u:\n        return u\n    if \"raw.githubusercontent.com\" in u:\n        return
-  u\n    if u.startswith(\"https://github.com/\") and \"/blob/\" in u:\n        rest
-  = u[len(\"https://github.com/\"):]\n        parts = rest.split(\"/\")\n        if
-  len(parts) >= 5 and parts[2] == \"blob\":\n            org = parts[0]\n            repo
-  = parts[1]\n            branch = parts[3]\n            path = \"/\".join(parts[4:])\n
-  \           return f\"https://raw.githubusercontent.com/{org}/{repo}/{branch}/{path}\"\n
+  f\"### {title}\\n{message}\",\n        }\n    )\n\ndef return_results(obj: Any):\n
+  \   # Keep it simple and safe in every tenant\n    demisto.results(obj)\n\ndef log(message:
+  str, stage: Optional[str], debug: bool, always: bool = False):\n    if always or
+  debug:\n        emit_progress(message, stage=stage)\n\ndef exec_cmd(command: str,
+  args: Dict[str, Any], fail_on_error: bool = True):\n    res = demisto.executeCommand(command,
+  args)\n    if not res:\n        if fail_on_error:\n            raise Exception(f\"{command}
+  returned empty response\")\n        return res\n    if is_error(res[0]):\n        if
+  fail_on_error:\n            raise Exception(get_error(res))\n        return res\n
+  \   return res\n\ndef exec_with_retry(\n    command: str,\n    args: Dict[str, Any],\n
+  \   retry_count: int,\n    retry_sleep_seconds: int,\n    context_for_error: str,\n
+  \   fail_on_error: bool = True,\n):\n    last_err = None\n    for attempt in range(1,
+  max(1, retry_count) + 1):\n        try:\n            return exec_cmd(command, args,
+  fail_on_error=fail_on_error)\n        except Exception as e:\n            last_err
+  = str(e)\n            if attempt >= retry_count:\n                break\n            time.sleep(max(1,
+  retry_sleep_seconds))\n            continue\n    if fail_on_error:\n        raise
+  Exception(f\"{context_for_error}\\nError: {last_err}\")\n    return None\n\ndef
+  is_instance_already_exists_error(err_text: str) -> bool:\n    if not err_text:\n
+  \       return False\n    return \"already exists (33)\" in err_text.lower()\n\n#
+  ---------------------------\n# Pre/Post docs helpers (LOUD + optional content)\n#
+  ---------------------------\n\ndef _md_link(name: str, url: str) -> str:\n    n
+  = (name or \"\").strip() or url\n    u = (url or \"\").strip()\n    if not u:\n
+  \       return f\"- {n}\"\n    return f\"- [{n}]({u})\"\n\ndef _github_blob_to_raw(url:
+  str) -> str:\n    u = (url or \"\").strip()\n    if not u:\n        return u\n    if
+  \"raw.githubusercontent.com\" in u:\n        return u\n    if u.startswith(\"https://github.com/\")
+  and \"/blob/\" in u:\n        rest = u[len(\"https://github.com/\"):]\n        parts
+  = rest.split(\"/\")\n        if len(parts) >= 5 and parts[2] == \"blob\":\n            org
+  = parts[0]\n            repo = parts[1]\n            branch = parts[3]\n            path
+  = \"/\".join(parts[4:])\n            return f\"https://raw.githubusercontent.com/{org}/{repo}/{branch}/{path}\"\n
   \   return u\n\ndef _fetch_text(url: str, timeout: int = 20) -> str:\n    r = requests.get(url,
   timeout=timeout)\n    r.raise_for_status()\n    return r.text or \"\"\n\ndef _truncate_text(s:
   str, max_chars: int, max_lines: int) -> str:\n    if not s:\n        return \"\"\n
@@ -151,78 +162,26 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   int = 600) -> Dict[str, Any]:\n    args = {\"uri\": path, \"body\": json.dumps(body
   if body is not None else {}), \"execution-timeout\": str(execution_timeout)}\n    if
   using:\n        args[\"using\"] = using\n    res = exec_cmd(\"core-api-put\", args)\n
-  \   return get_contents(res) or {}\n\n# ---------------------------\n# Jobs verification
-  + upsert (NO NEW PARAMETERS)\n# ---------------------------\n\ndef _extract_list(resp:
-  Any) -> List[Dict[str, Any]]:\n    if isinstance(resp, dict):\n        # common
-  response shapes\n        v = resp.get(\"response\")\n        if isinstance(v, dict):\n
-  \           data = v.get(\"data\")\n            if isinstance(data, list):\n                return
-  [x for x in data if isinstance(x, dict)]\n        if isinstance(v, list):\n            return
-  [x for x in v if isinstance(x, dict)]\n        for k in (\"data\", \"jobs\", \"result\"):\n
-  \           vv = resp.get(k)\n            if isinstance(vv, list):\n                return
-  [x for x in vv if isinstance(x, dict)]\n    if isinstance(resp, list):\n        return
-  [x for x in resp if isinstance(x, dict)]\n    return []\n\ndef _job_name(job_obj:
-  Dict[str, Any]) -> str:\n    return _norm(\n        job_obj.get(\"name\")\n        or
-  job_obj.get(\"jobName\")\n        or job_obj.get(\"job_name\")\n        or job_obj.get(\"displayName\")\n
-  \       or \"\"\n    )\n\ndef _job_id(job_obj: Dict[str, Any]) -> str:\n    return
-  _norm(job_obj.get(\"id\") or job_obj.get(\"_id\") or job_obj.get(\"jobId\") or \"\")\n\ndef
-  jobs_api_endpoints() -> Dict[str, str]:\n    \"\"\"\n    Centralize URIs so we can
-  try both /xsoar/public/v1 and /public/v1.\n    \"\"\"\n    return {\n        \"search_xsoar\":
-  \"/xsoar/public/v1/jobs/search\",\n        \"search_public\": \"/public/v1/jobs/search\",\n
-  \       \"create_xsoar\": \"/xsoar/public/v1/jobs\",\n        \"create_public\":
-  \"/public/v1/jobs\",\n        \"update_xsoar\": \"/xsoar/public/v1/jobs\",   # +
-  /{id}\n        \"update_public\": \"/public/v1/jobs\",        # + /{id}\n    }\n\ndef
-  jobs_api_search_probe(using: str) -> Optional[str]:\n    \"\"\"\n    Return the
-  working search endpoint path, or None.\n    \"\"\"\n    eps = jobs_api_endpoints()\n
-  \   probe_body = {\"page\": 0, \"size\": 1, \"query\": \"\", \"sort\": [{\"field\":
-  \"id\", \"asc\": True}]}\n    for p in (eps[\"search_xsoar\"], eps[\"search_public\"]):\n
-  \       try:\n            _ = core_api_post(p, body=probe_body, using=using, execution_timeout=600)\n
-  \           return p\n        except Exception:\n            continue\n    return
-  None\n\ndef jobs_api_find_by_name(name: str, using: str, search_path: Optional[str],
-  debug: bool) -> Optional[Dict[str, Any]]:\n    n = _norm(name).lower()\n\n    if
-  search_path:\n        try:\n            body = {\"page\": 0, \"size\": 50, \"query\":
-  f'name:\"{name}\"', \"sort\": [{\"field\": \"id\", \"asc\": True}]}\n            resp
-  = core_api_post(search_path, body=body, using=using, execution_timeout=600)\n            rows
-  = _extract_list(resp)\n            for r in rows:\n                if _job_name(r).lower()
-  == n:\n                    return r\n        except Exception as e:\n            if
-  debug:\n                emit_progress(f\"Job search failed on {search_path}: {e}\",
-  stage=\"configure.jobs.debug\")\n\n    # last-resort: try empty query list via search
-  anyway (if we have it)\n    if search_path:\n        try:\n            body = {\"page\":
-  0, \"size\": 200, \"query\": \"\", \"sort\": [{\"field\": \"id\", \"asc\": True}]}\n
-  \           resp = core_api_post(search_path, body=body, using=using, execution_timeout=600)\n
-  \           rows = _extract_list(resp)\n            for r in rows:\n                if
-  _job_name(r).lower() == n:\n                    return r\n        except Exception:\n
-  \           pass\n\n    return None\n\ndef jobs_api_upsert(job: Dict[str, Any],
-  using: str, search_path: str, debug: bool) -> Dict[str, Any]:\n    \"\"\"\n    Upsert
-  via Jobs API:\n      - search by name\n      - if found, try PUT /jobs/{id}\n      -
-  else, POST /jobs\n    Returns a dict describing what we did.\n    \"\"\"\n    eps
-  = jobs_api_endpoints()\n    name = _job_name(job)\n    if not name:\n        raise
-  Exception(\"Job object missing name\")\n\n    existing = jobs_api_find_by_name(name,
-  using=using, search_path=search_path, debug=debug)\n    existing_id = _job_id(existing)
-  if existing else \"\"\n\n    # Prefer xsoar/public first; fall back to public\n
-  \   create_paths = [eps[\"create_xsoar\"], eps[\"create_public\"]]\n    update_paths
-  = [eps[\"update_xsoar\"], eps[\"update_public\"]]\n\n    if existing_id:\n        #
-  try PUT update first\n        last_err = None\n        for base in update_paths:\n
-  \           try:\n                resp = core_api_put(f\"{base}/{existing_id}\",
-  body=job, using=using, execution_timeout=600)\n                return {\"action\":
-  \"updated\", \"endpoint\": f\"{base}/{existing_id}\", \"response\": resp, \"job_id\":
-  existing_id}\n            except Exception as e:\n                last_err = str(e)\n
-  \               continue\n\n        # if PUT isn't supported, fall back to POST
-  (some tenants treat POST as upsert)\n        for base in create_paths:\n            try:\n
-  \               resp = core_api_post(base, body=job, using=using, execution_timeout=600)\n
-  \               return {\"action\": \"created_via_post_fallback\", \"endpoint\":
-  base, \"response\": resp, \"job_id\": existing_id, \"warning\": last_err}\n            except
-  Exception as e:\n                last_err = str(e)\n                continue\n\n
-  \       raise Exception(f\"Failed updating job '{name}'. Last error: {last_err}\")\n\n
-  \   # create\n    last_err = None\n    for base in create_paths:\n        try:\n
-  \           resp = core_api_post(base, body=job, using=using, execution_timeout=600)\n
-  \           return {\"action\": \"created\", \"endpoint\": base, \"response\": resp}\n
-  \       except Exception as e:\n            last_err = str(e)\n            continue\n\n
-  \   raise Exception(f\"Failed creating job '{name}'. Last error: {last_err}\")\n\n#
-  ---------------------------\n# HTTP JSON helpers\n# ---------------------------\n\ndef
-  http_get_json(url: str, timeout: int = 30) -> Any:\n    r = requests.get(url, timeout=timeout)\n
-  \   r.raise_for_status()\n    return r.json()\n\n# ---------------------------\n#
-  Catalog + Manifest resolver\n# ---------------------------\n\nDEFAULT_CATALOG_URL
-  = \"https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/pack_catalog.json\"\n\ndef
+  \   return get_contents(res) or {}\n\n# ---------------------------\n# HTTP JSON
+  helpers\n# ---------------------------\n\ndef _parse_json_stream(raw: str) -> Any:\n
+  \   \"\"\"\n    Parse a string that may contain:\n      - one JSON document (object/array)\n
+  \     - NDJSON/JSONL (one JSON value per line)\n      - concatenated JSON values
+  (e.g. {}{} or {}\\n{} with extra whitespace)\n    Returns:\n      - single parsed
+  value if exactly one JSON value\n      - list of parsed values if multiple JSON
+  values are present\n    \"\"\"\n    raw = (raw or \"\").strip()\n    if not raw:\n
+  \       return []\n\n    dec = json.JSONDecoder()\n    idx = 0\n    n = len(raw)\n
+  \   values: List[Any] = []\n\n    while idx < n:\n        while idx < n and raw[idx].isspace():\n
+  \           idx += 1\n        if idx >= n:\n            break\n        val, end
+  = dec.raw_decode(raw, idx)\n        values.append(val)\n        idx = end\n\n    if
+  len(values) == 1:\n        return values[0]\n    return values\n\ndef http_get_text(url:
+  str, timeout: int = 30) -> str:\n    r = requests.get(url, timeout=timeout)\n    r.raise_for_status()\n
+  \   return r.text or \"\"\n\ndef http_get_json(url: str, timeout: int = 30) -> Any:\n
+  \   \"\"\"\n    Supports:\n      - standard JSON (object/array)\n      - NDJSON
+  / JSONL\n      - concatenated JSON stream (prevents 'Extra data' errors)\n    \"\"\"\n
+  \   raw = http_get_text(url, timeout=timeout).strip()\n    if not raw:\n        return
+  []\n    try:\n        return json.loads(raw)\n    except Exception:\n        return
+  _parse_json_stream(raw)\n\n# ---------------------------\n# Catalog + Manifest resolver\n#
+  ---------------------------\n\nDEFAULT_CATALOG_URL = \"https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/pack_catalog.json\"\n\ndef
   fetch_pack_catalog(catalog_url: str = DEFAULT_CATALOG_URL) -> Dict[str, Any]:\n
   \   data = http_get_json(catalog_url)\n    if not isinstance(data, dict):\n        raise
   Exception(f\"pack_catalog.json unexpected format at {catalog_url}\")\n    return
@@ -249,16 +208,14 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   \       \"pack_catalog_entry\": pack,\n        \"pack_version\": version,\n    }\n\n#
   ---------------------------\n# list action (filter + paging)\n# ---------------------------\n\ndef
   do_list(args: Dict[str, Any]):\n    using = _norm(args.get(\"using\") or \"\")\n
-  \   include_hidden = arg_to_bool(args.get(\"include_hidden\"), False)\n\n    # list
-  args\n    text_filter = _to_lower(args.get(\"filter\") or args.get(\"q\") or \"\")\n\n
-  \   # IMPORTANT FIX:\n    # include_hidden=True MUST win. If include_hidden=True,
-  visible_only must behave as False.\n    visible_only_raw = arg_to_bool(args.get(\"visible_only\"),
-  True)\n    visible_only = bool(visible_only_raw) and (not include_hidden)\n\n    limit
-  = max(1, to_int(args.get(\"limit\"), 50))\n    offset = max(0, to_int(args.get(\"offset\"),
-  0))\n    sort_by = (_norm(args.get(\"sort_by\")) or \"id\").strip()\n    sort_dir
-  = (_norm(args.get(\"sort_dir\")) or \"asc\").strip().lower()\n    fields = _parse_csv(args.get(\"fields\"))
-  or [\"id\", \"display_name\", \"version\", \"visible\", \"path\"]\n    show_total
-  = arg_to_bool(args.get(\"show_total\"), True)\n\n    # honor catalog_url parameter\n
+  \   include_hidden = arg_to_bool(args.get(\"include_hidden\"), False)\n\n    text_filter
+  = _to_lower(args.get(\"filter\") or args.get(\"q\") or \"\")\n    visible_only_raw
+  = arg_to_bool(args.get(\"visible_only\"), True)\n    visible_only = bool(visible_only_raw)
+  and (not include_hidden)\n\n    limit = max(1, to_int(args.get(\"limit\"), 50))\n
+  \   offset = max(0, to_int(args.get(\"offset\"), 0))\n    sort_by = (_norm(args.get(\"sort_by\"))
+  or \"id\").strip()\n    sort_dir = (_norm(args.get(\"sort_dir\")) or \"asc\").strip().lower()\n
+  \   fields = _parse_csv(args.get(\"fields\")) or [\"id\", \"display_name\", \"version\",
+  \"visible\", \"path\"]\n    show_total = arg_to_bool(args.get(\"show_total\"), True)\n\n
   \   catalog_url = _norm(args.get(\"catalog_url\") or DEFAULT_CATALOG_URL)\n\n    emit_progress(\"Fetching
   catalog…\", stage=\"list\")\n\n    catalog = fetch_pack_catalog(catalog_url)\n    packs
   = catalog.get(\"packs\") or catalog.get(\"Packs\") or catalog.get(\"items\") or
@@ -291,10 +248,10 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   limit={limit}, offset={offset}\")\n    if show_total:\n        summary_lines.append(f\"showing:
   {start}-{end} of {total}\")\n\n    emit_progress(\"\\n\".join(summary_lines) + \"\\n\\n\"
   + table, stage=\"list\")\n    return\n\n# ---------------------------\n# Marketplace
-  install (USE ANNA’S SCRIPT)\n# ---------------------------\n\ndef install_marketplace_packs(\n
-  \   marketplace_packs: List[Dict[str, str]],\n    using: str,\n    retry_count:
-  int,\n    retry_sleep_seconds: int,\n    debug: bool,\n) -> Dict[str, Any]:\n    if
-  debug:\n        emit_progress(\n            \"Installing marketplace packs via **XSIAMContentPackInstaller**…\\n\"\n
+  install\n# ---------------------------\n\ndef install_marketplace_packs(\n    marketplace_packs:
+  List[Dict[str, str]],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds:
+  int,\n    debug: bool,\n) -> Dict[str, Any]:\n    if debug:\n        emit_progress(\n
+  \           \"Installing marketplace packs via **XSIAMContentPackInstaller**…\\n\"\n
   \           + \"\\n\".join([f'{p.get(\"id\")} @ {p.get(\"version\")}' for p in marketplace_packs]),\n
   \           stage=\"packs.marketplace\",\n        )\n    else:\n        emit_progress(\n
   \           f\"Installing marketplace packs via **XSIAMContentPackInstaller**… ({len(marketplace_packs)}
@@ -305,42 +262,45 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   \       args,\n        retry_count=retry_count,\n        retry_sleep_seconds=retry_sleep_seconds,\n
   \       context_for_error=\"Failed installing marketplace packs via XSIAMContentPackInstaller\",\n
   \       fail_on_error=True,\n    )\n    return get_contents(res) if res else {}\n\ndef
-  fetch_installed_marketplace_pack_ids(using: str) -> List[str]:\n    try:\n        r
-  = core_api_get(\"/public/v1/contentpacks/metadata/installed\", using=using)\n        packs
-  = (r.get(\"response\") or []) if isinstance(r, dict) else []\n        ids = []\n
-  \       for p in packs:\n            pid = p.get(\"id\")\n            if pid:\n
-  \               ids.append(pid)\n        return ids\n    except Exception:\n        return
-  []\n\n# ---------------------------\n# xsoar_config\n# ---------------------------\n\ndef
-  fetch_xsoar_config(xsoar_config_url: str) -> Dict[str, Any]:\n    data = http_get_json(xsoar_config_url)\n
-  \   if not isinstance(data, dict):\n        raise Exception(f\"xsoar_config.json
-  unexpected format at {xsoar_config_url}\")\n    return data\n\n# ---------------------------\n#
-  Custom packs install (with timeout -> polling fallback)\n# ---------------------------\n\ndef
-  wait_for_pack_installed(\n    pack_id: str,\n    using: str,\n    poll_seconds:
-  int,\n    poll_interval_seconds: int,\n    debug: bool,\n) -> bool:\n    deadline
-  = time.time() + max(0, poll_seconds)\n    interval = max(5, poll_interval_seconds)\n\n
-  \   log(\n        f\"Polling for pack install completion: **{pack_id}** (up to {poll_seconds}s,
-  every {interval}s)…\",\n        stage=\"packs.custom.poll\",\n        debug=debug,\n
-  \       always=True,\n    )\n\n    while True:\n        try:\n            installed
-  = fetch_installed_marketplace_pack_ids(using)\n            if pack_id in installed:\n
-  \               log(f\"Pack **{pack_id}** is now installed.\", stage=\"packs.custom.poll\",
-  debug=debug, always=True)\n                return True\n        except Exception
-  as e:\n            log(f\" Poll check error (will retry): {e}\", stage=\"packs.custom.poll.debug\",
-  debug=debug)\n\n        if time.time() >= deadline:\n            log(\n                f\"Polling
-  window expired; pack **{pack_id}** not detected as installed yet.\",\n                stage=\"packs.custom.poll\",\n
+  fetch_installed_marketplace_pack_ids(using: str) -> List[str]:\n    \"\"\"\n    Note:
+  This endpoint returns installed content pack IDs.\n    We'll also use it for custom
+  zip installs polling (best-effort).\n    \"\"\"\n    try:\n        r = core_api_get(\"/public/v1/contentpacks/metadata/installed\",
+  using=using)\n        packs = (r.get(\"response\") or []) if isinstance(r, dict)
+  else []\n        ids = []\n        for p in packs:\n            pid = p.get(\"id\")\n
+  \           if pid:\n                ids.append(pid)\n        return ids\n    except
+  Exception:\n        return []\n\n# ---------------------------\n# xsoar_config\n#
+  ---------------------------\n\ndef fetch_xsoar_config(xsoar_config_url: str) ->
+  Dict[str, Any]:\n    data = http_get_json(xsoar_config_url)\n    if not isinstance(data,
+  dict):\n        raise Exception(f\"xsoar_config.json unexpected format at {xsoar_config_url}\")\n
+  \   return data\n\n# ---------------------------\n# Custom packs install (with timeout
+  -> polling fallback)\n# ---------------------------\n\ndef wait_for_pack_installed(\n
+  \   pack_id: str,\n    using: str,\n    poll_seconds: int,\n    poll_interval_seconds:
+  int,\n    debug: bool,\n) -> bool:\n    deadline = time.time() + max(0, poll_seconds)\n
+  \   interval = max(5, poll_interval_seconds)\n\n    log(\n        f\"Polling for
+  pack install completion: **{pack_id}** (up to {poll_seconds}s, every {interval}s)…\",\n
+  \       stage=\"packs.custom.poll\",\n        debug=debug,\n        always=True,\n
+  \   )\n\n    while True:\n        try:\n            installed = fetch_installed_marketplace_pack_ids(using)\n
+  \           if pack_id in installed:\n                log(f\"Pack **{pack_id}**
+  is now installed.\", stage=\"packs.custom.poll\", debug=debug, always=True)\n                return
+  True\n        except Exception as e:\n            log(f\" Poll check error (will
+  retry): {e}\", stage=\"packs.custom.poll.debug\", debug=debug)\n\n        if time.time()
+  >= deadline:\n            log(\n                f\"Polling window expired; pack
+  **{pack_id}** not detected as installed yet.\",\n                stage=\"packs.custom.poll\",\n
   \               debug=debug,\n                always=True,\n            )\n            return
   False\n\n        time.sleep(interval)\n\ndef install_custom_pack_zip(\n    url:
-  str,\n    pack_id: str,\n    using: str,\n    execution_timeout: int,\n    install_timeout:
-  int,\n    retry_count: int,\n    retry_sleep_seconds: int,\n    skip_verify: bool,\n
-  \   skip_validation: bool,\n    post_install_poll_seconds: int,\n    post_install_poll_interval_seconds:
-  int,\n    continue_on_install_timeout: bool,\n    debug: bool,\n):\n    effective_timeout
-  = max(1200, execution_timeout, install_timeout)\n\n    args = {\n        \"file_url\":
-  url,\n        \"execution-timeout\": str(effective_timeout),\n        \"skip_verify\":
-  bool_str_tf(skip_verify),\n        \"skip_validation\": bool_str_tf(skip_validation),\n
-  \   }\n    if using:\n        args[\"using\"] = using\n\n    if debug:\n        emit_progress(\n
-  \           \"\\n\".join(\n                [\n                    \"core-api-install-packs:\",\n
-  \                   f\"- file_url: {url}\",\n                    f\"- execution-timeout:
-  {effective_timeout}\",\n                    f\"- skip_verify: {skip_verify}\",\n
-  \                   f\"- skip_validation: {skip_validation}\",\n                ]\n
+  str,\n    pack_id_for_polling: str,\n    using: str,\n    execution_timeout: int,\n
+  \   install_timeout: int,\n    retry_count: int,\n    retry_sleep_seconds: int,\n
+  \   skip_verify: bool,\n    skip_validation: bool,\n    post_install_poll_seconds:
+  int,\n    post_install_poll_interval_seconds: int,\n    continue_on_install_timeout:
+  bool,\n    debug: bool,\n):\n    effective_timeout = max(1200, execution_timeout,
+  install_timeout)\n\n    args = {\n        \"file_url\": url,\n        \"execution-timeout\":
+  str(effective_timeout),\n        \"skip_verify\": bool_str_tf(skip_verify),\n        \"skip_validation\":
+  bool_str_tf(skip_validation),\n    }\n    if using:\n        args[\"using\"] = using\n\n
+  \   if debug:\n        emit_progress(\n            \"\\n\".join(\n                [\n
+  \                   \"core-api-install-packs:\",\n                    f\"- file_url:
+  {url}\",\n                    f\"- execution-timeout: {effective_timeout}\",\n                    f\"-
+  skip_verify: {skip_verify}\",\n                    f\"- skip_validation: {skip_validation}\",\n
+  \                   f\"- poll_pack_id: {pack_id_for_polling}\",\n                ]\n
   \           ),\n            stage=\"packs.custom.debug\",\n        )\n\n    try:\n
   \       exec_with_retry(\n            \"core-api-install-packs\",\n            args,\n
   \           retry_count=retry_count,\n            retry_sleep_seconds=retry_sleep_seconds,\n
@@ -350,49 +310,50 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   \                   [\n                        \"Custom pack upload call timed out
   (client-side).\",\n                        \" This often means the server is still
   uploading/processing.\",\n                        f\"Switching to polling for installed
-  pack: **{pack_id}**\",\n                    ]\n                ),\n                stage=\"packs.custom.timeout\",\n
-  \           )\n\n            ok = wait_for_pack_installed(\n                pack_id=pack_id,\n
-  \               using=using,\n                poll_seconds=post_install_poll_seconds,\n
-  \               poll_interval_seconds=post_install_poll_interval_seconds,\n                debug=debug,\n
-  \           )\n\n            if ok:\n                return\n\n            msg =
-  (\n                \"Upload timed out and polling did not observe the pack as installed.\\n\"\n
-  \               f\"pack_id={pack_id}\\nurl={url}\\n\"\n                f\"poll_seconds={post_install_poll_seconds},
-  interval={post_install_poll_interval_seconds}\\n\"\n                \"You can retry
-  or increase post_install_poll_seconds.\"\n            )\n\n            if continue_on_install_timeout:\n
-  \               emit_progress(msg + \"\\n\\ncontinue_on_install_timeout=True — continuing
-  anyway.\", stage=\"packs.custom.timeout\")\n                return\n\n            raise
-  Exception(msg)\n\n        raise\n\n# ---------------------------\n# Configure (jobs
-  / integrations / lookups)\n# ---------------------------\n\ndef configure_integrations_from_xsoar_config(\n
-  \   xsoar_cfg: Dict[str, Any],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds:
-  int,\n    installed_pack_ids: List[str],\n    debug: bool,\n) -> Dict[str, Any]:\n
-  \   items = [x for x in (xsoar_cfg.get(\"integration_instances\", []) or []) if
-  isinstance(x, dict)]\n    emit_progress(f\"Configuring integration instances… ({len(items)}
-  instance(s))\", stage=\"configure.integrations\")\n\n    summary = {\n        \"attempted\":
-  0,\n        \"ok\": 0,\n        \"already_exists\": 0,\n        \"skipped_missing_pack\":
-  0,\n        \"skipped_missing_brand\": 0,\n        \"failed\": 0,\n        \"failed_items\":
-  [],\n    }\n\n    for inst in items:\n        instance_name = (inst.get(\"name\")
-  or \"\").strip()\n        if not instance_name:\n            continue\n\n        required_pack
-  = ((inst.get(\"required_pack_id\") or inst.get(\"marketplace_pack\") or inst.get(\"pack_id\")
-  or \"\").strip())\n        if required_pack and required_pack not in installed_pack_ids:\n
-  \           summary[\"skipped_missing_pack\"] += 1\n            log(\n                f\"Skipping
-  integration instance **{instance_name}** — marketplace pack **{required_pack}**
-  not installed.\",\n                stage=\"configure.integrations.debug\",\n                debug=debug,\n
-  \           )\n            continue\n\n        brand = (inst.get(\"brand\") or \"\").strip()\n
-  \       if not brand:\n            summary[\"skipped_missing_brand\"] += 1\n            log(\n
-  \               f\"Skipping integration instance **{instance_name}** — missing required
-  field `brand`.\",\n                stage=\"configure.integrations.debug\",\n                debug=debug,\n
-  \           )\n            continue\n\n        summary[\"attempted\"] += 1\n\n        payload
-  = {\n            \"name\": instance_name,\n            \"brand\": brand,\n            \"enabled\":
-  inst.get(\"enabled\", \"true\"),\n            \"category\": inst.get(\"category\")
-  or \"\",\n            \"data\": inst.get(\"data\") or [],\n        }\n\n        log(\n
-  \           f\"Creating/updating integration instance: **{instance_name}** (brand:
-  **{brand}**)\",\n            stage=\"configure.integrations.debug\",\n            debug=debug,\n
-  \       )\n\n        def _do_put():\n            return core_api_put(\"/xsoar/public/v1/settings/integration\",
-  payload, using=using, execution_timeout=600)\n\n        last_err = None\n        for
-  attempt in range(1, max(1, retry_count) + 1):\n            try:\n                resp
-  = _do_put()\n                rid = (resp.get(\"id\") if isinstance(resp, dict) else
-  None) or \"\"\n                summary[\"ok\"] += 1\n                log(\n                    f\"Integration
-  instance **{instance_name}** created/updated. id={rid or '(unknown)'}\",\n                    stage=\"configure.integrations.result\",\n
+  pack id: **{pack_id_for_polling}**\",\n                    ]\n                ),\n
+  \               stage=\"packs.custom.timeout\",\n            )\n\n            ok
+  = wait_for_pack_installed(\n                pack_id=pack_id_for_polling,\n                using=using,\n
+  \               poll_seconds=post_install_poll_seconds,\n                poll_interval_seconds=post_install_poll_interval_seconds,\n
+  \               debug=debug,\n            )\n\n            if ok:\n                return\n\n
+  \           msg = (\n                \"Upload timed out and polling did not observe
+  the pack as installed.\\n\"\n                f\"poll_pack_id={pack_id_for_polling}\\nurl={url}\\n\"\n
+  \               f\"poll_seconds={post_install_poll_seconds}, interval={post_install_poll_interval_seconds}\\n\"\n
+  \               \"You can retry or increase post_install_poll_seconds.\"\n            )\n\n
+  \           if continue_on_install_timeout:\n                emit_progress(msg +
+  \"\\n\\ncontinue_on_install_timeout=True — continuing anyway.\", stage=\"packs.custom.timeout\")\n
+  \               return\n\n            raise Exception(msg)\n\n        raise\n\n#
+  ---------------------------\n# Configure: integrations\n# ---------------------------\n\ndef
+  configure_integrations_from_xsoar_config(\n    xsoar_cfg: Dict[str, Any],\n    using:
+  str,\n    retry_count: int,\n    retry_sleep_seconds: int,\n    installed_pack_ids:
+  List[str],\n    debug: bool,\n) -> Dict[str, Any]:\n    items = [x for x in (xsoar_cfg.get(\"integration_instances\",
+  []) or []) if isinstance(x, dict)]\n    emit_progress(f\"Configuring integration
+  instances… ({len(items)} instance(s))\", stage=\"configure.integrations\")\n\n    summary
+  = {\n        \"attempted\": 0,\n        \"ok\": 0,\n        \"already_exists\":
+  0,\n        \"skipped_missing_pack\": 0,\n        \"skipped_missing_brand\": 0,\n
+  \       \"failed\": 0,\n        \"failed_items\": [],\n    }\n\n    for inst in
+  items:\n        instance_name = (inst.get(\"name\") or \"\").strip()\n        if
+  not instance_name:\n            continue\n\n        required_pack = ((inst.get(\"required_pack_id\")
+  or inst.get(\"marketplace_pack\") or inst.get(\"pack_id\") or \"\").strip())\n        if
+  required_pack and required_pack not in installed_pack_ids:\n            summary[\"skipped_missing_pack\"]
+  += 1\n            log(\n                f\"Skipping integration instance **{instance_name}**
+  — marketplace pack **{required_pack}** not installed.\",\n                stage=\"configure.integrations.debug\",\n
+  \               debug=debug,\n            )\n            continue\n\n        brand
+  = (inst.get(\"brand\") or \"\").strip()\n        if not brand:\n            summary[\"skipped_missing_brand\"]
+  += 1\n            log(\n                f\"Skipping integration instance **{instance_name}**
+  — missing required field `brand`.\",\n                stage=\"configure.integrations.debug\",\n
+  \               debug=debug,\n            )\n            continue\n\n        summary[\"attempted\"]
+  += 1\n\n        payload = {\n            \"name\": instance_name,\n            \"brand\":
+  brand,\n            \"enabled\": inst.get(\"enabled\", \"true\"),\n            \"category\":
+  inst.get(\"category\") or \"\",\n            \"data\": inst.get(\"data\") or [],\n
+  \       }\n\n        log(\n            f\"Creating/updating integration instance:
+  **{instance_name}** (brand: **{brand}**)\",\n            stage=\"configure.integrations.debug\",\n
+  \           debug=debug,\n        )\n\n        def _do_put():\n            return
+  core_api_put(\"/xsoar/public/v1/settings/integration\", payload, using=using, execution_timeout=600)\n\n
+  \       last_err = None\n        for attempt in range(1, max(1, retry_count) + 1):\n
+  \           try:\n                resp = _do_put()\n                rid = (resp.get(\"id\")
+  if isinstance(resp, dict) else None) or \"\"\n                summary[\"ok\"] +=
+  1\n                log(\n                    f\"Integration instance **{instance_name}**
+  created/updated. id={rid or '(unknown)'}\",\n                    stage=\"configure.integrations.result\",\n
   \                   debug=debug,\n                )\n                break\n            except
   Exception as e:\n                last_err = str(e)\n\n                if is_instance_already_exists_error(last_err):\n
   \                   summary[\"already_exists\"] += 1\n                    log(\n
@@ -412,74 +373,75 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   \               f\"- failed: {summary['failed']}\",\n                \"\",\n                \"_Note:
   UI/index propagation can take a few minutes after instance create/update._\",\n
   \           ]\n        ),\n        stage=\"configure.integrations.summary\",\n    )\n\n
-  \   return summary\n\ndef configure_jobs_from_xsoar_config(\n    xsoar_cfg: Dict[str,
-  Any],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds: int,\n    debug:
-  bool,\n) -> Dict[str, Any]:\n    jobs = [x for x in (xsoar_cfg.get(\"jobs\", [])
-  or []) if isinstance(x, dict)]\n    emit_progress(f\"Configuring jobs… ({len(jobs)}
-  job(s))\", stage=\"configure.jobs\")\n\n    summary = {\n        \"attempted\":
-  0,\n        \"ok\": 0,\n        \"failed\": 0,\n        \"failed_items\": [],\n
-  \       \"notes\": [],\n    }\n\n    # Determine if we can verify jobs in this tenant\n
-  \   search_path = jobs_api_search_probe(using=using)\n    if not search_path:\n
-  \       emit_progress(\n            \"\\n\".join(\n                [\n                    \"❌
-  Jobs API is not reachable (permissions/endpoint).\",\n                    \"This
-  script will NOT claim jobs were configured if it cannot verify them.\",\n                    \"Fix
-  permissions/role or confirm the correct jobs endpoint, then rerun.\",\n                ]\n
-  \           ),\n            stage=\"configure.jobs.error\",\n        )\n        #
-  We still attempt SOCFWJobManager (for visibility), but we will mark failures because
-  we cannot verify.\n        summary[\"notes\"].append(\"jobs_api_unreachable=true\")\n\n
-  \   for job in jobs:\n        name = _norm(job.get(\"name\") or job.get(\"job_name\")
-  or \"\")\n        if not name:\n            continue\n\n        summary[\"attempted\"]
-  += 1\n        log(f\"Configuring job: **{name}**\", stage=\"configure.jobs.debug\",
-  debug=debug)\n\n        # 1) Try SOCFWJobManager first (for backward compatibility)\n
-  \       manager_ran = False\n        manager_err = None\n        try:\n            cmd_args
-  = {\"job_name\": name, \"job_data\": json.dumps(job)}\n            if using:\n                cmd_args[\"using\"]
-  = using\n\n            res = exec_with_retry(\n                \"SOCFWJobManager\",\n
-  \               cmd_args,\n                retry_count=retry_count,\n                retry_sleep_seconds=retry_sleep_seconds,\n
-  \               context_for_error=f\"Failed running SOCFWJobManager for job: {name}\",\n
-  \               fail_on_error=False,\n            )\n            manager_ran = True\n\n
-  \           if debug:\n                emit_progress(\n                    \"\\n\".join(\n
-  \                       [\n                            f\"SOCFWJobManager response
-  for **{name}**:\",\n                            \"```json\",\n                            json.dumps(get_contents(res)
-  or {}, indent=2),\n                            \"```\",\n                        ]\n
-  \                   ),\n                    stage=\"configure.jobs.debug\",\n                )\n
-  \       except Exception as e:\n            manager_err = str(e)\n\n        # 2)
-  Verify job exists (required to count success)\n        if not search_path:\n            summary[\"failed\"]
-  += 1\n            summary[\"failed_items\"].append(\n                {\"name\":
-  name, \"error\": \"Jobs API verification unavailable; cannot confirm job creation/update.\"}\n
-  \           )\n            continue\n\n        # Give the platform a moment for
-  eventual consistency\n        verified = None\n        for _i in range(1, 8):\n
-  \           verified = jobs_api_find_by_name(name, using=using, search_path=search_path,
-  debug=debug)\n            if verified:\n                break\n            time.sleep(2)\n\n
-  \       if verified:\n            summary[\"ok\"] += 1\n            log(f\"✅ Job
-  **{name}** verified in tenant.\", stage=\"configure.jobs.result\", debug=debug,
-  always=True)\n            continue\n\n        # 3) If not verified, fall back to
-  direct Jobs API upsert\n        try:\n            upsert_result = jobs_api_upsert(job,
-  using=using, search_path=search_path, debug=debug)\n            if debug:\n                emit_progress(\n
-  \                   \"\\n\".join(\n                        [\n                            f\"Jobs
-  API upsert result for **{name}**:\",\n                            \"```json\",\n
-  \                           json.dumps(upsert_result, indent=2),\n                            \"```\",\n
-  \                       ]\n                    ),\n                    stage=\"configure.jobs.debug\",\n
-  \               )\n\n            # Verify again\n            verified2 = None\n
-  \           for _i in range(1, 8):\n                verified2 = jobs_api_find_by_name(name,
-  using=using, search_path=search_path, debug=debug)\n                if verified2:\n
-  \                   break\n                time.sleep(2)\n\n            if not verified2:\n
-  \               raise Exception(\"Upsert ran but job still not visible via Jobs
-  API.\")\n\n            summary[\"ok\"] += 1\n            log(f\"✅ Job **{name}**
-  created/updated via Jobs API fallback and verified.\", stage=\"configure.jobs.result\",
-  debug=debug, always=True)\n\n        except Exception as e:\n            summary[\"failed\"]
-  += 1\n            err_parts = []\n            if manager_err:\n                err_parts.append(f\"SOCFWJobManager
-  error: {manager_err}\")\n            elif manager_ran:\n                err_parts.append(\"SOCFWJobManager
-  ran but did not create/verify the job.\")\n            err_parts.append(f\"Jobs
-  API fallback error: {e}\")\n            summary[\"failed_items\"].append({\"name\":
-  name, \"error\": \" | \".join(err_parts)})\n            emit_progress(f\"Failed
-  configuring job **{name}**.\\nError: {' | '.join(err_parts)}\", stage=\"configure.jobs.error\")\n\n
-  \   emit_progress(\n        \"\\n\".join(\n            [\n                \"Jobs
-  summary:\",\n                f\"- attempted: {summary['attempted']}\",\n                f\"-
-  ok (verified): {summary['ok']}\",\n                f\"- failed: {summary['failed']}\",\n
-  \               f\"- notes: {', '.join(summary['notes']) if summary['notes'] else
-  '(none)'}\",\n            ]\n        ),\n        stage=\"configure.jobs.summary\",\n
-  \   )\n    return summary\n\ndef configure_lookups_from_xsoar_config(\n    xsoar_cfg:
-  Dict[str, Any],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds:
+  \   return summary\n\n# ---------------------------\n# Lookup dataset population
+  (FIXED + aligned to LookupDatasetCreator)\n# ---------------------------\n\ndef
+  _is_dataset_not_found_error(err_text: str, dataset_name: str) -> bool:\n    t =
+  (err_text or \"\").lower()\n    dn = (dataset_name or \"\").lower()\n    return
+  (\n        (\"dataset\" in t and \"not found\" in t and dn in t)\n        or (f\"dataset
+  {dn} not found\" in t)\n        or (f\"dataset '{dn}' not found\" in t)\n        or
+  (f\"dataset \\\"{dn}\\\" not found\" in t)\n    )\n\ndef _xql_get_datasets(using:
+  str, debug: bool) -> List[Dict[str, Any]]:\n    try:\n        resp = core_api_post(\"/public_api/v1/xql/get_datasets\",
+  body={}, using=using, execution_timeout=600) or {}\n        if isinstance(resp,
+  dict):\n            if isinstance(resp.get(\"reply\"), list):\n                return
+  [x for x in resp.get(\"reply\") if isinstance(x, dict)]\n            r = resp.get(\"response\")
+  or {}\n            if isinstance(r, dict) and isinstance(r.get(\"reply\"), list):\n
+  \               return [x for x in r.get(\"reply\") if isinstance(x, dict)]\n        return
+  []\n    except Exception as e:\n        if debug:\n            emit_progress(f\"get_datasets
+  failed: {e}\", stage=\"configure.lookups.debug\")\n        return []\n\ndef _dataset_exists(dataset_name:
+  str, using: str, debug: bool) -> bool:\n    want = _norm(dataset_name).lower()\n
+  \   for d in _xql_get_datasets(using=using, debug=debug):\n        n = _norm(d.get(\"Dataset
+  Name\") or d.get(\"dataset_name\") or d.get(\"name\"))\n        if n and n.lower()
+  == want:\n            return True\n    return False\n\ndef _wait_for_dataset(dataset_name:
+  str, using: str, debug: bool, wait_seconds: int = 90, interval_seconds: int = 3)
+  -> bool:\n    deadline = time.time() + max(1, wait_seconds)\n    while time.time()
+  < deadline:\n        if _dataset_exists(dataset_name, using=using, debug=debug):\n
+  \           return True\n        time.sleep(max(1, interval_seconds))\n    return
+  False\n\ndef _xql_call_first_working(paths: List[str], body: Dict[str, Any], using:
+  str, debug: bool) -> Dict[str, Any]:\n    last_err = None\n    for p in paths:\n
+  \       try:\n            return core_api_post(p, body=body, using=using, execution_timeout=600)
+  or {}\n        except Exception as e:\n            last_err = str(e)\n            if
+  debug:\n                emit_progress(f\"Lookup API probe failed on {p}: {e}\",
+  stage=\"configure.lookups.debug\")\n    raise Exception(f\"Lookup API call failed
+  on all known endpoints. Last error: {last_err}\")\n\ndef _xql_lookup_get_total_count(dataset_name:
+  str, using: str, debug: bool) -> Optional[int]:\n    body = {\"request_data\": {\"dataset_name\":
+  dataset_name, \"filters\": [], \"limit\": 1}}\n    try:\n        resp = _xql_call_first_working(\n
+  \           paths=[\"/public_api/v1/xql/lookups/get_data\"],\n            body=body,\n
+  \           using=using,\n            debug=debug,\n        )\n    except Exception
+  as e:\n        if _is_dataset_not_found_error(str(e), dataset_name):\n            return
+  None\n        raise\n\n    reply = resp.get(\"reply\") if isinstance(resp, dict)
+  else None\n    if isinstance(reply, dict):\n        tc = reply.get(\"total_count\")\n
+  \       try:\n            return int(tc)\n        except Exception:\n            return
+  0\n\n    tc = resp.get(\"total_count\") if isinstance(resp, dict) else None\n    try:\n
+  \       return int(tc)\n    except Exception:\n        return 0\n\ndef _normalize_lookup_rows(source_obj:
+  Any) -> List[Dict[str, Any]]:\n    \"\"\"\n    Accept:\n      - [ {row}, {row} ]\n
+  \     - { \"data\": [ {row}, ... ] }\n      - { \"<anything>\": [ {row}, ... ] }
+  (first list-of-dict value wins)\n      - stream list containing a list-of-dicts
+  somewhere: [ {...meta...}, [ {row}, ... ] ]\n    \"\"\"\n    if isinstance(source_obj,
+  list):\n        if source_obj and all(isinstance(x, dict) for x in source_obj):\n
+  \           return [r for r in source_obj if isinstance(r, dict)]\n        for v
+  in source_obj:\n            if isinstance(v, list) and v and all(isinstance(x, dict)
+  for x in v):\n                return v\n        return [r for r in source_obj if
+  isinstance(r, dict)]\n\n    if isinstance(source_obj, dict):\n        if isinstance(source_obj.get(\"data\"),
+  list):\n            return [r for r in source_obj.get(\"data\") if isinstance(r,
+  dict)]\n        for _k, v in source_obj.items():\n            if isinstance(v, list)
+  and v and all(isinstance(x, dict) for x in v):\n                return v\n\n    return
+  []\n\ndef _remove_omitted_fields(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:\n
+  \   omitted = ['_collector_name', '_collector_type', '_insert_time', '_update_time']\n
+  \   for r in rows:\n        for f in omitted:\n            r.pop(f, None)\n    return
+  rows\n\ndef _xql_lookup_add_data_list(dataset_name: str, rows: List[Dict[str, Any]],
+  using: str, debug: bool):\n    if not rows:\n        raise Exception(\"No rows to
+  upload\")\n    body = {\"request_data\": {\"dataset_name\": dataset_name, \"data\":
+  rows}}\n    _ = _xql_call_first_working(\n        paths=[\"/public_api/v1/xql/lookups/add_data\"],\n
+  \       body=body,\n        using=using,\n        debug=debug,\n    )\n\ndef _xql_create_dataset_direct(ds:
+  Dict[str, Any], using: str, debug: bool):\n    dataset_name = _norm(ds.get(\"dataset_name\")
+  or ds.get(\"name\"))\n    if not dataset_name:\n        raise Exception(\"Lookup
+  dataset definition missing 'dataset_name'/'name'\")\n\n    dataset_type = ds.get(\"dataset_type\")
+  or \"lookup\"\n    dataset_schema = ds.get(\"dataset_schema\") or {}\n\n    body
+  = {\n        \"request_data\": {\n            \"dataset_name\": dataset_name,\n
+  \           \"dataset_type\": dataset_type,\n            \"dataset_schema\": dataset_schema,\n
+  \       }\n    }\n\n    _ = core_api_post(\"/public_api/v1/xql/add_dataset\", body=body,
+  using=using, execution_timeout=600)\n\ndef configure_lookups_from_xsoar_config(\n
+  \   xsoar_cfg: Dict[str, Any],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds:
   int,\n    overwrite_lookup: bool,\n    debug: bool,\n) -> Dict[str, Any]:\n    dsets
   = [x for x in (xsoar_cfg.get(\"lookup_datasets\", []) or []) if isinstance(x, dict)]\n
   \   emit_progress(f\"Configuring lookup datasets… ({len(dsets)} dataset(s))\", stage=\"configure.lookups\")\n\n
@@ -487,23 +449,151 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   \   for ds in dsets:\n        name = (ds.get(\"name\") or ds.get(\"dataset_name\")
   or \"\").strip()\n        if not name:\n            continue\n\n        summary[\"attempted\"]
   += 1\n        log(f\"Configuring lookup dataset: **{name}**\", stage=\"configure.lookups.debug\",
-  debug=debug)\n\n        cmd_args = {\n            \"lookup_dataset_name\": name,\n
-  \           \"lookup_dataset_data\": json.dumps(ds),\n            \"overwrite_lookup\":
-  bool_str_tf(overwrite_lookup),\n        }\n        if using:\n            cmd_args[\"using\"]
-  = using\n\n        try:\n            _ = exec_with_retry(\n                \"SOCFWLookupManager\",\n
-  \               cmd_args,\n                retry_count=retry_count,\n                retry_sleep_seconds=retry_sleep_seconds,\n
-  \               context_for_error=f\"Failed configuring lookup dataset: {name}\",\n
-  \               fail_on_error=True,\n            )\n            summary[\"ok\"]
-  += 1\n            log(f\"Lookup **{name}** ok\", stage=\"configure.lookups.result\",
-  debug=debug)\n        except Exception as e:\n            summary[\"failed\"] +=
-  1\n            summary[\"failed_items\"].append({\"name\": name, \"error\": str(e)})\n
-  \           emit_progress(f\"Failed configuring lookup dataset **{name}**.\\nError:
-  {e}\", stage=\"configure.lookups.error\")\n\n    emit_progress(\n        \"\\n\".join(\n
-  \           [\n                \"Lookups summary:\",\n                f\"- attempted:
-  {summary['attempted']}\",\n                f\"- ok: {summary['ok']}\",\n                f\"-
-  failed: {summary['failed']}\",\n            ]\n        ),\n        stage=\"configure.lookups.summary\",\n
-  \   )\n    return summary\n\n# ---------------------------\n# Main\n# ---------------------------\n\ndef
-  main():\n    args = demisto.args()\n\n    action = (args.get(\"action\") or \"apply\").strip().lower()\n
+  debug=debug)\n\n        # Ensure dataset exists\n        exists = _wait_for_dataset(name,
+  using=using, debug=debug, wait_seconds=45, interval_seconds=3)\n        if not exists:\n
+  \           emit_progress(\n                f\"Dataset **{name}** not visible via
+  get_datasets. Creating directly via /public_api/v1/xql/add_dataset…\",\n                stage=\"configure.lookups.create\",\n
+  \           )\n            try:\n                _xql_create_dataset_direct(ds,
+  using=using, debug=debug)\n            except Exception as e:\n                summary[\"failed\"]
+  += 1\n                summary[\"failed_items\"].append({\"name\": name, \"error\":
+  f\"Direct create failed: {e}\"})\n                emit_progress(f\"Failed creating
+  lookup dataset **{name}**.\\nError: {e}\", stage=\"configure.lookups.error\")\n
+  \               continue\n\n            exists = _wait_for_dataset(name, using=using,
+  debug=debug, wait_seconds=90, interval_seconds=3)\n\n        if not exists:\n            summary[\"failed\"]
+  += 1\n            summary[\"failed_items\"].append({\"name\": name, \"error\": f\"Dataset
+  '{name}' not found via get_datasets after direct create.\"})\n            emit_progress(\n
+  \               f\"Failed configuring lookup dataset **{name}**.\\nError: Dataset
+  '{name}' not found via get_datasets after direct create.\",\n                stage=\"configure.lookups.error\",\n
+  \           )\n            continue\n\n        # Decide whether to populate\n        try:\n
+  \           before_count = _xql_lookup_get_total_count(name, using=using, debug=debug)\n
+  \       except Exception as e:\n            summary[\"failed\"] += 1\n            summary[\"failed_items\"].append({\"name\":
+  name, \"error\": str(e)})\n            emit_progress(f\"Failed reading lookup count
+  for **{name}**.\\nError: {e}\", stage=\"configure.lookups.error\")\n            continue\n\n
+  \       if before_count is not None and before_count > 0 and (not overwrite_lookup):\n
+  \           summary[\"ok\"] += 1\n            emit_progress(\n                f\"Lookup
+  **{name}** already has data (total_count={before_count}). Not modifying it unless
+  `overwrite_lookup=true`.\",\n                stage=\"configure.lookups.result\",\n
+  \           )\n            continue\n\n        should_populate = overwrite_lookup
+  or (before_count is None) or (before_count == 0)\n        if not should_populate:\n
+  \           summary[\"ok\"] += 1\n            emit_progress(f\"Lookup **{name}**
+  is present; no population needed.\", stage=\"configure.lookups.result\")\n            continue\n\n
+  \       # Populate\n        try:\n            url = _norm(ds.get(\"url\"))\n            if
+  not url:\n                raise Exception(\"Dataset needs population but `url` is
+  missing in xsoar_config.json\")\n\n            emit_progress(\n                \"\\n\".join(\n
+  \                   [\n                        f\"Populating lookup **{name}** from
+  URL:\",\n                        f\"- {url}\",\n                        f\"- overwrite_lookup={overwrite_lookup}\",\n
+  \                       f\"- total_count(before)={before_count if before_count is
+  not None else '(not readable yet)'}\",\n                    ]\n                ),\n
+  \               stage=\"configure.lookups.load\",\n            )\n\n            source_obj
+  = http_get_json(url)\n            rows = _normalize_lookup_rows(source_obj)\n            rows
+  = _remove_omitted_fields(rows)\n\n            if not rows:\n                raise
+  Exception(f\"Downloaded JSON but found 0 usable rows. url={url}\")\n\n            _xql_lookup_add_data_list(dataset_name=name,
+  rows=rows, using=using, debug=debug)\n\n            time.sleep(2)\n\n            after_count
+  = None\n            try:\n                after_count = _xql_lookup_get_total_count(name,
+  using=using, debug=debug)\n            except Exception:\n                after_count
+  = None\n\n            emit_progress(\n                f\"Lookup **{name}** population
+  complete.\"\n                + (f\" total_count(after)={after_count}\" if after_count
+  is not None else \" (count not yet readable)\"),\n                stage=\"configure.lookups.result\",\n
+  \           )\n\n            summary[\"ok\"] += 1\n\n        except Exception as
+  e:\n            summary[\"failed\"] += 1\n            summary[\"failed_items\"].append({\"name\":
+  name, \"error\": str(e)})\n            emit_progress(f\"Failed populating lookup
+  dataset **{name}**.\\nError: {e}\", stage=\"configure.lookups.error\")\n\n    emit_progress(\n
+  \       \"\\n\".join(\n            [\n                \"Lookups summary:\",\n                f\"-
+  attempted: {summary['attempted']}\",\n                f\"- ok: {summary['ok']}\",\n
+  \               f\"- failed: {summary['failed']}\",\n            ]\n        ),\n
+  \       stage=\"configure.lookups.summary\",\n    )\n    return summary\n\n# ---------------------------\n#
+  Jobs verification + upsert\n# ---------------------------\n\ndef _extract_list(resp:
+  Any) -> List[Dict[str, Any]]:\n    if isinstance(resp, dict):\n        v = resp.get(\"response\")\n
+  \       if isinstance(v, dict):\n            data = v.get(\"data\")\n            if
+  isinstance(data, list):\n                return [x for x in data if isinstance(x,
+  dict)]\n        if isinstance(v, list):\n            return [x for x in v if isinstance(x,
+  dict)]\n        for k in (\"data\", \"jobs\", \"result\"):\n            vv = resp.get(k)\n
+  \           if isinstance(vv, list):\n                return [x for x in vv if isinstance(x,
+  dict)]\n    if isinstance(resp, list):\n        return [x for x in resp if isinstance(x,
+  dict)]\n    return []\n\ndef _job_name(job_obj: Dict[str, Any]) -> str:\n    return
+  _norm(\n        job_obj.get(\"name\")\n        or job_obj.get(\"jobName\")\n        or
+  job_obj.get(\"job_name\")\n        or job_obj.get(\"displayName\")\n        or \"\"\n
+  \   )\n\ndef _job_id(job_obj: Dict[str, Any]) -> str:\n    return _norm(job_obj.get(\"id\")
+  or job_obj.get(\"_id\") or job_obj.get(\"jobId\") or \"\")\n\ndef jobs_api_endpoints()
+  -> Dict[str, str]:\n    return {\n        \"search_xsoar\": \"/xsoar/public/v1/jobs/search\",\n
+  \       \"search_public\": \"/public/v1/jobs/search\",\n        \"create_xsoar\":
+  \"/xsoar/public/v1/jobs\",\n        \"create_public\": \"/public/v1/jobs\",\n        \"update_xsoar\":
+  \"/xsoar/public/v1/jobs\",\n        \"update_public\": \"/public/v1/jobs\",\n    }\n\ndef
+  jobs_api_search_probe(using: str) -> Optional[str]:\n    eps = jobs_api_endpoints()\n
+  \   probe_body = {\"page\": 0, \"size\": 1, \"query\": \"\", \"sort\": [{\"field\":
+  \"id\", \"asc\": True}]}\n    for p in (eps[\"search_xsoar\"], eps[\"search_public\"]):\n
+  \       try:\n            _ = core_api_post(p, body=probe_body, using=using, execution_timeout=600)\n
+  \           return p\n        except Exception:\n            continue\n    return
+  None\n\ndef jobs_api_find_by_name(name: str, using: str, search_path: Optional[str],
+  debug: bool) -> Optional[Dict[str, Any]]:\n    n = _norm(name).lower()\n\n    if
+  search_path:\n        try:\n            body = {\"page\": 0, \"size\": 50, \"query\":
+  f'name:\"{name}\"', \"sort\": [{\"field\": \"id\", \"asc\": True}]}\n            resp
+  = core_api_post(search_path, body=body, using=using, execution_timeout=600)\n            rows
+  = _extract_list(resp)\n            for r in rows:\n                if _job_name(r).lower()
+  == n:\n                    return r\n        except Exception as e:\n            if
+  debug:\n                emit_progress(f\"Job search failed on {search_path}: {e}\",
+  stage=\"configure.jobs.debug\")\n\n    if search_path:\n        try:\n            body
+  = {\"page\": 0, \"size\": 200, \"query\": \"\", \"sort\": [{\"field\": \"id\", \"asc\":
+  True}]}\n            resp = core_api_post(search_path, body=body, using=using, execution_timeout=600)\n
+  \           rows = _extract_list(resp)\n            for r in rows:\n                if
+  _job_name(r).lower() == n:\n                    return r\n        except Exception:\n
+  \           pass\n\n    return None\n\ndef jobs_api_upsert(job: Dict[str, Any],
+  using: str, search_path: str, debug: bool) -> Dict[str, Any]:\n    eps = jobs_api_endpoints()\n
+  \   name = _job_name(job)\n    if not name:\n        raise Exception(\"Job object
+  missing name\")\n\n    existing = jobs_api_find_by_name(name, using=using, search_path=search_path,
+  debug=debug)\n    existing_id = _job_id(existing) if existing else \"\"\n\n    create_paths
+  = [eps[\"create_xsoar\"], eps[\"create_public\"]]\n    update_paths = [eps[\"update_xsoar\"],
+  eps[\"update_public\"]]\n\n    if existing_id:\n        last_err = None\n        for
+  base in update_paths:\n            try:\n                resp = core_api_put(f\"{base}/{existing_id}\",
+  body=job, using=using, execution_timeout=600)\n                return {\"action\":
+  \"updated\", \"endpoint\": f\"{base}/{existing_id}\", \"response\": resp, \"job_id\":
+  existing_id}\n            except Exception as e:\n                last_err = str(e)\n
+  \               continue\n\n        for base in create_paths:\n            try:\n
+  \               resp = core_api_post(base, body=job, using=using, execution_timeout=600)\n
+  \               return {\"action\": \"created_via_post_fallback\", \"endpoint\":
+  base, \"response\": resp, \"job_id\": existing_id, \"warning\": last_err}\n            except
+  Exception as e:\n                last_err = str(e)\n                continue\n\n
+  \       raise Exception(f\"Failed updating job '{name}'. Last error: {last_err}\")\n\n
+  \   last_err = None\n    for base in create_paths:\n        try:\n            resp
+  = core_api_post(base, body=job, using=using, execution_timeout=600)\n            return
+  {\"action\": \"created\", \"endpoint\": base, \"response\": resp}\n        except
+  Exception as e:\n            last_err = str(e)\n            continue\n\n    raise
+  Exception(f\"Failed creating job '{name}'. Last error: {last_err}\")\n\ndef configure_jobs_from_xsoar_config(\n
+  \   xsoar_cfg: Dict[str, Any],\n    using: str,\n    retry_count: int,\n    retry_sleep_seconds:
+  int,\n    debug: bool,\n) -> Dict[str, Any]:\n    jobs = [x for x in (xsoar_cfg.get(\"jobs\",
+  []) or []) if isinstance(x, dict)]\n    emit_progress(f\"Configuring jobs… ({len(jobs)}
+  job(s))\", stage=\"configure.jobs\")\n\n    summary = {\n        \"attempted\":
+  0,\n        \"ok\": 0,\n        \"failed\": 0,\n        \"failed_items\": [],\n
+  \       \"notes\": [],\n    }\n\n    search_path = jobs_api_search_probe(using=using)\n
+  \   if not search_path:\n        emit_progress(\n            \"\\n\".join(\n                [\n
+  \                   \"❌ Jobs API is not reachable (permissions/endpoint).\",\n                    \"This
+  script will NOT claim jobs were configured if it cannot verify them.\",\n                    \"Fix
+  permissions/role or confirm the correct jobs endpoint, then rerun.\",\n                ]\n
+  \           ),\n            stage=\"configure.jobs.error\",\n        )\n        summary[\"notes\"].append(\"jobs_api_unreachable=true\")\n\n
+  \   for job in jobs:\n        name = _norm(job.get(\"name\") or job.get(\"job_name\")
+  or \"\")\n        if not name:\n            continue\n\n        summary[\"attempted\"]
+  += 1\n        log(f\"Configuring job: **{name}**\", stage=\"configure.jobs.debug\",
+  debug=debug)\n\n        if not search_path:\n            summary[\"failed\"] +=
+  1\n            summary[\"failed_items\"].append(\n                {\"name\": name,
+  \"error\": \"Jobs API verification unavailable; cannot confirm job creation/update.\"}\n
+  \           )\n            continue\n\n        try:\n            _ = jobs_api_upsert(job,
+  using=using, search_path=search_path, debug=debug)\n\n            verified = None\n
+  \           for _i in range(1, 8):\n                verified = jobs_api_find_by_name(name,
+  using=using, search_path=search_path, debug=debug)\n                if verified:\n
+  \                   break\n                time.sleep(2)\n\n            if not verified:\n
+  \               raise Exception(\"Upsert ran but job still not visible via Jobs
+  API.\")\n\n            summary[\"ok\"] += 1\n            log(f\"✅ Job **{name}**
+  created/updated and verified.\", stage=\"configure.jobs.result\", debug=debug, always=True)\n\n
+  \       except Exception as e:\n            summary[\"failed\"] += 1\n            summary[\"failed_items\"].append({\"name\":
+  name, \"error\": str(e)})\n            emit_progress(f\"Failed configuring job **{name}**.\\nError:
+  {e}\", stage=\"configure.jobs.error\")\n\n    emit_progress(\n        \"\\n\".join(\n
+  \           [\n                \"Jobs summary:\",\n                f\"- attempted:
+  {summary['attempted']}\",\n                f\"- ok (verified): {summary['ok']}\",\n
+  \               f\"- failed: {summary['failed']}\",\n                f\"- notes:
+  {', '.join(summary['notes']) if summary['notes'] else '(none)'}\",\n            ]\n
+  \       ),\n        stage=\"configure.jobs.summary\",\n    )\n    return summary\n\n#
+  ---------------------------\n# Main\n# ---------------------------\n\ndef main():\n
+  \   args = demisto.args()\n\n    action = (args.get(\"action\") or \"apply\").strip().lower()\n
   \   pack_id = (args.get(\"pack_id\") or \"\").strip()\n    include_hidden = arg_to_bool(args.get(\"include_hidden\"),
   False)\n    dry_run = arg_to_bool(args.get(\"dry_run\"), False)\n\n    install_marketplace_flag
   = arg_to_bool(args.get(\"install_marketplace\"), True)\n    apply_configure = arg_to_bool(args.get(\"apply_configure\"),
@@ -513,27 +603,25 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   False)\n\n    include_doc_content = arg_to_bool(args.get(\"include_doc_content\"),
   False)\n    doc_content_max_chars = to_int(args.get(\"doc_content_max_chars\"),
   6000)\n    doc_content_max_lines = to_int(args.get(\"doc_content_max_lines\"), 200)\n\n
-  \   # pre-config gate\n    pre_config_done = arg_to_bool(args.get(\"pre_config_done\"),
-  False)\n    pre_config_gate = arg_to_bool(args.get(\"pre_config_gate\"), True)\n\n
-  \   retry_count = to_int(args.get(\"retry_count\"), 5)\n    retry_sleep_seconds
-  = to_int(args.get(\"retry_sleep_seconds\"), 15)\n    using = (args.get(\"using\")
-  or \"\").strip()\n    execution_timeout = to_int(args.get(\"execution_timeout\"),
+  \   pre_config_done = arg_to_bool(args.get(\"pre_config_done\"), False)\n    pre_config_gate
+  = arg_to_bool(args.get(\"pre_config_gate\"), True)\n\n    retry_count = to_int(args.get(\"retry_count\"),
+  5)\n    retry_sleep_seconds = to_int(args.get(\"retry_sleep_seconds\"), 15)\n    using
+  = (args.get(\"using\") or \"\").strip()\n    execution_timeout = to_int(args.get(\"execution_timeout\"),
   1200)\n\n    skip_verify = arg_to_bool(args.get(\"skip_verify\"), True)\n    skip_validation
   = arg_to_bool(args.get(\"skip_validation\"), False)\n\n    install_timeout = to_int(args.get(\"install_timeout\"),
   3600)\n\n    post_install_poll_seconds = to_int(args.get(\"post_install_poll_seconds\"),
   1800)\n    post_install_poll_interval_seconds = to_int(args.get(\"post_install_poll_interval_seconds\"),
   60)\n    continue_on_install_timeout = arg_to_bool(args.get(\"continue_on_install_timeout\"),
   False)\n\n    fail_on_marketplace_errors = arg_to_bool(args.get(\"fail_on_marketplace_errors\"),
-  False)\n\n    debug = arg_to_bool(args.get(\"debug\"), False)\n\n    # honor catalog_url
-  parameter\n    catalog_url = _norm(args.get(\"catalog_url\") or DEFAULT_CATALOG_URL)\n\n
-  \   if action not in (\"apply\", \"list\"):\n        raise Exception(f\"Unsupported
-  action: {action}\")\n\n    if action == \"list\":\n        return do_list(args)\n\n
-  \   if not pack_id:\n        raise Exception(\"pack_id is required for action=apply\")\n\n
-  \   emit_progress(\n        \"\\n\".join(\n            [\n                f\"Starting
-  {action} for **{pack_id}**\",\n                f\"- catalog_url={catalog_url}\",\n
-  \               f\"- include_hidden={include_hidden}\",\n                f\"- dry_run={dry_run}\",\n
-  \               f\"- install_marketplace={install_marketplace_flag}\",\n                f\"-
-  apply_configure={apply_configure} (jobs={configure_jobs}, integrations={configure_integrations},
+  False)\n\n    debug = arg_to_bool(args.get(\"debug\"), False)\n\n    catalog_url
+  = _norm(args.get(\"catalog_url\") or DEFAULT_CATALOG_URL)\n\n    if action not in
+  (\"apply\", \"list\"):\n        raise Exception(f\"Unsupported action: {action}\")\n\n
+  \   if action == \"list\":\n        return do_list(args)\n\n    if not pack_id:\n
+  \       raise Exception(\"pack_id is required for action=apply\")\n\n    emit_progress(\n
+  \       \"\\n\".join(\n            [\n                f\"Starting {action} for **{pack_id}**\",\n
+  \               f\"- catalog_url={catalog_url}\",\n                f\"- include_hidden={include_hidden}\",\n
+  \               f\"- dry_run={dry_run}\",\n                f\"- install_marketplace={install_marketplace_flag}\",\n
+  \               f\"- apply_configure={apply_configure} (jobs={configure_jobs}, integrations={configure_integrations},
   lookups={configure_lookups})\",\n                f\"- overwrite_lookup={overwrite_lookup}\",\n
   \               f\"- retries={retry_count}, retry_sleep_seconds={retry_sleep_seconds}\",\n
   \               f\"- using={(using or '(default)')}\",\n                f\"- execution_timeout={execution_timeout}\",\n
@@ -560,14 +648,20 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   stage=\"xsoar_config.fetch\")\n        xsoar_cfg = fetch_xsoar_config(xsoar_config_url)
   or {}\n\n        cfg_marketplace_packs = xsoar_cfg.get(\"marketplace_packs\") or
   []\n        if isinstance(cfg_marketplace_packs, list) and cfg_marketplace_packs:\n
-  \           marketplace_packs = cfg_marketplace_packs\n\n        emit_progress(\n
-  \           \"\\n\".join(\n                [\n                    \"xsoar_config
-  loaded.\",\n                    f\"- integration_instances: {len(xsoar_cfg.get('integration_instances',
-  []) or [])}\",\n                    f\"- jobs: {len(xsoar_cfg.get('jobs', []) or
-  [])}\",\n                    f\"- lookup_datasets: {len(xsoar_cfg.get('lookup_datasets',
-  []) or [])}\",\n                    f\"- has_pre_config_docs: {has_config_docs(xsoar_cfg,
-  'pre')}\",\n                    f\"- has_post_config_docs: {has_config_docs(xsoar_cfg,
-  'post')}\",\n                ]\n            ),\n            stage=\"xsoar_config.summary\",\n
+  \           marketplace_packs = cfg_marketplace_packs\n\n        # ✅ Pull custom
+  pack dependencies from xsoar_config.json (authoritative)\n        cfg_custom_packs
+  = _extract_custom_packs_from_xsoar_cfg(xsoar_cfg)\n        if cfg_custom_packs:\n
+  \           custom_zip_urls = cfg_custom_packs\n            emit_progress(\n                \"\\n\".join(\n
+  \                   [\n                        \"Using custom_packs from xsoar_config.json:\",\n
+  \                       *[f\"- {x.get('name')} -> {x.get('url')}\" for x in custom_zip_urls],\n
+  \                   ]\n                ),\n                stage=\"packs.custom.from_config\",\n
+  \           )\n\n        emit_progress(\n            \"\\n\".join(\n                [\n
+  \                   \"xsoar_config loaded.\",\n                    f\"- integration_instances:
+  {len(xsoar_cfg.get('integration_instances', []) or [])}\",\n                    f\"-
+  jobs: {len(xsoar_cfg.get('jobs', []) or [])}\",\n                    f\"- lookup_datasets:
+  {len(xsoar_cfg.get('lookup_datasets', []) or [])}\",\n                    f\"- has_pre_config_docs:
+  {has_config_docs(xsoar_cfg, 'pre')}\",\n                    f\"- has_post_config_docs:
+  {has_config_docs(xsoar_cfg, 'post')}\",\n                ]\n            ),\n            stage=\"xsoar_config.summary\",\n
   \       )\n\n        print_config_docs(\n            xsoar_cfg,\n            when=\"pre\",\n
   \           debug=debug,\n            include_doc_content=include_doc_content,\n
   \           doc_content_max_chars=doc_content_max_chars,\n            doc_content_max_lines=doc_content_max_lines,\n
@@ -600,9 +694,14 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   = item\n                label = item\n            elif isinstance(item, dict):\n
   \               url = item.get(\"url\") or item.get(\"zip_url\")\n                label
   = item.get(\"name\") or url\n            if not url:\n                continue\n\n
-  \           log(f\"Installing custom pack ZIP: **{label}**\", stage=\"packs.custom.debug\",
-  debug=debug)\n\n            install_custom_pack_zip(\n                url=url,\n
-  \               pack_id=pack_id,\n                using=using,\n                execution_timeout=execution_timeout,\n
+  \           # IMPORTANT: polling needs the actual pack id (not zip filename)\n            poll_pack_id
+  = _guess_pack_id_from_label(label or pack_id)\n\n            log(\n                \"\\n\".join(\n
+  \                   [\n                        f\"Installing custom pack ZIP: **{label}**\",\n
+  \                       f\"- poll_pack_id: **{poll_pack_id or '(unknown)'}**\",\n
+  \                       f\"- url: {url}\",\n                    ]\n                ),\n
+  \               stage=\"packs.custom.debug\",\n                debug=debug,\n            )\n\n
+  \           install_custom_pack_zip(\n                url=url,\n                pack_id_for_polling=poll_pack_id
+  or pack_id,\n                using=using,\n                execution_timeout=execution_timeout,\n
   \               install_timeout=install_timeout,\n                retry_count=retry_count,\n
   \               retry_sleep_seconds=retry_sleep_seconds,\n                skip_verify=skip_verify,\n
   \               skip_validation=skip_validation,\n                post_install_poll_seconds=post_install_poll_seconds,\n
@@ -635,9 +734,8 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   post_install_poll_interval_seconds,\n        \"continue_on_install_timeout\": continue_on_install_timeout,\n
   \       \"configure_summary\": {\n            \"integrations\": integration_summary,\n
   \           \"jobs\": jobs_summary,\n            \"lookups\": lookups_summary,\n
-  \       },\n    }\n\n    # Return machine-readable first\n    return_results(results_obj)\n\n
-  \   # Print POST docs last\n    if xsoar_cfg:\n        print_config_docs(\n            xsoar_cfg,\n
-  \           when=\"post\",\n            debug=debug,\n            include_doc_content=include_doc_content,\n
+  \       },\n    }\n\n    return_results(results_obj)\n\n    if xsoar_cfg:\n        print_config_docs(\n
+  \           xsoar_cfg,\n            when=\"post\",\n            debug=debug,\n            include_doc_content=include_doc_content,\n
   \           doc_content_max_chars=doc_content_max_chars,\n            doc_content_max_lines=doc_content_max_lines,\n
   \       )\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()\n"
 type: python
