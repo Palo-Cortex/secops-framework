@@ -1,7 +1,7 @@
 fromversion: 5.0.0
 commonfields:
   id: SOCFWPackManager
-  version: 8
+  version: 6
 contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-manager
@@ -29,7 +29,9 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   JSON objects\n#           (prevents \"Extra data: line 2 column 1 ...\")\n# - Dependencies:
   install custom pack dependencies from xsoar_config.json \"custom_packs\"\n# - Polling:
   timeout fallback checks for REAL pack id (not zip filename)\n# - Stream normalize:
-  handles stream-returned list containing list-of-dicts\n# ============================================================\n\nSCRIPT_NAME
+  handles stream-returned list containing list-of-dicts\n#\n# FIX NOW (minimal change):\n#
+  - Jobs: DO NOT configure/create/update if job already exists (prevents duplicates
+  on rerun)\n# ============================================================\n\nSCRIPT_NAME
   = \"SOCFWPackManager\"\n\n# ---------------------------\n# Basic helpers\n# ---------------------------\n\ndef
   _norm(s: Any) -> str:\n    return (str(s) if s is not None else \"\").strip()\n\ndef
   _to_lower(s: Any) -> str:\n    return _norm(s).lower()\n\ndef _parse_csv(val: Any)
@@ -577,24 +579,30 @@ script: "import json\nimport time\nfrom typing import Any, Dict, List, Optional\
   debug=debug)\n\n        if not search_path:\n            summary[\"failed\"] +=
   1\n            summary[\"failed_items\"].append(\n                {\"name\": name,
   \"error\": \"Jobs API verification unavailable; cannot confirm job creation/update.\"}\n
-  \           )\n            continue\n\n        try:\n            _ = jobs_api_upsert(job,
-  using=using, search_path=search_path, debug=debug)\n\n            verified = None\n
-  \           for _i in range(1, 8):\n                verified = jobs_api_find_by_name(name,
-  using=using, search_path=search_path, debug=debug)\n                if verified:\n
-  \                   break\n                time.sleep(2)\n\n            if not verified:\n
-  \               raise Exception(\"Upsert ran but job still not visible via Jobs
-  API.\")\n\n            summary[\"ok\"] += 1\n            log(f\"✅ Job **{name}**
-  created/updated and verified.\", stage=\"configure.jobs.result\", debug=debug, always=True)\n\n
-  \       except Exception as e:\n            summary[\"failed\"] += 1\n            summary[\"failed_items\"].append({\"name\":
-  name, \"error\": str(e)})\n            emit_progress(f\"Failed configuring job **{name}**.\\nError:
-  {e}\", stage=\"configure.jobs.error\")\n\n    emit_progress(\n        \"\\n\".join(\n
-  \           [\n                \"Jobs summary:\",\n                f\"- attempted:
-  {summary['attempted']}\",\n                f\"- ok (verified): {summary['ok']}\",\n
-  \               f\"- failed: {summary['failed']}\",\n                f\"- notes:
-  {', '.join(summary['notes']) if summary['notes'] else '(none)'}\",\n            ]\n
-  \       ),\n        stage=\"configure.jobs.summary\",\n    )\n    return summary\n\n#
-  ---------------------------\n# Main\n# ---------------------------\n\ndef main():\n
-  \   args = demisto.args()\n\n    action = (args.get(\"action\") or \"apply\").strip().lower()\n
+  \           )\n            continue\n\n        # ✅ FIX: If the job already exists,
+  do nothing (prevents duplicates on rerun).\n        existing = None\n        for
+  _i in range(1, 6):  # small settle loop for index propagation\n            existing
+  = jobs_api_find_by_name(name, using=using, search_path=search_path, debug=debug)\n
+  \           if existing:\n                break\n            time.sleep(1)\n\n        if
+  existing:\n            summary[\"ok\"] += 1\n            log(f\"⏭️ Job **{name}**
+  already exists — skipping.\", stage=\"configure.jobs.result\", debug=debug, always=True)\n
+  \           continue\n\n        try:\n            _ = jobs_api_upsert(job, using=using,
+  search_path=search_path, debug=debug)\n\n            verified = None\n            for
+  _i in range(1, 8):\n                verified = jobs_api_find_by_name(name, using=using,
+  search_path=search_path, debug=debug)\n                if verified:\n                    break\n
+  \               time.sleep(2)\n\n            if not verified:\n                raise
+  Exception(\"Upsert ran but job still not visible via Jobs API.\")\n\n            summary[\"ok\"]
+  += 1\n            log(f\"✅ Job **{name}** created and verified.\", stage=\"configure.jobs.result\",
+  debug=debug, always=True)\n\n        except Exception as e:\n            summary[\"failed\"]
+  += 1\n            summary[\"failed_items\"].append({\"name\": name, \"error\": str(e)})\n
+  \           emit_progress(f\"Failed configuring job **{name}**.\\nError: {e}\",
+  stage=\"configure.jobs.error\")\n\n    emit_progress(\n        \"\\n\".join(\n            [\n
+  \               \"Jobs summary:\",\n                f\"- attempted: {summary['attempted']}\",\n
+  \               f\"- ok (verified/skip): {summary['ok']}\",\n                f\"-
+  failed: {summary['failed']}\",\n                f\"- notes: {', '.join(summary['notes'])
+  if summary['notes'] else '(none)'}\",\n            ]\n        ),\n        stage=\"configure.jobs.summary\",\n
+  \   )\n    return summary\n\n# ---------------------------\n# Main\n# ---------------------------\n\ndef
+  main():\n    args = demisto.args()\n\n    action = (args.get(\"action\") or \"apply\").strip().lower()\n
   \   pack_id = (args.get(\"pack_id\") or \"\").strip()\n    include_hidden = arg_to_bool(args.get(\"include_hidden\"),
   False)\n    dry_run = arg_to_bool(args.get(\"dry_run\"), False)\n\n    install_marketplace_flag
   = arg_to_bool(args.get(\"install_marketplace\"), True)\n    apply_configure = arg_to_bool(args.get(\"apply_configure\"),
