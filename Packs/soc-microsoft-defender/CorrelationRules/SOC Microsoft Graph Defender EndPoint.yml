@@ -1,5 +1,4 @@
 fromversion: 6.10.0
-rule_id: 0
 action: ALERTS
 alert_category: User Defined
 alert_description: $description
@@ -20,30 +19,30 @@ alert_fields:
   agent_device_domain: evidence_device_ntdomain
   agent_hostname: evidence_device_hostname
   agent_id: evidence_device_agentid
-  deviceexternalips: evidence_device_externalip
-  deviceosname: evidence_device_os
   alertaction: evidence_process_action
-  detectionid: detectorId
-  externallink: alertWebUrl
-  originalalertid: providerAlertId
-  originalalertname: title
-  originalalertsource: productName
   causality_actor_process_image_name: evidence_parent_process_name
   causality_actor_process_image_path: evidence_parent_process_path
   causality_actor_process_image_sha256: evidence_parent_process_sha256
   causality_actor_process_signature_vendor: evidence_parent_process_signer
+  detectionid: detectorId
+  deviceexternalips: evidence_device_externalip
+  deviceosname: evidence_device_os
+  externallink: alertWebUrl
+  mitretacticid: mitre_tactic_id
+  mitretacticname: mitre_tactic
+  mitretechniqueid: mitreTechniques
+  mitretechniquename: mitreTechniques
+  originalalertid: providerAlertId
+  originalalertname: title
+  originalalertsource: productName
   parentprocessid: evidence_parent_process_pid
   parentprocessname: evidence_parent_process_name
   parentprocesspath: evidence_parent_process_path
   parentprocesssha256: evidence_parent_process_sha256
-  samaccountname: evidence_user_upn
-  usersid: evidence_user_userSid
   processcreationtime: evidence_process_starttime
   processid: evidence_process_pid
-  mitretacticname: mitre_tactic
-  mitretacticid: mitre_tactic_id
-  mitretechniqueid: mitreTechniques
-  mitretechniquename: mitreTechniques
+  samaccountname: evidence_user_upn
+  usersid: evidence_user_userSid
 alert_name: M365 Graph Alert - $alert_name
 alert_type: null
 crontab: null
@@ -51,7 +50,7 @@ dataset: alerts
 description: Creates an XSIAM alert for each Microsoft Graph Endpoint Detection Event
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
-global_rule_id: d391e2d5-0c51-4ac5-9273-ed8721c68ff3_ta0007
+global_rule_id: SOC Microsoft Graph Defender EndPoint
 investigation_query_link: '// All (stitched) activity from host - assuming raw telemetry
   is being collected
 
@@ -62,16 +61,19 @@ investigation_query_link: '// All (stitched) activity from host - assuming raw t
   | fields *
 
   '
+is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-mitre_defs:
-  TA0007 - Discovery: []
-name: SOC Microsoft Graph Defender EndPoint - Discovery
+mitre_defs: {}
+name: SOC Microsoft Graph Defender EndPoint
+rule_id: 0
 search_window: null
 severity: User Defined
+simple_schedule: null
 suppression_duration: null
 suppression_enabled: false
 suppression_fields: null
+timezone: null
 user_defined_category: category
 user_defined_severity: severity
 xql_query: "/*\nTitle: Microsoft Graph Security Alerts - Focus on Defender for Endpoint\
@@ -86,8 +88,8 @@ xql_query: "/*\nTitle: Microsoft Graph Security Alerts - Focus on Defender for E
   \ \"\"))\n\n// XSIAM MITRE Normalization (contract for split_mitre_rules.py)\n|\
   \ alter\n    mitre_tactic       = category,\n    mitre_tactic_id    = \"\",\n  \
   \  mitre_technique    = mitreTechniques,\n    mitre_technique_id = mitreTechniques\n\
-  | filter mitre_tactic_id = \"TA0007\" or mitre_tactic = \"Discovery\"\n\n// -------------------------------------------------------------------\n\
-  // Lightweight evidence extraction: FIRST element of each evidence type\n// -------------------------------------------------------------------\n\
+  \n// -------------------------------------------------------------------\n// Lightweight\
+  \ evidence extraction: FIRST element of each evidence type\n// -------------------------------------------------------------------\n\
   | alter\n    processEvidence = arrayindex(arrayfilter(evidence -> [], \"@element\"\
   \ -> [\"@odata.type\"] contains \"processEvidence\"), 0),\n    fileEvidence    =\
   \ arrayindex(arrayfilter(evidence -> [], \"@element\" -> [\"@odata.type\"] contains\
