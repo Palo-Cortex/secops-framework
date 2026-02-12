@@ -1,5 +1,4 @@
 fromversion: 6.10.0
-rule_id: 0
 action: ALERTS
 alert_category: User Defined
 alert_description: $alert_description
@@ -73,7 +72,7 @@ description: Creates an XSIAM alert for each CrowdStrike Falcon Endpoint Detecti
   Event
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
-global_rule_id: f83e316a-e2b8-4627-ac19-4375f8fe7ae8_other
+global_rule_id: SOC CrowdStrike Falcon - Endpoint Alerts
 investigation_query_link: '// All (stitched) activity from host - assuming raw telemetry
   is being collected
 
@@ -82,14 +81,19 @@ investigation_query_link: '// All (stitched) activity from host - assuming raw t
   | filter agent_hostname = $hostname
 
   | fields * '
+is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-name: SOC CrowdStrike Falcon - Endpoint Alerts - Other or Unknown Tactic
+mitre_defs: {}
+name: SOC CrowdStrike Falcon - Endpoint Alerts
+rule_id: 0
 search_window: null
 severity: User Defined
+simple_schedule: null
 suppression_duration: null
 suppression_enabled: false
 suppression_fields: null
+timezone: null
 user_defined_category: tactic
 user_defined_severity: severity_name
 xql_query: "/*\nTitle: SOC CrowdStrike Falcon - Endpoint Alerts\nDescription:  Single\
@@ -101,19 +105,18 @@ xql_query: "/*\nTitle: SOC CrowdStrike Falcon - Endpoint Alerts\nDescription:  S
   \        tactic                 = if(tactic = \"Malware\", \"Execution\", tactic),\n\
   \        mitre_tactic           = tactic,\n                mitre_tactic_id     \
   \   = tactic_id,\n        mitre_technique        = technique,\n                mitre_technique_id\
-  \     = technique_id\n| filter mitre_tactic_id = \"\" and mitre_tactic = \"\"\n\n\
-  | filter product = \"epp\"\n\n// Extract fields from nested objects\n| alter \n\
-  \        hostname = device->hostname,\n                domain = device->machine_domain,\n\
-  \        local_ip = device->local_ip,\n                external_ip = device->external_ip,\n\
-  \        mac_address = device->mac_address,\n                device_id = device->device_id,\n\
-  \        device_ou = device->ou[],\n                parent_process_name = parent_details->filename,\n\
-  \        parent_process_cmd = parent_details->cmdline,\n                parent_process_path\
-  \ = parent_details->filepath,\n        parent_process_sha256 = parent_details->sha256,\n\
-  \                parent_local_process_id = parent_details->local_process_id,\n \
-  \       grandparent_process_name = grandparent_details->filename,\n            \
-  \    grandparent_process_cmd = grandparent_details->cmdline,\n        grandparent_process_path\
-  \ = grandparent_details->filepath,\n                grandparent_process_sha256 =\
-  \ grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\
+  \     = technique_id\n\n| filter product = \"epp\"\n\n// Extract fields from nested\
+  \ objects\n| alter \n        hostname = device->hostname,\n                domain\
+  \ = device->machine_domain,\n        local_ip = device->local_ip,\n            \
+  \    external_ip = device->external_ip,\n        mac_address = device->mac_address,\n\
+  \                device_id = device->device_id,\n        device_ou = device->ou[],\n\
+  \                parent_process_name = parent_details->filename,\n        parent_process_cmd\
+  \ = parent_details->cmdline,\n                parent_process_path = parent_details->filepath,\n\
+  \        parent_process_sha256 = parent_details->sha256,\n                parent_local_process_id\
+  \ = parent_details->local_process_id,\n        grandparent_process_name = grandparent_details->filename,\n\
+  \                grandparent_process_cmd = grandparent_details->cmdline,\n     \
+  \   grandparent_process_path = grandparent_details->filepath,\n                grandparent_process_sha256\
+  \ = grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\
   \n// CGO Normalization\n| alter cgo_name = if(lowercase(grandparent_process_name)\
   \ not in (\"wininit.exe\", \"userinit.exe\"), grandparent_process_name, coalesce(parent_process_name,\
   \ filename)),\n cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\"\
