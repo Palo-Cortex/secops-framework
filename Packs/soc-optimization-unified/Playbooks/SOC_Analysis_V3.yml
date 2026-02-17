@@ -12,46 +12,48 @@ contentitemexportablefields:
     supportedModules: []
     toServerVersion: ""
 description: |-
-  Limit the damage, stop the attacker’s ability to continue harmful activity, and prevent the alert from spreading while preserving evidence and keeping essential business operations running.
+  Identify potential security events, determine whether they represent true alerts, understand their scope and impact, and establish the actionable context needed to respond effectively.
 
   What this phase includes:
 
-  Isolating affected systems, users, networks, or applications to prevent lateral movement or continued exploitation.
+  Monitoring security telemetry from logs, alerts, sensors, EDR, SIEM/XSIAM analytics, threat intel, and user reports.
 
-  Applying short-term tactical controls (e.g., block IPs, disable accounts, quarantine hosts, isolate network segments).
+  Triaging events to distinguish benign activity, false positives, and true security alerts.
 
-  Implementing longer-term containment strategies where immediate eradication is not feasible (e.g., temporary config changes, firewall rules, forced MFA resets).
+  Enriching indicators and artifacts (e.g., IPs, hashes, domains, user accounts, processes, network connections) using internal data and external threat intelligence.
 
-  Capturing forensic data before making changes that would alter volatile evidence (memory, network traffic, logs, etc.).
+  Correlating events across systems to understand the timeline, root cause, attack vector, and potential lateral movement.
 
-  Ensuring containment actions do not disrupt critical business processes unless absolutely necessary.
+  Assigning alert classification, severity, priority, and category for consistent response.
 
-  Coordinating with stakeholders to select the right containment strategy (e.g., monitor, disconnect, shutdown, or redirect).
+  Documenting findings, evidence, and hypotheses while preserving forensic integrity.
+
+  Determining the initial scope and business impact to decide how aggressive containment must be.
 
   Outcome:
-  The alert is stabilized, the attacker’s ability to cause further harm is limited, and the environment is safe enough to begin eradication and recovery without losing essential evidence.
+  A validated and well-understood security alert with clear context, severity, indicators, and scope—enabling the organization to transition into Containment with confidence and accuracy.
 dirtyInputs: true
-id: 'SOC Containment_V3'
+id: 'SOC Analysis_V3'
 inputSections:
 - description: Generic group for inputs
   inputs:
-  - ProductCategory
   - ExecutionBranch
+  - ProductCategory
   name: General (Inputs group)
 inputs:
-- description: 'Get the Product Category '
-  key: ProductCategory
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${SOCFramework.Product.category}
 - description: ""
   key: ExecutionBranch
   playbookInputQuery: null
   required: false
   value:
     simple: ${lists.SOCExecutionList_V3}
-name: SOC Containment_V3
+- description: Get The Product Category
+  key: ProductCategory
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${SOCFramework.Product.category}
+name: SOC Analysis_V3
 outputSections:
 - description: Generic group for outputs
   name: General (Outputs group)
@@ -62,8 +64,8 @@ starttaskid: "0"
 tags:
 - SOC
 - SOC_Framework_Unified
-- Containment
 - NIST 800-61
+- Analysis
 tasks:
   "0":
     continueonerrortype: ""
@@ -73,7 +75,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "21"
+      - "10"
     note: false
     quietmode: 0
     separatecontext: false
@@ -92,8 +94,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 1250,
-          "y": -100
+          "x": 1175,
+          "y": 50
         }
       }
   "1":
@@ -102,81 +104,36 @@ tasks:
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 0
-      wait: 1
     nexttasks:
       '#none#':
-      - "8"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      ShadowMode:
-        simple: SOCFramework.shadow_mode
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      description: |-
-        Primary owners: Alert responders, automation, endpoint/network teams.
-
-        Analyst role: May initiate or recommend containment actions (isolate host, disable account, block IP), often via playbook automation or escalation.
-      id: 0663ed94-0870-46de-9b69-b7b89f98aecd
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC Data Containment_V3
-      playbookId: SOC Data Containment_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 0663ed94-0870-46de-9b69-b7b89f98aecd
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 1145,
-          "y": 590
-        }
-      }
-  "2":
-    continueonerrortype: ""
-    id: "2"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#none#':
-      - "8"
+      - "9"
     note: false
     quietmode: 0
     separatecontext: true
     skipunavailable: false
     task:
       brand: ""
-      id: a2786a59-ca22-439f-8b0e-95768261ab21
+      id: 57a5da65-400a-4cd5-826c-3436a01618f8
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: SOC Email Containment_V3
-      playbookId: SOC Email Containment_V3
+      name: SOC Data Analysis_V3
+      playbookId: SOC Data Analysis_V3
       playbooktaskmissingcomponent: null
       type: playbook
       version: -1
-    taskid: a2786a59-ca22-439f-8b0e-95768261ab21
+    taskid: 57a5da65-400a-4cd5-826c-3436a01618f8
     timertriggers: []
     type: playbook
     view: |-
       {
         "position": {
-          "x": 2025,
+          "x": 162.5,
           "y": 590
         }
       }
-  "6":
+  "3":
     continueonerrortype: ""
-    id: "6"
+    id: "3"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
@@ -187,35 +144,149 @@ tasks:
       wait: 1
     nexttasks:
       '#none#':
-      - "8"
+      - "9"
     note: false
     quietmode: 0
     scriptarguments:
-      ShadowMode:
-        simple: SOCFramework.shadow_mode
+      IPAddress:
+        simple: ${issue.hostip}
+      ListernerMailbox:
+        simple: ${issue.xdmemailmailboxowner}
+      MessageID:
+        simple: ${issue.emailmessageid}
+      SHA256:
+        simple: ${issue.xdmsourceprocessexecutablesha256}
+      alert_id:
+        simple: ${issue.internal_id}
+      case_category:
+        complex:
+          accessor: CategoryType
+          root: SOCFramework.Artifacts
+          transformers:
+          - operator: toLowerCase
+      endpoint_id:
+        simple: ${issue.agentid}
+      entity_type:
+        complex:
+          accessor: category
+          root: SOCFramework.Product
+          transformers:
+          - operator: toLowerCase
+      file_name:
+        simple: ${issue.xdmsourceprocessname}
+      file_path:
+        simple: ${issue.initiatorpath}
+      pid:
+        simple: ${SOCFramework.Artifacts.PID}
+      process_name:
+        simple: ${SOCFramework.Artifacts.ProcessName}
+      user_name:
+        simple: ${SOCFramework.Artifacts.UserName}
+      verdict:
+        simple: ${SOCFramework.Artifacts.Verdict}
     separatecontext: true
     skipunavailable: false
     task:
       brand: ""
       description: |-
-        Primary owners: Alert responders, automation, endpoint/network teams.
+        This is the analyst’s core domain.
 
-        Analyst role: May initiate or recommend containment actions (isolate host, disable account, block IP), often via playbook automation or escalation.
-      id: 9ba85669-25b5-4ecd-903a-93c19eb1715b
+        Key tasks:
+
+        Investigate alerts and anomalies.
+
+        Validate true/false positives.
+
+        Perform triage, correlation, and root cause analysis.
+
+        Classify the alert (category, severity, impact).
+
+        Document findings and escalate confirmed alerts.
+
+        Outcome: Determine whether an event is a legitimate alert and assess its scope.
+
+        This phase measures alert fidelity, investigation efficiency, and time to validate — all analyst performance metrics.
+      id: 08c656f1-230f-4f60-86ee-662640e2c54b
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: SOC SaaS Containment_V3
-      playbookId: SOC SaaS Containment_V3
+      name: SOC EndPoint Analysis_V3
+      playbookId: SOC EndPoint Analysis_V3
       playbooktaskmissingcomponent: null
       type: playbook
       version: -1
-    taskid: 9ba85669-25b5-4ecd-903a-93c19eb1715b
+    taskid: 08c656f1-230f-4f60-86ee-662640e2c54b
     timertriggers: []
     type: playbook
     view: |-
       {
         "position": {
-          "x": 162.5,
+          "x": 1062.5,
+          "y": 590
+        }
+      }
+  "5":
+    continueonerrortype: ""
+    id: "5"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: d7385c3a-2283-4938-81b3-58ea63cc75f2
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: SOC Identity Analysis_V3
+      playbookId: SOC Identity Analysis_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: d7385c3a-2283-4938-81b3-58ea63cc75f2
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1512.5,
+          "y": 590
+        }
+      }
+  "6":
+    continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: e2089744-16e7-4227-8a13-0c65f8278895
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: SOC Network Analysis_V3
+      playbookId: SOC Network Analysis_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: e2089744-16e7-4227-8a13-0c65f8278895
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1962.5,
           "y": 590
         }
       }
@@ -227,28 +298,28 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "8"
+      - "9"
     note: false
     quietmode: 0
     separatecontext: true
     skipunavailable: false
     task:
       brand: ""
-      id: 8b26a6cf-2770-48b7-8e1e-c82c86e12557
+      id: 4b7573be-bd91-4fe6-8959-2bc5d4aaa78c
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: SOC Workload Containment_V3
-      playbookId: SOC Workload Containment_V3
+      name: SOC SaaS Analysis_V3
+      playbookId: SOC SaaS Analysis_V3
       playbooktaskmissingcomponent: null
       type: playbook
       version: -1
-    taskid: 8b26a6cf-2770-48b7-8e1e-c82c86e12557
+    taskid: 4b7573be-bd91-4fe6-8959-2bc5d4aaa78c
     timertriggers: []
     type: playbook
     view: |-
       {
         "position": {
-          "x": 592.5,
+          "x": 2412.5,
           "y": 590
         }
       }
@@ -258,61 +329,64 @@ tasks:
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
+    nexttasks:
+      '#none#':
+      - "9"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 3d8bf25e-863c-4ee5-8a18-47d621adbc11
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: SOC Workload Analysis_V3
+      playbookId: SOC Workload Analysis_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 3d8bf25e-863c-4ee5-8a18-47d621adbc11
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 2862.5,
+          "y": 590
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: 65f28176-2b84-4727-961b-54aaae7a2dd7
+      id: 8ceb5aed-c39b-452d-8fd8-f5f2ed8eb896
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Done
       playbooktaskmissingcomponent: null
       type: title
       version: -1
-    taskid: 65f28176-2b84-4727-961b-54aaae7a2dd7
+    taskid: 8ceb5aed-c39b-452d-8fd8-f5f2ed8eb896
     timertriggers: []
     type: title
     view: |-
       {
         "position": {
-          "x": 1595,
+          "x": 1287.5,
           "y": 775
         }
       }
-  "9":
+  "10":
     conditions:
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              simple: inputs.ProductCategory
-          operator: isEqualString
-          right:
-            value:
-              simple: Email
-      label: Email
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              simple: inputs.ProductCategory
-          operator: isEqualString
-          right:
-            value:
-              simple: Endpoint
-      label: Endpoint
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              simple: inputs.ProductCategory
-          operator: isEqualString
-          right:
-            value:
-              simple: Identity
-      label: Identity
     - condition:
       - - left:
             iscontext: true
@@ -331,8 +405,18 @@ tasks:
           operator: isEqualString
           right:
             value:
-              simple: Network
-      label: Network
+              simple: Workload
+      label: Workload
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ProductCategory
+          operator: isEqualString
+          right:
+            value:
+              simple: Identity
+      label: Identity
     - condition:
       - - left:
             iscontext: true
@@ -342,7 +426,7 @@ tasks:
           right:
             value:
               simple: SaaS
-      label: Cloud SaaS
+      label: SaaS
     - condition:
       - - left:
             iscontext: true
@@ -351,29 +435,49 @@ tasks:
           operator: isEqualString
           right:
             value:
-              simple: Workload
-      label: Cloud Workload
+              simple: Endpoint
+      label: Endpoint
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ProductCategory
+          operator: isEqualString
+          right:
+            value:
+              simple: Email
+      label: Email
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.ProductCategory
+          operator: isEqualString
+          right:
+            value:
+              simple: Network
+      label: Network
     continueonerrortype: ""
-    id: "9"
+    id: "10"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
     nexttasks:
       '#default#':
-      - "8"
-      Cloud SaaS:
-      - "18"
-      Cloud Workload:
-      - "19"
+      - "9"
       Data:
-      - "15"
+      - "13"
       Email:
-      - "14"
+      - "18"
       Endpoint:
-      - "16"
+      - "12"
       Identity:
-      - "20"
+      - "14"
       Network:
+      - "15"
+      SaaS:
+      - "16"
+      Workload:
       - "17"
     note: false
     quietmode: 0
@@ -381,258 +485,24 @@ tasks:
     skipunavailable: false
     task:
       brand: ""
-      id: f9c4e418-5629-4e5b-b368-9e1ff70a4d10
+      id: 92178e4d-7444-47c9-8229-cca9ce09d331
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Product Category?
+      name: Product Category
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: f9c4e418-5629-4e5b-b368-9e1ff70a4d10
+    taskid: 92178e4d-7444-47c9-8229-cca9ce09d331
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
-          "x": 1257.5,
+          "x": 1175,
           "y": 220
         }
       }
-  "10":
-    continueonerrortype: ""
-    id: "10"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "8"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      AutoContainment:
-        simple: "False"
-      ClearUserSessions:
-        simple: "True"
-      FeaturedAD:
-        simple: "False"
-      FeaturedUser:
-        simple: "False"
-      IAMUserDomain:
-        complex:
-          accessor: domain
-          filters:
-          - - left:
-                iscontext: true
-                value:
-                  simple: issue
-              operator: containsGeneral
-              right:
-                value:
-                  simple: '@'
-          root: Issue
-          transformers:
-          - args:
-              error_if_no_match: {}
-              ignore_case: {}
-              multi_line: {}
-              period_matches_newline: {}
-              regex:
-                value:
-                  simple: ^([^@]+)
-              unpack_matches: {}
-            operator: RegexExtractAll
-      ShadowMode:
-        simple: SOCFramework.shadow_mode
-      UserContainment:
-        simple: "True"
-      Username:
-        simple: ${issue.username}
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      description: "This playbook handles the main containment actions available with
-        Cortex XSIAM, including the following sub-playbooks:  \n* Containment Plan
-        - Isolate endpoint\n * Containment Plan - Disable account\n* Containment Plan
-        - Quarantine file\n* Containment Plan - Block indicators\n* Containment Plan
-        - Clear user session (currently, the playbook supports only Okta)\n\nNote:
-        The playbook inputs enable manipulating the execution flow. Read the input
-        descriptions for details."
-      id: 6af8157c-0f1e-40d4-8cbf-c5e7f5701d23
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC Identity Containment_V3
-      playbookId: SOC Identity Containment_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 6af8157c-0f1e-40d4-8cbf-c5e7f5701d23
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 2925,
-          "y": 590
-        }
-      }
-  "11":
-    continueonerrortype: ""
-    id: "11"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "8"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      AutoContainment:
-        simple: "False"
-      EndpointID:
-        simple: ${SOCFramework.Artifacts.EndPointID}
-      FeaturedHost:
-        simple: "False"
-      FileContainment:
-        simple: "True"
-      FileHash:
-        simple: ${SOCFramework.Artifacts.File}
-      FilePath:
-        simple: ${Issue.filepath}
-      FileRemediation:
-        simple: Quarantine
-      FileVerdict:
-        simple: ${SOCFramework.Artifacts.Verdict.[0]}
-      HostContainment:
-        simple: "True"
-      Hostname:
-        simple: ${Issue.hostname}
-      ShadowMode:
-        simple: ${SOCFramework.shadow_mode}
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      description: |-
-        Primary owners: Alert responders, automation, endpoint/network teams.
-
-        Analyst role: May initiate or recommend containment actions (isolate host, disable account, block IP), often via playbook automation or escalation.
-      id: 58296e28-06e5-4da7-94c0-14cfe6478b74
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC Endpoint Containment_V3
-      playbookId: SOC Endpoint Containment_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 58296e28-06e5-4da7-94c0-14cfe6478b74
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 2475,
-          "y": 590
-        }
-      }
   "12":
-    continueonerrortype: ""
-    id: "12"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "8"
-    note: false
-    quietmode: 0
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      description: |-
-        Primary owners: Alert responders, automation, endpoint/network teams.
-
-        Analyst role: May initiate or recommend containment actions (isolate host, disable account, block IP), often via playbook automation or escalation.
-      id: 2e54d1f4-9515-4f99-a815-0030c6b2799c
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC Network Containment_V3
-      playbookId: SOC Network Containment_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 2e54d1f4-9515-4f99-a815-0030c6b2799c
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 3375,
-          "y": 590
-        }
-      }
-  "13":
-    continueonerrortype: ""
-    id: "13"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "8"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      BlockIndicators:
-        simple: "False"
-      UserEngagement:
-        simple: "False"
-    separatecontext: true
-    skipunavailable: true
-    task:
-      brand: ""
-      id: 9a48b1d6-61e8-43aa-a346-ff821a332697
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC - Email Containment - Example
-      playbookId: 'SOC - Email Containment - RAF'
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 9a48b1d6-61e8-43aa-a346-ff821a332697
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 1595,
-          "y": 590
-        }
-      }
-  "14":
     conditions:
     - condition:
       - - left:
@@ -644,7 +514,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Email Containment_V3
+                        simple: SOC Endpoint Analysis
                   operator: getField
                 - args:
                     field:
@@ -666,7 +536,165 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Email Containment_V3
+                        simple: SOC Endpoint Analysis
+                  operator: getField
+                - args:
+                    field:
+                      value:
+                        simple: execute_branch
+                  operator: getField
+          operator: isEqualString
+          right:
+            value:
+              simple: custom
+      label: Custom
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 479c410e-067c-44a3-8744-28453f704ad2
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Endpoint Analysis Execution Branch
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 479c410e-067c-44a3-8744-28453f704ad2
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 950,
+          "y": 405
+        }
+      }
+  "13":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - args:
+                    field:
+                      value:
+                        simple: SOC Data Analysis_V3
+                  operator: getField
+                - args:
+                    field:
+                      value:
+                        simple: execute_branch
+                  operator: getField
+          operator: isEqualString
+          right:
+            value:
+              simple: default
+      label: Default
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - args:
+                    field:
+                      value:
+                        simple: SOC Data Analysis_V3
+                  operator: getField
+                - args:
+                    field:
+                      value:
+                        simple: execute_branch
+                  operator: getField
+          operator: isEqualString
+          right:
+            value:
+              simple: custom
+      label: Custom
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "9"
+      Default:
+      - "1"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: bdabddaf-0b19-4e96-971a-d3f85479805e
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Data Analysis Execution Branch
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: bdabddaf-0b19-4e96-971a-d3f85479805e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 405
+        }
+      }
+  "14":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - args:
+                    field:
+                      value:
+                        simple: SOC Identity Analysis_V3
+                  operator: getField
+                - args:
+                    field:
+                      value:
+                        simple: execute_branch
+                  operator: getField
+          operator: isEqualString
+          right:
+            value:
+              simple: default
+      label: Default
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - args:
+                    field:
+                      value:
+                        simple: SOC Identity Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -685,31 +713,29 @@ tasks:
     isoversize: false
     nexttasks:
       '#default#':
-      - "8"
-      Custom:
-      - "13"
+      - "9"
       Default:
-      - "2"
+      - "5"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: d86f9961-8748-4ada-a6ea-fbc465ca239b
+      id: 1333bc58-8ac4-4522-b913-52c76f5cc116
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Email Containment Execution Branch
+      name: Identity Analysis Execution Branch
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: d86f9961-8748-4ada-a6ea-fbc465ca239b
+    taskid: 1333bc58-8ac4-4522-b913-52c76f5cc116
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
-          "x": 1687.5,
+          "x": 1400,
           "y": 405
         }
       }
@@ -725,7 +751,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Data Containment_V3
+                        simple: SOC Network Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -747,7 +773,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Data Containment_V3
+                        simple: SOC Network Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -766,29 +792,29 @@ tasks:
     isoversize: false
     nexttasks:
       '#default#':
-      - "8"
+      - "9"
       Default:
-      - "1"
+      - "6"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: bea5ec66-6bc4-4d50-b53a-630f4942eb1c
+      id: dca31f2e-7363-4767-bfdd-42af9b9a5066
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Data Containment Execution Branch
+      name: Network Analysis Execution Branch
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: bea5ec66-6bc4-4d50-b53a-630f4942eb1c
+    taskid: dca31f2e-7363-4767-bfdd-42af9b9a5066
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
-          "x": 1032.5,
+          "x": 1850,
           "y": 405
         }
       }
@@ -804,7 +830,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Endpoint Containment_V3
+                        simple: SOC SaaS Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -826,7 +852,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Endpoint Containment_V3
+                        simple: SOC SaaS Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -845,29 +871,29 @@ tasks:
     isoversize: false
     nexttasks:
       '#default#':
-      - "8"
+      - "9"
       Default:
-      - "11"
+      - "7"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: bfa559df-b0f4-4744-99da-a78ded4ffd81
+      id: 419f92e1-5c35-47f4-ae4e-8b75acf42e57
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Endpoint Containment Execution Branch
+      name: SaaS Analysis Execution Branch
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: bfa559df-b0f4-4744-99da-a78ded4ffd81
+    taskid: 419f92e1-5c35-47f4-ae4e-8b75acf42e57
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
-          "x": 2362.5,
+          "x": 2300,
           "y": 405
         }
       }
@@ -883,7 +909,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Network Containment_V3
+                        simple: SOC Workload Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -905,7 +931,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC Network Containment_V3
+                        simple: SOC Workload Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -924,29 +950,29 @@ tasks:
     isoversize: false
     nexttasks:
       '#default#':
-      - "8"
+      - "9"
       Default:
-      - "12"
+      - "8"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: a06f2bee-8b17-4710-af3f-17e8b48f20a7
+      id: 866225a9-2ae1-434f-b042-8907793f102f
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Network Containment Execution Branch
+      name: Workload Analysis Execution Branch
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: a06f2bee-8b17-4710-af3f-17e8b48f20a7
+    taskid: 866225a9-2ae1-434f-b042-8907793f102f
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
-          "x": 3262.5,
+          "x": 2750,
           "y": 405
         }
       }
@@ -962,7 +988,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC SaaS Containment_V3
+                        simple: SOC Email Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -984,7 +1010,7 @@ tasks:
                 - args:
                     field:
                       value:
-                        simple: SOC SaaS Containment_V3
+                        simple: SOC Email Analysis_V3
                   operator: getField
                 - args:
                     field:
@@ -1003,243 +1029,98 @@ tasks:
     isoversize: false
     nexttasks:
       '#default#':
-      - "8"
+      - "9"
       Default:
-      - "6"
+      - "19"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: 8c74e1e1-fe1c-4572-9ebf-5608a6450fb2
+      id: e96a6c41-f225-4ae6-9939-0bb1639cdecb
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: SaaS Containment Execution Branch
+      name: Email Analysis Execution Branch
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: 8c74e1e1-fe1c-4572-9ebf-5608a6450fb2
+    taskid: e96a6c41-f225-4ae6-9939-0bb1639cdecb
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
-          "x": 50,
+          "x": 500,
           "y": 405
         }
       }
   "19":
-    conditions:
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              complex:
-                root: inputs.ExecutionBranch
-                transformers:
-                - args:
-                    field:
-                      value:
-                        simple: SOC Workload Containment_V3
-                  operator: getField
-                - args:
-                    field:
-                      value:
-                        simple: execute_branch
-                  operator: getField
-          operator: isEqualString
-          right:
-            value:
-              simple: default
-      label: Default
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              complex:
-                root: inputs.ExecutionBranch
-                transformers:
-                - args:
-                    field:
-                      value:
-                        simple: SOC Workload Containment_V3
-                  operator: getField
-                - args:
-                    field:
-                      value:
-                        simple: execute_branch
-                  operator: getField
-          operator: isEqualString
-          right:
-            value:
-              simple: custom
-      label: Custom
     continueonerrortype: ""
     id: "19"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
     nexttasks:
-      Default:
-      - "7"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      id: c44e25f5-eea2-41bf-93ca-e8a97a3b6e86
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Workload Containment Execution Branch
-      playbooktaskmissingcomponent: null
-      type: condition
-      version: -1
-    taskid: c44e25f5-eea2-41bf-93ca-e8a97a3b6e86
-    timertriggers: []
-    type: condition
-    view: |-
-      {
-        "position": {
-          "x": 592.5,
-          "y": 405
-        }
-      }
-  "20":
-    conditions:
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              complex:
-                root: inputs.ExecutionBranch
-                transformers:
-                - args:
-                    field:
-                      value:
-                        simple: SOC Identity Containment_V3
-                  operator: getField
-                - args:
-                    field:
-                      value:
-                        simple: execute_branch
-                  operator: getField
-          operator: isEqualString
-          right:
-            value:
-              simple: default
-      label: Default
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              complex:
-                root: inputs.ExecutionBranch
-                transformers:
-                - args:
-                    field:
-                      value:
-                        simple: SOC Identity Containment_V3
-                  operator: getField
-                - args:
-                    field:
-                      value:
-                        simple: execute_branch
-                  operator: getField
-          operator: isEqualString
-          right:
-            value:
-              simple: custom
-      label: Custom
-    continueonerrortype: ""
-    id: "20"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#default#':
-      - "8"
-      Default:
-      - "10"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      id: f4dc5700-dd72-4a7d-bd48-3197f138f8d2
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Identity Containment Execution Branch
-      playbooktaskmissingcomponent: null
-      type: condition
-      version: -1
-    taskid: f4dc5700-dd72-4a7d-bd48-3197f138f8d2
-    timertriggers: []
-    type: condition
-    view: |-
-      {
-        "position": {
-          "x": 2812.5,
-          "y": 405
-        }
-      }
-  "21":
-    conditions:
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              simple: 'Analysis.response_recommended '
-          operator: isTrue
-      label: "yes"
-    continueonerrortype: ""
-    id: "21"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#default#':
-      - "8"
-      "yes":
+      '#none#':
       - "9"
     note: false
     quietmode: 0
-    separatecontext: false
+    separatecontext: true
     skipunavailable: false
     task:
       brand: ""
-      id: 209eb193-974e-413b-861e-032622483935
+      description: |-
+        This is the analyst’s core domain.
+
+        Key tasks:
+
+        Investigate alerts and anomalies.
+
+        Validate true/false positives.
+
+        Perform triage, correlation, and root cause analysis.
+
+        Classify the alert (category, severity, impact).
+
+        Document findings and escalate confirmed alerts.
+
+        Outcome: Determine whether an event is a legitimate alert and assess its scope.
+
+        This phase measures alert fidelity, investigation efficiency, and time to validate — all analyst performance metrics.
+      id: 8d429896-10a1-417b-8289-dbaeb060bcce
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Analysis Recommended an Action
+      name: SOC Email Analysis_V3
+      playbookId: SOC Email Analysis_V3
       playbooktaskmissingcomponent: null
-      type: condition
+      type: playbook
       version: -1
-    taskid: 209eb193-974e-413b-861e-032622483935
+    taskid: 8d429896-10a1-417b-8289-dbaeb060bcce
     timertriggers: []
-    type: condition
+    type: playbook
     view: |-
       {
         "position": {
-          "x": 1250,
-          "y": 30
+          "x": 612.5,
+          "y": 590
         }
       }
 version: -1
 view: |-
   {
     "linkLabelsPosition": {
-      "9_16_Endpoint": 0.9,
-      "9_20_Identity": 0.9
+      "10_14_Identity": 0.88,
+      "10_16_SaaS": 0.82,
+      "10_17_Workload": 0.9,
+      "18_19_Default": 0.8
     },
     "paper": {
       "dimensions": {
-        "height": 935,
-        "width": 3705,
+        "height": 785,
+        "width": 3192.5,
         "x": 50,
-        "y": -100
+        "y": 50
       }
     }
   }
