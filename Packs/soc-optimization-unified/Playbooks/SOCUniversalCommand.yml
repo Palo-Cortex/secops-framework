@@ -1,0 +1,491 @@
+fromversion: 5.0.0
+adopted: true
+description: This is designed to use the List SOCFrameworkActions_V3 as a list of
+  universal commands that match to specific vendors and artifacts.
+dirtyInputs: true
+id: 'SOCUniversalCommand'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - universal_cmd
+  - framework_actions_listname
+  - ShadowMode
+  name: General (Inputs group)
+inputs:
+- description: ""
+  key: universal_cmd
+  playbookInputQuery: null
+  required: true
+  value:
+    simple: soc-isolate-endpoint
+- description: ""
+  key: framework_actions_listname
+  playbookInputQuery: null
+  required: true
+  value:
+    simple: SOCFrameworkActions_V3
+- description: ""
+  key: ShadowMode
+  playbookInputQuery: null
+  required: true
+  value:
+    simple: "False"
+name: SOCUniversalCommand
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs: []
+outputs: []
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework
+- SOC_Framework_Unified
+- Actions
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "6"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: f3eb8178-e23e-4292-8186-ab49bb200b0b
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: ""
+      playbooktaskmissingcomponent: null
+      version: -1
+    taskid: f3eb8178-e23e-4292-8186-ab49bb200b0b
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 255,
+          "y": 50
+        }
+      }
+  "3":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "3"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      command:
+        simple: ${SOCFramework.UniversalCommand.VendorCmd}
+      inline_args:
+        simple: ${SOCFramework.UniversalCommand.VendorArgs}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7f57ea21-63a3-4ba0-8c0e-8ef557a95f24
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Command Wrapper
+      playbooktaskmissingcomponent: null
+      script: 'SOCCommandWrapper'
+      type: regular
+      version: -1
+    taskid: 7f57ea21-63a3-4ba0-8c0e-8ef557a95f24
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 960
+        }
+      }
+  "6":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "7"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      extend-context:
+        simple: SOCFramework.UniversalCommand.UC
+      key:
+        simple: SOCFramework.UniversalCommand.UC
+      value:
+        simple: ${inputs.universal_cmd}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: a574e1e6-6c3f-4895-b46d-0427155b4b28
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Universal Command
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: a574e1e6-6c3f-4895-b46d-0427155b4b28
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 255,
+          "y": 220
+        }
+      }
+  "7":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "7"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "8"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      extend-context:
+        simple: SOCFramework.UniversalCommand.UC
+      key:
+        simple: SOCFramework.UniversalCommand.VendorCmd
+      value:
+        complex:
+          accessor: SOCFrameworkActions_V3
+          root: lists
+          transformers:
+          - args:
+              field:
+                value:
+                  simple: ${SOCFramework.UniversalCommand.UC}
+            operator: getField
+          - args:
+              field:
+                value:
+                  simple: responses
+            operator: getField
+          - args:
+              field:
+                value:
+                  simple: ${SOCFramework.Product.response}
+            operator: getField
+          - args:
+              field:
+                value:
+                  simple: command
+            operator: getField
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 80e6e727-079a-4324-b528-cb97e7c17f9c
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Universal Command
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 80e6e727-079a-4324-b528-cb97e7c17f9c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 367.5,
+          "y": 405
+        }
+      }
+  "8":
+    continueonerror: true
+    continueonerrortype: errorPath
+    id: "8"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#error#':
+      - "9"
+      '#none#':
+      - "13"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      extend-context:
+        simple: SOCFramework.UniversalCommand.UC
+      key:
+        simple: SOCFramework.UniversalCommand.VendorArgs
+      value:
+        complex:
+          accessor: SOCFrameworkActions_V3
+          root: lists
+          transformers:
+          - args:
+              field:
+                value:
+                  simple: ${SOCFramework.UniversalCommand.UC}
+            operator: getField
+          - args:
+              field:
+                value:
+                  simple: responses
+            operator: getField
+          - args:
+              field:
+                value:
+                  simple: ${SOCFramework.Product.response}
+            operator: getField
+          - args:
+              field:
+                value:
+                  simple: inline_args
+            operator: getField
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 9370850b-ef80-460d-944f-f2803794adec
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Universal Command Args
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 9370850b-ef80-460d-944f-f2803794adec
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 590
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9be7281e-9ddb-4e35-8eb5-98afb3bd055c
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Foundation - Error Handling_V3
+      playbookId: Foundation - Error Handling_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 9be7281e-9ddb-4e35-8eb5-98afb3bd055c
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1145
+        }
+      }
+  "10":
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 8857f596-f3b2-4830-a0fd-512c668f4c91
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Done
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 8857f596-f3b2-4830-a0fd-512c668f4c91
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 387.5,
+          "y": 1330
+        }
+      }
+  "12":
+    continueonerrortype: ""
+    id: "12"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "10"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      value:
+        simple: |-
+          Shadow Mode: ${inputs.shadow_mode}
+          Command: ${SOCFramework.UniversalCommand.VendorCmd}
+          Args: ${SOCFramework.UniversalCommand.VendorArgs}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Prints text to war room (Markdown supported)
+      id: c8a5245f-4ab0-4e57-9526-2c91a51f58a6
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Print Command To War Room
+      playbooktaskmissingcomponent: null
+      script: Print
+      type: regular
+      version: -1
+    taskid: c8a5245f-4ab0-4e57-9526-2c91a51f58a6
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 715,
+          "y": 1145
+        }
+      }
+  "13":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ShadowMode
+                transformers:
+                - operator: toLowerCase
+          operator: isTrue
+          right:
+            value: {}
+      label: Shadow Mode
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ShadowMode
+                transformers:
+                - operator: toLowerCase
+          operator: isFalse
+      label: Full Run
+    continueonerrortype: ""
+    id: "13"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      Full Run:
+      - "3"
+      Shadow Mode:
+      - "12"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 5ab38983-4309-4bae-af39-6a11107f6695
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Shadow Mode or Full Run
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 5ab38983-4309-4bae-af39-6a11107f6695
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 775
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1340,
+        "width": 1045,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }

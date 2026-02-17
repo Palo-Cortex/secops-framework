@@ -1,124 +1,115 @@
 {
-  "Actions": {
-    "soc-enrich-alert": {
-      "required_artifacts": [
-        "alert.id"
-      ]
-    },
-    "soc-isolate-endpoint": {
-      "required_artifacts": [
-        "endpoint.id"
-      ]
-    },
-    "soc-unisolate-endpoint": {
-      "required_artifacts": [
-        "endpoint.id"
-      ]
-    },
-    "soc-terminate-process": {
-      "required_artifacts": [
-        "endpoint.id",
-        "endpoint.process.id"
-      ]
-    },
-    "soc-quarantine-file": {
-      "required_artifacts": [
-        "endpoint.id",
-        "file.path"
-      ]
-    },
-    "soc-block-hash": {
-      "required_artifacts": [
-        "file.hash"
-      ]
-    },
-    "soc-disable-identity": {
-      "required_artifacts": [
-        "user.id"
-      ]
-    },
-    "soc-enable-identity": {
-      "required_artifacts": [
-        "user.id"
-      ]
-    },
-    "soc-reset-password": {
-      "required_artifacts": [
-        "user.id"
-      ]
-    },
-    "soc-revoke-sessions": {
-      "required_artifacts": [
-        "user.id"
-      ]
-    },
-    "soc-quarantine-email": {
-      "required_artifacts": [
-        "email.message_id"
-      ]
-    },
-    "soc-release-email": {
-      "required_artifacts": [
-        "email.message_id"
-      ]
-    },
-    "soc-delete-email": {
-      "required_artifacts": [
-        "email.message_id"
-      ]
-    },
-    "soc-block-sender": {
-      "required_artifacts": [
-        "email.sender.address"
-      ]
-    },
-    "soc-search-email": {
-      "required_artifacts": [
-        "email.search.query"
-      ]
-    },
-    "soc-fetch-forensics": {
-      "required_artifacts": []
-    },
-    "soc-disable-network-asset": {
-      "required_artifacts": [
-        "network.asset.mac"
-      ]
-    },
-    "soc-enable-network-asset": {
-      "required_artifacts": [
-        "network.asset.mac"
-      ]
-    },
-    "soc-block-url": {
-      "required_artifacts": [
-        "url.value"
-      ]
-    },
-    "soc-unblock-url": {
-      "required_artifacts": [
-        "url.value"
-      ]
-    },
-    "soc-block-ip": {
-      "required_artifacts": [
-        "ip.address"
-      ]
-    },
-    "soc-unblock-ip": {
-      "required_artifacts": [
-        "ip.address"
-      ]
-    },
-    "soc-quarantine-cloud": {
-      "required_artifacts": [
-        "cloud.resource_id"
-      ]
-    },
-    "soc-disable-cloud-session": {
-      "required_artifacts": [
-        "cloud.resource_id"
-      ]
+  "soc-isolate-endpoint": {
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-isolate-endpoint",
+        "inline_args": {
+          "endpoint_id": "SOCFramework.Artifacts.EndPointID"
+        }
+      },
+      "CrowdstrikeFalcon": {
+        "command": "cs-falcon-contain-host",
+        "inline_args": {
+          "agent_id(s)": "SOCFramework.Artifacts.EndPointID"
+        }
+      },
+      "Trend Micro Vision One V3": {
+        "command": "trendmicro-visionone-isolate-endpoint",
+        "inline_args": {
+          "endpoint_identifiers": "SOCFramework.Artifacts.EndPointID"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-isolate-machine",
+        "inline_args": {
+          "machine_id": "SOCFramework.Artifacts.EndPointID",
+          "comment": "SOCFramework isolate endpoint",
+          "isolation_type": "Full"
+        }
+      }
+    }
+  },
+  "soc-disable-user": {
+    "responses": {
+      "Active Directory Query v2": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "SOCFramework.Artifacts.UserEmail",
+          "user_name": "SOCFramework.Artifacts.UserName",
+          "user_id": "SOCFramework.Artifacts.UserID"
+        }
+      },
+      "Microsoft Graph User": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "SOCFramework.Artifacts.UserEmail",
+          "user_name": "SOCFramework.Artifacts.UserName",
+          "user_id": "SOCFramework.Artifacts.UserID"
+        }
+      },
+      "Okta IAM": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "SOCFramework.Artifacts.UserEmail",
+          "user_name": "SOCFramework.Artifacts.UserName",
+          "user_id": "SOCFramework.Artifacts.UserID"
+        }
+      },
+      "Okta V2": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "SOCFramework.Artifacts.UserEmail",
+          "user_name": "SOCFramework.Artifacts.UserName",
+          "user_id": "SOCFramework.Artifacts.UserID"
+        }
+      }
+    }
+  },
+  "soc-kill-process": {
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-run-script-kill-process",
+        "inline_args": {
+          "endpoint_ids": "SOCFramework.Artifacts.EndPointID",
+          "process_names": "SOCFramework.Artifacts.ProcessName"
+        }
+      },
+      "CrowdstrikeFalcon": {
+        "command": "cs-falcon-rtr-kill-process",
+        "inline_args": {
+          "host_id": "SOCFramework.Artifacts.EndPointID",
+          "process_ids": "SOCFramework.Artifacts.PID"
+        }
+      },
+      "Trend Micro Vision One V3": {
+        "command": "trendmicro-visionone-terminate-process",
+        "inline_args": {
+          "process_identifiers": "SOCFramework.Artifacts.PID"
+        }
+      }
+    }
+  },
+  "soc-quarantine-files": {
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-quarantine-files",
+        "inline_args": {
+          "endpoint_id_list": "SOCFramework.Artifacts.EndPointID",
+          "file_hash": "SOCFramework.Artifacts.File",
+          "file_path": "SOCFramework.Artifacts.FilePath"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-stop-and-quarantine-file",
+        "inline_args": {
+          "machine_ids": "SOCFramework.Artifacts.EndPointID",
+          "file_hashes": "SOCFramework.Artifacts.File"
+        }
+      },
+      "Trend Micro Vision One V3": {
+        "command": "trendmicro-visionone-quarantine-email-message",
+        "inline_args": {}
+      }
     }
   },
   "id": "SOCFrameworkActions_V3",
