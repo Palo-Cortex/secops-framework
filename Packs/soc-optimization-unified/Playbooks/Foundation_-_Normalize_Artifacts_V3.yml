@@ -5,80 +5,90 @@ contentitemexportablefields:
     definitionid: ""
     fromServerVersion: 5.0.0
     isoverridable: false
-    itemVersion: 3.0.29
+    itemVersion: 3.0.30
     packID: ""
     packName: SOC Framework Unified
     prevname: ""
     supportedModules: []
     toServerVersion: ""
-description: |
-  Identifies the core fields present and starts tailored enrichment pipelines
-  Generates threat flags based on findings (ex: if we identify a domain controller or admin account)
+description: |2+
+
 dirtyInputs: true
-id: 'Foundation - Endpoint Enrichment_V3'
+id: 'Foundation - Normalize Artifacts_V3'
 inputSections:
 - description: Generic group for inputs
   inputs:
-  - SourceIP
-  - RemoteIP
-  - UserName
-  - EndpointID
   - HostName
-  - Domain
-  - MD5
-  - SHA256
-  - PID
+  - EndpointID
+  - FilePath
   - ProcessName
+  - PID
+  - SHA256
+  - Verdict
+  - SourceIP
+  - UserName
   name: General (Inputs group)
 inputs:
-- description: ""
-  key: SourceIP
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${issue.hostip}
-- description: ""
-  key: RemoteIP
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${issue.remoteip}
-- description: ""
-  key: UserName
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${issue.username}
-- description: ""
-  key: EndpointID
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${issue.agentid}
 - description: ""
   key: HostName
   playbookInputQuery: null
   required: false
   value:
-    simple: ${issue.hostname}
+    complex:
+      accessor: xdmsourcehosthostname}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.hostname}
+        operator: SetIfEmpty
 - description: ""
-  key: Domain
+  key: EndpointID
   playbookInputQuery: null
   required: false
   value:
-    simple: ${issue.domain}
+    complex:
+      accessor: xdmsourceagentidentifier}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.agentid}
+        operator: SetIfEmpty
 - description: ""
-  key: MD5
+  key: FilePath
   playbookInputQuery: null
   required: false
   value:
-    simple: ${issue.initiatormd5}
+    complex:
+      accessor: xdmsourceprocessexecutablepath}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.initiatorpath}
+        operator: SetIfEmpty
 - description: ""
-  key: SHA256
+  key: ProcessName
   playbookInputQuery: null
   required: false
   value:
-    simple: ${issue.initiatorsha256}
+    complex:
+      accessor: xdmsourceprocessname}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.initiatedby}
+        operator: SetIfEmpty
 - description: ""
   key: PID
   playbookInputQuery: null
@@ -86,42 +96,110 @@ inputs:
   value:
     simple: ${issue.initiatorpid}
 - description: ""
-  key: ProcessName
+  key: SHA256
   playbookInputQuery: null
   required: false
   value:
-    simple: ${issue.xdmsourceprocessname}
-name: Foundation - Endpoint Enrichment_V3
+    complex:
+      accessor: xdmsourceprocessexecutablesha256}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.initiatorsha256}
+        operator: SetIfEmpty
+- description: ""
+  key: Verdict
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: Verdict
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: Unit42Intelligence.File.Value
+          operator: isEqualString
+          right:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+      root: Unit42Intelligence.File
+      transformers:
+      - operator: StringToArray
+- description: ""
+  key: SourceIP
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourcehostipv4addresses}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.hostip}
+        operator: SetIfEmpty
+- description: ""
+  key: UserName
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourceuserusername}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.username}
+        operator: SetIfEmpty
+name: Foundation - Normalize Artifacts_V3
 outputSections:
 - description: Generic group for outputs
   name: General (Outputs group)
   outputs:
-  - SOCFramework.Artifacts.IP
+  - SOCFramework.Artifacts.HostName
   - SOCFramework.Artifacts.EndPointID
-  - SOCFramework.Artifacts.UserName
+  - SOCFramework.Artifacts.FilePath
   - SOCFramework.Artifacts.ProcessName
+  - SOCFramework.Artifacts.PID
   - SOCFramework.Artifacts.File
   - SOCFramework.Artifacts.Verdict
+  - SOCFramework.Artifacts.UserName
+  - SOCFramework.Artifacts.IP
 outputs:
-- contextPath: SOCFramework.Artifacts.IP
+- contextPath: SOCFramework.Artifacts.HostName
   type: unknown
 - contextPath: SOCFramework.Artifacts.EndPointID
   type: unknown
-- contextPath: SOCFramework.Artifacts.UserName
+- contextPath: SOCFramework.Artifacts.FilePath
   type: unknown
 - contextPath: SOCFramework.Artifacts.ProcessName
+  type: unknown
+- contextPath: SOCFramework.Artifacts.PID
   type: unknown
 - contextPath: SOCFramework.Artifacts.File
   type: unknown
 - contextPath: SOCFramework.Artifacts.Verdict
+  type: unknown
+- contextPath: SOCFramework.Artifacts.UserName
+  type: unknown
+- contextPath: SOCFramework.Artifacts.IP
   type: unknown
 sourceplaybookid: Foundation - Enrichment_V3
 starttaskid: "0"
 tags:
 - SOC
 - SOC_Framework_Unified
-- Enrichment
-- EndPoint
+- Analysis
+- Foundation
 tasks:
   "0":
     continueonerrortype: ""
@@ -150,52 +228,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 1050,
-          "y": -340
-        }
-      }
-  "2":
-    conditions:
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              simple: inputs.SourceIP
-          operator: isExists
-          right:
-            value: {}
-      label: "yes"
-    continueonerrortype: ""
-    id: "2"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#default#':
-      - "5"
-      "yes":
-      - "10"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      id: 492f9a4d-166a-498e-9c6e-dfb786911560
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Is Source IP Defined?
-      playbooktaskmissingcomponent: null
-      type: condition
-      version: -1
-    taskid: 492f9a4d-166a-498e-9c6e-dfb786911560
-    timertriggers: []
-    type: condition
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 390
+          "x": 480,
+          "y": 50
         }
       }
   "4":
@@ -223,52 +257,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 612.5,
-          "y": 1290
-        }
-      }
-  "5":
-    conditions:
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              simple: inputs.RemoteIP
-          operator: isExists
-          right:
-            value: {}
-      label: "yes"
-    continueonerrortype: ""
-    id: "5"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#default#':
-      - "4"
-      "yes":
-      - "11"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      id: 7dba9f04-0e82-4fdd-9185-3ca038f978e6
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Is Destination IP Defined?
-      playbooktaskmissingcomponent: null
-      type: condition
-      version: -1
-    taskid: 7dba9f04-0e82-4fdd-9185-3ca038f978e6
-    timertriggers: []
-    type: condition
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 750
+          "x": 695,
+          "y": 1855
         }
       }
   "9":
@@ -286,139 +276,21 @@ tasks:
     skipunavailable: false
     task:
       brand: ""
-      id: 02dc9df5-d1cf-4475-83a6-dc33e09fc4fe
+      id: 7bfadf59-61ee-41e6-b6db-3fcde1c95727
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: IP Enrichment
+      name: IP Artifacts
       playbooktaskmissingcomponent: null
       type: title
       version: -1
-    taskid: 02dc9df5-d1cf-4475-83a6-dc33e09fc4fe
+    taskid: 7bfadf59-61ee-41e6-b6db-3fcde1c95727
     timertriggers: []
     type: title
     view: |-
       {
         "position": {
-          "x": 190,
-          "y": 40
-        }
-      }
-  "10":
-    continueonerror: true
-    continueonerrortype: errorPath
-    id: "10"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#error#':
-      - "16"
-      '#none#':
-      - "5"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      ip:
-        simple: ${inputs.SourceIP}
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: Provides data enrichment for ips.
-      id: 7402ac5c-de53-492c-a7fa-ec826ef30adf
-      iscommand: true
-      istaskmissingcomponenterrordismissed: false
-      name: Enrich Source IP
-      playbooktaskmissingcomponent: null
-      script: '|||ip'
-      type: regular
-      version: -1
-    taskid: 7402ac5c-de53-492c-a7fa-ec826ef30adf
-    timertriggers: []
-    type: regular
-    view: |-
-      {
-        "position": {
-          "x": 377.5,
-          "y": 570
-        }
-      }
-  "11":
-    continueonerror: true
-    continueonerrortype: errorPath
-    id: "11"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#error#':
-      - "16"
-      '#none#':
-      - "4"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      ip:
-        simple: ${inputs.RemoteIP}
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: Provides data enrichment for ips.
-      id: ef34ca76-959d-4677-aaf2-bd88f9cfc4e6
-      iscommand: true
-      istaskmissingcomponenterrordismissed: false
-      name: Enrich Destination IP
-      playbooktaskmissingcomponent: null
-      script: '|||ip'
-      type: regular
-      version: -1
-    taskid: ef34ca76-959d-4677-aaf2-bd88f9cfc4e6
-    timertriggers: []
-    type: regular
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 930
-        }
-      }
-  "16":
-    continueonerrortype: ""
-    id: "16"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "4"
-    note: false
-    quietmode: 0
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      id: 35dec624-d2e2-448e-a49c-62dc66589b2e
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Foundation - Error Handling_V3
-      playbookId: Foundation - Error Handling_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 35dec624-d2e2-448e-a49c-62dc66589b2e
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 397.5,
-          "y": 1110
+          "x": 910,
+          "y": 1492.5
         }
       }
   "18":
@@ -436,21 +308,21 @@ tasks:
     skipunavailable: false
     task:
       brand: ""
-      id: 7654576b-eded-482f-bec2-270055ebde0c
+      id: 049bb235-0943-4db1-a4d1-d884e1b38460
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: User Enrichment
+      name: User Findings
       playbooktaskmissingcomponent: null
       type: title
       version: -1
-    taskid: 7654576b-eded-482f-bec2-270055ebde0c
+    taskid: 049bb235-0943-4db1-a4d1-d884e1b38460
     timertriggers: []
     type: title
     view: |-
       {
         "position": {
-          "x": 827.5,
-          "y": 740
+          "x": 480,
+          "y": 1492.5
         }
       }
   "19":
@@ -461,7 +333,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "39"
+      - "29"
     note: false
     quietmode: 0
     separatecontext: false
@@ -481,260 +353,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 1710,
-          "y": 530
-        }
-      }
-  "22":
-    continueonerrortype: ""
-    id: "22"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#none#':
-      - "26"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      id: 1e7de422-55dc-4dfd-b67f-d5c6a7d9570d
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: EndPoint Enrichment
-      playbooktaskmissingcomponent: null
-      type: title
-      version: -1
-    taskid: 1e7de422-55dc-4dfd-b67f-d5c6a7d9570d
-    timertriggers: []
-    type: title
-    view: |-
-      {
-        "position": {
-          "x": 1257.5,
-          "y": 935
-        }
-      }
-  "25":
-    continueonerrortype: ""
-    id: "25"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "31"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      MD5:
-        simple: ${inputs.MD5}
-      SHA1:
-        simple: ${inputs.SHA1}
-      SHA256:
-        simple: ${inputs.SHA256}
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      description: Get file reputation using one or more integrations
-      id: 1191bbbd-a098-4503-9af2-d44af45477e7
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC File Enrichment - File reputation_V3
-      playbookId: SOC File Enrichment - File reputation_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 1191bbbd-a098-4503-9af2-d44af45477e7
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 1720,
-          "y": 1110
-        }
-      }
-  "26":
-    continueonerrortype: ""
-    id: "26"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "4"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      EndpointID:
-        complex:
-          root: inputs.EndpointID
-          transformers:
-          - operator: uniq
-      Hostname:
-        complex:
-          root: inputs.HostName
-          transformers:
-          - operator: uniq
-      IPAddress:
-        complex:
-          root: inputs.SourceIP
-          transformers:
-          - operator: uniq
-      UseReputationCommand:
-        simple: "False"
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      description: |-
-        Enrich an endpoint by hostname using one or more integrations.
-        Supported integrations:
-        - Active Directory Query v2
-        - McAfee ePO v2
-        - VMware Carbon Black EDR v2
-        - Cylance Protect v2
-        - CrowdStrike Falcon
-        - ExtraHop Reveal(x)
-        - Cortex XDR / Core (endpoint enrichment, reputation and risk)
-        - Endpoint reputation using !endpoint command.
-      id: 7a660f68-880d-408d-9d36-b6c05eb14776
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC Endpoint Enrichment - Generic v2.1_V3
-      playbookId: SOC Endpoint Enrichment - Generic v2.1_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 7a660f68-880d-408d-9d36-b6c05eb14776
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 1257.5,
-          "y": 1110
-        }
-      }
-  "27":
-    continueonerrortype: ""
-    id: "27"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
-    nexttasks:
-      '#none#':
-      - "4"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      Domain:
-        simple: ${inputs.Domain}
-      Username:
-        complex:
-          root: inputs.UserName
-          transformers:
-          - operator: uniq
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      description: |-
-        Enrich accounts using one or more integrations.
-        Supported integrations:
-        - Active Directory
-        - Microsoft Graph User
-        - SailPoint IdentityNow
-        - SailPoint IdentityIQ
-        - PingOne
-        - Okta
-        - AWS IAM
-        - Cortex XDR (account enrichment and reputation)
-
-        Also, the playbook supports the generic command 'iam-get-user' (implemented in IAM integrations). For more information, visit https://xsoar.pan.dev/docs/integrations/iam-integrations.
-      id: 7a727f50-0c00-4d67-a958-da0fc9ea4627
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: SOC Account Enrichment - Generic v2.1_V3
-      playbookId: SOC Account Enrichment - Generic v2.1_V3
-      playbooktaskmissingcomponent: null
-      type: playbook
-      version: -1
-    taskid: 7a727f50-0c00-4d67-a958-da0fc9ea4627
-    timertriggers: []
-    type: playbook
-    view: |-
-      {
-        "position": {
-          "x": 827.5,
-          "y": 1110
-        }
-      }
-  "28":
-    continueonerror: true
-    continueonerrortype: ""
-    id: "28"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#none#':
-      - "29"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.ProcessName
-      value:
-        simple: ${issue.xdmsourceprocessname}
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: bef489c3-a84d-4165-bd1d-962459b13b2e
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Set Process Name SOCFramework Artifact
-      playbooktaskmissingcomponent: null
-      script: SetAndHandleEmpty
-      type: regular
-      version: -1
-    taskid: bef489c3-a84d-4165-bd1d-962459b13b2e
-    timertriggers: []
-    type: regular
-    view: |-
-      {
-        "position": {
-          "x": 1720,
-          "y": 825
+          "x": 50,
+          "y": 1315
         }
       }
   "29":
@@ -746,7 +366,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "25"
+      - "31"
     note: false
     quietmode: 0
     scriptarguments:
@@ -781,8 +401,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 1720,
-          "y": 960
+          "x": 50,
+          "y": 1485
         }
       }
   "30":
@@ -794,8 +414,6 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "19"
-      - "22"
       - "18"
       - "9"
       - "34"
@@ -819,7 +437,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: de9aeb7d-0a29-4116-95d9-5b7f39ab52f8
+      id: 62ba4236-a536-4eba-a750-e7be723b6e07
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set EndPoint ID SOCFramework Artifact
@@ -827,14 +445,14 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: de9aeb7d-0a29-4116-95d9-5b7f39ab52f8
+    taskid: 62ba4236-a536-4eba-a750-e7be723b6e07
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
-          "x": 1050,
-          "y": -120
+          "x": 480,
+          "y": 405
         }
       }
   "31":
@@ -895,8 +513,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 1720,
-          "y": 1230
+          "x": 50,
+          "y": 1662.5
         }
       }
   "32":
@@ -908,7 +526,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "27"
+      - "4"
     note: false
     quietmode: 0
     scriptarguments:
@@ -929,22 +547,22 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: c9f5968e-f194-4768-867a-ba1c6b234989
+      id: 99ab1535-f684-4457-ad89-1eb430bdd8ed
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Set Process Name SOCFramework Artifact
+      name: Set User Name SOCFramework Artifact
       playbooktaskmissingcomponent: null
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: c9f5968e-f194-4768-867a-ba1c6b234989
+    taskid: 99ab1535-f684-4457-ad89-1eb430bdd8ed
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
-          "x": 827.5,
-          "y": 930
+          "x": 480,
+          "y": 1670
         }
       }
   "33":
@@ -956,7 +574,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "2"
+      - "4"
     note: false
     quietmode: 0
     scriptarguments:
@@ -991,8 +609,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 190,
-          "y": 200
+          "x": 910,
+          "y": 1670
         }
       }
   "34":
@@ -1023,8 +641,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 2360,
-          "y": 530
+          "x": 50,
+          "y": 590
         }
       }
   "35":
@@ -1057,7 +675,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 92db05bd-9e78-43ac-b88a-eac0fcd566ed
+      id: ed82c07b-fb09-4476-955d-f37c46f92c94
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set Process Name SOCFramework Artifact
@@ -1065,14 +683,14 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: 92db05bd-9e78-43ac-b88a-eac0fcd566ed
+    taskid: ed82c07b-fb09-4476-955d-f37c46f92c94
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
-          "x": 2360,
-          "y": 840
+          "x": 50,
+          "y": 945
         }
       }
   "36":
@@ -1084,7 +702,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "37"
+      - "19"
     note: false
     quietmode: 0
     scriptarguments:
@@ -1119,8 +737,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 2360,
-          "y": 1020
+          "x": 50,
+          "y": 1130
         }
       }
   "37":
@@ -1151,8 +769,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 2360,
-          "y": 1190
+          "x": 1340,
+          "y": 1677.5
         }
       }
   "38":
@@ -1185,7 +803,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 4205da3b-ac89-47c0-b432-fe7300ce01c1
+      id: 32bdf524-f0fd-4745-b9d4-603a133d8b3f
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set HostName SOCFramework Artifact
@@ -1193,62 +811,14 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: 4205da3b-ac89-47c0-b432-fe7300ce01c1
+    taskid: 32bdf524-f0fd-4745-b9d4-603a133d8b3f
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
-          "x": 1050,
-          "y": -240
-        }
-      }
-  "39":
-    continueonerror: true
-    continueonerrortype: ""
-    id: "39"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#none#':
-      - "28"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.FilePath
-      value:
-        simple: ${issue.initiatorpath}
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 943d5886-2046-4245-a73a-bc522568fe08
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Set File Path SOCFramework Artifact
-      playbooktaskmissingcomponent: null
-      script: SetAndHandleEmpty
-      type: regular
-      version: -1
-    taskid: 943d5886-2046-4245-a73a-bc522568fe08
-    timertriggers: []
-    type: regular
-    view: |-
-      {
-        "position": {
-          "x": 1720,
-          "y": 690
+          "x": 480,
+          "y": 220
         }
       }
   "40":
@@ -1269,7 +839,7 @@ tasks:
       key:
         simple: SOCFramework.Artifacts.FilePath
       value:
-        simple: ${issue.initiatorpath}
+        simple: ${inputs.FilePath}
     separatecontext: false
     skipunavailable: false
     task:
@@ -1281,7 +851,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: dffd68e4-3122-473d-97ac-586715742234
+      id: 4692c930-0d52-42be-b17f-65963c76b28c
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set File Path SOCFramework Artifact
@@ -1289,14 +859,14 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: dffd68e4-3122-473d-97ac-586715742234
+    taskid: 4692c930-0d52-42be-b17f-65963c76b28c
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
-          "x": 2360,
-          "y": 675
+          "x": 50,
+          "y": 760
         }
       }
 version: -1
@@ -1305,10 +875,10 @@ view: |-
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 1690,
-        "width": 2690,
+        "height": 1865,
+        "width": 1670,
         "x": 50,
-        "y": -340
+        "y": 50
       }
     }
   }

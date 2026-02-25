@@ -1,0 +1,1580 @@
+fromversion: 5.0.0
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 3.0.30
+    packID: ""
+    packName: SOC Framework Unified
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: |-
+  It evaluates three signals:
+
+  File verdict (malicious / suspicious / benign)
+
+  Execution evidence (file SHA256 matches executed process hashes in the issue context)
+
+  Behavioral indicators (MITRE tactics/techniques such as Persistence, Command & Control, Privilege Escalation, Process Injection)
+
+  Outputs
+
+  likely_compromised
+  Malicious file executed or strong post-exploitation behavior observed.
+
+  suspicious
+  Malicious or suspicious activity present but no definitive execution or compromise proof.
+
+  isolated_signal
+  Single weak signal with no execution or strong behavioral indicators.
+
+  no_evidence
+  Benign verdict and no supporting compromise indicators.
+
+  The playbook does not use case risk score or alert volume; it focuses strictly on endpoint-level forensic evidence.
+dirtyInputs: true
+id: 'SOC Endpoint Compromise Evaluation_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - host_likely_compromised
+  - host_suspicious
+  - host_isolated_signal
+  - host_high_issue_count
+  - SHA256
+  - verdict
+  - initiator_sha256
+  - case_mitre_tactics
+  - case_mitre_techniques
+  - case_issue_count
+  - xdm_sourceprocess_executable_sha256
+  - cgo_sha256
+  name: General (Inputs group)
+inputs:
+- description: Threshold for DBot Predicted Score for Host Likely Compromised
+  key: host_likely_compromised
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: "70"
+- description: Threshold for DBot Predicted Score for Host Suspicious.  This value
+    will be between the host_likely_compromised and this value host_suspicious values.
+  key: host_suspicious
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: "40"
+- description: Anything less than this number will be an Isolated Signal for the host.
+  key: host_isolated_signal
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: "40"
+- description: ""
+  key: host_high_issue_count
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: "3"
+- description: ""
+  key: SHA256
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${SOCFramework.Artifacts.File}
+- description: ""
+  key: verdict
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${SOCFramework.Artifacts.Verdict}
+- description: ""
+  key: initiator_sha256
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${issue.initiatorsha256}
+- description: ""
+  key: case_mitre_tactics
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${parentIncidentFields.mitre_tactics_ids_and_names}
+- description: ""
+  key: case_mitre_techniques
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${parentIncidentFields.mitre_techniques_ids_and_names.[0]}
+- description: ""
+  key: case_issue_count
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${parentIncidentFields.alert_count}
+- description: ""
+  key: xdm_sourceprocess_executable_sha256
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${issue.xdmsourceprocessexecutablesha256}
+- description: ""
+  key: cgo_sha256
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${issue.cgosha256}
+name: SOC Endpoint Compromise Evaluation_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - Investigation.findings.compromise_level
+  - Investigation.findings.compromise_decision
+outputs:
+- contextPath: Investigation.findings.compromise_level
+  description: Is this host considered compromised?
+  type: unknown
+- contextPath: Investigation.findings.compromise_decision
+  description: Why did this playbook decide this was the finding?
+  type: unknown
+sourceplaybookid: SOC Data Analysis_V3
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework_Unified
+- Detection & Analysis
+- NIST 800-61
+- EndPoint
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "69"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 27ca4564-aefc-483e-8598-fa04dbefbf2e
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: ""
+      playbooktaskmissingcomponent: null
+      version: -1
+    taskid: 27ca4564-aefc-483e-8598-fa04dbefbf2e
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 50
+        }
+      }
+  "29":
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "70"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_level
+      value:
+        simple: likely_compromised
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 4c010df0-1d0e-46e8-b043-672358f7ddbd
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Compromise Likely
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 4c010df0-1d0e-46e8-b043-672358f7ddbd
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -620,
+          "y": 2550
+        }
+      }
+  "30":
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "32"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: malicious_no_execution
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 4371bae8-fa9c-479e-ac55-d10a704a8938
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description Malicious And No Excecution
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 4371bae8-fa9c-479e-ac55-d10a704a8938
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 315,
+          "y": 1485
+        }
+      }
+  "31":
+    continueonerrortype: ""
+    id: "31"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "32"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: suspicious_execution
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: a328a8d5-b8de-47b4-8a6a-69003e9e388d
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description Suspicious with Execution
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: a328a8d5-b8de-47b4-8a6a-69003e9e388d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 212.5,
+          "y": 1670
+        }
+      }
+  "32":
+    continueonerrortype: ""
+    id: "32"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "70"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: suspicious_execution
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 7b4a8594-365d-40d8-84cd-5590cb809f0d
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Compromise Suspicious
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 7b4a8594-365d-40d8-84cd-5590cb809f0d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -80,
+          "y": 2550
+        }
+      }
+  "33":
+    continueonerrortype: ""
+    id: "33"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "70"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_level
+      value:
+        simple: isolate_signal
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 673a1f63-6c99-4218-8520-8e5226cda124
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Compromise Isolated
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 673a1f63-6c99-4218-8520-8e5226cda124
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 652.5,
+          "y": 2550
+        }
+      }
+  "69":
+    continueonerrortype: ""
+    id: "69"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "82"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9e094f2a-5581-4510-9292-6bb1be80aebd
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Investigate
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 9e094f2a-5581-4510-9292-6bb1be80aebd
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 220
+        }
+      }
+  "70":
+    continueonerrortype: ""
+    id: "70"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 26cd8ee9-1d01-40d1-9b3a-dbd76a8cfa1e
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Done
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 26cd8ee9-1d01-40d1-9b3a-dbd76a8cfa1e
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 2735
+        }
+      }
+  "75":
+    continueonerrortype: ""
+    id: "75"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "70"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_level
+      value:
+        simple: no_evidence
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 9a3a0cd8-7536-4b2b-9cad-5448e9602fc5
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Compromise No Evidence
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 9a3a0cd8-7536-4b2b-9cad-5448e9602fc5
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1340,
+          "y": 2550
+        }
+      }
+  "76":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.xdm_sourceprocess_executable_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: isEqualString
+          right:
+            iscontext: true
+            value:
+              simple: inputs.initiator_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: isEqualString
+          right:
+            iscontext: true
+            value:
+              simple: inputs.cgo_sha256
+      label: Likely Compromised
+    continueonerrortype: ""
+    id: "76"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "81"
+      Likely Compromised:
+      - "87"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 54387c7d-89ee-44c5-b977-07dab20e908e
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Compromised Host Malicious and Executed?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 54387c7d-89ee-44c5-b977-07dab20e908e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 560
+        }
+      }
+  "77":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.xdm_sourceprocess_executable_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.initiator_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.cgo_sha256
+      label: Suspicious
+    continueonerrortype: ""
+    id: "77"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "78"
+      Suspicious:
+      - "30"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 34027e15-2aef-4b0a-8878-957e370550ce
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Compromised Malicious No Execution?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 34027e15-2aef-4b0a-8878-957e370550ce
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 920,
+          "y": 1300
+        }
+      }
+  "78":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: suspicious
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.xdm_sourceprocess_executable_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.initiator_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.cgo_sha256
+      label: Suspicious
+    continueonerrortype: ""
+    id: "78"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "86"
+      Suspicious:
+      - "31"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9422d3f6-ce78-45bb-bea3-69c58b2ee781
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Compromised  Suspicious with Execution?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 9422d3f6-ce78-45bb-bea3-69c58b2ee781
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1032.5,
+          "y": 1485
+        }
+      }
+  "79":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: in
+          right:
+            value:
+              simple: |
+                ("unknown","suspicious"))
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.xdm_sourceprocess_executable_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.initiator_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.cgo_sha256
+      - - left:
+            iscontext: true
+            value:
+              simple: TA0011
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+      - - left:
+            iscontext: true
+            value:
+              simple: TA0003
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+      - - left:
+            iscontext: true
+            value:
+              simple: T1055
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_techniques
+      - - left:
+            iscontext: true
+            value:
+              simple: TA0004
+          operator: isEqualString
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_techniques
+      label: Isolated Signal
+    continueonerrortype: ""
+    id: "79"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "80"
+      Isolated Signal:
+      - "91"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 28ea7aab-be63-4e6c-b9d9-63520cab7f0e
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Isolated Signal?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 28ea7aab-be63-4e6c-b9d9-63520cab7f0e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1155,
+          "y": 2040
+        }
+      }
+  "80":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: benign
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.xdm_sourceprocess_executable_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.initiator_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: isEqualString
+          right:
+            iscontext: true
+            value:
+              simple: inputs.cgo_sha256
+      label: No Evidence
+    continueonerrortype: ""
+    id: "80"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "70"
+      No Evidence:
+      - "92"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 4fc50960-386f-4513-ae04-8a7df6cd4db1
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: No Evidence?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 4fc50960-386f-4513-ae04-8a7df6cd4db1
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1085,
+          "y": 2255
+        }
+      }
+  "81":
+    conditions:
+    - condition:
+      - - left:
+            value:
+              simple: TA0011
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+        - left:
+            value:
+              simple: TA0003
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.xdm_sourceprocess_executable_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.initiator_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.cgo_sha256
+      label: Likely Compromised
+    continueonerrortype: ""
+    id: "81"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "85"
+      Likely Compromised:
+      - "88"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 98a68f9b-8748-4de0-83b6-ae46d324c1e2
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Execution + Strong Exploit Tactics
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 98a68f9b-8748-4de0-83b6-ae46d324c1e2
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 705,
+          "y": 745
+        }
+      }
+  "82":
+    continueonerrortype: ""
+    id: "82"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "76"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 21ba8f6d-bdff-425f-9c4b-f19cccf4de83
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Evaluate Malicious
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 21ba8f6d-bdff-425f-9c4b-f19cccf4de83
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 390
+        }
+      }
+  "83":
+    continueonerrortype: ""
+    id: "83"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "77"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 289cfa9b-dc82-4e6f-be72-b0002e049a00
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Evaluate Suspicious
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 289cfa9b-dc82-4e6f-be72-b0002e049a00
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 920,
+          "y": 1122.5
+        }
+      }
+  "84":
+    continueonerrortype: ""
+    id: "84"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "79"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2e46b5b4-7337-4691-b9df-349934c95fd7
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Evaluate Isolated Signal
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 2e46b5b4-7337-4691-b9df-349934c95fd7
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1155,
+          "y": 1862.5
+        }
+      }
+  "85":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious
+      - - left:
+            value:
+              simple: TA0011
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+        - left:
+            value:
+              simple: TA0003
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+      label: Likely Compromised
+    continueonerrortype: ""
+    id: "85"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "83"
+      Likely Compromised:
+      - "89"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b57df6ec-9f5d-481c-b732-7f1f59026dbd
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Malicious Strong Exploit Tactics
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: b57df6ec-9f5d-481c-b732-7f1f59026dbd
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 930
+        }
+      }
+  "86":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.xdm_sourceprocess_executable_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.initiator_sha256
+        - left:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+          operator: notIn
+          right:
+            iscontext: true
+            value:
+              simple: inputs.cgo_sha256
+      - - left:
+            value:
+              simple: TA0011
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+        - left:
+            value:
+              simple: TA0003
+          operator: in
+          right:
+            iscontext: true
+            value:
+              simple: inputs.case_mitre_tactics
+      label: Suspicious
+    continueonerrortype: ""
+    id: "86"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "84"
+      Suspicious:
+      - "32"
+      - "90"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: a6c34090-a35f-400d-b4f4-30dc4d0ff3c8
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Compromised Strong Tactics No Execution?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: a6c34090-a35f-400d-b4f4-30dc4d0ff3c8
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1155,
+          "y": 1670
+        }
+      }
+  "87":
+    continueonerrortype: ""
+    id: "87"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "29"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: malicious_and_executed
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 1e4dec76-91c3-45a2-9ec3-7e57564c7c32
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description To Malicious And Executed
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 1e4dec76-91c3-45a2-9ec3-7e57564c7c32
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": -42.5,
+          "y": 745
+        }
+      }
+  "88":
+    continueonerrortype: ""
+    id: "88"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "29"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: execution_strong_tactics
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 353dc2b8-f205-4dc6-abca-c9c00d6d34e9
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description Execution And Strong Tactics
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 353dc2b8-f205-4dc6-abca-c9c00d6d34e9
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 200,
+          "y": 930
+        }
+      }
+  "89":
+    continueonerrortype: ""
+    id: "89"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "29"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: malicious_strong_tactics
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: bcbc6174-fcc2-488e-83fb-dc73560cfa4d
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description Malicioius And Strong Tactics
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: bcbc6174-fcc2-488e-83fb-dc73560cfa4d
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 387.5,
+          "y": 1115
+        }
+      }
+  "90":
+    continueonerrortype: ""
+    id: "90"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "32"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: strong_tactics_no_execution
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 9b9d105e-134e-4397-b80f-949c549cd6be
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description Suspicious with Execution
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 9b9d105e-134e-4397-b80f-949c549cd6be
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 447.5,
+          "y": 1855
+        }
+      }
+  "91":
+    continueonerrortype: ""
+    id: "91"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "33"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: suspcious_no_tactics_no_execution
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: c0ae4ecb-c687-49e8-84d7-e15087f2c7b3
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description Suspicious, No Execution, No Tactics
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: c0ae4ecb-c687-49e8-84d7-e15087f2c7b3
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 652.5,
+          "y": 2255
+        }
+      }
+  "92":
+    continueonerrortype: ""
+    id: "92"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "75"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.compromise_decision
+      value:
+        simple: benign_no_execution
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: f14be6c5-632b-4ab2-95c0-ccea72352e00
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Description Benign, No Execution
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: f14be6c5-632b-4ab2-95c0-ccea72352e00
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1340,
+          "y": 2410
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "76_81_#default#": 0.9
+    },
+    "paper": {
+      "dimensions": {
+        "height": 2745,
+        "width": 2340,
+        "x": -620,
+        "y": 50
+      }
+    }
+  }

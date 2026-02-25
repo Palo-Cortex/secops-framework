@@ -1,0 +1,446 @@
+fromversion: 5.0.0
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 3.0.30
+    packID: ""
+    packName: SOC Framework Unified
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: Clean up the data context and prepare to perform the investigation.
+dirtyInputs: true
+id: 'SOC Initialize Investigation Context_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - reset_keys
+  - case_host_count
+  - case_score
+  - case_issue_count
+  - case_user_count
+  name: General (Inputs group)
+inputs:
+- description: ""
+  key: reset_keys
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: Investigation,Analysis
+- description: ""
+  key: case_host_count
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${parentIncidentFields.host_count}
+- description: What Risk Score Does AI give to case that issue belongs?
+  key: case_score
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${parentIncidentFields.predicted_score}
+- description: How many other alerts are in this case?
+  key: case_issue_count
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${parentIncidentFields.alert_count}
+- description: ""
+  key: case_user_count
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${parentIncidentFields.user_count}
+name: SOC Initialize Investigation Context_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - Investigation.findings.case_score
+  - Investigation.findings.host_count
+  - Investigation.findings.user_count
+  - Investigation.findings.issue_count
+outputs:
+- contextPath: Investigation.findings.case_score
+  description: Risk Score for Case
+  type: unknown
+- contextPath: Investigation.findings.host_count
+  description: Host Count in Case
+  type: unknown
+- contextPath: Investigation.findings.user_count
+  type: unknown
+- contextPath: Investigation.findings.issue_count
+  type: unknown
+sourceplaybookid: SOC Data Analysis_V3
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework_Unified
+- Detection & Analysis
+- EndPoint
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "59"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: ""
+      playbooktaskmissingcomponent: null
+      version: -1
+    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Done
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1315
+        }
+      }
+  "59":
+    continueonerrortype: ""
+    id: "59"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "60"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: Clean Out Keys for the Investigation and Analysis
+      id: f3b5ab33-1507-4366-8af0-148333ec3b05
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Preparation
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: f3b5ab33-1507-4366-8af0-148333ec3b05
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 220
+        }
+      }
+  "60":
+    continueonerrortype: ""
+    id: "60"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "61"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      all:
+        simple: "no"
+      key:
+        simple: ${inputs.reset_keys}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Delete field from context.\n\nThis automation runs using the default
+        Limited User role, unless you explicitly change the permissions.\nFor more
+        information, see the section about permissions here:\n- For Cortex XSOAR 6
+        see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: c505d50d-7e28-4e82-86ef-0391f2cfaa06
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Clean Out Investigation and Analysis
+      playbooktaskmissingcomponent: null
+      script: DeleteContext
+      type: regular
+      version: -1
+    taskid: c505d50d-7e28-4e82-86ef-0391f2cfaa06
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 390
+        }
+      }
+  "61":
+    continueonerrortype: ""
+    id: "61"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "62"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: Investigation.findings.host_count
+      value:
+        complex:
+          root: inputs.case_host_count
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: "0"
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: afa3e542-5d82-43d5-b60e-8996db4e3613
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Investigation Host Count
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: afa3e542-5d82-43d5-b60e-8996db4e3613
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 575
+        }
+      }
+  "62":
+    continueonerrortype: ""
+    id: "62"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "63"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: Investigation.findings.issue_count
+      value:
+        complex:
+          root: inputs.case_issue_count
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: "0"
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 0087c50d-d9d3-4e6d-ae85-bde48c122d1f
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Issue Count
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 0087c50d-d9d3-4e6d-ae85-bde48c122d1f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 760
+        }
+      }
+  "63":
+    continueonerrortype: ""
+    id: "63"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "64"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: Investigation.findings.case_score
+      value:
+        complex:
+          root: inputs.case_score
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: "0"
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 8e226db5-e54d-4292-8a0e-dd8492ddeaa0
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Case Risk Score
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 8e226db5-e54d-4292-8a0e-dd8492ddeaa0
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 945
+        }
+      }
+  "64":
+    continueonerrortype: ""
+    id: "64"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: Investigation.findings.user_count
+      value:
+        complex:
+          root: inputs.case_user_count
+          transformers:
+          - args:
+              applyIfEmpty: {}
+              defaultValue:
+                value:
+                  simple: "0"
+            operator: SetIfEmpty
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 8c637a4c-cf08-472f-bc51-f5a6a2f8d854
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Investigation User Count
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 8c637a4c-cf08-472f-bc51-f5a6a2f8d854
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1130
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1325,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
