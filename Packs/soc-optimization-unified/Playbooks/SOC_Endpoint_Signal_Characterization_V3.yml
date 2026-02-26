@@ -1,47 +1,87 @@
 fromversion: 5.0.0
-id: SOC Endpoint Signal Characterization_V3
-version: 12
+adopted: true
 contentitemexportablefields:
   contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 3.0.30
     packID: ""
     packName: SOC Framework Unified
-    itemVersion: 3.0.30
-    fromServerVersion: 5.0.0
-    toServerVersion: ""
-    definitionid: ""
     prevname: ""
-    isoverridable: false
     supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
-name: SOC Endpoint Signal Characterization_V3
+    toServerVersion: ""
 description: "Purpose\nDetermine what type of endpoint behavior this is.\nThis is
   not attack vector.\nThis is behavioral class.\nCurrent Tasks:\n\nDefine Attack Vector\nIs
   Malware? \nIs Injection / Shellcode? \nDoes CGO CMD Exist? \nSet Endpoint Path "
+dirtyInputs: true
+id: 'SOC Endpoint Signal Characterization_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - case_name
+  - cgo_name
+  name: General (Inputs group)
+inputs:
+- description: ""
+  key: case_name
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: name
+      root: issue
+      transformers:
+      - operator: toLowerCase
+- description: ""
+  key: cgo_name
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${issue.cgocmd}
+name: SOC Endpoint Signal Characterization_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - Investigation.findings.signal_type
+outputs:
+- contextPath: Investigation.findings.signal_type
+  description: What type of Endpoint Signal is this (i.e. malware, process, behavioral)?
+  type: string
+sourceplaybookid: SOC Data Analysis_V3
+starttaskid: "0"
 tags:
 - SOC
 - SOC_Framework_Unified
 - Detection & Analysis
 - NIST 800-61
 - EndPoint
-starttaskid: "0"
 tasks:
   "0":
+    continueonerrortype: ""
     id: "0"
-    taskid: 27ca4564-aefc-483e-8598-fa04dbefbf2e
-    type: start
-    task:
-      id: 27ca4564-aefc-483e-8598-fa04dbefbf2e
-      version: -1
-      name: ""
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     nexttasks:
       '#none#':
       - "3"
+    note: false
+    quietmode: 0
     separatecontext: false
-    continueonerrortype: ""
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 27ca4564-aefc-483e-8598-fa04dbefbf2e
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: ""
+      playbooktaskmissingcomponent: null
+      version: -1
+    taskid: 27ca4564-aefc-483e-8598-fa04dbefbf2e
+    timertriggers: []
+    type: start
     view: |-
       {
         "position": {
@@ -49,31 +89,31 @@ tasks:
           "y": 50
         }
       }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
   "3":
+    continueonerrortype: ""
     id: "3"
-    taskid: dfb1f62b-258e-4e82-8f1c-b14f17ea13e4
-    type: title
-    task:
-      id: dfb1f62b-258e-4e82-8f1c-b14f17ea13e4
-      version: -1
-      name: Define Attack Vector
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     nexttasks:
       '#none#':
       - "4"
+    note: false
+    quietmode: 0
     separatecontext: false
-    continueonerrortype: ""
+    skipunavailable: false
+    task:
+      brand: ""
+      id: dfb1f62b-258e-4e82-8f1c-b14f17ea13e4
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Define Attack Vector
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: dfb1f62b-258e-4e82-8f1c-b14f17ea13e4
+    timertriggers: []
+    type: title
     view: |-
       {
         "position": {
@@ -81,74 +121,74 @@ tasks:
           "y": 220
         }
       }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
   "4":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.case_name
+                transformers:
+                - operator: toLowerCase
+          operator: containsString
+          right:
+            value:
+              simple: malware
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.case_name
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: wildfire
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.case_name
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious
+      label: Malware
+    continueonerrortype: ""
     id: "4"
-    taskid: 58525173-8940-4cae-8796-3af3458bf7d5
-    type: condition
-    task:
-      id: 58525173-8940-4cae-8796-3af3458bf7d5
-      version: -1
-      name: Is Malware?
-      description: |-
-        This captures:
-        WildFire Malware
-        Malware Activity
-        Known Malicious File
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     nexttasks:
       '#default#':
       - "5"
       Malware:
       - "8"
+    note: false
+    quietmode: 0
     separatecontext: false
-    conditions:
-    - label: Malware
-      condition:
-      - - operator: containsString
-          left:
-            value:
-              complex:
-                root: inputs.case_name
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: malware
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.case_name
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: wildfire
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.case_name
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: malicious
-    continueonerrortype: ""
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        This captures:
+        WildFire Malware
+        Malware Activity
+        Known Malicious File
+      id: 58525173-8940-4cae-8796-3af3458bf7d5
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Is Malware?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 58525173-8940-4cae-8796-3af3458bf7d5
+    timertriggers: []
+    type: condition
     view: |-
       {
         "position": {
@@ -156,74 +196,74 @@ tasks:
           "y": 390
         }
       }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
   "5":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.case_name
+                transformers:
+                - operator: toLowerCase
+          operator: containsString
+          right:
+            value:
+              simple: injection
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.case_name
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: shellcode
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.case_name
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: exploit
+      label: Behavioral
+    continueonerrortype: ""
     id: "5"
-    taskid: 503051b3-d89e-4d5c-9cdc-057518241481
-    type: condition
-    task:
-      id: 503051b3-d89e-4d5c-9cdc-057518241481
-      version: -1
-      name: Is Injection / Shellcode / Exploit Behavior?
-      description: |-
-        This matches:
-        Process Injection
-        In-process shellcode Protection
-        Exploit-based detections
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     nexttasks:
       '#default#':
       - "10"
       Behavioral:
       - "9"
+    note: false
+    quietmode: 0
     separatecontext: false
-    conditions:
-    - label: Behavioral
-      condition:
-      - - operator: containsString
-          left:
-            value:
-              complex:
-                root: inputs.case_name
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: injection
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.case_name
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: shellcode
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.case_name
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: exploit
-    continueonerrortype: ""
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        This matches:
+        Process Injection
+        In-process shellcode Protection
+        Exploit-based detections
+      id: 503051b3-d89e-4d5c-9cdc-057518241481
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Is Injection / Shellcode / Exploit Behavior?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 503051b3-d89e-4d5c-9cdc-057518241481
+    timertriggers: []
+    type: condition
     view: |-
       {
         "position": {
@@ -231,28 +271,28 @@ tasks:
           "y": 575
         }
       }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
   "6":
-    id: "6"
-    taskid: 0c3c3767-5423-4648-837a-2857fffb8f14
-    type: title
-    task:
-      id: 0c3c3767-5423-4648-837a-2857fffb8f14
-      version: -1
-      name: Done
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: false
     continueonerrortype: ""
+    id: "6"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0c3c3767-5423-4648-837a-2857fffb8f14
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Done
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 0c3c3767-5423-4648-837a-2857fffb8f14
+    timertriggers: []
+    type: title
     view: |-
       {
         "position": {
@@ -260,37 +300,18 @@ tasks:
           "y": 1130
         }
       }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
   "8":
+    continueonerror: true
+    continueonerrortype: ""
     id: "8"
-    taskid: 90251b08-df0e-4500-a4b4-ed12c43af066
-    type: regular
-    task:
-      id: 90251b08-df0e-4500-a4b4-ed12c43af066
-      version: -1
-      name: Set Endpoint Path file_malware
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      scriptName: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     nexttasks:
       '#none#':
       - "6"
+    note: false
+    quietmode: 0
     scriptarguments:
       append:
         simple: "false"
@@ -301,30 +322,9 @@ tasks:
       value:
         simple: file_malware
     separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 945
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
     skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "9":
-    id: "9"
-    taskid: 4905a04f-649e-4919-86fd-72eeb6f0ed39
-    type: regular
     task:
-      id: 4905a04f-649e-4919-86fd-72eeb6f0ed39
-      version: -1
-      name: Set Endpoint Path behavior_memory
+      brand: ""
       description: "Set a value in context under the key you entered. If no value
         is entered, the script doesn't do anything.\n\nThis automation runs using
         the default Limited User role, unless you explicitly change the permissions.\nFor
@@ -332,15 +332,35 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      scriptName: SetAndHandleEmpty
-      type: regular
+      id: 90251b08-df0e-4500-a4b4-ed12c43af066
       iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
+      name: Set Endpoint Path file_malware
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 90251b08-df0e-4500-a4b4-ed12c43af066
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 945
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     nexttasks:
       '#none#':
       - "6"
+    note: false
+    quietmode: 0
     scriptarguments:
       append:
         simple: "false"
@@ -351,78 +371,9 @@ tasks:
       value:
         simple: behavior_memory
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 945
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
     skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "10":
-    id: "10"
-    taskid: 2515f02b-331a-4450-ab16-14148c327068
-    type: condition
     task:
-      id: 2515f02b-331a-4450-ab16-14148c327068
-      version: -1
-      name: Does CGO CMD Exists?
-      description: |-
-        This captures:
-        Suspicious PowerShell
-        LOLBin misuse
-        Encoded commands
-        Script abuse
-        PsExec, WMI, etc.
-      type: condition
-      iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "6"
-      Process Execution:
-      - "11"
-    separatecontext: false
-    conditions:
-    - label: Process Execution
-      condition:
-      - - operator: isNotEmpty
-          left:
-            value:
-              simple: inputs.cgo_name
-            iscontext: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1022.5,
-          "y": 760
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "11":
-    id: "11"
-    taskid: fd88680e-db16-4666-9582-ab616eb2fa77
-    type: regular
-    task:
-      id: fd88680e-db16-4666-9582-ab616eb2fa77
-      version: -1
-      name: Set Endpoint Path process_execution
       description: "Set a value in context under the key you entered. If no value
         is entered, the script doesn't do anything.\n\nThis automation runs using
         the default Limited User role, unless you explicitly change the permissions.\nFor
@@ -430,15 +381,84 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      scriptName: SetAndHandleEmpty
-      type: regular
+      id: 4905a04f-649e-4919-86fd-72eeb6f0ed39
       iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
+      name: Set Endpoint Path behavior_memory
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 4905a04f-649e-4919-86fd-72eeb6f0ed39
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 945
+        }
+      }
+  "10":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.cgo_name
+          operator: isNotEmpty
+      label: Process Execution
+    continueonerrortype: ""
+    id: "10"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "6"
+      Process Execution:
+      - "11"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        This captures:
+        Suspicious PowerShell
+        LOLBin misuse
+        Encoded commands
+        Script abuse
+        PsExec, WMI, etc.
+      id: 2515f02b-331a-4450-ab16-14148c327068
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Does CGO CMD Exists?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 2515f02b-331a-4450-ab16-14148c327068
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 1022.5,
+          "y": 760
+        }
+      }
+  "11":
+    continueonerrortype: ""
+    id: "11"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
     nexttasks:
       '#none#':
       - "6"
+    note: false
+    quietmode: 0
     scriptarguments:
       append:
         simple: "false"
@@ -449,7 +469,27 @@ tasks:
       value:
         simple: process_execution
     separatecontext: false
-    continueonerrortype: ""
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: fd88680e-db16-4666-9582-ab616eb2fa77
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Endpoint Path process_execution
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: fd88680e-db16-4666-9582-ab616eb2fa77
+    timertriggers: []
+    type: regular
     view: |-
       {
         "position": {
@@ -457,13 +497,7 @@ tasks:
           "y": 945
         }
       }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
+version: -1
 view: |-
   {
     "linkLabelsPosition": {},
@@ -476,38 +510,3 @@ view: |-
       }
     }
   }
-inputs:
-- key: case_name
-  value:
-    complex:
-      root: issue
-      accessor: name
-      transformers:
-      - operator: toLowerCase
-  required: false
-  description: ""
-  playbookInputQuery: null
-- key: cgo_name
-  value:
-    simple: ${issue.cgocmd}
-  required: false
-  description: ""
-  playbookInputQuery: null
-inputSections:
-- inputs:
-  - case_name
-  - cgo_name
-  name: General (Inputs group)
-  description: Generic group for inputs
-outputSections:
-- outputs:
-  - Investigation.findings.signal_type
-  name: General (Outputs group)
-  description: Generic group for outputs
-outputs:
-- contextPath: Investigation.findings.signal_type
-  description: What type of Endpoint Signal is this (i.e. malware, process, behavioral)?
-  type: string
-sourceplaybookid: SOC Data Analysis_V3
-dirtyInputs: true
-adopted: true
