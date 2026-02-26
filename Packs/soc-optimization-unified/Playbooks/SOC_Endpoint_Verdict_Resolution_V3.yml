@@ -1,0 +1,789 @@
+fromversion: 5.0.0
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 3.0.30
+    packID: ""
+    packName: SOC Framework Unified
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: "Purpose: Is the artifact malicious, suspicious, benign, or unknown?\n\nCurrent
+  Tasks\nWhat is Current File Verdict \nCan We Get the Verdict\nWildFire Detonate
+  \nDBot Score \nDoes DBot Think It’s Malicious? \nSet Verdict "
+dirtyInputs: true
+id: 'SOC Endpoint Verdict Resolution_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - SHA256
+  - verdict
+  name: General (Inputs group)
+inputs:
+- description: ""
+  key: SHA256
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${SOCFramework.Artifacts.File}
+- description: ""
+  key: verdict
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${SOCFramework.Artifacts.Verdict}
+name: SOC Endpoint Verdict Resolution_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - Investigation.findings.verdict
+outputs:
+- contextPath: Investigation.findings.verdict
+  description: What did Analysis Find?
+  type: string
+sourceplaybookid: SOC Data Analysis_V3
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework_Unified
+- Detection & Analysis
+- NIST 800-61
+- EndPoint
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 27ca4564-aefc-483e-8598-fa04dbefbf2e
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: ""
+      playbooktaskmissingcomponent: null
+      version: -1
+    taskid: 27ca4564-aefc-483e-8598-fa04dbefbf2e
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 817.5,
+          "y": 50
+        }
+      }
+  "2":
+    continueonerrortype: ""
+    id: "2"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: eacb150f-a5d1-4b77-8945-e7f68a68424d
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Done
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: eacb150f-a5d1-4b77-8945-e7f68a68424d
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 1485
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "25"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      File:
+        complex:
+          root: inputs.SHA256
+          transformers:
+          - operator: uniq
+      Interval:
+        simple: "60"
+      Timeout:
+        simple: "480"
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: |-
+        Detonate one or more files using the Wildfire v2 integration. This playbook
+        returns relevant reports to the War Room and file reputations to the context data.
+        The detonation supports the following file types -
+        APK, JAR, DOC, DOCX, RTF, XLS, XLSX, PPT, PPTX, OOXML, PE32, PE, PDF, DMG, PKG, RAR, 7Z, JS, ELF, HTA, LNK, VBS, PS1, PERL, PYTHON, SHELL.
+
+        Note: Base64 encoded files are currently not supported.
+      id: 6135e0c2-2d13-4194-8c57-032f4b794efa
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: WildFire - Detonate file v2
+      playbookId: WildFire - Detonate file v2
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 6135e0c2-2d13-4194-8c57-032f4b794efa
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 817.5,
+          "y": 745
+        }
+      }
+  "19":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious
+      label: Malicious
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: suspicious
+      label: suspicious
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: benign
+      label: benign
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "22"
+      Malicious:
+      - "20"
+      Suspicious:
+      - "21"
+      benign:
+      - "40"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      key:
+        simple: Investigation.findings.verdict
+      value:
+        simple: malicious
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: cd946f44-7cfc-42cc-af18-59e708a6a772
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: What is the Current File Verdict
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: cd946f44-7cfc-42cc-af18-59e708a6a772
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 817.5,
+          "y": 220
+        }
+      }
+  "20":
+    continueonerrortype: ""
+    id: "20"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "35"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 88286b96-3bca-4b61-8359-e1ac95b90d0f
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Malicious File
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 88286b96-3bca-4b61-8359-e1ac95b90d0f
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 60,
+          "y": 1122.5
+        }
+      }
+  "21":
+    continueonerrortype: ""
+    id: "21"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "47"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: bcaabc3e-cf4a-4a4c-8fac-eae176d545a3
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Suspicious
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: bcaabc3e-cf4a-4a4c-8fac-eae176d545a3
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 387.5,
+          "y": 405
+        }
+      }
+  "22":
+    continueonerrortype: ""
+    id: "22"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "47"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 2e769790-ec73-47ce-8b2a-1583f0ea7cdd
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Unknown
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 2e769790-ec73-47ce-8b2a-1583f0ea7cdd
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1145,
+          "y": 405
+        }
+      }
+  "23":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: DBotAvgScore.Indicator
+                    operator: inList
+                    right:
+                      iscontext: true
+                      value:
+                        simple: inputs.SHA256
+                root: DBotAvgScore
+                transformers:
+                - args:
+                    field:
+                      value:
+                        simple: Score
+                  operator: getField
+          operator: isEqualString
+          right:
+            value:
+              simple: "3"
+      label: Malicious
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: DBotAvgScore
+                    operator: inList
+                    right:
+                      iscontext: true
+                      value:
+                        simple: inputs.SHA256
+                root: DBotAvgScore
+                transformers:
+                - args:
+                    field:
+                      value:
+                        simple: Score
+                  operator: getField
+          operator: isEqualString
+          right:
+            value:
+              simple: "2"
+      label: Suspicious
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                filters:
+                - - left:
+                      iscontext: true
+                      value:
+                        simple: DBotAvgScore
+                    operator: inList
+                    right:
+                      iscontext: true
+                      value:
+                        simple: inputs.SHA256
+                root: DBotAvgScore
+                transformers:
+                - args:
+                    field:
+                      value:
+                        simple: Score
+                  operator: getField
+          operator: isEqualString
+          right:
+            value:
+              simple: "1"
+      label: Benign
+    continueonerrortype: ""
+    id: "23"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "39"
+      Benign:
+      - "65"
+      Malicious:
+      - "35"
+      Suspicious:
+      - "36"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: de61cf73-aee9-4810-941a-7a2494e54805
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Does DBot Think It's Malicious?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: de61cf73-aee9-4810-941a-7a2494e54805
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 817.5,
+          "y": 1115
+        }
+      }
+  "25":
+    continueonerrortype: ""
+    id: "25"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "23"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: The script calculates the average DBot score for each indicator
+        in the context.
+      id: 18476c9f-e302-479f-812c-0ff30a09de78
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Get Dbot Indicator Score
+      playbooktaskmissingcomponent: null
+      script: DBotAverageScore
+      type: regular
+      version: -1
+    taskid: 18476c9f-e302-479f-812c-0ff30a09de78
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 817.5,
+          "y": 930
+        }
+      }
+  "35":
+    continueonerrortype: ""
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.verdict
+      value:
+        complex:
+          root: inputs.verdict
+          transformers:
+          - operator: toLowerCase
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 06f0b0c2-928c-4f53-8573-446dbbed3fbe
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Verdict Malicious
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 06f0b0c2-928c-4f53-8573-446dbbed3fbe
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 602.5,
+          "y": 1300
+        }
+      }
+  "36":
+    continueonerrortype: ""
+    id: "36"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.verdict
+      value:
+        complex:
+          root: inputs.verdict
+          transformers:
+          - operator: toLowerCase
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: d440e57a-1c4e-4deb-8858-a8b0a519340a
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Verdict Suspicious
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: d440e57a-1c4e-4deb-8858-a8b0a519340a
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1687.5,
+          "y": 1300
+        }
+      }
+  "39":
+    continueonerrortype: ""
+    id: "39"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.verdict
+      value:
+        simple: unknown
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 844144f5-b61a-45f0-8e9e-739511f2b43f
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Verdict Unknown
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 844144f5-b61a-45f0-8e9e-739511f2b43f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1300
+        }
+      }
+  "40":
+    continueonerrortype: ""
+    id: "40"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "65"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 791f05cc-947e-4163-86ab-cc10f71b1978
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Benign
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 791f05cc-947e-4163-86ab-cc10f71b1978
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1452.5,
+          "y": 1122.5
+        }
+      }
+  "47":
+    continueonerrortype: ""
+    id: "47"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "18"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 1e247678-4bf2-41a0-81b9-bda992f12bc7
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Can We Get the Verdict?
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 1e247678-4bf2-41a0-81b9-bda992f12bc7
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 817.5,
+          "y": 575
+        }
+      }
+  "65":
+    continueonerrortype: ""
+    id: "65"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "2"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Investigation.findings.verdict
+      value:
+        complex:
+          root: inputs.verdict
+          transformers:
+          - operator: toLowerCase
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 5ab7e68c-49ee-409d-bcab-59ed8852cc1c
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Verdict Benign
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 5ab7e68c-49ee-409d-bcab-59ed8852cc1c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 1257.5,
+          "y": 1300
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {
+      "19_21_Suspicious": 0.56
+    },
+    "paper": {
+      "dimensions": {
+        "height": 1495,
+        "width": 2017.5,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
