@@ -1,0 +1,884 @@
+fromversion: 5.0.0
+adopted: true
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ""
+    fromServerVersion: 5.0.0
+    isoverridable: false
+    itemVersion: 3.0.30
+    packID: ""
+    packName: SOC Framework Unified
+    prevname: ""
+    supportedModules: []
+    toServerVersion: ""
+description: |2+
+
+dirtyInputs: true
+id: 'Foundation - Normalize Artifacts_V3'
+inputSections:
+- description: Generic group for inputs
+  inputs:
+  - HostName
+  - EndpointID
+  - FilePath
+  - ProcessName
+  - PID
+  - SHA256
+  - Verdict
+  - SourceIP
+  - UserName
+  name: General (Inputs group)
+inputs:
+- description: ""
+  key: HostName
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourcehosthostname}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.hostname}
+        operator: SetIfEmpty
+- description: ""
+  key: EndpointID
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourceagentidentifier}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.agentid}
+        operator: SetIfEmpty
+- description: ""
+  key: FilePath
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourceprocessexecutablepath}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.initiatorpath}
+        operator: SetIfEmpty
+- description: ""
+  key: ProcessName
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourceprocessname}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.initiatedby}
+        operator: SetIfEmpty
+- description: ""
+  key: PID
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${issue.initiatorpid}
+- description: ""
+  key: SHA256
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourceprocessexecutablesha256}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.initiatorsha256}
+        operator: SetIfEmpty
+- description: ""
+  key: Verdict
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: Verdict
+      filters:
+      - - left:
+            iscontext: true
+            value:
+              simple: Unit42Intelligence.File.Value
+          operator: isEqualString
+          right:
+            iscontext: true
+            value:
+              simple: inputs.SHA256
+      root: Unit42Intelligence.File
+      transformers:
+      - operator: StringToArray
+- description: ""
+  key: SourceIP
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourcehostipv4addresses}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.hostip}
+        operator: SetIfEmpty
+- description: ""
+  key: UserName
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: xdmsourceuserusername}
+      root: ${issue
+      transformers:
+      - args:
+          applyIfEmpty: {}
+          defaultValue:
+            value:
+              simple: ${issue.username}
+        operator: SetIfEmpty
+name: Foundation - Normalize Artifacts_V3
+outputSections:
+- description: Generic group for outputs
+  name: General (Outputs group)
+  outputs:
+  - SOCFramework.Artifacts.HostName
+  - SOCFramework.Artifacts.EndPointID
+  - SOCFramework.Artifacts.FilePath
+  - SOCFramework.Artifacts.ProcessName
+  - SOCFramework.Artifacts.PID
+  - SOCFramework.Artifacts.File
+  - SOCFramework.Artifacts.Verdict
+  - SOCFramework.Artifacts.UserName
+  - SOCFramework.Artifacts.IP
+outputs:
+- contextPath: SOCFramework.Artifacts.HostName
+  type: unknown
+- contextPath: SOCFramework.Artifacts.EndPointID
+  type: unknown
+- contextPath: SOCFramework.Artifacts.FilePath
+  type: unknown
+- contextPath: SOCFramework.Artifacts.ProcessName
+  type: unknown
+- contextPath: SOCFramework.Artifacts.PID
+  type: unknown
+- contextPath: SOCFramework.Artifacts.File
+  type: unknown
+- contextPath: SOCFramework.Artifacts.Verdict
+  type: unknown
+- contextPath: SOCFramework.Artifacts.UserName
+  type: unknown
+- contextPath: SOCFramework.Artifacts.IP
+  type: unknown
+sourceplaybookid: Foundation - Enrichment_V3
+starttaskid: "0"
+tags:
+- SOC
+- SOC_Framework_Unified
+- Analysis
+- Foundation
+tasks:
+  "0":
+    continueonerrortype: ""
+    id: "0"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "38"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 8492b25a-a19c-4593-8191-9cb60e4d3007
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: ""
+      playbooktaskmissingcomponent: null
+      version: -1
+    taskid: 8492b25a-a19c-4593-8191-9cb60e4d3007
+    timertriggers: []
+    type: start
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 50
+        }
+      }
+  "4":
+    continueonerrortype: ""
+    id: "4"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Done
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 1855
+        }
+      }
+  "9":
+    continueonerrortype: ""
+    id: "9"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "33"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 7bfadf59-61ee-41e6-b6db-3fcde1c95727
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: IP Artifacts
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 7bfadf59-61ee-41e6-b6db-3fcde1c95727
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 1492.5
+        }
+      }
+  "18":
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "32"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 049bb235-0943-4db1-a4d1-d884e1b38460
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: User Findings
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 049bb235-0943-4db1-a4d1-d884e1b38460
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1492.5
+        }
+      }
+  "19":
+    continueonerrortype: ""
+    id: "19"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "29"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 38b6a1fa-dc59-43ae-8091-ff4c66c459be
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: File Enrichment
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 38b6a1fa-dc59-43ae-8091-ff4c66c459be
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1315
+        }
+      }
+  "29":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "29"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "31"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.File
+      value:
+        simple: ${inputs.SHA256}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 7f37bc21-a7aa-402b-bc75-f563fb6d649c
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set File SHA256 SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 7f37bc21-a7aa-402b-bc75-f563fb6d649c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1485
+        }
+      }
+  "30":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "30"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "18"
+      - "9"
+      - "34"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.EndPointID
+      value:
+        simple: ${inputs.EndpointID}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 62ba4236-a536-4eba-a750-e7be723b6e07
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set EndPoint ID SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 62ba4236-a536-4eba-a750-e7be723b6e07
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 405
+        }
+      }
+  "31":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "31"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Verdict
+      value:
+        complex:
+          accessor: Verdict
+          filters:
+          - - left:
+                iscontext: true
+                value:
+                  simple: Unit42Intelligence.File.Value
+              operator: in
+              right:
+                iscontext: true
+                value:
+                  simple: inputs.SHA256
+          root: Unit42Intelligence.File
+          transformers:
+          - operator: StringToArray
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: b9da1344-05bb-40c9-82af-65506a6aad43
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Unit 42 File Verdict Name SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: b9da1344-05bb-40c9-82af-65506a6aad43
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1662.5
+        }
+      }
+  "32":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "32"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "true"
+      key:
+        simple: SOCFramework.Artifacts.UserName
+      value:
+        simple: ${inputs.UserName}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 99ab1535-f684-4457-ad89-1eb430bdd8ed
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set User Name SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 99ab1535-f684-4457-ad89-1eb430bdd8ed
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1670
+        }
+      }
+  "33":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "33"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.IP
+      value:
+        simple: ${inputs.SourceIP}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 413a9a1b-01eb-43bb-96b1-b2cc830851b0
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set IP SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 413a9a1b-01eb-43bb-96b1-b2cc830851b0
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 1670
+        }
+      }
+  "34":
+    continueonerrortype: ""
+    id: "34"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "40"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: c990cbe2-c1cd-45fe-b3d9-e138e446e074
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Process Enrichment
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: c990cbe2-c1cd-45fe-b3d9-e138e446e074
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 590
+        }
+      }
+  "35":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "35"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "36"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.ProcessName
+      value:
+        simple: ${inputs.ProcessName}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: ed82c07b-fb09-4476-955d-f37c46f92c94
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Process Name SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: ed82c07b-fb09-4476-955d-f37c46f92c94
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 945
+        }
+      }
+  "36":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "36"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "19"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.PID
+      value:
+        simple: ${inputs.PID}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 966d8fc9-1c14-46a6-a320-fdfc15141a25
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Process ID SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 966d8fc9-1c14-46a6-a320-fdfc15141a25
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1130
+        }
+      }
+  "37":
+    continueonerrortype: ""
+    id: "37"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "4"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: ccb68bea-4961-4bfc-98fd-ff7608a7eb92
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: No Enrichment
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: ccb68bea-4961-4bfc-98fd-ff7608a7eb92
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 1340,
+          "y": 1677.5
+        }
+      }
+  "38":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "38"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "30"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.HostName
+      value:
+        simple: ${inputs.HostName}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 32bdf524-f0fd-4745-b9d4-603a133d8b3f
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set HostName SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 32bdf524-f0fd-4745-b9d4-603a133d8b3f
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 220
+        }
+      }
+  "40":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "40"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "35"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.FilePath
+      value:
+        simple: ${inputs.FilePath}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 4692c930-0d52-42be-b17f-65963c76b28c
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set File Path SOCFramework Artifact
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 4692c930-0d52-42be-b17f-65963c76b28c
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 760
+        }
+      }
+version: -1
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1865,
+        "width": 1670,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
