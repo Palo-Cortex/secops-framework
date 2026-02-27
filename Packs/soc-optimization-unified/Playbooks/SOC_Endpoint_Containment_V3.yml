@@ -5,7 +5,7 @@ contentitemexportablefields:
     definitionid: ""
     fromServerVersion: 5.0.0
     isoverridable: false
-    itemVersion: 3.0.29
+    itemVersion: 3.1.3
     packID: ""
     packName: SOC Framework Unified
     prevname: ""
@@ -21,17 +21,15 @@ inputSections:
 - description: Generic group for inputs
   inputs:
   - AutoContainment
-  - HostContainment
-  - FileContainment
-  - EndpointID
-  - FileHash
-  - FilePath
   - FileRemediation
-  - ShadowMode
-  - Hostname
   - FeaturedHost
-  - FileVerdict
+  - Verdict
   - SourceBrand
+  - Confidence
+  - ExecutionConfirmed
+  - CompromiseLevel
+  - CaseScore
+  - ShadowMode
   name: General (Inputs group)
 inputs:
 - description: |-
@@ -42,36 +40,6 @@ inputs:
   required: false
   value:
     simple: "False"
-- description: Whether to execute endpoint isolation.
-  key: HostContainment
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: "True"
-- description: Set to 'True' to quarantine the identified file.
-  key: FileContainment
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: "True"
-- description: The endpoint ID to run commands over.
-  key: EndpointID
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${Analysis.primary_entity_id}
-- description: The file hash to block.
-  key: FileHash
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${SOCFramework.Artifacts.File}
-- description: The path of the file to block.
-  key: FilePath
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${SOCFramework.Artifacts.FilePath}
 - description: "Choose 'Quarantine' or 'Delete'  to avoid file remediation conflicts.
     \nFor example, choosing 'Quarantine' ignores the 'Delete file' task under the
     eradication playbook and will execute only file quarantine."
@@ -80,18 +48,6 @@ inputs:
   required: false
   value:
     simple: Quarantine
-- description: ""
-  key: ShadowMode
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${SOCFramework.shadow_mode}
-- description: ""
-  key: Hostname
-  playbookInputQuery: null
-  required: false
-  value:
-    simple: ${SOCFramework.Artifacts.HostName}
 - description: Is this a Featured Host?
   key: FeaturedHost
   playbookInputQuery: null
@@ -99,11 +55,15 @@ inputs:
   value:
     simple: "False"
 - description: File Verdict from Enrichment
-  key: FileVerdict
+  key: Verdict
   playbookInputQuery: null
   required: false
   value:
-    simple: ${Analysis.verdict}
+    complex:
+      accessor: verdict}
+      root: ${Analysis
+      transformers:
+      - operator: toLowerCase
 - description: This is the Source Brand for the Integration.  Set in the SOCProductCategoryMap_V3
     List.
   key: SourceBrand
@@ -111,6 +71,40 @@ inputs:
   required: false
   value:
     simple: ${SOCFramework.Product.response}
+- description: ""
+  key: Confidence
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${Analysis.confidence}
+- description: ""
+  key: ExecutionConfirmed
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${Analysis.compromise_decision.[0]}
+- description: ""
+  key: CompromiseLevel
+  playbookInputQuery: null
+  required: false
+  value:
+    complex:
+      accessor: compromise_level}
+      root: ${Analysis
+      transformers:
+      - operator: toLowerCase
+- description: ""
+  key: CaseScore
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${Analysis.incident_score}
+- description: ""
+  key: ShadowMode
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${SOCFramework.shadow_mode}
 name: SOC Endpoint Containment_V3
 outputSections:
 - description: Generic group for outputs
@@ -148,7 +142,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "150"
+      - "147"
     note: false
     quietmode: 0
     separatecontext: false
@@ -167,7 +161,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 295,
+          "x": 582.5,
           "y": 50
         }
       }
@@ -179,28 +173,28 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "165"
+      - "172"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: 5683bb61-e50c-4fee-8006-76a9d2cd15e6
+      id: 8045b57e-2682-498b-a1a2-a0d9834b52a2
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Isolate Device
+      name: Immediate Isolation
       playbooktaskmissingcomponent: null
       type: title
       version: -1
-    taskid: 5683bb61-e50c-4fee-8006-76a9d2cd15e6
+    taskid: 8045b57e-2682-498b-a1a2-a0d9834b52a2
     timertriggers: []
     type: title
     view: |-
       {
         "position": {
-          "x": 622.5,
-          "y": 1130
+          "x": 910,
+          "y": 745
         }
       }
   "50":
@@ -209,9 +203,6 @@ tasks:
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
-    nexttasks:
-      '#none#':
-      - "168"
     note: false
     quietmode: 0
     separatecontext: false
@@ -231,193 +222,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 50,
-          "y": 1130
-        }
-      }
-  "138":
-    conditions:
-    - condition:
-      - - ignorecase: true
-          left:
-            iscontext: true
-            value:
-              complex:
-                root: inputs.AutoContainment
-          operator: isEqualString
-          right:
-            value:
-              simple: "True"
-      label: "yes"
-    continueonerrortype: ""
-    id: "138"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#default#':
-      - "139"
-      "yes":
-      - "147"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: |+
-        Whether to perform containment actions automatically or manually.
-
-      id: ba28dbc8-bdbf-43ef-8124-2878feeb213e
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Should containment automatically?
-      playbooktaskmissingcomponent: null
-      type: condition
-      version: -1
-    taskid: ba28dbc8-bdbf-43ef-8124-2878feeb213e
-    timertriggers: []
-    type: condition
-    view: |-
-      {
-        "position": {
-          "x": 285,
-          "y": 590
-        }
-      }
-  "139":
-    continueonerrortype: ""
-    form:
-      description: Select which containment actions to perform
-      expired: false
-      questions:
-      - defaultrows: []
-        fieldassociated: ""
-        gridcolumns: []
-        id: "0"
-        label: ""
-        labelarg:
-          simple: Select the Endpoint to isolate by Endpoint name
-        options: []
-        optionsarg:
-        - complex:
-            accessor: endpoint_name
-            root: Core.Endpoint
-            transformers:
-            - operator: uniq
-        placeholder: ""
-        readonly: false
-        required: false
-        tooltip: ""
-        type: multiSelect
-      - defaultrows: []
-        fieldassociated: ""
-        gridcolumns: []
-        id: "1"
-        label: ""
-        labelarg:
-          simple: Select Endpoint to isolate by Endpoint ID
-        options: []
-        optionsarg:
-        - complex:
-            root: inputs.EndpointID
-            transformers:
-            - operator: uniq
-        placeholder: ""
-        readonly: false
-        required: false
-        tooltip: ""
-        type: multiSelect
-      - defaultrows: []
-        fieldassociated: ""
-        gridcolumns: []
-        id: "2"
-        label: ""
-        labelarg:
-          simple: Select Files to quarantine
-        options: []
-        optionsarg:
-        - complex:
-            root: FilesList
-            transformers:
-            - operator: uniq
-            - args:
-                applyIfEmpty: {}
-                defaultValue:
-                  iscontext: true
-                  value:
-                    simple: inputs.FilePath
-              operator: SetIfEmpty
-        placeholder: ""
-        readonly: false
-        required: false
-        tooltip: ""
-        type: multiSelect
-      - defaultrows: []
-        fieldassociated: ""
-        gridcolumns: []
-        id: "3"
-        label: ""
-        labelarg:
-          simple: 'Select Files Hash to block '
-        options: []
-        optionsarg:
-        - complex:
-            root: inputs.FileHash
-            transformers:
-            - operator: uniq
-        - {}
-        placeholder: ""
-        readonly: false
-        required: false
-        tooltip: ""
-        type: multiSelect
-      sender: ""
-      title: Which containment actions would you like to perform?
-      totalanswers: 0
-    id: "139"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    message:
-      bcc: null
-      body: null
-      cc: null
-      format: ""
-      methods: []
-      subject: null
-      timings:
-        completeafterreplies: 1
-        completeaftersla: false
-        completeafterv2: true
-        retriescount: 2
-        retriesinterval: 360
-      to: null
-    nexttasks:
-      '#none#':
-      - "147"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: Select which indicators to block.
-      id: eeedc27d-be4e-4065-adb7-cf22d2f6a75d
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Which containment actions would you like to perform?
-      playbooktaskmissingcomponent: null
-      type: collection
-      version: -1
-    taskid: eeedc27d-be4e-4065-adb7-cf22d2f6a75d
-    timertriggers: []
-    type: collection
-    view: |-
-      {
-        "position": {
-          "x": 172.5,
-          "y": 775
+          "x": 367.5,
+          "y": 390
         }
       }
   "147":
@@ -429,28 +235,28 @@ tasks:
     nexttasks:
       '#none#':
       - "50"
-      - "48"
+      - "184"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: f486236e-11d4-4d91-8f9d-252577239705
+      id: 2650e088-8043-49d8-8db8-4d7e66d31ce9
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Containment
+      name: Prepare
       playbooktaskmissingcomponent: null
       type: title
       version: -1
-    taskid: f486236e-11d4-4d91-8f9d-252577239705
+    taskid: 2650e088-8043-49d8-8db8-4d7e66d31ce9
     timertriggers: []
     type: title
     view: |-
       {
         "position": {
-          "x": 285,
-          "y": 960
+          "x": 582.5,
+          "y": 220
         }
       }
   "148":
@@ -478,128 +284,164 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 387.5,
-          "y": 1855
+          "x": 592.5,
+          "y": 2365
         }
       }
-  "149":
-    continueonerror: true
-    continueonerrortype: errorPath
-    id: "149"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#error#':
-      - "151"
-      '#none#':
-      - "138"
-    note: false
-    quietmode: 0
-    scriptarguments:
-      key:
-        simple: FilesList
-      stringify:
-        simple: "false"
-      value:
-        complex:
-          root: inputs.FilePath
-          transformers:
-          - args:
-              array1_key:
-                iscontext: true
-              array2:
-                iscontext: true
-                value:
-                  simple: inputs.FileHash
-              array2_key: {}
-              determine_output_length_by: {}
-              merge_dict: {}
-              output_name1:
-                value:
-                  simple: Path
-              output_name2:
-                value:
-                  simple: Hash
-            operator: MakePair
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: Set a value in context under the key you entered.
-      id: f93cc26a-6b45-420b-8ec8-c33e920be3a7
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Set Process list
-      playbooktaskmissingcomponent: null
-      script: Set
-      type: regular
-      version: -1
-    taskid: f93cc26a-6b45-420b-8ec8-c33e920be3a7
-    timertriggers: []
-    type: regular
-    view: |-
-      {
-        "position": {
-          "x": 510,
-          "y": 405
-        }
-      }
-  "150":
+  "171":
     conditions:
     - condition:
       - - left:
             iscontext: true
             value:
               complex:
-                root: inputs.FilePath
-          operator: isNotEmpty
+                root: inputs.Verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
           right:
-            value: {}
+            value:
+              simple: malicious
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: suspicious
       - - left:
             iscontext: true
             value:
               complex:
-                root: inputs.FileHash
-          operator: isNotEmpty
-      label: "yes"
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: high
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: medium
+      label: Potentially Contain
     continueonerrortype: ""
-    id: "150"
+    id: "171"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
     nexttasks:
       '#default#':
-      - "138"
-      "yes":
-      - "149"
+      - "148"
+      Potentially Contain:
+      - "48"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      description: Check if the file path and file hash are defined.
-      id: d3750674-0c66-4ecc-8c51-8d01487249d7
+      id: 7089d969-7dfa-45b2-9ef6-6cb4efd4d61f
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: The file path and file hash defined?
+      name: Should we Contain (Verdict + Confidence)?
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: d3750674-0c66-4ecc-8c51-8d01487249d7
+    taskid: 7089d969-7dfa-45b2-9ef6-6cb4efd4d61f
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
-          "x": 295,
-          "y": 220
+          "x": 797.5,
+          "y": 560
         }
       }
-  "151":
+  "172":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: high
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.ExecutionConfirmed
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious_and_executed
+      label: Isolate Now
     continueonerrortype: ""
-    id: "151"
+    id: "172"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "174"
+      Isolate Now:
+      - "173"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 315caf83-ff56-4690-8f3d-fd69dc886af1
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Should This Be Isolated Immediately?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 315caf83-ff56-4690-8f3d-fd69dc886af1
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 915
+        }
+      }
+  "173":
+    continueonerrortype: ""
+    id: "173"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
@@ -608,358 +450,596 @@ tasks:
       iscommand: false
       max: 100
       wait: 1
+    nexttasks:
+      '#none#':
+      - "148"
     note: false
     quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+      framework_actions_listname:
+        simple: SOCFrameworkActions_V3
+      universal_cmd:
+        simple: soc-isolate-endpoint
     separatecontext: true
-    skipunavailable: true
+    skipunavailable: false
     task:
       brand: ""
-      id: 2bd9441a-09d2-4286-8c0f-b3bfec13291e
+      description: This is designed to use the List SOCFrameworkActions_V3 as a list
+        of universal commands that match to specific vendors and artifacts.
+      id: 7ac5c44d-80fa-4c60-a748-0e89f5a923e6
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Foundation - Foundation - Error Handling_V3
-      playbookId: Foundation - Foundation - Error Handling_V3
+      name: Isolate EndPoint - Universal Cmd
+      playbookId: SOCUniversalCommand
       playbooktaskmissingcomponent: null
       type: playbook
       version: -1
-    taskid: 2bd9441a-09d2-4286-8c0f-b3bfec13291e
+    taskid: 7ac5c44d-80fa-4c60-a748-0e89f5a923e6
     timertriggers: []
     type: playbook
     view: |-
       {
         "position": {
-          "x": 715,
-          "y": 590
+          "x": 1882.5,
+          "y": 2180
         }
       }
-  "158":
+  "174":
     continueonerrortype: ""
-    id: "158"
+    id: "174"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
-    message:
-      bcc: null
-      body:
-        simple: Would you like to Isolate the device ${inputs.Hostname}
-      cc: null
-      format: ""
-      methods: []
-      replyOptions:
-      - "Yes"
-      - "No"
-      subject: null
-      timings:
-        completeafterreplies: 1
-        completeaftersla: false
-        completeafterv2: true
-        retriescount: 2
-        retriesinterval: 360
-      to: null
     nexttasks:
-      "No":
-      - "148"
-      "Yes":
-      - "169"
+      '#none#':
+      - "175"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: 6276c905-eedb-4266-8544-042d9051abb3
+      id: f3bdafbd-f638-4fd7-8a33-f09a43af388c
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Isolate Device?
+      name: Isolate (High Confidence Compromise)
       playbooktaskmissingcomponent: null
-      type: condition
+      type: title
       version: -1
-    taskid: 6276c905-eedb-4266-8544-042d9051abb3
+    taskid: f3bdafbd-f638-4fd7-8a33-f09a43af388c
     timertriggers: []
-    type: condition
+    type: title
     view: |-
       {
         "position": {
-          "x": 745,
-          "y": 1485
+          "x": 695,
+          "y": 1100
         }
       }
-  "161":
-    continueonerrortype: ""
-    id: "161"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    message:
-      bcc: null
-      body:
-        simple: Should we quarantine the file ${issue.filename}
-      cc: null
-      format: ""
-      methods: []
-      replyOptions:
-      - "Yes"
-      - "No"
-      subject: null
-      timings:
-        completeafterreplies: 1
-        completeaftersla: false
-        completeafterv2: true
-        retriescount: 2
-        retriesinterval: 360
-      to: null
-    nexttasks:
-      "No":
-      - "148"
-      "Yes":
-      - "170"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      id: dff486ba-3e4f-42f0-8c29-d767f19b36e2
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Quarantine File?
-      playbooktaskmissingcomponent: null
-      type: condition
-      version: -1
-    taskid: dff486ba-3e4f-42f0-8c29-d767f19b36e2
-    timertriggers: []
-    type: condition
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 1485
-        }
-      }
-  "165":
+  "175":
     conditions:
     - condition:
       - - left:
             iscontext: true
             value:
-              simple: issue.mitreattcktechnique
-          operator: match
-          right:
-            value:
-              simple: (T1059|T1486|T1071|T1095|T1068|T1021|T1027|T1003|T1547|T1074|T1485|T1046|T1498)
-      label: "yes"
-    continueonerrortype: ""
-    id: "165"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    nexttasks:
-      '#default#':
-      - "148"
-      "yes":
-      - "158"
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      description: |-
-        Techniques Covered
-        T1059 – Command & Scripting Interpreter
-        T1486 – Data Encrypted for Impact
-        T1071 – Application Layer Protocol
-        T1095 – Non-Application Layer Protocol
-        T1068 – Exploitation for Privilege Escalation
-        T1021 – Remote Services
-        T1027 – Obfuscated Files or Information
-        T1003 – OS Credential Dumping
-        T1547 – Boot or Logon Autostart Execution
-        T1074 – Data Staged
-        T1485 – Data Destruction
-        T1046 – Network Service Discovery
-        T1498 – Network Denial of Service
-      id: ee42b9d3-f370-49c5-8a4e-ca754a7c2211
-      iscommand: false
-      istaskmissingcomponenterrordismissed: false
-      name: Miter Technique for Isolation
-      playbooktaskmissingcomponent: null
-      type: condition
-      version: -1
-    taskid: ee42b9d3-f370-49c5-8a4e-ca754a7c2211
-    timertriggers: []
-    type: condition
-    view: |-
-      {
-        "position": {
-          "x": 622.5,
-          "y": 1300
-        }
-      }
-  "168":
-    conditions:
-    - condition:
-      - - left:
-            iscontext: true
-            value:
-              simple: inputs.FileVerdict
+              complex:
+                root: inputs.CompromiseLevel
+                transformers:
+                - operator: toLowerCase
           operator: isEqualString
           right:
             value:
-              simple: Suspicious
-      label: "yes"
+              simple: likely_compromised
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: high
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: medium
+      label: Isolate
     continueonerrortype: ""
-    id: "168"
+    id: "175"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
     nexttasks:
       '#default#':
-      - "148"
-      "yes":
-      - "161"
+      - "177"
+      Isolate:
+      - "176"
     note: false
     quietmode: 0
     separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      id: fe29a7f1-1dd7-4fb3-81af-00704151f661
+      id: 1bf1230a-4efc-4b7c-b398-deddc4cc105e
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Quarantine file needed?
+      name: Isolate (high confidence compromise)?
       playbooktaskmissingcomponent: null
       type: condition
       version: -1
-    taskid: fe29a7f1-1dd7-4fb3-81af-00704151f661
+    taskid: 1bf1230a-4efc-4b7c-b398-deddc4cc105e
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 1270
+        }
+      }
+  "176":
+    continueonerrortype: ""
+    id: "176"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "148"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+      framework_actions_listname:
+        simple: SOCFrameworkActions_V3
+      universal_cmd:
+        simple: soc-isolate-endpoint
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: This is designed to use the List SOCFrameworkActions_V3 as a list
+        of universal commands that match to specific vendors and artifacts.
+      id: 66125192-23f6-4742-b0ad-041efdf086bd
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Isolate EndPoint - Universal Cmd
+      playbookId: SOCUniversalCommand
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 66125192-23f6-4742-b0ad-041efdf086bd
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1452.5,
+          "y": 2180
+        }
+      }
+  "177":
+    continueonerrortype: ""
+    id: "177"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "178"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 803d08f5-8bcf-45e7-8885-78d6b4b06645
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Escalate Containment
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 803d08f5-8bcf-45e7-8885-78d6b4b06645
+    timertriggers: []
+    type: title
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1455
+        }
+      }
+  "178":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: greaterThanOrEqual
+          right:
+            value:
+              simple: "70"
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: high
+        - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: medium
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.CompromiseLevel
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: not_compromised
+      label: Isolate
+    continueonerrortype: ""
+    id: "178"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "180"
+      Isolate:
+      - "179"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: eddf5636-2d53-48cb-9ef6-caa8e7e0cad0
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Escalate containment due to blast radius?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: eddf5636-2d53-48cb-9ef6-caa8e7e0cad0
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1625
+        }
+      }
+  "179":
+    continueonerrortype: ""
+    id: "179"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "148"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+      framework_actions_listname:
+        simple: SOCFrameworkActions_V3
+      universal_cmd:
+        simple: soc-isolate-endpoint
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: This is designed to use the List SOCFrameworkActions_V3 as a list
+        of universal commands that match to specific vendors and artifacts.
+      id: 25bd03ce-1f42-4cd7-b977-ee5d35d06585
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Isolate EndPoint - Universal Cmd
+      playbookId: SOCUniversalCommand
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 25bd03ce-1f42-4cd7-b977-ee5d35d06585
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 1022.5,
+          "y": 2180
+        }
+      }
+  "180":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: medium
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.CompromiseLevel
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: suspicious
+      label: Isolate
+    continueonerrortype: ""
+    id: "180"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "182"
+      Isolate:
+      - "181"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 0551bf7e-f219-4369-9d43-8f25a6e5f074
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Soft containment / monitor?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: 0551bf7e-f219-4369-9d43-8f25a6e5f074
+    timertriggers: []
+    type: condition
+    view: |-
+      {
+        "position": {
+          "x": 270,
+          "y": 1810
+        }
+      }
+  "181":
+    continueonerrortype: ""
+    id: "181"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    loop:
+      exitCondition: ""
+      iscommand: false
+      max: 100
+      wait: 1
+    nexttasks:
+      '#none#':
+      - "148"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      ShadowMode:
+        simple: ${inputs.ShadowMode}
+      framework_actions_listname:
+        simple: SOCFrameworkActions_V3
+      universal_cmd:
+        simple: soc-isolate-endpoint
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ""
+      description: This is designed to use the List SOCFrameworkActions_V3 as a list
+        of universal commands that match to specific vendors and artifacts.
+      id: 72619e49-7951-4866-9672-686311626399
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Isolate EndPoint - Universal Cmd
+      playbookId: SOCUniversalCommand
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 72619e49-7951-4866-9672-686311626399
+    timertriggers: []
+    type: playbook
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 2180
+        }
+      }
+  "182":
+    conditions:
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.Confidence
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: low
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.CompromiseLevel
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: not_compromised
+      label: No Containment
+    continueonerrortype: ""
+    id: "182"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#default#':
+      - "148"
+      No Containment:
+      - "183"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: b810b967-a2e1-46d5-a23a-236ff88632f6
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: No containment?
+      playbooktaskmissingcomponent: null
+      type: condition
+      version: -1
+    taskid: b810b967-a2e1-46d5-a23a-236ff88632f6
     timertriggers: []
     type: condition
     view: |-
       {
         "position": {
           "x": 50,
-          "y": 1300
+          "y": 1995
         }
       }
-  "169":
+  "183":
+    continueonerror: true
     continueonerrortype: ""
-    id: "169"
+    id: "183"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
     nexttasks:
       '#none#':
       - "148"
     note: false
     quietmode: 0
     scriptarguments:
-      Endpoint ID:
-        simple: ${inputs.EndpointID}
-      Endpoint IP:
-        simple: ${inputs.IP}
-      Endpoint hostname:
-        simple: ${inputs.Hostname}
-      ShadowMode:
-        simple: ${inputs.ShadowMode}
-    separatecontext: true
+      value:
+        simple: 'No Containment: Low confidence and No Compromise detected.'
+    separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      description: Determine the correct playbook to run for the correct endpoint
-        product.
-      id: 0034e537-0923-4d4c-a763-a21ac1993209
+      description: Prints text to war room (Markdown supported)
+      id: afacaf73-800e-49f3-966a-fb867c4a4367
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: SOC Isolation Router_V3
-      playbookId: SOC Isolation Router_V3
+      name: Print No Containment Message
       playbooktaskmissingcomponent: null
-      type: playbook
+      script: Print
+      type: regular
       version: -1
-    taskid: 0034e537-0923-4d4c-a763-a21ac1993209
+    taskid: afacaf73-800e-49f3-966a-fb867c4a4367
     timertriggers: []
-    type: playbook
+    type: regular
     view: |-
       {
         "position": {
-          "x": 857.5,
-          "y": 1670
+          "x": 162.5,
+          "y": 2180
         }
       }
-  "170":
+  "184":
     continueonerrortype: ""
-    id: "170"
+    id: "184"
     ignoreworker: false
     isautoswitchedtoquietmode: false
     isoversize: false
-    loop:
-      exitCondition: ""
-      iscommand: false
-      max: 100
-      wait: 1
     nexttasks:
       '#none#':
-      - "148"
+      - "171"
     note: false
     quietmode: 0
-    scriptarguments:
-      AutoContainment:
-        simple: ${inputs.AutoContainment}
-      EndpointID:
-        simple: ${inputs.EndpointID}
-      FileContainment:
-        simple: "True"
-      FileHash:
-        simple: ${inputs.FileHash}
-      FilePath:
-        simple: ${inputs.FilePath}
-      FileRemediation:
-        simple: Quarantine
-      ShadowMode:
-        simple: "true"
-    separatecontext: true
+    separatecontext: false
     skipunavailable: false
     task:
       brand: ""
-      description: |-
-        ## Containment Plan - Quarantine File
-
-        This playbook is a sub-playbook within the containment plan playbook.
-        The playbook quarantines files using core commands.
-      id: 48b8dce7-7461-4030-b641-de2dce672c35
+      id: d8369b56-d30c-4849-ba6b-be5f853a3cba
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: SOC Containment Plan_V3 - Quarantine File_V3
-      playbookId: SOC Containment Plan_V3 - Quarantine File_V3
+      name: Isolate EndPoint
       playbooktaskmissingcomponent: null
-      type: playbook
+      type: title
       version: -1
-    taskid: 48b8dce7-7461-4030-b641-de2dce672c35
+    taskid: d8369b56-d30c-4849-ba6b-be5f853a3cba
     timertriggers: []
-    type: playbook
+    type: title
     view: |-
       {
         "position": {
-          "x": 285,
-          "y": 1670
+          "x": 797.5,
+          "y": 390
         }
       }
 version: -1
 view: |-
   {
     "linkLabelsPosition": {
-      "138_139_#default#": 0.64,
-      "150_138_#default#": 0.9,
-      "161_170_Yes": 0.85
+      "172_173_Isolate Now": 0.14
     },
     "paper": {
       "dimensions": {
-        "height": 1865,
-        "width": 1187.5,
+        "height": 2375,
+        "width": 2212.5,
         "x": 50,
         "y": 50
       }

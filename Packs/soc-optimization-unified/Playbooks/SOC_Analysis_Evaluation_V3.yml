@@ -5,14 +5,14 @@ contentitemexportablefields:
     definitionid: ""
     fromServerVersion: 5.0.0
     isoverridable: false
-    itemVersion: 3.0.30
+    itemVersion: 3.1.3
     packID: ""
     packName: SOC Framework Unified
     prevname: ""
     supportedModules: []
     toServerVersion: ""
 dirtyInputs: true
-id: SOC Analysis Evaluation_V3
+id: 'SOC Analysis Evaluation_V3'
 inputSections:
 - description: Generic group for inputs
   inputs:
@@ -25,10 +25,12 @@ inputSections:
   - primary_entity_type
   - primary_entity_id
   - spread_level
-  - hash_prevalence_count
+  - global_hash_prevalence_count
   - story
   - case_host_count
   - case_issue_count
+  - compromise_decision
+  - case_user_count
   name: General (Inputs group)
 inputs:
 - description: ""
@@ -42,7 +44,7 @@ inputs:
   playbookInputQuery: null
   required: false
   value:
-    simple: ${Investigation.findings.compromise_level]
+    simple: ${Investigation.findings.compromise_level}
 - description: ""
   key: verdict
   playbookInputQuery: null
@@ -90,7 +92,7 @@ inputs:
   value:
     simple: ${Investigation.findings.spread_level}
 - description: ""
-  key: hash_prevalence_count
+  key: global_hash_prevalence_count
   playbookInputQuery: null
   required: false
   value:
@@ -120,44 +122,72 @@ inputs:
   required: false
   value:
     simple: ${Investigation.findings.issue_count}
+- description: ""
+  key: compromise_decision
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${Investigation.findings.compromise_decision}
+- description: ""
+  key: case_user_count
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${Investigation.findings.user_count}
 name: SOC Analysis Evaluation_V3
 outputSections:
 - description: Generic group for outputs
   name: General (Outputs group)
   outputs:
-  - parentIncidentContext.Analysis.incident_score
-  - parentIncidentContext.Analysis.compromise_level
-  - parentIncidentContext.Analysis.verdict
-  - parentIncidentContext.Analysis.confidence
-  - parentIncidentContext.Analysis.response_recommended
-  - parentIncidentContext.Analysis.case_category
-  - parentIncidentContext.Analysis.primary_entity_type
-  - parentIncidentContext.Analysis.primary_entity_id
-  - parentIncidentContext.Analysis.spread_level
-  - parentIncidentContext.Analysis.hash_prevalence_count
-  - parentIncidentContext.Analysis.story
+  - Analysis.incident_score
+  - Analysis.compromise_level
+  - Analysis.verdict
+  - Analysis.confidence
+  - Analysis.response_recommended
+  - Analysis.case_category
+  - Analysis.primary_entity_type
+  - Analysis.primary_entity_id
+  - Analysis.spread_level
+  - Analysis.global_hash_prevalence_count
+  - Analysis.story
+  - Analysis.compromise_decision
+  - Analysis.case_host_count
+  - Analysis.case_user_count
+  - Analysis.case_issue_count
 outputs:
-- contextPath: parentIncidentContext.Analysis.incident_score
+- contextPath: Analysis.incident_score
   type: string
-- contextPath: parentIncidentContext.Analysis.compromise_level
+- contextPath: Analysis.compromise_level
   type: unknown
-- contextPath: parentIncidentContext.Analysis.verdict
+- contextPath: Analysis.verdict
   type: unknown
-- contextPath: parentIncidentContext.Analysis.confidence
+- contextPath: Analysis.confidence
   type: unknown
-- contextPath: parentIncidentContext.Analysis.response_recommended
+- contextPath: Analysis.response_recommended
   type: unknown
-- contextPath: parentIncidentContext.Analysis.case_category
+- contextPath: Analysis.case_category
   type: unknown
-- contextPath: parentIncidentContext.Analysis.primary_entity_type
+- contextPath: Analysis.primary_entity_type
   type: unknown
-- contextPath: parentIncidentContext.Analysis.primary_entity_id
+- contextPath: Analysis.primary_entity_id
   type: unknown
-- contextPath: parentIncidentContext.Analysis.spread_level
+- contextPath: Analysis.spread_level
   type: unknown
-- contextPath: parentIncidentContext.Analysis.hash_prevalence_count
+- contextPath: Analysis.global_hash_prevalence_count
   type: unknown
-- contextPath: parentIncidentContext.Analysis.story
+- contextPath: Analysis.story
+  type: unknown
+- contextPath: Analysis.compromise_decision
+  description: ${Investigation.findings.compromise_decision}
+  type: unknown
+- contextPath: Analysis.case_host_count
+  description: ${Investigation.findings.host_count}
+  type: unknown
+- contextPath: Analysis.case_user_count
+  description: ${Investigation.findings.user_count}
+  type: unknown
+- contextPath: Analysis.case_issue_count
+  description: ${Investigation.findings.issue_count}
   type: unknown
 sourceplaybookid: SOC Data Analysis_V3
 starttaskid: "0"
@@ -223,7 +253,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 2255
+          "y": 2995
         }
       }
   "31":
@@ -243,7 +273,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Analysis.incident_score
+        simple: Analysis.case_score
       value:
         simple: ${inputs.case_score}
     separatecontext: false
@@ -257,7 +287,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 4785b0d7-1d5e-46c5-ac0f-fb2068dff7aa
+      id: da61ef8d-7840-4b48-9dcc-aa88221204b7
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set Case Risk Score
@@ -265,7 +295,7 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: 4785b0d7-1d5e-46c5-ac0f-fb2068dff7aa
+    taskid: da61ef8d-7840-4b48-9dcc-aa88221204b7
     timertriggers: []
     type: regular
     view: |-
@@ -283,7 +313,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "35"
+      - "44"
     note: false
     quietmode: 0
     scriptarguments:
@@ -370,7 +400,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 590
+          "y": 775
         }
       }
   "36":
@@ -404,7 +434,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 4b196648-dc8d-42be-919c-389ebfb9f200
+      id: 28c28837-feb4-4488-a1e8-4ed377d2b172
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set Confidence
@@ -412,14 +442,14 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: 4b196648-dc8d-42be-919c-389ebfb9f200
+    taskid: 28c28837-feb4-4488-a1e8-4ed377d2b172
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
           "x": 50,
-          "y": 775
+          "y": 960
         }
       }
   "37":
@@ -439,7 +469,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: parentIncidentContext.Analysis.response_recommended
+        simple: Analysis.response_recommended
       value:
         simple: ${inputs.response_recommended}
     separatecontext: false
@@ -453,7 +483,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 4fb186c7-0239-417c-8d78-1e758940a00c
+      id: a7faa095-dc8c-46a9-92fa-e3724e99ee18
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set Response Recommendation
@@ -461,14 +491,14 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: 4fb186c7-0239-417c-8d78-1e758940a00c
+    taskid: a7faa095-dc8c-46a9-92fa-e3724e99ee18
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
           "x": 50,
-          "y": 960
+          "y": 1145
         }
       }
   "38":
@@ -517,7 +547,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 1145
+          "y": 1330
         }
       }
   "39":
@@ -566,7 +596,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 1330
+          "y": 1515
         }
       }
   "40":
@@ -615,7 +645,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 1515
+          "y": 1700
         }
       }
   "41":
@@ -664,7 +694,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 1700
+          "y": 1885
         }
       }
   "42":
@@ -675,7 +705,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "43"
+      - "45"
     note: false
     quietmode: 0
     scriptarguments:
@@ -684,9 +714,9 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Analysis.hash_prevalence_count
+        simple: Analysis.case_user_count
       value:
-        simple: ${inputs.hash_prevalence_count}
+        simple: ${inputs.case_user_count}
     separatecontext: false
     skipunavailable: false
     task:
@@ -698,22 +728,22 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 3b60023e-fbc2-40ac-bfe7-6cb3f34133ea
+      id: 30a3e2af-9499-4f3e-ad97-54dfa893bcaf
       iscommand: false
       istaskmissingcomponenterrordismissed: false
-      name: Set Hash Prevalence Count
+      name: Set User Count
       playbooktaskmissingcomponent: null
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: 3b60023e-fbc2-40ac-bfe7-6cb3f34133ea
+    taskid: 30a3e2af-9499-4f3e-ad97-54dfa893bcaf
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
           "x": 50,
-          "y": 1885
+          "y": 2070
         }
       }
   "43":
@@ -747,7 +777,7 @@ tasks:
         6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
         \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
         For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      id: 4d6586b8-afbd-4b43-acd7-4bb47c0738ff
+      id: 2dfca0ab-5915-40a5-becd-4e4d45dbefa5
       iscommand: false
       istaskmissingcomponenterrordismissed: false
       name: Set Story
@@ -755,14 +785,210 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       version: -1
-    taskid: 4d6586b8-afbd-4b43-acd7-4bb47c0738ff
+    taskid: 2dfca0ab-5915-40a5-becd-4e4d45dbefa5
     timertriggers: []
     type: regular
     view: |-
       {
         "position": {
           "x": 50,
-          "y": 2070
+          "y": 2810
+        }
+      }
+  "44":
+    continueonerrortype: ""
+    id: "44"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "35"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.compromise_decision
+      value:
+        simple: ${inputs.compromise_decision}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 80711a69-e679-4322-aa8d-db3dd12f47ca
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Compromise Decision
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 80711a69-e679-4322-aa8d-db3dd12f47ca
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 590
+        }
+      }
+  "45":
+    continueonerrortype: ""
+    id: "45"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "46"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.gobal_hash_prevalence_count
+      value:
+        simple: ${inputs.global_hash_prevalence_count}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: b023b41f-1a96-4c2f-8f48-05994a0759e9
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Hash Prevalence Count
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: b023b41f-1a96-4c2f-8f48-05994a0759e9
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 2255
+        }
+      }
+  "46":
+    continueonerrortype: ""
+    id: "46"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "47"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.case_issue_count
+      value:
+        simple: ${inputs.case_issue_count}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 2af6504f-a21c-4e90-9d6e-64eb7cb41214
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Case Issue Count
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 2af6504f-a21c-4e90-9d6e-64eb7cb41214
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 2440
+        }
+      }
+  "47":
+    continueonerrortype: ""
+    id: "47"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "43"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.case_host_count
+      value:
+        simple: ${inputs.case_host_count}
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      id: 4b608082-bf5d-4286-a3f0-4402d9bb4658
+      iscommand: false
+      istaskmissingcomponenterrordismissed: false
+      name: Set Case Host Count
+      playbooktaskmissingcomponent: null
+      script: SetAndHandleEmpty
+      type: regular
+      version: -1
+    taskid: 4b608082-bf5d-4286-a3f0-4402d9bb4658
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 2625
         }
       }
 version: -1
@@ -771,7 +997,7 @@ view: |-
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 2265,
+        "height": 3005,
         "width": 380,
         "x": 50,
         "y": 50
