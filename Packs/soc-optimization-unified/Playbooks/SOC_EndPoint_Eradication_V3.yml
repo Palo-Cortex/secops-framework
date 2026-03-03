@@ -1,10 +1,11 @@
+fromversion: 5.0.0
 id: SOC EndPoint Eradication_V3
-version: 4
+version: 5
 contentitemexportablefields:
   contentitemfields:
-    packID: soc-optimization
-    _packName: SOC Framework Unified
-    itemVersion: 2.1.16
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified
+    itemVersion: 3.1.4
     fromServerVersion: 5.0.0
     toServerVersion: ""
     definitionid: ""
@@ -35,7 +36,8 @@ tasks:
       name: ""
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
       - "2"
@@ -67,7 +69,8 @@ tasks:
       type: playbook
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     separatecontext: true
     continueonerrortype: ""
     view: |-
@@ -95,7 +98,8 @@ tasks:
       type: title
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -128,13 +132,33 @@ view: |-
 inputs:
 - key: ShadowMode
   value:
-    simple: SOCFramework.shadow_mode
-  required: true
+    complex:
+      root: lists
+      accessor: SOCExecutionList_V3
+      transformers:
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: SOC Endpoint Eradication
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: shadow_mode
+  required: false
   description: ""
-  playbookInputQuery:
+  playbookInputQuery: null
+- key: Analysis
+  value:
+    simple: ${Analysis}
+  required: false
+  description: ""
+  playbookInputQuery: null
 inputSections:
 - inputs:
   - ShadowMode
+  - Analysis
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
@@ -145,4 +169,3 @@ outputs: []
 sourceplaybookid: SOC Data Analysis_V3
 dirtyInputs: true
 adopted: true
-fromversion: 5.0.0
