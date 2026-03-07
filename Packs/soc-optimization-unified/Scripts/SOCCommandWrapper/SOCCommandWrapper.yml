@@ -1,19 +1,30 @@
-fromversion: 6.10.0
 args:
-- description: Integration command name (e.g., proofpoint-quarantine-message).
-  name: command
-  required: true
+- defaultValue: soc-isolate-endpoint
+  description: universal command name
+  name: action
   supportedModules: []
-- description: List of vendor-specific argument names (e.g., ["guid"]).
-  name: args_map
+- auto: PREDEFINED
+  defaultValue: "true"
+  description: enable shadow execution
+  name: shadow_mode
+  predefined:
+  - "true"
+  - "false"
   supportedModules: []
-- description: Raw artifact object from context (same passed into ValidateArtifacts).
-  name: artifacts
+- name: using
   supportedModules: []
-- name: inline_args
+- defaultValue: SOCFrameworkActions_V3
+  name: list_name
+  supportedModules: []
+- defaultValue: SOCFramework.Execution
+  description: Where to Put Execution details  in Data Context
+  name: output_key
+  supportedModules: []
+- defaultValue: Shadow Mode
+  name: tags
   supportedModules: []
 commonfields:
-  id: SOCCommandWrapper
+  id: 'SOCCommandWrapper'
   version: -1
 dockerimage: demisto/python3:3.12.12.5490952
 enabled: true
@@ -23,19 +34,22 @@ name: SOCCommandWrapper
 outputs:
 - contextPath: SOCFramework.ActionOutput
   description: Raw result returned by the integration command.
-- contextPath: success
+- contextPath: SOCFramework.ActionOutput.success
   description: True if execution succeeded.
   type: boolean
-- contextPath: command_executed
+- contextPath: SOCFramework.ActionOutput.command_executed
   description: The command actually run.
   type: string
-- contextPath: args_used
-  description: The arguments passed to the executed command.
+- contextPath: SOCFramework.ActionOutput.exec_args
+  description: ""
 pswd: ""
+restrictioncenter: {}
 runas: DBotWeakRole
 runonce: false
 script: ''
 scripttarget: 0
+signature: ""
+sourcescripid: SOCCommandWrapper
 subtype: python3
 tags:
 - Commands
