@@ -1,5 +1,7 @@
-import demistomock as demisto  # noqa: F401
-from CommonServerPython import *  # noqa: F401
+register_module_line('SOCCommandWrapper', 'start', __line__())
+CONSTANT_PACK_VERSION = '3.1.4'
+demisto.debug('pack id = soc-optimization-unified, pack version = 3.1.4')
+
 import json
 import re
 from datetime import datetime
@@ -7,14 +9,20 @@ from datetime import datetime
 CTX_REF_RE = re.compile(r"^\$\{(.+?)\}$")
 
 
-def warroom_log(title, payload):
+def warroom_log(title, payload, tags=None):
     try:
-        demisto.results({
+        entry = {
             "Type": EntryType.NOTE,
             "ContentsFormat": "json",
             "Contents": payload,
             "HumanReadable": f"### {title}\n```json\n{json.dumps(payload, indent=2)}\n```"
-        })
+        }
+
+        if tags:
+            entry["Tags"] = tags
+
+        demisto.results(entry)
+
     except Exception as e:
         demisto.debug(f"warroom_log failed: {str(e)}")
 
@@ -92,7 +100,31 @@ def integration_failed(result):
     return False, None
 
 
-def parse_tags(tag_string):
+def parse_tags(raw_tags):
+    if not raw_tags:
+        return []
+
+    if isinstance(raw_tags, list):
+        return [str(t).strip() for t in raw_tags if str(t).strip()]
+
+    if isinstance(raw_tags, str):
+        s = raw_tags.strip()
+        if not s:
+            return []
+
+        # Support JSON array strings like ["Shadow Mode","Containment"]
+        if s.startswith("[") and s.endswith("]"):
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return [str(t).strip() for t in parsed if str(t).strip()]
+            except Exception:
+                pass
+
+        # Fallback: comma-separated string
+        return [t.strip() for t in s.split(",") if t.strip()]
+
+    return [str(raw_tags).strip()]
 
     if not tag_string:
         return []
@@ -100,7 +132,7 @@ def parse_tags(tag_string):
     if isinstance(tag_string, list):
         return tag_string
 
-    return [t.strip() for t in str(tag_string).split(",") if t.strip()]
+    return [t.strip().lower() for t in str(tag_string).split(",") if t.strip()]
 
 
 def main():
@@ -108,152 +140,111 @@ def main():
     args = demisto.args()
     ctx = demisto.context()
 
-    action = args.get("action")
-    shadow_mode = str(args.get("shadow_mode", "false")).lower() == "true"
-    list_name = args.get("list_name")
-    output_key = args.get("output_key")
-    tags = parse_tags(args.get("tags"))
+    demisto.debug(f"RAW TAGS: {args.get('tags')} | TYPE: {type(args.get('tags'))}")
 
-    if not action:
-        return_error("Missing action")
+action = args.get("action")
+shadow_mode = str(args.get("shadow_mode", "false")).lower() == "true"
+list_name = args.get("list_name")
+output_key = args.get("output_key")
+raw_tags = args.get("tags")
+tags = parse_tags(raw_tags)
 
-    if not list_name:
-        return_error("Missing list_name")
+if not action:
+    return_error("Missing action")
 
-    list_data = demisto.executeCommand("getList", {"listName": list_name})
+if not list_name:
+    return_error("Missing list_name")
 
-    if not list_data or "Contents" not in list_data[0]:
-        return_error("Failed to load action list")
+list_data = demisto.executeCommand("getList", {"listName": list_name})
 
-    action_map = _try_json_loads(list_data[0]["Contents"])
+if not list_data or "Contents" not in list_data[0]:
+    return_error("Failed to load action list")
 
-    if not action_map:
-        return_error("Invalid JSON in action list")
+action_map = _try_json_loads(list_data[0]["Contents"])
 
-    action_entry = action_map.get(action)
+if not action_map:
+    return_error("Invalid JSON in action list")
 
-    if not action_entry:
-        return_error(f"Action not found: {action}")
+action_entry = action_map.get(action)
 
-    responses = action_entry.get("responses", {})
+if not action_entry:
+    return_error(f"Action not found: {action}")
 
-    vendor = None
-    vendor_data = None
+responses = action_entry.get("responses", {})
 
-    for k, v in responses.items():
-        vendor = k
-        vendor_data = v
-        break
+vendor = None
+vendor_data = None
 
-    if not vendor_data:
-        return_error("No vendor response defined")
+for k, v in responses.items():
+    vendor = k
+    vendor_data = v
+    break
 
-    command = vendor_data.get("command")
-    inline_args = vendor_data.get("inline_args", {})
+if not vendor_data:
+    return_error("No vendor response defined")
 
-    inline_args = _resolve_templates(inline_args, ctx)
+command = vendor_data.get("command")
+inline_args = vendor_data.get("inline_args", {})
+
+inline_args = _resolve_templates(inline_args, ctx)
+
+warroom_log(
+    "SOC Framework - Universal Command Resolved",
+    {
+        "action": action,
+        "vendor": vendor,
+        "command": command,
+        "args": inline_args,
+        "shadow_mode": shadow_mode,
+        "raw_tags": raw_tags,
+        "raw_tags_type": str(type(raw_tags)),
+        "tags": tags
+    }
+)
+
+timestamp = datetime.utcnow().isoformat() + "Z"
+
+# SHADOW MODE
+if shadow_mode:
+
+    record = {
+        "action": action,
+        "vendor": vendor,
+        "command": command,
+        "args": inline_args,
+        "shadow_mode": True,
+        "success": False,
+        "tags": tags,
+        "timestamp": timestamp
+    }
+
+    if output_key:
+        append_context(output_key, record)
 
     warroom_log(
-        "SOC Framework - Universal Command Resolved",
+        "SOC Framework - SHADOW MODE (Command Not Executed)",
+        record,
+        tags
+    )
+
+    return_results("Shadow Mode: command not executed")
+    return
+
+try:
+
+    warroom_log(
+        "SOC Framework - Executing Command",
         {
-            "action": action,
-            "vendor": vendor,
             "command": command,
-            "args": inline_args,
-            "shadow_mode": shadow_mode,
-            "tags": tags
+            "args": inline_args
         }
     )
 
-    timestamp = datetime.utcnow().isoformat() + "Z"
+    result = demisto.executeCommand(command, inline_args)
 
-    # SHADOW MODE
-    if shadow_mode:
+    failed, error_msg = integration_failed(result)
 
-        record = {
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": True,
-            "success": False,
-            "tags": tags,
-            "timestamp": timestamp
-        }
-
-        if output_key:
-            append_context(output_key, record)
-
-        warroom_log(
-            "SOC Framework - SHADOW MODE (Command Not Executed)",
-            record
-        )
-
-        return_results("Shadow Mode: command not executed")
-        return
-
-    try:
-
-        warroom_log(
-            "SOC Framework - Executing Command",
-            {
-                "command": command,
-                "args": inline_args
-            }
-        )
-
-        result = demisto.executeCommand(command, inline_args)
-
-        failed, error_msg = integration_failed(result)
-
-        if failed:
-
-            record = {
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "args": inline_args,
-                "shadow_mode": False,
-                "success": False,
-                "error": error_msg,
-                "tags": tags,
-                "timestamp": timestamp
-            }
-
-            if output_key:
-                append_context(output_key, record)
-
-            warroom_log(
-                "SOC Framework - Command Failure",
-                record
-            )
-
-            return_error(error_msg)
-
-        else:
-
-            record = {
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "args": inline_args,
-                "shadow_mode": False,
-                "success": True,
-                "tags": tags,
-                "timestamp": timestamp
-            }
-
-            if output_key:
-                append_context(output_key, record)
-
-            warroom_log(
-                "SOC Framework - Command Success",
-                record
-            )
-
-            return_results(result)
-
-    except Exception as e:
+    if failed:
 
         record = {
             "action": action,
@@ -262,7 +253,7 @@ def main():
             "args": inline_args,
             "shadow_mode": False,
             "success": False,
-            "error": str(e),
+            "error": error_msg,
             "tags": tags,
             "timestamp": timestamp
         }
@@ -271,13 +262,64 @@ def main():
             append_context(output_key, record)
 
         warroom_log(
-            "SOC Framework - Command Execution Error",
-            record
+            "SOC Framework - Command Failure",
+            record,
+            tags
         )
 
-        raise
+        return_error(error_msg)
+
+    else:
+
+        record = {
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "args": inline_args,
+            "shadow_mode": False,
+            "success": True,
+            "tags": tags,
+            "timestamp": timestamp
+        }
+
+        if output_key:
+            append_context(output_key, record)
+
+        warroom_log(
+            "SOC Framework - Command Success",
+            record,
+            tags
+        )
+
+        return_results(result)
+
+except Exception as e:
+
+    record = {
+        "action": action,
+        "vendor": vendor,
+        "command": command,
+        "args": inline_args,
+        "shadow_mode": False,
+        "success": False,
+        "error": str(e),
+        "tags": tags,
+        "timestamp": timestamp
+    }
+
+    if output_key:
+        append_context(output_key, record)
+
+    warroom_log(
+        "SOC Framework - Command Execution Error",
+        record,
+        tags
+    )
+
+    raise
 
 
 if __name__ in ("__builtin__", "builtins", "__main__"):
     main()
 
+register_module_line('SOCCommandWrapper', 'end', __line__())
