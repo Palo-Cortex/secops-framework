@@ -1,12 +1,17 @@
 register_module_line('SOCCommandWrapper', 'start', __line__())
-CONSTANT_PACK_VERSION = '3.1.5'
-demisto.debug('pack id = soc-optimization-unified, pack version = 3.1.5')
+CONSTANT_PACK_VERSION = '3.3.1'
+demisto.debug('pack id = soc-optimization-unified, pack version = 3.3.1')
 
 import json
 import re
+import uuid
 from datetime import datetime
 
 CTX_REF_RE = re.compile(r"^\$\{(.+?)\}$")
+
+
+def utc_now():
+    return datetime.utcnow().isoformat() + "Z"
 
 
 def warroom_log(title, payload, tags=None):
@@ -35,7 +40,10 @@ def _try_json_loads(s):
 
 
 def _resolve_ctx_string(s, ctx):
-
+    """
+    Keep this behavior aligned with SOCFrameworkActions.
+    Resolve only from playbook/data context for recognized paths.
+    """
     if not isinstance(s, str):
         return s
 
@@ -45,14 +53,19 @@ def _resolve_ctx_string(s, ctx):
     if m:
         return demisto.get(ctx, m.group(1))
 
-    if s.startswith("SOCFramework.") or s.startswith("incident.") or s.startswith("alert."):
+    if (
+            s.startswith("SOCFramework.")
+            or s.startswith("incident.")
+            or s.startswith("alert.")
+            or s.startswith("issue.")
+            or s.startswith("parentIncidentFields.")
+    ):
         return demisto.get(ctx, s)
 
     return s
 
 
 def _resolve_templates(obj, ctx):
-
     if isinstance(obj, dict):
         return {k: _resolve_templates(v, ctx) for k, v in obj.items()}
 
@@ -66,7 +79,6 @@ def _resolve_templates(obj, ctx):
 
 
 def append_context(key, record):
-
     ctx = demisto.context()
     existing = demisto.get(ctx, key)
 
@@ -78,12 +90,10 @@ def append_context(key, record):
         existing = [existing]
 
     existing.append(record)
-
     demisto.setContext(key, existing)
 
 
 def integration_failed(result):
-
     if not result:
         return True, "Empty result"
 
@@ -101,7 +111,6 @@ def integration_failed(result):
 
 
 def parse_tags(raw_tags):
-
     if not raw_tags:
         return []
 
@@ -114,7 +123,6 @@ def parse_tags(raw_tags):
         if not s:
             return []
 
-        # Support JSON arrays
         if s.startswith("[") and s.endswith("]"):
             try:
                 parsed = json.loads(s)
@@ -128,8 +136,304 @@ def parse_tags(raw_tags):
     return [str(raw_tags).strip()]
 
 
-def main():
+def get_or_create_run_id(ctx):
+    run_id = demisto.get(ctx, "SOCFramework.RunID")
+    if run_id not in (None, "", [], {}):
+        return run_id
 
+    run_id = str(uuid.uuid4())
+    demisto.setContext("SOCFramework.RunID", run_id)
+    return run_id
+
+
+def normalize_action_actor(raw_actor, shadow_mode):
+    actor = str(raw_actor or "").strip().lower()
+
+    if shadow_mode and actor in ("", "analyst"):
+        return "shadow"
+
+    if actor in ("automation", "analyst", "shadow", "system"):
+        return actor
+
+    return "analyst"
+
+
+def sanitize_name(value):
+    return re.sub(r"[^A-Za-z0-9_]+", "_", str(value or "").strip()).strip("_")
+
+
+def get_schema_list_candidates(ctx, lifecycle_value):
+    candidates = []
+
+    lifecycle_ctx = demisto.get(ctx, "SOCFramework.lifecycle")
+    lifecycle = lifecycle_value or lifecycle_ctx or ""
+    lifecycle_sanitized = sanitize_name(lifecycle)
+
+    if lifecycle:
+        candidates.append(f"SOCFrameworkSchema_{lifecycle}")
+    if lifecycle_sanitized and lifecycle_sanitized != lifecycle:
+        candidates.append(f"SOCFrameworkSchema_{lifecycle_sanitized}")
+
+    candidates.append("SOCFrameworkSchema")
+    candidates.append("SOCFrameworkExecutionSchema")
+
+    seen = set()
+    ordered = []
+    for name in candidates:
+        if name and name not in seen:
+            ordered.append(name)
+            seen.add(name)
+
+    return ordered
+
+
+def load_schema_entries(ctx, lifecycle_value):
+    """
+    Schema format:
+    [
+      {"field": "alert_event_time", "source": "issue.timestamp", "default": ""},
+      {"field": "mitre_tactic_id", "source": "SOCFramework.Mitre.Tactic.ID", "default": ""}
+    ]
+
+    Resolution is context-only, same model as SOCFrameworkActions.
+    """
+    for list_name in get_schema_list_candidates(ctx, lifecycle_value):
+        try:
+            result = demisto.executeCommand("getList", {"listName": list_name})
+            if not result or "Contents" not in result[0]:
+                continue
+
+            parsed = _try_json_loads(result[0]["Contents"])
+            if isinstance(parsed, list):
+                demisto.debug(f"SOCCommandWrapper using schema list: {list_name}")
+                return parsed
+        except Exception as e:
+            demisto.debug(f"SOCCommandWrapper failed loading schema list {list_name}: {str(e)}")
+
+    return None
+
+
+def default_schema_entries():
+    """
+    Built-in fallback schema for testing if no list exists yet.
+    These resolve from context only. Missing values can be enriched later.
+    """
+    return [
+        {"field": "alert_event_time", "source": "issue.timestamp", "default": ""},
+        {"field": "alert_ingest_time", "source": "issue.local_insert_ts", "default": ""},
+        {"field": "incident_id", "source": "issue.id", "default": ""},
+        {"field": "investigation_id", "source": "issue.parentXDRIncident", "default": ""},
+        {"field": "parent_xdr_incident", "source": "parentIncidentFields.incident_id", "default": ""},
+        {"field": "lifecycle", "source": "SOCFramework.lifecycle", "default": ""},
+        {"field": "lifecycle_version", "source": "SOCFramework.lifecycle_version", "default": ""},
+        {"field": "phase", "source": "SOCFramework.phase", "default": ""},
+        {"field": "scenario", "source": "SOCFramework.Scenario", "default": ""},
+        {"field": "action_actor", "source": "", "default": ""},
+        {"field": "mitre_tactic_id", "source": "SOCFramework.Mitre.Tactic.ID", "default": ""},
+        {"field": "mitre_tactic", "source": "SOCFramework.Mitre.Tactic.Name", "default": ""},
+        {"field": "mitre_technique_id", "source": "SOCFramework.Mitre.Technique.ID", "default": ""},
+        {"field": "mitre_technique", "source": "SOCFramework.Mitre.Technique.Name", "default": ""},
+        {"field": "mitre_subtechnique_id", "source": "SOCFramework.Mitre.SubTechnique.ID", "default": ""},
+        {"field": "mitre_subtechnique", "source": "SOCFramework.Mitre.SubTechnique.Name", "default": ""},
+        {"field": "alert_name", "source": "issue.name", "default": ""},
+        {"field": "alert_source", "source": "issue.sourceBrand", "default": ""},
+        {"field": "alert_category", "source": "issue.categoryname", "default": ""},
+        {"field": "alert_domain", "source": "issue.alert_domain", "default": ""},
+        {"field": "severity", "source": "issue.severity", "default": ""},
+        {"field": "status", "source": "issue.status", "default": ""},
+        {"field": "run_status", "source": "issue.runStatus", "default": ""},
+        {"field": "entity_type", "source": "SOCFramework.Primary.EntityType", "default": ""},
+        {"field": "entity_value", "source": "SOCFramework.Primary.EntityValue", "default": ""},
+        {"field": "playbook_id", "source": "issue.playbookId", "default": ""},
+        {"field": "playbook_name", "source": "issue.playbookName", "default": ""},
+        {"field": "task_name", "source": "SOCFramework.Task.Name", "default": ""}
+    ]
+
+
+def resolve_schema_payload(schema_entries, ctx):
+    payload = {}
+
+    for entry in schema_entries:
+        if not isinstance(entry, dict):
+            continue
+
+        field = entry.get("field")
+        source = entry.get("source")
+        default = entry.get("default", "")
+
+        if not field:
+            continue
+
+        value = default
+        if source:
+            resolved = _resolve_ctx_string(source, ctx)
+            if resolved not in (None, "", [], {}):
+                value = resolved
+
+        payload[field] = value
+
+    return payload
+
+
+def get_current_incident_id():
+    try:
+        incidents = demisto.incidents()
+        if incidents and isinstance(incidents[0], dict):
+            return incidents[0].get("id")
+    except Exception:
+        pass
+    return None
+
+
+def normalize_getissues_contents(contents):
+    """
+    Normalize getIssues Contents into a single issue dict.
+    """
+    if isinstance(contents, str):
+        try:
+            contents = json.loads(contents)
+        except Exception:
+            return {}
+
+    if isinstance(contents, list):
+        if contents and isinstance(contents[0], dict):
+            return contents[0]
+        return {}
+
+    if isinstance(contents, dict):
+        data = contents.get("data")
+        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+            return data[0]
+
+        issue = contents.get("issue")
+        if isinstance(issue, dict):
+            return issue
+
+        return contents
+
+    return {}
+
+
+def get_issue_data():
+    issue_id = get_current_incident_id()
+    if not issue_id:
+        return {}
+
+    try:
+        result = demisto.executeCommand("getIssues", {"id": issue_id})
+        if not result or not isinstance(result[0], dict):
+            return {}
+
+        contents = result[0].get("Contents")
+        issue = normalize_getissues_contents(contents)
+
+        demisto.debug(f"SOCCommandWrapper getIssues normalized issue: {json.dumps(issue)[:4000]}")
+
+        return issue if isinstance(issue, dict) else {}
+
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper getIssues failed: {str(e)}")
+        return {}
+
+
+def set_if_missing(payload, key, value):
+    if key not in payload or payload.get(key) in (None, "", [], {}):
+        if value not in (None, "", [], {}):
+            payload[key] = value
+
+
+def enrich_payload(payload, ctx, issue, wrapper_values, args):
+    """
+    Context-only schema first.
+    Then inject wrapper/runtime and getIssues-derived values behind the scenes.
+    """
+    payload["timestamp"] = wrapper_values["timestamp"]
+    payload["event_type"] = wrapper_values["event_type"]
+    payload["run_id"] = wrapper_values["run_id"]
+    payload["universal_command"] = wrapper_values["action"]
+    payload["vendor"] = wrapper_values["vendor"]
+    payload["vendor_command"] = wrapper_values["command"]
+    payload["action_taken"] = wrapper_values["action"]
+    payload["action_status"] = wrapper_values["action_status"]
+    payload["action_actor"] = wrapper_values["action_actor"]
+    payload["execution_mode"] = wrapper_values["execution_mode"]
+    payload["shadow_mode_state"] = wrapper_values["shadow_mode_state"]
+    payload["has_error"] = wrapper_values["has_error"]
+    payload["error_type"] = wrapper_values["error_type"]
+    payload["error_message"] = wrapper_values["error_message"]
+
+    set_if_missing(payload, "lifecycle", args.get("LifeCycle"))
+    set_if_missing(payload, "lifecycle", demisto.get(ctx, "SOCFramework.lifecycle"))
+    set_if_missing(payload, "lifecycle_version", demisto.get(ctx, "SOCFramework.lifecycle_version"))
+    set_if_missing(payload, "phase", args.get("Phase"))
+    set_if_missing(payload, "phase", demisto.get(ctx, "SOCFramework.phase"))
+    set_if_missing(payload, "phase", demisto.get(ctx, "SOCFramework.NISTIR.Phase"))
+
+    if isinstance(issue, dict) and issue:
+        event_time = issue.get("timestamp") or issue.get("created") or issue.get("modified")
+        ingest_time = issue.get("local_insert_ts") or issue.get("created")
+
+        set_if_missing(payload, "alert_event_time", event_time)
+        set_if_missing(payload, "alert_ingest_time", ingest_time)
+
+        set_if_missing(payload, "incident_id", issue.get("id"))
+        set_if_missing(payload, "investigation_id", issue.get("investigationId") or issue.get("parentXDRIncident") or issue.get("id"))
+        set_if_missing(payload, "parent_xdr_incident", issue.get("parentXDRIncident"))
+
+        set_if_missing(payload, "alert_name", issue.get("name"))
+        set_if_missing(payload, "alert_source", issue.get("sourceBrand") or issue.get("sourceInstance") or issue.get("source"))
+        set_if_missing(payload, "alert_category", issue.get("categoryname") or issue.get("category"))
+        set_if_missing(payload, "alert_domain", issue.get("alert_domain"))
+
+        set_if_missing(payload, "severity", issue.get("severity"))
+        set_if_missing(payload, "status", issue.get("custom_status") or issue.get("resolution_status") or issue.get("status"))
+        set_if_missing(payload, "run_status", issue.get("runStatus"))
+
+        set_if_missing(payload, "playbook_id", issue.get("playbookId"))
+        set_if_missing(payload, "playbook_name", issue.get("playbookName"))
+
+    return payload
+
+
+def post_dataset_payload(payload, tags=None):
+    try:
+        result = demisto.executeCommand(
+            "xql-post-to-dataset",
+            {
+                "using": "socfw_ir_execution",
+                "JSON": json.dumps(payload)
+            }
+        )
+
+        failed, error_msg = integration_failed(result)
+        if failed:
+            warroom_log(
+                "SOC Framework - Dataset Post Failure",
+                {
+                    "error": error_msg,
+                    "payload": payload
+                },
+                tags
+            )
+        else:
+            warroom_log(
+                "SOC Framework - Dataset Post Success",
+                payload,
+                tags
+            )
+
+    except Exception as e:
+        warroom_log(
+            "SOC Framework - Dataset Post Exception",
+            {
+                "error": str(e),
+                "payload": payload
+            },
+            tags
+        )
+
+
+def main():
     args = demisto.args()
     ctx = demisto.context()
 
@@ -137,6 +441,7 @@ def main():
 
     action = args.get("action")
     shadow_mode = str(args.get("shadow_mode", "false")).lower() == "true"
+    using = args.get("using")
     list_name = args.get("list_name")
     output_key = args.get("output_key")
 
@@ -166,25 +471,40 @@ def main():
 
     responses = action_entry.get("responses", {})
 
-    vendor = None
-    vendor_data = None
+    vendor = demisto.get(ctx, "SOCFramework.Product.response")
+    vendor_data = responses.get(vendor) if vendor else None
 
-    for k, v in responses.items():
-        vendor = k
-        vendor_data = v
-        break
+    if not vendor_data:
+        demisto.debug(
+            "SOCCommandWrapper: SOCFramework.Product.response missing or not found in action responses. "
+            f"response={vendor}, available={list(responses.keys())}"
+        )
+
+        for k, v in responses.items():
+            vendor = k
+            vendor_data = v
+            break
 
     if not vendor_data:
         return_error("No vendor response defined")
 
     command = vendor_data.get("command")
     inline_args = vendor_data.get("inline_args", {})
-
     inline_args = _resolve_templates(inline_args, ctx)
+
+    timestamp = utc_now()
+    run_id = get_or_create_run_id(ctx)
+
+    schema_entries = load_schema_entries(ctx, args.get("LifeCycle"))
+    if not schema_entries:
+        schema_entries = default_schema_entries()
+
+    issue = get_issue_data()
 
     warroom_log(
         "SOC Framework - Universal Command Resolved",
         {
+            "run_id": run_id,
             "action": action,
             "vendor": vendor,
             "command": command,
@@ -197,12 +517,9 @@ def main():
         tags
     )
 
-    timestamp = datetime.utcnow().isoformat() + "Z"
-
-    # SHADOW MODE
     if shadow_mode:
-
         record = {
+            "run_id": run_id,
             "action": action,
             "vendor": vendor,
             "command": command,
@@ -216,6 +533,27 @@ def main():
         if output_key:
             append_context(output_key, record)
 
+        base_payload = resolve_schema_payload(schema_entries, ctx)
+
+        wrapper_values = {
+            "timestamp": timestamp,
+            "event_type": "command",
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "action_status": "simulated",
+            "action_actor": normalize_action_actor(args.get("Action_Actor"), True),
+            "execution_mode": "shadow",
+            "shadow_mode_state": "collected",
+            "has_error": False,
+            "error_type": "",
+            "error_message": ""
+        }
+
+        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+        post_dataset_payload(dataset_payload, tags)
+
         warroom_log(
             "SOC Framework - SHADOW MODE (Command Not Executed)",
             record,
@@ -226,23 +564,27 @@ def main():
         return
 
     try:
-
         warroom_log(
             "SOC Framework - Executing Command",
             {
                 "command": command,
-                "args": inline_args
+                "args": inline_args,
+                "using": using
             },
             tags
         )
 
-        result = demisto.executeCommand(command, inline_args)
+        execute_args = dict(inline_args)
+        if using:
+            execute_args["using"] = using
+
+        result = demisto.executeCommand(command, execute_args)
 
         failed, error_msg = integration_failed(result)
 
         if failed:
-
             record = {
+                "run_id": run_id,
                 "action": action,
                 "vendor": vendor,
                 "command": command,
@@ -257,6 +599,27 @@ def main():
             if output_key:
                 append_context(output_key, record)
 
+            base_payload = resolve_schema_payload(schema_entries, ctx)
+
+            wrapper_values = {
+                "timestamp": timestamp,
+                "event_type": "command",
+                "run_id": run_id,
+                "action": action,
+                "vendor": vendor,
+                "command": command,
+                "action_status": "failed",
+                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
+                "execution_mode": "production",
+                "shadow_mode_state": "not_applicable",
+                "has_error": True,
+                "error_type": "command_execution",
+                "error_message": error_msg
+            }
+
+            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+            post_dataset_payload(dataset_payload, tags)
+
             warroom_log(
                 "SOC Framework - Command Failure",
                 record,
@@ -265,33 +628,53 @@ def main():
 
             return_error(error_msg)
 
-        else:
+        record = {
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "args": inline_args,
+            "shadow_mode": False,
+            "success": True,
+            "tags": tags,
+            "timestamp": timestamp
+        }
 
-            record = {
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "args": inline_args,
-                "shadow_mode": False,
-                "success": True,
-                "tags": tags,
-                "timestamp": timestamp
-            }
+        if output_key:
+            append_context(output_key, record)
 
-            if output_key:
-                append_context(output_key, record)
+        base_payload = resolve_schema_payload(schema_entries, ctx)
 
-            warroom_log(
-                "SOC Framework - Command Success",
-                record,
-                tags
-            )
+        wrapper_values = {
+            "timestamp": timestamp,
+            "event_type": "command",
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "action_status": "success",
+            "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
+            "execution_mode": "production",
+            "shadow_mode_state": "not_applicable",
+            "has_error": False,
+            "error_type": "",
+            "error_message": ""
+        }
 
-            return_results(result)
+        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+        post_dataset_payload(dataset_payload, tags)
+
+        warroom_log(
+            "SOC Framework - Command Success",
+            record,
+            tags
+        )
+
+        return_results(result)
 
     except Exception as e:
-
         record = {
+            "run_id": run_id,
             "action": action,
             "vendor": vendor,
             "command": command,
@@ -305,6 +688,34 @@ def main():
 
         if output_key:
             append_context(output_key, record)
+
+        try:
+            base_payload = resolve_schema_payload(schema_entries, ctx)
+
+            wrapper_values = {
+                "timestamp": timestamp,
+                "event_type": "command",
+                "run_id": run_id,
+                "action": action,
+                "vendor": vendor,
+                "command": command,
+                "action_status": "failed",
+                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
+                "execution_mode": "production",
+                "shadow_mode_state": "not_applicable",
+                "has_error": True,
+                "error_type": "command_execution",
+                "error_message": str(e)
+            }
+
+            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+            post_dataset_payload(dataset_payload, tags)
+        except Exception as enrich_e:
+            warroom_log(
+                "SOC Framework - Dataset Enrichment Error",
+                {"error": str(enrich_e)},
+                tags
+            )
 
         warroom_log(
             "SOC Framework - Command Execution Error",
