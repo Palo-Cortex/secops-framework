@@ -1,0 +1,404 @@
+fromversion: 5.0.0
+id: Foundation - Get Alert Tasks and Store to Dataset_V3
+version: 5
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified
+    itemVersion: 3.3.1
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+name: Foundation - Get Alert Tasks and Store to Dataset_V3
+tags:
+- SOC
+- SOC_Framework_Unified
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: afb132f5-8d47-4936-88b9-83131adb137f
+    type: start
+    task:
+      id: afb132f5-8d47-4936-88b9-83131adb137f
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 340.5,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 821b218c-99cd-4970-a450-8e167a34e211
+    type: regular
+    task:
+      id: 821b218c-99cd-4970-a450-8e167a34e211
+      version: -1
+      name: Foundation - Get Alert Tasks
+      description: Get all tasks for a specific alert by the given state, name and/or
+        tag.
+      scriptName: GetAlertTasks
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "7"
+      '#none#':
+      - "2"
+    scriptarguments:
+      inc_id:
+        simple: ${inputs.Alert.id}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 380
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: 61354dd8-6f63-43ec-8798-29c8bfe67865
+    type: condition
+    task:
+      id: 61354dd8-6f63-43ec-8798-29c8bfe67865
+      version: -1
+      name: Tasks exist?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "4"
+      "yes":
+      - "5"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isExists
+          left:
+            value:
+              simple: Tasks
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 195.25,
+          "y": 550
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: 54c63399-81d1-4093-b1f3-74447f5e8e79
+    type: regular
+    task:
+      id: 54c63399-81d1-4093-b1f3-74447f5e8e79
+      version: -1
+      name: Post to Dataset
+      script: '|||xql-post-to-dataset'
+      type: regular
+      iscommand: true
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      JSON:
+        complex:
+          root: ${Object}
+          transformers:
+          - operator: Stringify
+      using:
+        simple: PlaybookMetrics
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 631,
+          "y": 890
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: 97cc1a90-6d2a-4446-bc73-ab000e55a21f
+    type: regular
+    task:
+      id: 97cc1a90-6d2a-4446-bc73-ab000e55a21f
+      version: -1
+      name: Delete Context
+      description: |-
+        Delete field from context.
+
+        This automation runs using the default Limited User role, unless you explicitly change the permissions.
+        For more information, see the section about permissions here:
+        https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.10/Cortex-XSOAR-Administrator-Guide/Automations
+      scriptName: DeleteContext
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "7"
+      '#none#':
+      - "6"
+    scriptarguments:
+      key:
+        simple: Tasks,Object
+      subplaybook:
+        simple: "yes"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 485.75,
+          "y": 1060
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: 3dfd1c80-02c7-4a96-9be7-54a979471d81
+    type: regular
+    task:
+      id: 3dfd1c80-02c7-4a96-9be7-54a979471d81
+      version: -1
+      name: Create Object
+      description: Set a value in context under the key you entered.
+      scriptName: Set
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "7"
+      '#none#':
+      - "3"
+    scriptarguments:
+      key:
+        simple: Object
+      stringify:
+        simple: "true"
+      value:
+        simple: '{"Tasks": ${Tasks}, "Alert": ${inputs.Alert}}'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 720
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "6":
+    id: "6"
+    taskid: d61d72ac-5011-4089-ba4f-1bea46150b16
+    type: title
+    task:
+      id: d61d72ac-5011-4089-ba4f-1bea46150b16
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 726.25,
+          "y": 1400
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: 7c42b74a-9e4f-4691-83bb-1d2b2afa0cce
+    type: playbook
+    task:
+      id: 7c42b74a-9e4f-4691-83bb-1d2b2afa0cce
+      version: -1
+      name: Foundation - Error Handling_V3
+      playbookName: Foundation - Error Handling_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "6"
+    separatecontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1230
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: 8b767a65-3af3-4ddb-af32-35c3db58d607
+    type: condition
+    task:
+      id: 8b767a65-3af3-4ddb-af32-35c3db58d607
+      version: -1
+      name: Is there an Alert?
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "6"
+      "yes":
+      - "1"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.Alert.id
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 340.5,
+          "y": 210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1410,
+        "width": 1057.25,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: Alert
+  value: {}
+  required: false
+  description: The Alert ID
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - Alert
+  name: General (Inputs group) V3
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs: []
+quiet: true
+dirtyInputs: true
+adopted: true
