@@ -1,3 +1,7 @@
+import demistomock as demisto  # noqa: F401
+from CommonServerPython import *  # noqa: F401
+from CommonServerPython import register_module_line, __line__
+
 register_module_line('SOCCommandWrapper', 'start', __line__())
 CONSTANT_PACK_VERSION = '3.3.1'
 demisto.debug('pack id = soc-optimization-unified, pack version = 3.3.1')

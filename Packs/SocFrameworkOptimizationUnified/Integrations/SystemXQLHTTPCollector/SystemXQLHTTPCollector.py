@@ -30,7 +30,7 @@ def main() -> None:
 
         elif command == 'xql-post-to-dataset':
             VENDOR = args.get('vendor') if args.get('vendor') else params.get('vendor')
-            PRODUCT = args.get('product)') if args.get('product') else params.get('product')
+            PRODUCT = args.get('product') if args.get('product') else params.get('product')
 
             events = json.loads(args.get('JSON'))
             events = json.loads(args.get('JSON'))
