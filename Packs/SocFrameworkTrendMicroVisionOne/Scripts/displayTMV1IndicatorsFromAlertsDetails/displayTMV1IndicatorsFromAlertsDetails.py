@@ -2,6 +2,8 @@
 # Purpose: Read indicators from VisionOne Alert Details already in *any* context path OR from mapped fields
 #          (trendmicrovisiononexdrindicatorsjson / trendmicrovisiononexdrindicators) and render them nicely.
 
+import demistomock as demisto
+from CommonServerPython import *
 import json
 from collections import defaultdict
 

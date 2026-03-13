@@ -7,6 +7,8 @@
 #  - Fallback is best-effort; it will not include full entity graphs/relationships.
 
 import json
+import demistomock as demisto
+from CommonServerPython import *
 from collections import defaultdict
 
 # -------------------- tiny helpers --------------------

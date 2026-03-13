@@ -6,6 +6,8 @@
 #  - Matched Process Events require the full alert object (matched_rules) to exist in context.
 
 import json
+import demistomock as demisto
+from CommonServerPython import *
 from collections import defaultdict
 
 # -------------------- tiny helpers --------------------
