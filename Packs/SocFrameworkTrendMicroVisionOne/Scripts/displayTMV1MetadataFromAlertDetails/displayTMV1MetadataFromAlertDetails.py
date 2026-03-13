@@ -7,6 +7,8 @@
 #  - Degrades gracefully when impact_scope / matched_rules aren't available.
 
 import json
+import demistomock as demisto
+from CommonServerPython import *
 
 # -------------------- tiny helpers --------------------
 def md_out(text):

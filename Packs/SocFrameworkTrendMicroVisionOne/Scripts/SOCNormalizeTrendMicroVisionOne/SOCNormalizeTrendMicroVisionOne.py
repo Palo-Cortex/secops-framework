@@ -1,3 +1,6 @@
+import demistomock as demisto
+from CommonServerPython import *
+
 def get_incident_cf():
     inc = demisto.incident() or {}
     return inc.get("CustomFields") or {}
