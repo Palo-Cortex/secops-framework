@@ -1,18 +1,15 @@
 import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401
+import json
+
 # This is a helper script designed to be used with the "[BETA] MSGraph Endpoint Alert Layout". This populates a dynamic section of the layout with the full MS Graph alert record
 #
 
-
-
 def main():
-
-    # Fetch data from context
     try:
         context_data = demisto.alert()
         context_data = context_data['CustomFields']['microsoftgraphsecurityalertevidence']
         if isinstance(context_data, dict):
-
             return_results(context_data)
         else:
             data = json.loads(context_data)
@@ -25,4 +22,3 @@ def main():
 
 if __name__ in ("builtins", "__builtin__", "__main__"):
     main()
-
