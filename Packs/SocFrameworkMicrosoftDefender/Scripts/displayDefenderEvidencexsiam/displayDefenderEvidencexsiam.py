@@ -1,5 +1,20 @@
-import demistomock as demisto  # noqa: F401
-from CommonServerPython import *  # noqa: F401
+try:
+    import demistomock as demisto  # type: ignore
+except Exception:
+    # In XSOAR/XSIAM runtime, demisto is already available
+    pass
+
+try:
+    from CommonServerPython import *  # type: ignore
+    from CommonServerPython import register_module_line, __line__  # type: ignore
+except Exception:
+    # In tenant runtime, CommonServerPython is implicitly available
+    # If these debug helpers are not available, make them no-ops
+    def register_module_line(*args, **kwargs):
+        return None
+
+    def __line__():
+        return 0
 import json
 
 # This is a helper script designed to be used with the "[BETA] MSGraph Endpoint Alert Layout". This populates a dynamic section of the layout with the full MS Graph alert record

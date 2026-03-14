@@ -1,6 +1,20 @@
-import demistomock as demisto  # noqa: F401
-from CommonServerPython import *  # noqa: F401
+try:
+    import demistomock as demisto  # type: ignore
+except Exception:
+    # In XSOAR/XSIAM runtime, demisto is already available
+    pass
 
+try:
+    from CommonServerPython import *  # type: ignore
+    from CommonServerPython import register_module_line, __line__  # type: ignore
+except Exception:
+    # In tenant runtime, CommonServerPython is implicitly available
+    # If these debug helpers are not available, make them no-ops
+    def register_module_line(*args, **kwargs):
+        return None
+
+    def __line__():
+        return 0
 # Renders the current CrowdStrike host record as an HTML table for the layout.
 # Hardened to avoid 'Type' KeyErrors and odd result shapes.
 
