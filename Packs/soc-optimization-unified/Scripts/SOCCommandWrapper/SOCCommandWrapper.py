@@ -1,25 +1,8 @@
 # Load these for testing, but ignore in operation
 # Universal Command allows multiple Vendor commands to be used by a single Universal Command
-try:
-    import demistomock as demisto  # type: ignore
-except Exception:
-    # In XSOAR/XSIAM runtime, demisto is already available
-    pass
+import demistomock as demisto  # type: ignore
+from CommonServerPython import *  # type: ignore
 
-try:
-    from CommonServerPython import *  # type: ignore
-    from CommonServerPython import register_module_line, __line__  # type: ignore
-except Exception:
-    # In tenant runtime, CommonServerPython is implicitly available
-    # If these debug helpers are not available, make them no-ops
-    def register_module_line(*args, **kwargs):
-        return None
-
-    def __line__():
-        return 0
-
-
-register_module_line('SOCCommandWrapper', 'start', __line__())
 CONSTANT_PACK_VERSION = '3.3.1'
 demisto.debug('pack id = soc-optimization-unified, pack version = 3.3.1')
 
@@ -749,5 +732,3 @@ def main():
 
 if __name__ in ("__builtin__", "builtins", "__main__"):
     main()
-
-register_module_line('SOCCommandWrapper', 'end', __line__())
