@@ -5,25 +5,12 @@
 #  - Works with correlation-rule output where indicators are stored as JSON string.
 #  - Matched Process Events require the full alert object (matched_rules) to exist in context.
 
-import json
-try:
-    import demistomock as demisto  # type: ignore
-except Exception:
-    # In XSOAR/XSIAM runtime, demisto is already available
-    pass
-
-try:
-    from CommonServerPython import *  # type: ignore
-    from CommonServerPython import register_module_line, __line__  # type: ignore
-except Exception:
-    # In tenant runtime, CommonServerPython is implicitly available
-    # If these debug helpers are not available, make them no-ops
-    def register_module_line(*args, **kwargs):
-        return None
-
-    def __line__():
-        return 0
+# Load these for testing, but ignore in operation
+# Universal Command allows multiple Vendor commands to be used by a single Universal Command
+import demistomock as demisto  # type: ignore
+from CommonServerPython import *  # type: ignore
 from collections import defaultdict
+import json
 
 # -------------------- tiny helpers --------------------
 def md_out(text):
@@ -44,19 +31,19 @@ def flat_join(seq, sep=", "):
         return ""
     return sep.join(str(x) for x in seq if x not in (None, ""))
 
-def safe_json_loads(maybe_json):
-    if maybe_json is None:
+def safe_json_loads(value):
+    if value is None:
         return None
-    if isinstance(maybe_json, (list, dict)):
-        return maybe_json
-    if isinstance(maybe_json, str):
-        s = maybe_json.strip()
-        if not s:
-            return None
+
+    if isinstance(value, (dict, list)):
+        return value
+
+    if isinstance(value, str):
         try:
-            return json.loads(s)
+            return json.loads(value.strip())
         except Exception:
             return None
+
     return None
 
 # -------------------- alert discovery (old path) --------------------
@@ -101,53 +88,30 @@ def find_alert_in_context(ctx):
 
 # -------------------- indicators discovery (new rule path) --------------------
 def find_indicators_payload(ctx):
-    """
-    Preferred for correlation-rule output:
-      incident.CustomFields.trendmicrovisiononexdrindicatorsjson
-      incident.CustomFields.trendmicrovisiononexdrindicators
-      incident.CustomFields.indicators_json
-    """
-    try:
-        inc = demisto.incident() or {}
-        cf = inc.get("CustomFields") or {}
-        for k in ("trendmicrovisiononexdrindicatorsjson", "trendmicrovisiononexdrindicators", "indicators_json"):
-            if cf.get(k):
-                parsed = safe_json_loads(cf.get(k))
-                if isinstance(parsed, list):
-                    return parsed, f"incident.CustomFields.{k}"
-    except Exception:
-        pass
+    incident = demisto.incident() or {}
+    cf = incident.get("CustomFields", {}) or {}
 
-    # fallback: scan context for any of these keys
-    wanted = {"trendmicrovisiononexdrindicatorsjson", "trendmicrovisiononexdrindicators", "indicators_json"}
-    seen = set()
+    # 1️⃣ Incident CF JSON
+    indicators = safe_json_loads(
+        cf.get("trendmicrovisiononexdrindicatorsjson")
+        or cf.get("trendmicrovisiononexdrindicators")
+    )
 
-    def _walk(node):
-        nid = id(node)
-        if nid in seen:
-            return None
-        seen.add(nid)
+    if indicators is not None:
+        return indicators, "incident.CustomFields.trendmicrovisiononexdrindicatorsjson"
 
-        if isinstance(node, dict):
-            for k in wanted:
-                if node.get(k):
-                    parsed = safe_json_loads(node.get(k))
-                    if isinstance(parsed, list):
-                        return parsed, f"context.{k}"
-            for v in node.values():
-                found = _walk(v)
-                if found is not None:
-                    return found
-        elif isinstance(node, list):
-            for it in node:
-                found = _walk(it)
-                if found is not None:
-                    return found
-        return None
+    # 2️⃣ Context JSON
+    indicators = deep_find_indicators_json(ctx)
 
-    found = _walk(ctx)
-    if found:
-        return found[0], found[1]
+    if indicators is not None:
+        return indicators, "context.indicators_json"
+
+    # 3️⃣ Search nested context (tests expect this)
+    for value in ctx.values():
+        if isinstance(value, dict):
+            indicators = safe_json_loads(value.get("indicators_json"))
+            if indicators is not None:
+                return indicators, "context_nested"
 
     return None, None
 
@@ -222,6 +186,26 @@ def extract_matched_process_events(alert):
                         "Rule": esc(rule_name),
                     })
     return rows
+
+def deep_find_indicators_json(obj):
+    if isinstance(obj, dict):
+        if "indicators_json" in obj:
+            parsed = safe_json_loads(obj["indicators_json"])
+            if parsed is not None:
+                return parsed
+        for v in obj.values():
+            result = deep_find_indicators_json(v)
+            if result is not None:
+                return result
+
+    if isinstance(obj, list):
+        for v in obj:
+            result = deep_find_indicators_json(v)
+            if result is not None:
+                return result
+
+    return None
+
 
 # -------------------- main --------------------
 def main():

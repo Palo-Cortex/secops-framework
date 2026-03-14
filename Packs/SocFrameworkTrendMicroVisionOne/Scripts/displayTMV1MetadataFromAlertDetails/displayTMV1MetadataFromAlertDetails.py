@@ -6,24 +6,11 @@
 #  - Falls back to correlation-rule mapped incident custom fields when alert object isn't present.
 #  - Degrades gracefully when impact_scope / matched_rules aren't available.
 
+# Load these for testing, but ignore in operation
+# Universal Command allows multiple Vendor commands to be used by a single Universal Command
+import demistomock as demisto  # type: ignore
+from CommonServerPython import *  # type: ignore
 import json
-try:
-    import demistomock as demisto  # type: ignore
-except Exception:
-    # In XSOAR/XSIAM runtime, demisto is already available
-    pass
-
-try:
-    from CommonServerPython import *  # type: ignore
-    from CommonServerPython import register_module_line, __line__  # type: ignore
-except Exception:
-    # In tenant runtime, CommonServerPython is implicitly available
-    # If these debug helpers are not available, make them no-ops
-    def register_module_line(*args, **kwargs):
-        return None
-
-    def __line__():
-        return 0
 
 # -------------------- tiny helpers --------------------
 def md_out(text):
@@ -44,19 +31,22 @@ def flat_join(seq, sep=", "):
         return ""
     return sep.join(str(x) for x in seq if x not in (None, ""))
 
-def safe_json_loads(maybe_json):
-    if maybe_json is None:
+def safe_json_loads(value):
+    """
+    Safely load JSON from string or pass through dict/list.
+    """
+    if value is None:
         return None
-    if isinstance(maybe_json, (list, dict)):
-        return maybe_json
-    if isinstance(maybe_json, str):
-        s = maybe_json.strip()
-        if not s:
-            return None
+
+    if isinstance(value, (dict, list)):
+        return value
+
+    if isinstance(value, str):
         try:
-            return json.loads(s)
+            return json.loads(value)
         except Exception:
             return None
+
     return None
 
 # -------------------- alert discovery (old path) --------------------
