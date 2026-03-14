@@ -1,8 +1,23 @@
-# Load these for testing, but ignore in operation
-# Universal Command allows multiple Vendor commands to be used by a single Universal Command
-import demistomock as demisto  # type: ignore
-from CommonServerPython import *  # type: ignore
+try:
+    import demistomock as demisto  # type: ignore
+except Exception:
+    # In XSOAR/XSIAM runtime, demisto is already available
+    pass
 
+try:
+    from CommonServerPython import *  # type: ignore
+    from CommonServerPython import register_module_line, __line__  # type: ignore
+except Exception:
+    # In tenant runtime, CommonServerPython is implicitly available
+    # If these debug helpers are not available, make them no-ops
+    def register_module_line(*args, **kwargs):
+        return None
+
+    def __line__():
+        return 0
+
+
+register_module_line('SOCCommandWrapper', 'start', __line__())
 CONSTANT_PACK_VERSION = '3.3.1'
 demisto.debug('pack id = soc-optimization-unified, pack version = 3.3.1')
 
@@ -64,11 +79,7 @@ def _resolve_ctx_string(s, ctx):
             or s.startswith("issue.")
             or s.startswith("parentIncidentFields.")
     ):
-        val = demisto.get(ctx, s)
-        # Context values are often stored as lists — extract first non-empty element
-        if isinstance(val, list):
-            val = next((v for v in val if v not in (None, "", [], {})), None)
-        return val
+        return demisto.get(ctx, s)
 
     return s
 
@@ -736,3 +747,5 @@ def main():
 
 if __name__ in ("__builtin__", "builtins", "__main__"):
     main()
+
+register_module_line('SOCCommandWrapper', 'end', __line__())
