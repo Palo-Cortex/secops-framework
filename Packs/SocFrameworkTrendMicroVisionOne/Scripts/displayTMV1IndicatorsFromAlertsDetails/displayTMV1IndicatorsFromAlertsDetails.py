@@ -2,10 +2,23 @@
 # Purpose: Read indicators from VisionOne Alert Details already in *any* context path OR from mapped fields
 #          (trendmicrovisiononexdrindicatorsjson / trendmicrovisiononexdrindicators) and render them nicely.
 
-# Load these for testing, but ignore in operation
-# Universal Command allows multiple Vendor commands to be used by a single Universal Command
-import demistomock as demisto  # type: ignore
-from CommonServerPython import *  # type: ignore
+try:
+    import demistomock as demisto  # type: ignore
+except Exception:
+    # In XSOAR/XSIAM runtime, demisto is already available
+    pass
+
+try:
+    from CommonServerPython import *  # type: ignore
+    from CommonServerPython import register_module_line, __line__  # type: ignore
+except Exception:
+    # In tenant runtime, CommonServerPython is implicitly available
+    # If these debug helpers are not available, make them no-ops
+    def register_module_line(*args, **kwargs):
+        return None
+
+    def __line__():
+        return 0
 import json
 from collections import defaultdict
 
