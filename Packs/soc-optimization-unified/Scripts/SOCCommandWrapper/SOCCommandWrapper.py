@@ -1,4 +1,5 @@
 # Load these for testing, but ignore in operation
+# Universal Command allows multiple Vendor commands to be used by a single Universal Command
 try:
     import demistomock as demisto  # type: ignore
 except Exception:
