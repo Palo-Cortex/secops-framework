@@ -52,6 +52,7 @@ inputSections:
   - case_issue_count
   - xdm_sourceprocess_executable_sha256
   - cgo_sha256
+  - tactic_id
   name: General (Inputs group)
 inputs:
 - description: Threshold for DBot Predicted Score for Host Likely Compromised
@@ -85,12 +86,15 @@ inputs:
   required: false
   value:
     simple: ${SOCFramework.Artifacts.File}
-- description: ""
+- description: Enriched artifact verdict resolved by SOC_Endpoint_Verdict_Resolution_V3
+    after all TI sources and WildFire detonation. Use Analysis.Endpoint.verdict, not
+    SOCFramework.Artifacts.Verdict, to ensure compromise evaluation uses the aggregated
+    DBot-normalized result rather than the raw source classification.
   key: verdict
   playbookInputQuery: null
   required: false
   value:
-    simple: ${SOCFramework.Artifacts.Verdict}
+    simple: ${Analysis.Endpoint.verdict}
 - description: ""
   key: initiator_sha256
   playbookInputQuery: null
@@ -127,6 +131,14 @@ inputs:
   required: false
   value:
     simple: ${issue.cgosha256}
+- description: MITRE ATT&CK tactic ID written by Foundation into SOCFramework.Mitre.Tactic.ID
+    (e.g. TA0002 for Execution). Used alongside verdict to confirm execution without
+    requiring hash matching when CGO/XDM fields are not populated.
+  key: tactic_id
+  playbookInputQuery: null
+  required: false
+  value:
+    simple: ${SOCFramework.Mitre.Tactic.ID}
 name: SOC Endpoint Compromise Evaluation_V3
 outputSections:
 - description: Generic group for outputs
@@ -577,6 +589,27 @@ tasks:
             iscontext: true
             value:
               simple: inputs.cgo_sha256
+      label: Likely Compromised
+    - condition:
+      - - left:
+            iscontext: true
+            value:
+              complex:
+                root: inputs.verdict
+                transformers:
+                - operator: toLowerCase
+          operator: isEqualString
+          right:
+            value:
+              simple: malicious
+      - - left:
+            iscontext: true
+            value:
+              simple: inputs.tactic_id
+          operator: isEqualString
+          right:
+            value:
+              simple: TA0002
       label: Likely Compromised
     continueonerrortype: ""
     id: "76"

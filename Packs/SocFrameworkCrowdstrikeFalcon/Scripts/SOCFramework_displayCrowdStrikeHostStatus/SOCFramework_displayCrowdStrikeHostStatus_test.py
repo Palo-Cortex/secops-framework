@@ -37,7 +37,7 @@ common.execute_command = execute_command
 
 sys.modules["CommonServerPython"] = common
 
-import displayCrowdStrikeHostStatusxsiam as script
+import SOCFramework_displayCrowdStrikeHostStatus as script
 
 
 def test_fmt_status_normal():
