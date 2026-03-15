@@ -3,7 +3,7 @@ id: SOC EndPoint Analysis_V3
 version: 10
 contentitemexportablefields:
   contentitemfields:
-    packID: soc-optimization-unified
+    packID: soc-framework-nist-ir
     packName: SOC Framework Unified
     itemVersion: 3.1.4
     fromServerVersion: 5.0.0
@@ -232,7 +232,7 @@ tasks:
       - - operator: isEqualString
           left:
             value:
-              simple: ${Investigation.findings.compromise_level}
+              simple: ${Analysis.Endpoint.compromise_level}
             iscontext: true
           right:
             value:
@@ -240,7 +240,7 @@ tasks:
       - - operator: isEqualString
           left:
             value:
-              simple: Investigation.findings.spread_level
+              simple: Analysis.Endpoint.spread_level
             iscontext: true
           right:
             value:
@@ -248,7 +248,7 @@ tasks:
         - operator: greaterThanOrEqual
           left:
             value:
-              simple: Investigation.findings.issue_count
+              simple: Analysis.Endpoint.issue_count
             iscontext: true
           right:
             value:
@@ -256,7 +256,7 @@ tasks:
         - operator: isEqualString
           left:
             value:
-              simple: Investigation.findings.compromise_decision
+              simple: Analysis.Endpoint.compromise_decision
             iscontext: true
           right:
             value:
@@ -266,7 +266,7 @@ tasks:
       - - operator: isEqualString
           left:
             value:
-              simple: ${Investigation.findings.compromise_level}
+              simple: ${Analysis.Endpoint.compromise_level}
             iscontext: true
           right:
             value:
@@ -274,7 +274,7 @@ tasks:
         - operator: greaterThanOrEqual
           left:
             value:
-              simple: ${Investigation.findings.issue_count}
+              simple: ${Analysis.Endpoint.issue_count}
             iscontext: true
           right:
             value:
@@ -325,7 +325,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Investigation.findings.confidence
+        simple: Analysis.Endpoint.confidence
       value:
         simple: high
     separatecontext: false
@@ -374,7 +374,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Investigation.findings.confidence
+        simple: Analysis.Endpoint.confidence
       value:
         simple: medium
     separatecontext: false
@@ -423,7 +423,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Investigation.findings.confidence
+        simple: Analysis.Endpoint.confidence
       value:
         simple: low
     separatecontext: false
@@ -472,7 +472,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Investigation.findings.response_recommended
+        simple: Analysis.Endpoint.response_recommended
       value:
         simple: "true"
     separatecontext: false
@@ -521,7 +521,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Investigation.findings.response_recommended
+        simple: Analysis.Endpoint.response_recommended
       value:
         simple: "false"
     separatecontext: false
@@ -684,7 +684,7 @@ tasks:
           transformers:
           - operator: toLowerCase
       cgo_name:
-        simple: ${issue.cgocmd}
+        simple: ${SOCFramework.Artifacts.CommandLine}
     separatecontext: false
     continueonerrortype: ""
     loop:
@@ -709,37 +709,20 @@ tasks:
   "68":
     id: "68"
     taskid: 7931e941-7495-4368-a91c-521cf74d9071
-    type: condition
+    type: title
     task:
       id: 7931e941-7495-4368-a91c-521cf74d9071
       version: -1
-      name: What is File Verdict
-      type: condition
+      name: Verdict Resolved
+      type: title
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
-      '#default#':
-      - "2"
-      Malicious or Suspicious:
+      '#none#':
       - "69"
     separatecontext: false
-    conditions:
-    - label: Malicious or Suspicious
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: Investigation.findings
-                accessor: verdict
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: malicious
     continueonerrortype: ""
     view: |-
       {
@@ -808,11 +791,11 @@ tasks:
       SHA256:
         simple: ${SOCFramework.Artifacts.File}
       case_host_count:
-        simple: ${Investigation.findings.host_count}
+        simple: ${Analysis.Endpoint.host_count}
       case_tactics:
         simple: ${parentIncidentFields.mitre_tactics_ids_and_names}
       case_user_count:
-        simple: ${Investigation.findings.user_count}
+        simple: ${Analysis.Endpoint.user_count}
       high_hash_count_per_case:
         simple: "3"
       high_host_count_per_case:
@@ -863,7 +846,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "68"
+      - "69"
     scriptarguments:
       SHA256:
         simple: ${SOCFramework.Artifacts.File}
@@ -948,19 +931,19 @@ tasks:
           transformers:
           - operator: toLowerCase
       case_host_count:
-        simple: ${Investigation.findings.host_count}
+        simple: ${Analysis.Endpoint.host_count}
       case_issue_count:
-        simple: ${Investigation.findings.issue_count}
+        simple: ${Analysis.Endpoint.issue_count}
       case_score:
         simple: ${parentIncidentFields.predicted_score}
       case_user_count:
-        simple: ${Investigation.findings.user_count}
+        simple: ${Analysis.Endpoint.user_count}
       compromise_decision:
-        simple: ${Investigation.findings.compromise_decision}
+        simple: ${Analysis.Endpoint.compromise_decision}
       compromise_level:
-        simple: ${Investigation.findings.compromise_level}
+        simple: ${Analysis.Endpoint.compromise_level}
       confidence:
-        simple: ${Investigation.findings.confidence}
+        simple: ${Analysis.Endpoint.confidence}
       global_hash_prevalence_count:
         simple: ${Core.AnalyticsPrevalence.Hash.[0].data.global_prevalence.value}
       mitre_tactic:
@@ -972,7 +955,7 @@ tasks:
       mitre_technique_id:
         simple: ${SOCFramework.Mitre.Technique.ID}
       persistence_type:
-        simple: ${Investigation.persistence_type}
+        simple: ${Analysis.Endpoint.persistence_type}
       primary_entity_id:
         simple: ${SOCFramework.Artifacts.EndPointID}
       primary_entity_name:
@@ -982,21 +965,21 @@ tasks:
       primary_entity_user:
         simple: ${SOCFramework.Artifacts.UserName}
       response_recommended:
-        simple: ${Investigation.findings.response_recommended}
+        simple: ${Analysis.Endpoint.response_recommended}
       spread_level:
-        simple: ${Investigation.findings.spread_level}
+        simple: ${Analysis.Endpoint.spread_level}
       story:
-        simple: "Endpoint Analysis Summary\n\nA file with verdict \"${Investigation.findings.verdict}\"
+        simple: "Endpoint Analysis Summary\n\nA file with verdict \"${SOCFramework.Artifacts.Verdict}\"
           was observed in this case.\n\nThe endpoint compromise level has been assessed
-          as \"${Investigation.findings.compromise_level}\", based on execution correlation
+          as \"${Analysis.Endpoint.compromise_level}\", based on execution correlation
           and observed MITRE ATT&CK behavioral patterns.\n\nActivity scope:\n• Hosts
-          involved: ${Investigation.findings.host_count}\n• Users involved: ${Investigation.findings.user_count}\n•
-          Environmental hash prevalence: ${Investigation.findings.hash_prevalence_count}\n•
-          Spread level: ${Investigation.findings.spread_level}\n\nInvestigation confidence
-          is \"${Investigation.findings.confidence}\". \nResponse recommendation:
-          ${Investigation.findings.response_recommended}."
+          involved: ${Analysis.Endpoint.host_count}\n• Users involved: ${Analysis.Endpoint.user_count}\n•
+          Environmental hash prevalence: ${Analysis.Endpoint.hash_prevalence_count}\n•
+          Spread level: ${Analysis.Endpoint.spread_level}\n\nInvestigation confidence
+          is \"${Analysis.Endpoint.confidence}\". \nResponse recommendation:
+          ${Analysis.Endpoint.response_recommended}."
       verdict:
-        simple: ${Investigation.findings.verdict}
+        simple: ${SOCFramework.Artifacts.Verdict}
     separatecontext: true
     continueonerrortype: ""
     loop:
@@ -1076,20 +1059,20 @@ tasks:
       - "17"
     scriptarguments:
       key:
-        simple: Investigation.persistence_type
+        simple: Analysis.Endpoint.persistence_type
       value:
         complex:
-          root: issue
+          root: SOCFramework.Mitre
           filters:
           - - operator: containsGeneral
               left:
                 value:
-                  simple: issue.mitretacticid
+                  simple: SOCFramework.Mitre.Tactic.ID
                 iscontext: true
               right:
                 value:
                   simple: TA0003
-          accessor: mitretechniquename
+          accessor: Technique
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -1129,7 +1112,7 @@ inputs:
   playbookInputQuery: null
 - key: case_category
   value:
-    simple: ${issue.categoryname}
+    simple: ${SOCFramework.Product.category}
   required: false
   description: ""
   playbookInputQuery: null
@@ -1154,10 +1137,76 @@ inputSections:
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
-- outputs: []
+- outputs:
+  - Analysis.verdict
+  - Analysis.confidence
+  - Analysis.response_recommended
+  - Analysis.compromise_level
+  - Analysis.compromise_decision
+  - Analysis.spread_level
+  - Analysis.persistence_type
+  - Analysis.primary_entity_id
+  - Analysis.primary_entity_name
+  - Analysis.primary_entity_user
+  - Analysis.primary_entity_type
+  - Analysis.case_category
+  - Analysis.mitre_tactic
+  - Analysis.mitre_tactic_id
+  - Analysis.mitre_technique
+  - Analysis.mitre_technique_id
+  - Analysis.story
+  - Analysis.case_score
+  - Analysis.global_hash_prevalence_count
+  - Analysis.case_host_count
+  - Analysis.case_issue_count
+  - Analysis.case_user_count
   name: General (Outputs group)
   description: Generic group for outputs
-outputs: []
+outputs:
+- contextPath: Analysis.verdict
+  type: unknown
+- contextPath: Analysis.confidence
+  type: unknown
+- contextPath: Analysis.response_recommended
+  type: unknown
+- contextPath: Analysis.compromise_level
+  type: unknown
+- contextPath: Analysis.compromise_decision
+  type: unknown
+- contextPath: Analysis.spread_level
+  type: unknown
+- contextPath: Analysis.persistence_type
+  type: unknown
+- contextPath: Analysis.primary_entity_id
+  type: unknown
+- contextPath: Analysis.primary_entity_name
+  type: unknown
+- contextPath: Analysis.primary_entity_user
+  type: unknown
+- contextPath: Analysis.primary_entity_type
+  type: unknown
+- contextPath: Analysis.case_category
+  type: unknown
+- contextPath: Analysis.mitre_tactic
+  type: unknown
+- contextPath: Analysis.mitre_tactic_id
+  type: unknown
+- contextPath: Analysis.mitre_technique
+  type: unknown
+- contextPath: Analysis.mitre_technique_id
+  type: unknown
+- contextPath: Analysis.story
+  type: unknown
+- contextPath: Analysis.case_score
+  type: unknown
+- contextPath: Analysis.global_hash_prevalence_count
+  type: unknown
+- contextPath: Analysis.case_host_count
+  type: unknown
+- contextPath: Analysis.case_issue_count
+  type: unknown
+- contextPath: Analysis.case_user_count
+  type: unknown
 sourceplaybookid: SOC Data Analysis_V3
 dirtyInputs: true
 adopted: true
