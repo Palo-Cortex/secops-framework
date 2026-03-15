@@ -112,7 +112,7 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
+                root: inputs
                 accessor: response_recommended
                 transformers:
                 - operator: toLowerCase
@@ -196,8 +196,8 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
-                accessor: compromised_level
+                root: inputs
+                accessor: compromise_level
                 transformers:
                 - operator: toLowerCase
             iscontext: true
@@ -210,8 +210,8 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
-                accessor: compromised_level
+                root: inputs
+                accessor: compromise_level
                 transformers:
                 - operator: toLowerCase
             iscontext: true
@@ -224,8 +224,8 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
-                accessor: compromised_level
+                root: inputs
+                accessor: compromise_level
                 transformers:
                 - operator: toLowerCase
             iscontext: true
@@ -272,7 +272,7 @@ tasks:
       - - operator: containsGeneral
           left:
             value:
-              simple: inputs.Analysis.mitre_tactic
+              simple: inputs.mitre_tactic
             iscontext: true
           right:
             value:
@@ -375,8 +375,8 @@ tasks:
         simple: Eradication.story
       value:
         simple: "No Malware Artifacts Confirmed.  \nSHA256: ${SOCFramework.Artifacts.File.[0]}\nEndPoint:
-          ${inputs.Analysis.entity_name.[0]}\nEndPoint ID: ${inputs.Analysis.primary_entity_id.[0]}\nUserName:
-          ${inputs.Analysis.primary_entity_user.[0]}"
+          ${inputs.primary_entity_name}\nEndPoint ID: ${inputs.primary_entity_id.[0]}\nUserName:
+          ${inputs.primary_entity_user.[0]}"
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -456,7 +456,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Eradication.file_removed
+        simple: Eradication.files_removed
       value:
         simple: "true"
     separatecontext: false
@@ -762,15 +762,14 @@ tasks:
         simple: Eradication.story
       value:
         simple: |-
-          Host: ${inputs.Analysis.primary_entity_name}
-          User: ${inputs.Analysis.primary_entity_user}
+          Host: ${inputs.primary_entity_name}
+          User: ${inputs.primary_entity_user}
 
-          Compromise Level: ${inputs.Analysis.compromised_level}
-          Compromise Decision:${inputs.Analysis.compromise_decision}
-          Spread Level: ${inputs.Analysis.spread_level}
+          Compromise Level: ${inputs.compromise_level}
+          Compromise Decision:${inputs.compromise_decision}
+          Spread Level: ${inputs.spread_level}
 
-          Persistence Detected: ${inputs.Analysis.persistence_detected}
-          Persistence Type: ${inputs.Analysis.persistence_type}
+          Persistence Type: ${inputs.persistence_type}
 
           Files Removed: ${Eradication.files_removed}
           Persistence Removed: ${Eradication.persistence_removed}
@@ -852,7 +851,7 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
+                root: inputs
                 accessor: spread_level
                 transformers:
                 - operator: toLowerCase
@@ -866,7 +865,7 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
+                root: inputs
                 accessor: spread_level
                 transformers:
                 - operator: toLowerCase
@@ -878,7 +877,7 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
+                root: inputs
                 accessor: spread_level
                 transformers:
                 - operator: toLowerCase
@@ -959,7 +958,7 @@ tasks:
           left:
             value:
               complex:
-                root: inputs.Analysis
+                root: inputs
                 accessor: compromise_decision
                 transformers:
                 - operator: toLowerCase
@@ -1076,7 +1075,7 @@ tasks:
       force:
         simple: "true"
       key:
-        simple: Eradication.file_removed
+        simple: Eradication.files_removed
       value:
         simple: "false"
     separatecontext: false
@@ -1493,15 +1492,14 @@ tasks:
         simple: Eradication.story
       value:
         simple: |-
-          Host: ${inputs.Analysis.primary_entity_name}
-          User: ${inputs.Analysis.primary_entity_user}
+          Host: ${inputs.primary_entity_name}
+          User: ${inputs.primary_entity_user}
 
-          Compromise Level: ${inputs.Analysis.compromised_level}
-          Compromise Decision: {inputs.Analysis.compromise_decision}
-          Spread Level: ${inputs.Analysis.spread_level}
+          Compromise Level: ${inputs.compromise_level}
+          Compromise Decision: {inputs.compromise_decision}
+          Spread Level: ${inputs.spread_level}
 
-          Persistence Detected: ${inputs.Analysis.persistence_detected}
-          Persistence Type: ${inputs.Analysis.persistence_type}
+          Persistence Type: ${inputs.persistence_type}
 
           Files Removed: ${Eradication.files_removed}
           Persistence Removed: ${Eradication.persistence_removed}
@@ -2044,16 +2042,78 @@ inputs:
   required: false
   description: ""
   playbookInputQuery: null
-- key: Analysis
+- key: compromise_decision
   value:
-    simple: ${Analysis}
+    simple: ${Analysis.compromise_decision}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: compromise_level
+  value:
+    simple: ${Analysis.compromise_level}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: compromise_level
+  value:
+    simple: ${Analysis.compromise_level}
+  required: false
+  description: "Alias for compromise_level matching existing accessor usage"
+  playbookInputQuery: null
+- key: mitre_tactic
+  value:
+    simple: ${Analysis.mitre_tactic}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: persistence_type
+  value:
+    simple: ${Analysis.persistence_type}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: primary_entity_id
+  value:
+    simple: ${Analysis.primary_entity_id}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: primary_entity_name
+  value:
+    simple: ${Analysis.primary_entity_name}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: primary_entity_user
+  value:
+    simple: ${Analysis.primary_entity_user}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: response_recommended
+  value:
+    simple: ${Analysis.response_recommended}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: spread_level
+  value:
+    simple: ${Analysis.spread_level}
   required: false
   description: ""
   playbookInputQuery: null
 inputSections:
 - inputs:
   - ShadowMode
-  - Analysis
+  - compromise_decision
+  - compromise_level
+  - mitre_tactic
+  - persistence_type
+  - primary_entity_id
+  - primary_entity_name
+  - primary_entity_user
+  - response_recommended
+  - spread_level
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
