@@ -20,7 +20,7 @@ fi
 echo "Uploading $PACK_PATH ..."
 start=$(date +%s)
 
-demisto-sdk upload -x -z -i "$PACK_PATH" --console-log-threshold DEBUG
+demisto-sdk upload -x -z -i "$PACK_PATH" --marketplace marketplacev2 --console-log-threshold DEBUG
 
 end=$(date +%s)
 elapsed=$((end - start))
