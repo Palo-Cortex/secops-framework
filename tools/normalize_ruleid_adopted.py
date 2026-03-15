@@ -5,7 +5,8 @@ normalize_ruleid_adopted.py
 Behavior:
 - Set rule_id: 0 on correlation rules under any CorrelationRules directory (.yml/.json)
 - Ensure fromversion: 6.10.0 on YAML correlation rules and fromVersion: "6.10.0" on JSON correlation rules
-- Ensure adopted: true for playbooks under Content/Playbooks
+- Ensure adopted: true for playbooks under any Playbooks/ directory
+- Normalize packID in playbook YAML contentitemfields to match the pack folder name
 - For JSON/YAML scripts, ensure fromVersion/fromversion is 6.10.0
 - Remove Builtin/BuiltIn from pack_metadata.json dependencies if found.
 - For JSON files under any Lists/* directory, set "id" and "name" to the
@@ -18,10 +19,13 @@ Behavior:
 
 Usage:
   # Local (fix mode)
-  python3 normalize_ruleid_adopted.py --root Packs/soc-optimization --fix
+  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir --fix
 
   # CI / check-only mode (exit 1 if changes would be needed)
-  python3 normalize_ruleid_adopted.py --root Packs/soc-optimization
+  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir
+
+  # Override the expected packID (default: derived from --root folder name)
+  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir --pack-id soc-framework-nist-ir --fix
 """
 
 import argparse
@@ -105,7 +109,8 @@ def ensure_pack_required_files(root: str, dry_run: bool) -> bool:
 
 def _is_playbook(path: str) -> bool:
     low = _norm(path)
-    return "/content/playbooks/" in low and (low.endswith(".yml") or low.endswith(".yaml"))
+    is_yaml = low.endswith(".yml") or low.endswith(".yaml")
+    return is_yaml and ("/playbooks/" in low)
 
 
 def _is_corr_rule(path: str) -> bool:
@@ -239,10 +244,65 @@ def _ensure_fromversion_yaml(text: str, version: str = "6.10.0") -> Tuple[str, b
     return new_text, True
 
 # ------------------------------------------------------------
+# packID normalization (playbook YAML)
+# ------------------------------------------------------------
+
+def _normalize_packid_yaml(text: str, expected_pack_id: str) -> Tuple[str, bool]:
+    """
+    Ensure contentitemexportablefields.contentitemfields.packID matches
+    the expected pack ID (derived from the --root folder name).
+
+    Strategy: textual-only replacement to avoid corrupting embedded Python
+    or multi-line block scalars in YAML playbook files.
+
+    Returns (new_text, changed).
+    """
+    pack_id_re = re.compile(
+        r'^(?P<indent>[ \t]*)packID\s*:\s*(?P<val>.*)$',
+        re.MULTILINE,
+    )
+
+    match = pack_id_re.search(text)
+    if not match:
+        # No packID key present at all — insert after contentitemfields:
+        cf_re = re.compile(r'^([ \t]*)contentitemfields\s*:\s*$', re.MULTILINE)
+        cf_match = cf_re.search(text)
+        if not cf_match:
+            # Playbook was exported without contentitemexportablefields block (minimal SDK export).
+            # Cannot safely insert packID — flag for manual addition.
+            print(
+                "[WARN] No contentitemfields block found — packID cannot be inserted automatically. "
+                "This playbook may be a minimal SDK export missing contentitemexportablefields."
+            )
+            return text, False
+        cf_indent = cf_match.group(1)
+        child_indent = cf_indent + "  "
+        insert_pos = cf_match.end()
+        insert_line = f"\n{child_indent}packID: {expected_pack_id}"
+        return text[:insert_pos] + insert_line + text[insert_pos:], True
+
+    current_val = match.group("val").strip().strip('"').strip("'")
+    if current_val == expected_pack_id:
+        return text, False
+
+    indent = match.group("indent")
+    new_line = f"{indent}packID: {expected_pack_id}"
+    new_text = text[:match.start()] + new_line + text[match.end():]
+    return new_text, True
+
+
+# ------------------------------------------------------------
 # Correlation rule & playbook normalize logic
 # ------------------------------------------------------------
 
-def normalize_ruleid_and_adopted(root: str, dry_run: bool) -> bool:
+def normalize_ruleid_and_adopted(root: str, dry_run: bool, pack_id: str = "") -> bool:
+    """
+    Normalize correlation rules and playbook YAMLs under root.
+
+    pack_id: the expected packID value for all playbook YAMLs in this pack.
+             Derived from the pack folder name (os.path.basename(root)).
+             If empty, packID normalization is skipped.
+    """
     changed_any = False
 
     for dirpath, _, filenames in os.walk(root):
@@ -254,11 +314,11 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool) -> bool:
             if not (low.endswith(".json") or low.endswith(".yml") or low.endswith(".yaml")):
                 continue
 
-            is_playbook = _is_playbook(fp)
+            is_pb = _is_playbook(fp)
             is_corr = _is_corr_rule(fp)
 
             # Nothing to do?
-            if not is_playbook and not is_corr:
+            if not is_pb and not is_corr:
                 continue
 
             try:
@@ -307,9 +367,15 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool) -> bool:
                         text, c = _ensure_fromversion_yaml(text, version="6.10.0")
                         changed |= c
 
-                    if is_playbook:
+                    if is_pb:
                         text, c = _ensure_adopted_in_yaml(text)
                         changed |= c
+
+                        if pack_id:
+                            text, c = _normalize_packid_yaml(text, pack_id)
+                            if c:
+                                print(f"[INFO] Fixed packID -> {pack_id!r}: {fp}")
+                            changed |= c
 
                     if changed:
                         print(f"[INFO] Normalize YAML: {fp}")
@@ -561,14 +627,31 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".", help="Pack root path")
     ap.add_argument("--fix", action="store_true", help="Apply changes instead of check-only")
+    ap.add_argument(
+        "--pack-id",
+        default="",
+        help=(
+            "Expected packID value for playbook YAMLs. "
+            "Defaults to the folder name of --root. "
+            "Pass an empty string to skip packID normalization."
+        ),
+    )
     args = ap.parse_args()
 
     dry_run = not args.fix
 
+    # Derive pack_id from the root folder name unless explicitly overridden.
+    # os.path.basename handles both trailing-slash and no-trailing-slash cases.
+    root_abs = os.path.abspath(args.root)
+    pack_id = args.pack_id if args.pack_id != "" else os.path.basename(root_abs)
+
+    if pack_id:
+        print(f"[INFO] Expected packID: {pack_id!r}")
+
     changed_anything = False
 
     changed_anything |= ensure_pack_required_files(args.root, dry_run=dry_run)
-    changed_anything |= normalize_ruleid_and_adopted(args.root, dry_run=dry_run)
+    changed_anything |= normalize_ruleid_and_adopted(args.root, dry_run=dry_run, pack_id=pack_id)
     changed_anything |= normalize_lists(args.root, dry_run=dry_run)
     changed_anything |= normalize_scripts_json(args.root, dry_run=dry_run)
     changed_anything |= normalize_scripts_yaml(args.root, dry_run=dry_run)
