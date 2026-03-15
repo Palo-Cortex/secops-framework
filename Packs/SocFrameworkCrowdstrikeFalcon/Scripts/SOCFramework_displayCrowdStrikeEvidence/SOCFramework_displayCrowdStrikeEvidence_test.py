@@ -31,7 +31,7 @@ common.return_results = return_results
 
 sys.modules["CommonServerPython"] = common
 
-import displayCrowdStrikeEvidencexsiam as script
+import SOCFramework_displayCrowdStrikeEvidence as script
 
 
 def test_maybe_parse_json_with_dict_string():
