@@ -3,10 +3,8 @@
 normalize_ruleid_adopted.py
 
 Behavior:
-- Correlation rule YAML schema enforcement (fromversion: 6.10.0, rule_id: 0,
-  global_rule_id present, rogue id:/ruleid: keys removed).
-  Rationale: SDK pydantic reads rule identity from global_rule_id only. Top-level
-  id:/ruleid: keys cause "Parsed CorrelationRule:None" and 101704 on upload.
+- Set rule_id: 0 on correlation rules under any CorrelationRules directory (.yml/.json)
+- Ensure fromversion: 6.10.0 on YAML correlation rules and fromVersion: "6.10.0" on JSON correlation rules
 - Ensure adopted: true for playbooks under any Playbooks/ directory
 - Normalize packID in playbook YAML contentitemfields to match the pack folder name
 - For JSON/YAML scripts, ensure fromVersion/fromversion is 6.10.0
@@ -363,50 +361,11 @@ def normalize_ruleid_and_adopted(root: str, dry_run: bool, pack_id: str = "") ->
                     changed = False
 
                     if is_corr:
-                        # ── Correlation rule schema enforcement ──────────────────
-                        # Correct schema (verified against working tenant upload):
-                        #   fromversion: 6.10.0
-                        #   rule_id: 0
-                        #   global_rule_id: <name>   ← SDK pydantic reads id from here
-                        #   name: <name>
-                        #   NO top-level id: or ruleid: keys — these break pydantic
-                        #     (causes "Parsed CorrelationRule:None" + 101704 on upload)
-
-                        # 1. fromversion: 6.10.0
-                        text, c = _ensure_fromversion_yaml(text, version="6.10.0")
-                        changed |= c
-
-                        # 2. rule_id: 0
                         text, c = _set_rule_id_yaml(text)
                         changed |= c
 
-                        # 3. global_rule_id must be present — derive from name: field
-                        name_match = re.search(r'^name:\s*(.+)$', text, flags=re.M)
-                        if name_match:
-                            rule_name = name_match.group(1).strip()
-                            if not re.search(r'^global_rule_id\s*:', text, flags=re.M):
-                                # Insert before name: line
-                                text = text[:name_match.start()] + f"global_rule_id: {rule_name}\n" + text[name_match.start():]
-                                changed = True
-                                print(f"[INFO] Added global_rule_id: {rule_name}")
-                            else:
-                                # Ensure existing global_rule_id matches name
-                                new_text, n = re.subn(
-                                    r'^(global_rule_id\s*:\s*).*$',
-                                    r'\g<1>' + rule_name,
-                                    text, flags=re.M
-                                )
-                                if n > 0 and new_text != text:
-                                    text = new_text
-                                    changed = True
-
-                        # 4. Strip rogue top-level id: and ruleid: keys — these cause
-                        #    pydantic to parse id as None and break the SDK upload
-                        for bad_key in (r'^id:\s', r'^ruleid:\s'):
-                            if re.search(bad_key, text, flags=re.M):
-                                text = re.sub(r'^(?:id|ruleid):.*\n?', '', text, flags=re.M)
-                                changed = True
-                                print(f"[INFO] Removed rogue id:/ruleid: key from correlation rule: {fp}")
+                        text, c = _ensure_fromversion_yaml(text, version="6.10.0")
+                        changed |= c
 
                     if is_pb:
                         text, c = _ensure_adopted_in_yaml(text)
