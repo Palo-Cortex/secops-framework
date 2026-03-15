@@ -3,7 +3,7 @@ id: SOC EndPoint Recovery_V3
 version: 28
 contentitemexportablefields:
   contentitemfields:
-    packID: soc-optimization-unified
+    packID: soc-framework-nist-ir
     packName: SOC Framework Unified
     itemVersion: 3.1.5
     fromServerVersion: 5.0.0
@@ -112,7 +112,7 @@ tasks:
       - - operator: isEqualString
           left:
             value:
-              simple: ${inputs.Analysis.compromise_decision}
+              simple: ${inputs.compromise_decision}
             iscontext: true
           right:
             value:
@@ -120,7 +120,7 @@ tasks:
         - operator: isEqualString
           left:
             value:
-              simple: ${inputs.Analysis.compromise_decision}
+              simple: ${inputs.compromise_decision}
             iscontext: true
           right:
             value:
@@ -855,7 +855,7 @@ tasks:
         simple: |
           Recovery Assessment
 
-          Analysis confirmed malicious activity: ${Analysis.execution_confirmed}.
+          Analysis confirmed malicious activity: ${Analysis.compromise_decision}.
 
           Eradication status: ${Eradication.status}.
           Malware removed: ${Eradication.malware_removed}.
@@ -919,23 +919,41 @@ inputs:
   required: false
   description: ""
   playbookInputQuery: null
-- key: Analysis
+- key: compromise_decision
   value:
-    simple: ${Analysis}
+    simple: ${Analysis.compromise_decision}
   required: false
   description: ""
   playbookInputQuery: null
 inputSections:
 - inputs:
   - ShadowMode
-  - Analysis
+  - compromise_decision
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
-- outputs: []
+- outputs:
+  - Recovery.status
+  - Recovery.story
+  - Recovery.monitoring_required
+  - Recovery.monitoring_scope
+  - Recovery.restore_required
+  - Recovery.restore_method
   name: General (Outputs group)
   description: Generic group for outputs
-outputs: []
+outputs:
+- contextPath: Recovery.status
+  type: unknown
+- contextPath: Recovery.story
+  type: unknown
+- contextPath: Recovery.monitoring_required
+  type: unknown
+- contextPath: Recovery.monitoring_scope
+  type: unknown
+- contextPath: Recovery.restore_required
+  type: unknown
+- contextPath: Recovery.restore_method
+  type: unknown
 sourceplaybookid: SOC Data Analysis_V3
 dirtyInputs: true
 adopted: true
