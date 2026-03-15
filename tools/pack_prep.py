@@ -25,12 +25,8 @@ def main():
         [sys.executable, "tools/normalize_ruleid_adopted.py", "--root", pack, "--fix"]
     )
 
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
-    error_log = output_dir / "sdk_errors.txt"
-
-    print(f"\n=== Validating: {pack} (output → {error_log}) ===\n")
-    with open(error_log, "a") as log:
+    print(f"\n=== Validating: {pack} (output → sdk_errors.txt) ===\n")
+    with open("sdk_errors.txt", "a") as log:
         rc = subprocess.run(
             ["demisto-sdk", "validate", "-i", pack],
             stdout=log, stderr=log
@@ -39,7 +35,7 @@ def main():
     if rc == 0:
         print("Validation passed.")
     else:
-        print(f"Validation errors written to {error_log}")
+        print("Validation errors written to sdk_errors.txt")
 
     sys.exit(rc)
 
