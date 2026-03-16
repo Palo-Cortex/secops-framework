@@ -1,0 +1,51 @@
+# .pre-commit-config.yaml
+# ──────────────────────────────────────────────────────────────────────────────
+# SOC Framework — local git pre-commit hooks
+#
+# Install:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run manually against all files:
+#   pre-commit run --all-files
+# ──────────────────────────────────────────────────────────────────────────────
+
+repos:
+  # ── 1. Playbook integrity validator (local) ──────────────────────────────
+  - repo: local
+    hooks:
+      - id: validate-playbooks
+        name: "SOC Framework · Playbook Integrity"
+        language: python
+        entry: python validate_playbooks.py --root . --config xsoar_config.json
+        pass_filenames: false          # script scans the whole repo itself
+        additional_dependencies: [pyyaml]
+        # Only fire when a playbook YAML or the config changes
+        types: [yaml]
+        files: >-
+          (?x)
+            (^|/)([A-Za-z0-9_-]+_playbook|EP_|Playbooks/).*\.yml$
+            |xsoar_config\.json$
+
+      # Strict mode variant — uncomment to block commits on warnings too
+      # - id: validate-playbooks-strict
+      #   name: "SOC Framework · Playbook Integrity (strict)"
+      #   language: python
+      #   entry: python validate_playbooks.py --root . --config xsoar_config.json --strict
+      #   pass_filenames: false
+      #   additional_dependencies: [pyyaml]
+      #   types: [yaml]
+
+  # ── 2. Standard YAML hygiene ─────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-yaml
+        name: "YAML syntax check"
+        args: [--unsafe]              # allow XSOAR custom tags
+      - id: check-merge-conflict
+        name: "No merge conflict markers"
+      - id: trailing-whitespace
+        name: "Trailing whitespace"
+      - id: end-of-file-fixer
+        name: "Newline at EOF"
