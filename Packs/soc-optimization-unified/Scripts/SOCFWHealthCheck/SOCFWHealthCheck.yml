@@ -1,0 +1,74 @@
+fromversion: 6.10.0
+commonfields:
+  id: SOCFWHealthCheck
+  version: -1
+name: SOCFWHealthCheck
+script: '-'
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.12.6796194
+runas: DBotWeakRole
+comment: >-
+  Tenant-side SOC Framework health check. Validates integration instances,
+  installed playbooks, scheduled jobs, and required lists/datasets against
+  the expected SOC Framework configuration. No API key or network config
+  required — runs entirely inside the XSIAM tenant.
+
+  Outputs a structured warroom report and CommandResults table.
+  Optionally writes a trend row to the socfw_health_checks dataset for PoV
+  metric tracking.
+
+  Run from any incident, layout button, or as a scheduled job.
+enabled: true
+tags:
+  - soc-framework
+  - health-check
+  - utilities
+
+args:
+  - name: config_list
+    required: false
+    default: true
+    defaultValue: SOCFWConfig
+    description: >-
+      Name of the XSIAM list containing SOC Framework config JSON.
+      Must contain keys: required_brands, entry_point_prefixes,
+      job_prefixes, required_lists, required_datasets.
+      Falls back to built-in defaults if list is absent.
+
+  - name: write_dataset
+    required: false
+    defaultValue: "false"
+    auto: PREDEFINED
+    predefined:
+      - "true"
+      - "false"
+    description: >-
+      Write a summary row to the socfw_health_checks dataset for PoV trend
+      tracking. Set to true during PoV to capture health over time.
+
+  - name: verbose
+    required: false
+    defaultValue: "false"
+    auto: PREDEFINED
+    predefined:
+      - "true"
+      - "false"
+    description: >-
+      Enable verbose debug logging to the warroom. Useful when
+      diagnosing unexpected PASS/FAIL results.
+
+outputs:
+  - contextPath: SOCFWHealth.timestamp
+    description: UTC timestamp of the health check run.
+    type: Date
+
+  - contextPath: SOCFWHealth.overall
+    description: Overall status — PASS, WARN, or FAIL.
+    type: String
+
+  - contextPath: SOCFWHealth.sections
+    description: >-
+      List of section result objects, each with name, status, and findings
+      list. Each finding has check, item, status, and note fields.
+    type: Unknown
