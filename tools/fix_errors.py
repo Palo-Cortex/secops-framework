@@ -14,6 +14,18 @@ CRITICAL SAFETY CHANGE (2026-01):
 - NEVER re-serialize YAML for content items that may contain embedded Python (e.g. Script YMLs),
   because YAML dumping can alter indentation inside block scalars (script: |-), breaking Python.
 - Therefore, BA101 and BA106 YAML fixes are TEXTUAL ONLY (surgical line edits).
+
+CRITICAL SAFETY CHANGE (2026-03):
+- BA102 (demisto-sdk format) is SKIPPED for Script YAMLs that contain embedded Python.
+  Running `demisto-sdk format` on these files rewrites the script: |- block and can corrupt
+  indentation, breaking the Python. A manual fix instruction is printed instead.
+
+ADDED (2026-03):
+- Pre-flight scan for pydantic ValidationError blocks (List/content item descriptor missing
+  required fields). These errors occur before SDK error lines are emitted so cannot be
+  auto-fixed. A clear manual fix instruction is printed instead.
+- Pre-flight scan of all Lists/**/*.json files for missing required descriptor fields,
+  giving specific file paths rather than a general warning.
 """
 import argparse
 import json
@@ -71,7 +83,7 @@ BA106_RE = re.compile(
     re.IGNORECASE
 )
 
-# Hardened BA101 matcher for the current demisto-sdk output format you showed
+# Hardened BA101 matcher for the current demisto-sdk output format
 BA101_RE = re.compile(
     r'^(?P<path>[^:]+):\s*\[BA101\]\s*-\s*The name attribute\s*\(currently\s*(?P<name>.+?)\)\s*should be identical to its.*?id.*?\((?P<id>[^)]+)\)',
     re.IGNORECASE
@@ -88,6 +100,22 @@ BA102_RE = re.compile(
 )
 
 SEMVER_NUM_RE = re.compile(r'\d+')
+
+# Pydantic ValidationError block — spans multiple lines, caught in pre-flight
+PYDANTIC_BLOCK_RE = re.compile(
+    r'pydantic[^\n]*ValidationError:\s*\d+\s*validation errors? for Pack\n'
+    r'(?P<fields>(?:contentItems[^\n]+\n(?:[ \t]+[^\n]+\n)*)+)',
+    re.IGNORECASE,
+)
+
+# Detects embedded Python in a YAML file — signals BA102 must not auto-format
+SCRIPT_YAML_RE = re.compile(
+    r'^\s*(script\s*:\s*\|[-]?|type\s*:\s*python)',
+    re.IGNORECASE | re.MULTILINE,
+    )
+
+# Required fields for List descriptor JSON files
+LIST_DESCRIPTOR_REQUIRED = ('id', 'name', 'display_name', 'type')
 
 
 def parse_semver(v: str):
@@ -135,7 +163,6 @@ def detect_repo_root(start_dir: str) -> str:
             return cur
         parent = os.path.dirname(cur)
         if parent == cur:
-            # reached filesystem root
             return start_dir
         cur = parent
 
@@ -151,6 +178,118 @@ def resolve_path(repo_root: str, rel_path: str) -> str:
         clean_rel_path = clean_rel_path[clean_rel_path.index('Packs'):]
 
     return os.path.normpath(os.path.join(repo_root, clean_rel_path))
+
+
+def _is_script_yaml(path: str) -> bool:
+    """
+    Returns True if the file is a YAML that contains embedded Python.
+    Used to guard BA102 auto-format from corrupting script: |- blocks.
+    """
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            return bool(SCRIPT_YAML_RE.search(f.read()))
+    except Exception:
+        return False
+
+
+# --- Pre-flight: pydantic ValidationError blocks ----------------------------
+
+def preflight_pydantic_errors(full_text: str) -> int:
+    """
+    Scans the full SDK output text for pydantic ValidationError blocks.
+    These are emitted before any per-file error lines and cannot be auto-fixed.
+    Prints a clear manual fix instruction for each block found.
+    Returns the count of blocks found.
+    """
+    count = 0
+    for m in PYDANTIC_BLOCK_RE.finditer(full_text):
+        count += 1
+        fields_block = m.group('fields')
+        missing = re.findall(
+            r'contentItems.*?->\s*(\w+)\s*\n\s*none is not an allowed value',
+            fields_block,
+            re.IGNORECASE,
+        )
+        missing = list(dict.fromkeys(missing)) or ['id', 'name', 'display_name', 'type']
+
+        print(
+            "\n"
+            "╔══════════════════════════════════════════════════════════════════╗\n"
+            "║  MANUAL FIX REQUIRED — List descriptor missing required fields  ║\n"
+            "╚══════════════════════════════════════════════════════════════════╝\n"
+            f"  Missing field(s): {', '.join(missing)}\n"
+            "\n"
+            "  This error fires during SDK initialization and does not include a\n"
+            "  file path. Check ALL List descriptor .json files (not _data.json)\n"
+            "  under your Packs/**/Lists/ directories.\n"
+            "\n"
+            "  The SDK pydantic model requires ALL four fields to be non-null:\n"
+            "    id           — must match the list name exactly\n"
+            "    name         — must match the list name exactly\n"
+            "    display_name — must match the list name exactly\n"
+            "    type         — 'json' or 'plain_text'\n"
+            "\n"
+            "  Required descriptor format:\n"
+            "    {\n"
+            '      "id": "YourListName",\n'
+            '      "name": "YourListName",\n'
+            '      "display_name": "YourListName",\n'
+            '      "type": "json",\n'
+            '      "version": -1,\n'
+            '      "fromVersion": "6.5.0",\n'
+            '      "data": "",\n'
+            '      "tags": []\n'
+            "    }\n"
+        )
+    return count
+
+
+# --- Pre-flight: scan Lists/ descriptors for missing fields ------------------
+
+def preflight_list_descriptors(repo_root: str) -> int:
+    """
+    Walks all Packs/**/Lists/**/*.json files (excluding *_data.json) and checks
+    for the four required descriptor fields. Prints specific file paths and
+    missing fields so the user knows exactly what to fix.
+    Returns the count of files with issues.
+    """
+    issues = 0
+    packs_dir = os.path.join(repo_root, 'Packs')
+    if not os.path.isdir(packs_dir):
+        return 0
+
+    for dirpath, _dirs, files in os.walk(packs_dir):
+        # Only look inside Lists/ subdirectories
+        if os.sep + 'Lists' + os.sep not in dirpath + os.sep:
+            continue
+
+        for fname in files:
+            if not fname.endswith('.json') or fname.endswith('_data.json'):
+                continue
+
+            fpath = os.path.join(dirpath, fname)
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+
+            missing = [
+                field for field in LIST_DESCRIPTOR_REQUIRED
+                if not data.get(field)
+            ]
+
+            if missing:
+                issues += 1
+                rel = os.path.relpath(fpath, repo_root)
+                print(
+                    f"\n⚠️  List descriptor missing required fields: {rel}\n"
+                    f"   Missing: {', '.join(missing)}\n"
+                    f"   Add these fields to {fname} — values should match the list name.\n"
+                    f"   Example: \"display_name\": \"{data.get('name') or os.path.splitext(fname)[0]}\""
+                )
+
+    return issues
 
 
 # --- Parsing Error Fixer (JSON) ---------------------------------------------
@@ -460,9 +599,33 @@ def run_demisto_format(target_path: str, dry_run: bool = False):
     """
     Runs `demisto-sdk format -i <target_path> --assume-yes` to normalize items
     that `validate` won't handle (BA102).
+
+    SAFETY GUARD: Skips Script YAMLs containing embedded Python (script: |- or
+    type: python). Running format on these rewrites the script block and can
+    corrupt indentation, breaking the Python. A manual fix instruction is printed
+    instead.
     """
     if not os.path.exists(target_path):
         return False, f"SKIP (missing): {target_path}"
+
+    ext = os.path.splitext(target_path)[1].lower()
+    if ext in ('.yml', '.yaml') and _is_script_yaml(target_path):
+        rel = target_path
+        return False, (
+            f"\n"
+            f"╔══════════════════════════════════════════════════════════════════╗\n"
+            f"║  MANUAL FIX REQUIRED — BA102 on Script YAML (auto-format skipped) ║\n"
+            f"╚══════════════════════════════════════════════════════════════════╝\n"
+            f"  File: {rel}\n"
+            f"\n"
+            f"  This file contains embedded Python (script: |- or type: python).\n"
+            f"  Running `demisto-sdk format` on it rewrites the script block and\n"
+            f"  can corrupt indentation, breaking the automation.\n"
+            f"\n"
+            f"  Fix manually by opening the YAML and addressing the BA102 error\n"
+            f"  directly (typically a missing or incorrect field value).\n"
+            f"  Do NOT run `demisto-sdk format` on this file.\n"
+        )
 
     cmd = ["demisto-sdk", "format", "-i", target_path, "--assume-yes"]
     if dry_run:
@@ -498,117 +661,139 @@ def main():
     explicit_root = os.path.abspath(args.repo_root) if args.repo_root and args.repo_root != "." else None
     repo_root = explicit_root or detect_repo_root(os.getcwd())
 
+    # Read full SDK output once for pre-flight passes
+    with open(args.sdk_output, 'r', encoding='utf-8', errors='ignore') as f:
+        full_text = de_ansi(f.read())
+
+    # ── Pre-flight 1: pydantic ValidationError blocks ────────────────────────
+    # These fire before per-file error lines and include no file path.
+    pydantic_count = preflight_pydantic_errors(full_text)
+
+    # ── Pre-flight 2: walk Lists/ descriptors for missing required fields ────
+    # Gives specific file paths so the user knows exactly what to fix.
+    list_issue_count = preflight_list_descriptors(repo_root)
+
+    if pydantic_count == 0 and list_issue_count == 0:
+        pass  # no pre-flight issues — proceed silently to per-line fixes
+    else:
+        print(
+            f"\n{'─' * 68}\n"
+            f"Pre-flight found {pydantic_count} pydantic error block(s) and "
+            f"{list_issue_count} list descriptor issue(s).\n"
+            f"Fix these manually before re-running the SDK.\n"
+            f"{'─' * 68}\n"
+        )
+
+    # ── Per-line fixes ────────────────────────────────────────────────────────
     total = 0
     changes = 0
 
-    with open(args.sdk_output, 'r', encoding='utf-8', errors='ignore') as f:
-        for raw in f:
-            line = de_ansi(raw)
+    for line in full_text.splitlines():
 
-            # --- 1. PARSING ERROR FIX (NoneType in Dashboard/Layout) ----------------
-            m_parse_err = PARSING_ERROR_RE.search(line)
-            if m_parse_err:
-                total += 1
-                rel_path = m_parse_err.group('path').strip()
-                resolved = resolve_path(repo_root, rel_path)
+        # --- 1. PARSING ERROR FIX (NoneType in Dashboard/Layout) ----------------
+        m_parse_err = PARSING_ERROR_RE.search(line)
+        if m_parse_err:
+            total += 1
+            rel_path = m_parse_err.group('path').strip()
+            resolved = resolve_path(repo_root, rel_path)
 
-                if not os.path.exists(resolved):
-                    print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
-                    continue
-
-                changed, msg = fix_json_layout_null(resolved, args.dry_run)
-                print(msg)
-                if changed:
-                    changes += 1
+            if not os.path.exists(resolved):
+                print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
                 continue
 
-            # --- 2. LAYOUT GROUP FIX (Unknown group "alert" / "incidents") ----------
-            m_layout_group_alert = LAYOUT_GROUP_RE.search(line)
-            m_layout_group_plural = LAYOUT_PLURAL_GROUP_RE.search(line)
-            if m_layout_group_alert or m_layout_group_plural:
-                m_match = m_layout_group_alert or m_layout_group_plural
-                total += 1
-                rel_path = m_match.group('path').strip()
-                resolved = resolve_path(repo_root, rel_path)
+            changed, msg = fix_json_layout_null(resolved, args.dry_run)
+            print(msg)
+            if changed:
+                changes += 1
+            continue
 
-                if not os.path.exists(resolved):
-                    print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
-                    continue
+        # --- 2. LAYOUT GROUP FIX (Unknown group "alert" / "incidents") ----------
+        m_layout_group_alert = LAYOUT_GROUP_RE.search(line)
+        m_layout_group_plural = LAYOUT_PLURAL_GROUP_RE.search(line)
+        if m_layout_group_alert or m_layout_group_plural:
+            m_match = m_layout_group_alert or m_layout_group_plural
+            total += 1
+            rel_path = m_match.group('path').strip()
+            resolved = resolve_path(repo_root, rel_path)
 
-                changed, msg = fix_layout_group_alert(resolved, args.dry_run)
-                print(msg)
-                if changed:
-                    changes += 1
+            if not os.path.exists(resolved):
+                print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
                 continue
 
-            # --- 3. PA128 (Pack Required Files) ------------------------------------
-            m128 = PA128_RE.search(line)
-            if m128:
-                total += 1
-                pack_rel = m128.group('pack').strip()
-                resolved = resolve_path(repo_root, pack_rel)
+            changed, msg = fix_layout_group_alert(resolved, args.dry_run)
+            print(msg)
+            if changed:
+                changes += 1
+            continue
 
-                if not os.path.exists(resolved):
-                    print(f"SKIP (missing pack): {pack_rel} (Resolved: {resolved})")
-                    continue
+        # --- 3. PA128 (Pack Required Files) ------------------------------------
+        m128 = PA128_RE.search(line)
+        if m128:
+            total += 1
+            pack_rel = m128.group('pack').strip()
+            resolved = resolve_path(repo_root, pack_rel)
 
-                changed, msg = fix_pack_required_files(resolved, args.dry_run)
-                print(msg)
-                if changed:
-                    changes += 1
+            if not os.path.exists(resolved):
+                print(f"SKIP (missing pack): {pack_rel} (Resolved: {resolved})")
                 continue
 
-            # --- 4. BA101 (ID = Name) ----------------------------------------------
-            m101 = BA101_RE.search(line)
-            if m101:
-                total += 1
-                rel_path = m101.group('path').strip()
-                resolved = resolve_path(repo_root, rel_path)
+            changed, msg = fix_pack_required_files(resolved, args.dry_run)
+            print(msg)
+            if changed:
+                changes += 1
+            continue
 
-                if not os.path.exists(resolved):
-                    print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
-                    continue
+        # --- 4. BA101 (ID = Name) ----------------------------------------------
+        m101 = BA101_RE.search(line)
+        if m101:
+            total += 1
+            rel_path = m101.group('path').strip()
+            resolved = resolve_path(repo_root, rel_path)
 
-                changed, msg = fix_id_name(resolved, args.dry_run)
-                print(msg)
-                if changed:
-                    changes += 1
+            if not os.path.exists(resolved):
+                print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
                 continue
 
-            # --- 5. BA106 (fromversion) --------------------------------------------
-            m106 = BA106_RE.search(line)
-            if m106:
-                total += 1
-                rel_path = m106.group('path').strip()
-                resolved = resolve_path(repo_root, rel_path)
+            changed, msg = fix_id_name(resolved, args.dry_run)
+            print(msg)
+            if changed:
+                changes += 1
+            continue
 
-                if not os.path.exists(resolved):
-                    print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
-                    continue
+        # --- 5. BA106 (fromversion) --------------------------------------------
+        m106 = BA106_RE.search(line)
+        if m106:
+            total += 1
+            rel_path = m106.group('path').strip()
+            resolved = resolve_path(repo_root, rel_path)
 
-                min_ver = m106.group('min').strip()
-                changed, msg = fix_file_ba106(resolved, min_ver, args.dry_run)
-                print(msg)
-                if changed:
-                    changes += 1
+            if not os.path.exists(resolved):
+                print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
                 continue
 
-            # --- 6. BA102 (Run Format) ---------------------------------------------
-            m102 = BA102_RE.search(line)
-            if m102:
-                total += 1
-                rel_path = m102.group('path').strip()
-                resolved = resolve_path(repo_root, rel_path)
+            min_ver = m106.group('min').strip()
+            changed, msg = fix_file_ba106(resolved, min_ver, args.dry_run)
+            print(msg)
+            if changed:
+                changes += 1
+            continue
 
-                if not os.path.exists(resolved):
-                    print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
-                    continue
+        # --- 6. BA102 (Run Format — skipped for Script YAMLs) -----------------
+        m102 = BA102_RE.search(line)
+        if m102:
+            total += 1
+            rel_path = m102.group('path').strip()
+            resolved = resolve_path(repo_root, rel_path)
 
-                changed, msg = run_demisto_format(resolved, args.dry_run)
-                print(msg)
-                if changed:
-                    changes += 1
+            if not os.path.exists(resolved):
+                print(f"SKIP (missing): {rel_path} (Resolved: {resolved})")
                 continue
+
+            changed, msg = run_demisto_format(resolved, args.dry_run)
+            print(msg)
+            if changed:
+                changes += 1
+            continue
 
     print(
         f"\nMatched lines (Parsing/Layout/BA101/BA102/BA106/PA128): {total}. "
