@@ -1,0 +1,948 @@
+{
+  "id": "SOC Framework",
+  "group": "incident",
+  "name": "SOC Framework",
+  "description": "SOC Framework issue layout. Tabs built directly from stage contracts. fieldId values match flat registered incident field IDs. Analysis tab telemetry grids populated by Alert Hydration playbook via XQLQueryExecute + SetIncidentFields. Shadow Mode governs all CER stages.",
+  "version": -1,
+  "fromVersion": "6.10.0",
+  "quickView": {
+    "tabs": [
+      {
+        "id": "qv-tab",
+        "name": "Summary",
+        "sections": [
+          {
+            "id": "qv-core",
+            "name": "",
+            "type": "custom",
+            "displayType": "ROW",
+            "hideName": true,
+            "items": [
+              {
+                "id": "qv-verdict",
+                "fieldId": "analysisverdict",
+                "label": "Verdict",
+                "type": "custom"
+              },
+              {
+                "id": "qv-confidence",
+                "fieldId": "analysisconfidence",
+                "label": "Confidence",
+                "type": "custom"
+              },
+              {
+                "id": "qv-source",
+                "fieldId": "investigationsource",
+                "label": "Source",
+                "type": "custom"
+              },
+              {
+                "id": "qv-type",
+                "fieldId": "investigationtype",
+                "label": "Type",
+                "type": "custom"
+              },
+              {
+                "id": "qv-user",
+                "fieldId": "primaryuser",
+                "label": "User",
+                "type": "custom"
+              },
+              {
+                "id": "qv-endpoint",
+                "fieldId": "primaryendpoint",
+                "label": "Endpoint",
+                "type": "custom"
+              },
+              {
+                "id": "qv-shadow",
+                "fieldId": "universalcommandshadowmode",
+                "label": "Shadow Mode",
+                "type": "custom"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "detailsV2": {
+    "tabs": [
+      {
+        "id": "tab-investigation",
+        "name": "Investigation",
+        "sections": [
+          {
+            "id": "sec-inv-investigation",
+            "name": "Investigation Context",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-inv-id",
+                "fieldId": "investigationid",
+                "label": "Investigation ID",
+                "type": "custom"
+              },
+              {
+                "id": "fld-inv-source",
+                "fieldId": "investigationsource",
+                "label": "Source",
+                "type": "custom"
+              },
+              {
+                "id": "fld-inv-type",
+                "fieldId": "investigationtype",
+                "label": "Type",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-inv-primary",
+            "name": "Primary Entities",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-inv-user",
+                "fieldId": "primaryuser",
+                "label": "User",
+                "type": "custom"
+              },
+              {
+                "id": "fld-inv-endpoint",
+                "fieldId": "primaryendpoint",
+                "label": "Endpoint",
+                "type": "custom"
+              },
+              {
+                "id": "fld-inv-email",
+                "fieldId": "primaryemail",
+                "label": "Email",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-inv-artifacts",
+            "name": "Artifacts",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-inv-hash",
+                "fieldId": "artifactshash",
+                "label": "Hash",
+                "type": "custom"
+              },
+              {
+                "id": "fld-inv-ip",
+                "fieldId": "artifactsip",
+                "label": "IP",
+                "type": "custom"
+              },
+              {
+                "id": "fld-inv-domain",
+                "fieldId": "artifactsdomain",
+                "label": "Domain",
+                "type": "custom"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tab-analysis",
+        "name": "Analysis",
+        "sections": [
+          {
+            "id": "sec-analysis-verdict",
+            "name": "Verdict",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-verdict",
+                "fieldId": "analysisverdict",
+                "label": "Verdict",
+                "type": "custom"
+              },
+              {
+                "id": "fld-confidence",
+                "fieldId": "analysisconfidence",
+                "label": "Confidence",
+                "type": "custom"
+              },
+              {
+                "id": "fld-description",
+                "fieldId": "analysisdescription",
+                "label": "Description",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-analysis-affected",
+            "name": "Affected Entities",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-aff-users",
+                "fieldId": "analysisaffectedusers",
+                "label": "Users",
+                "type": "custom"
+              },
+              {
+                "id": "fld-aff-endpoints",
+                "fieldId": "analysisaffectedendpoints",
+                "label": "Endpoints",
+                "type": "custom"
+              },
+              {
+                "id": "fld-aff-files",
+                "fieldId": "analysisaffectedfiles",
+                "label": "Files",
+                "type": "custom"
+              },
+              {
+                "id": "fld-aff-ips",
+                "fieldId": "analysisaffectedips",
+                "label": "IPs",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-hydration-enrichment",
+            "name": "Alert Hydration — Enrichment",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-h-userrisk",
+                "fieldId": "hydrationuserriskscore",
+                "label": "User Risk Score",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-userroles",
+                "fieldId": "hydrationuserroles",
+                "label": "User Roles",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-eprisk",
+                "fieldId": "hydrationendpointriskscore",
+                "label": "Endpoint Risk Score",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-epplatform",
+                "fieldId": "hydrationendpointplatform",
+                "label": "Endpoint Platform / OS",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-crownjewel",
+                "fieldId": "hydrationcrownjeweltag",
+                "label": "Crown Jewel Tag",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-patch",
+                "fieldId": "hydrationpatchposture",
+                "label": "Patch Posture",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-hashverdict",
+                "fieldId": "hydrationtihashverdict",
+                "label": "TI — Hash Verdict",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-ipverdict",
+                "fieldId": "hydrationtiipverdict",
+                "label": "TI — IP Verdict",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-domverdict",
+                "fieldId": "hydrationtidomainverdict",
+                "label": "TI — Domain Verdict",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-ticonf",
+                "fieldId": "hydrationticonfidencescore",
+                "label": "TI — Confidence Score",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-assetcrit",
+                "fieldId": "hydrationassetcriticality",
+                "label": "Asset Criticality",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-previncidents",
+                "fieldId": "hydrationpreviousincidentcount",
+                "label": "Prior Incidents (Same Entity)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-h-lastincident",
+                "fieldId": "hydrationlastincidentdate",
+                "label": "Last Incident Date",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-telemetry-process",
+            "name": "Alert Hydration — Process Tree",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-telem-process",
+                "fieldId": "investigationtelemetryprocesstree",
+                "label": "Process Tree",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-telemetry-network",
+            "name": "Alert Hydration — Network Connections",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-telem-network",
+                "fieldId": "investigationtelemetrynetworkconnections",
+                "label": "Network Connections",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-telemetry-file",
+            "name": "Alert Hydration — File Events",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-telem-file",
+                "fieldId": "investigationtelemetryfileevents",
+                "label": "File Events",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-telemetry-registry",
+            "name": "Alert Hydration — Registry Events",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-telem-registry",
+                "fieldId": "investigationtelemetryregistryevents",
+                "label": "Registry Events",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-telemetry-login",
+            "name": "Alert Hydration — Login Events",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-telem-login",
+                "fieldId": "investigationtelemetryloginevents",
+                "label": "Login Events",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-analysis-timing",
+            "name": "Timing",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-alertfirst",
+                "fieldId": "alertfirstseen",
+                "label": "Alert First Seen",
+                "type": "custom"
+              },
+              {
+                "id": "fld-assigned",
+                "fieldId": "assignedtime",
+                "label": "Assigned Time",
+                "type": "custom"
+              },
+              {
+                "id": "fld-mttd",
+                "fieldId": "mttdminutes",
+                "label": "MTTD (min)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-mtta",
+                "fieldId": "mttaminutes",
+                "label": "MTTA (min)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-mtti",
+                "fieldId": "mttiminutes",
+                "label": "MTTI (min)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-autopct",
+                "fieldId": "automationpct",
+                "label": "Automation %",
+                "type": "custom"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tab-cer",
+        "name": "Containment / Eradication / Recovery",
+        "sections": [
+          {
+            "id": "sec-uc-status",
+            "name": "Universal Command — Shadow Mode Status",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-uc-shadow",
+                "fieldId": "universalcommandshadowmode",
+                "label": "Shadow Mode Active",
+                "type": "custom"
+              },
+              {
+                "id": "fld-uc-exec",
+                "fieldId": "universalcommandexecutionmode",
+                "label": "Execution Mode",
+                "type": "custom"
+              },
+              {
+                "id": "fld-uc-warroom",
+                "fieldId": "universalcommandwarroomlogged",
+                "label": "Warroom Entry Written",
+                "type": "custom"
+              },
+              {
+                "id": "fld-uc-dataset",
+                "fieldId": "universalcommanddatasetwritten",
+                "label": "Dataset Write Complete",
+                "type": "custom"
+              },
+              {
+                "id": "fld-uc-vendor",
+                "fieldId": "universalcommandvendorexecuted",
+                "label": "Vendor Command Executed",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-containment",
+            "name": "Containment",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-c-actions",
+                "fieldId": "containmentactions",
+                "label": "Actions",
+                "type": "custom"
+              },
+              {
+                "id": "fld-c-endpoints",
+                "fieldId": "containmentendpointsisolated",
+                "label": "Endpoints Isolated",
+                "type": "custom"
+              },
+              {
+                "id": "fld-c-users",
+                "fieldId": "containmentusersdisabled",
+                "label": "Users Disabled",
+                "type": "custom"
+              },
+              {
+                "id": "fld-c-indicators",
+                "fieldId": "containmentindicatorsblocked",
+                "label": "Indicators Blocked",
+                "type": "custom"
+              },
+              {
+                "id": "fld-c-mttc",
+                "fieldId": "mttcminutes",
+                "label": "MTTC (min)",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-eradication",
+            "name": "Eradication",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-e-actions",
+                "fieldId": "eradicationactions",
+                "label": "Actions",
+                "type": "custom"
+              },
+              {
+                "id": "fld-e-files",
+                "fieldId": "eradicationfilesremoved",
+                "label": "Files Removed",
+                "type": "custom"
+              },
+              {
+                "id": "fld-e-persist",
+                "fieldId": "eradicationpersistenceremoved",
+                "label": "Persistence Removed",
+                "type": "custom"
+              },
+              {
+                "id": "fld-e-creds",
+                "fieldId": "eradicationcredentialsreset",
+                "label": "Credentials Reset",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-recovery",
+            "name": "Recovery",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "fld-r-actions",
+                "fieldId": "recoveryactions",
+                "label": "Actions",
+                "type": "custom"
+              },
+              {
+                "id": "fld-r-systems",
+                "fieldId": "recoverysystemsrestored",
+                "label": "Systems Restored",
+                "type": "custom"
+              },
+              {
+                "id": "fld-r-accounts",
+                "fieldId": "recoveryaccountsrestored",
+                "label": "Accounts Restored",
+                "type": "custom"
+              },
+              {
+                "id": "fld-r-validation",
+                "fieldId": "recoveryvalidationstatus",
+                "label": "Validation Status",
+                "type": "custom"
+              },
+              {
+                "id": "fld-r-mttr",
+                "fieldId": "mttrminutes",
+                "label": "MTTR (min)",
+                "type": "custom"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tab-socmetrics",
+        "name": "SOC Metrics",
+        "sections": [
+          {
+            "id": "sec-metrics-response",
+            "name": "Response Times",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-m-mttd",
+                "fieldId": "mttdminutes",
+                "label": "MTTD (min)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-mtta",
+                "fieldId": "mttaminutes",
+                "label": "MTTA (min)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-mtti",
+                "fieldId": "mttiminutes",
+                "label": "MTTI (min)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-mttc",
+                "fieldId": "mttcminutes",
+                "label": "MTTC (min)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-mttr",
+                "fieldId": "mttrminutes",
+                "label": "MTTR (min)",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-metrics-quality",
+            "name": "Detection Quality",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-m-fp",
+                "fieldId": "falsepositiverate",
+                "label": "False Positive Rate (%)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-auto",
+                "fieldId": "autoresolvedpct",
+                "label": "% Alerts Auto-Resolved",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-manual",
+                "fieldId": "manualalertcount",
+                "label": "Manual Alerts (#)",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-autopb",
+                "fieldId": "automationpct",
+                "label": "Automation / Playbooks (%)",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-metrics-risk",
+            "name": "Risk & Coverage",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-m-vulns",
+                "fieldId": "criticalvulncount",
+                "label": "Critical Vulns in Production",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-surface",
+                "fieldId": "attacksurfaceriskscore",
+                "label": "% Attack Surface Risk",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-unmit",
+                "fieldId": "unmitigatedcriticalcount",
+                "label": "Unmitigated Critical Risks",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-posture",
+                "fieldId": "riskpostureframework",
+                "label": "Risk Posture Framework (NIST/MITRE)",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "sec-metrics-ops",
+            "name": "Operational Efficiency",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "fld-m-maint",
+                "fieldId": "maintenancetimepct",
+                "label": "% Time on Integrations / Maintenance",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-proact",
+                "fieldId": "proactivetaskspct",
+                "label": "% Proactive vs Reactive Tasks",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-hunt",
+                "fieldId": "manualthreatpct",
+                "label": "% Time on Manual Threat Hunting",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-cost",
+                "fieldId": "costperincident",
+                "label": "Cost Per Incident",
+                "type": "custom"
+              },
+              {
+                "id": "fld-m-uptime",
+                "fieldId": "systemuptime",
+                "label": "System Uptime",
+                "type": "custom"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tab-indicators",
+        "name": "Indicators",
+        "sections": [
+          {
+            "id": "sec-indicators",
+            "name": "Associated Indicators",
+            "type": "indicators",
+            "displayType": "ROW",
+            "query": ""
+          }
+        ]
+      },
+      {
+        "id": "tab-evidence",
+        "name": "Evidence",
+        "sections": [
+          {
+            "id": "sec-evidence",
+            "name": "Evidence & Attachments",
+            "type": "evidenceBoard",
+            "displayType": "ROW"
+          }
+        ]
+      },
+      {
+        "id": "tab-notes",
+        "name": "Notes",
+        "sections": [
+          {
+            "id": "sec-notes",
+            "name": "Analyst Notes",
+            "type": "notes",
+            "displayType": "ROW"
+          }
+        ]
+      }
+    ]
+  },
+  "edit": {
+    "tabs": [
+      {
+        "id": "edit-tab",
+        "name": "Classification",
+        "sections": [
+          {
+            "id": "edit-classification",
+            "name": "Incident Classification",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "edit-verdict",
+                "fieldId": "analysisverdict",
+                "label": "Analyst Verdict Override",
+                "type": "custom"
+              },
+              {
+                "id": "edit-confidence",
+                "fieldId": "analysisconfidence",
+                "label": "Confidence",
+                "type": "custom"
+              },
+              {
+                "id": "edit-description",
+                "fieldId": "analysisdescription",
+                "label": "Description",
+                "type": "custom"
+              },
+              {
+                "id": "edit-severity",
+                "fieldId": "severity",
+                "label": "Severity",
+                "type": "custom"
+              },
+              {
+                "id": "edit-owner",
+                "fieldId": "owner",
+                "label": "Owner",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "edit-execmode",
+            "name": "Universal Command — Execution Mode",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "edit-shadowmode",
+                "fieldId": "universalcommandshadowmode",
+                "label": "Shadow Mode",
+                "type": "custom"
+              },
+              {
+                "id": "edit-execmode",
+                "fieldId": "universalcommandexecutionmode",
+                "label": "Execution Mode",
+                "type": "custom"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "close": {
+    "tabs": [
+      {
+        "id": "close-tab",
+        "name": "Close Investigation",
+        "sections": [
+          {
+            "id": "close-disposition",
+            "name": "Disposition",
+            "type": "custom",
+            "displayType": "CARD",
+            "items": [
+              {
+                "id": "close-reason",
+                "fieldId": "closeReason",
+                "label": "Close Reason",
+                "type": "custom"
+              },
+              {
+                "id": "close-notes",
+                "fieldId": "closeNotes",
+                "label": "Close Notes",
+                "type": "custom"
+              },
+              {
+                "id": "close-verdict",
+                "fieldId": "analysisverdict",
+                "label": "Final Verdict",
+                "type": "custom"
+              },
+              {
+                "id": "close-rootcause",
+                "fieldId": "analysisrootcause",
+                "label": "Root Cause",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "close-metrics",
+            "name": "SOC Metrics — Final Capture",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "close-mttd",
+                "fieldId": "mttdminutes",
+                "label": "MTTD (min)",
+                "type": "custom"
+              },
+              {
+                "id": "close-mtta",
+                "fieldId": "mttaminutes",
+                "label": "MTTA (min)",
+                "type": "custom"
+              },
+              {
+                "id": "close-mtti",
+                "fieldId": "mttiminutes",
+                "label": "MTTI (min)",
+                "type": "custom"
+              },
+              {
+                "id": "close-mttc",
+                "fieldId": "mttcminutes",
+                "label": "MTTC (min)",
+                "type": "custom"
+              },
+              {
+                "id": "close-mttr",
+                "fieldId": "mttrminutes",
+                "label": "MTTR (min)",
+                "type": "custom"
+              },
+              {
+                "id": "close-auto",
+                "fieldId": "automationpct",
+                "label": "Automation %",
+                "type": "custom"
+              },
+              {
+                "id": "close-fp",
+                "fieldId": "falsepositiverate",
+                "label": "False Positive Rate (%)",
+                "type": "custom"
+              }
+            ]
+          },
+          {
+            "id": "close-shadow-audit",
+            "name": "Shadow Mode Audit — Actions That Would Have Executed",
+            "type": "custom",
+            "displayType": "ROW",
+            "items": [
+              {
+                "id": "close-cactions",
+                "fieldId": "containmentactions",
+                "label": "Containment Actions",
+                "type": "custom"
+              },
+              {
+                "id": "close-eactions",
+                "fieldId": "eradicationactions",
+                "label": "Eradication Actions",
+                "type": "custom"
+              },
+              {
+                "id": "close-ractions",
+                "fieldId": "recoveryactions",
+                "label": "Recovery Actions",
+                "type": "custom"
+              },
+              {
+                "id": "close-vendor",
+                "fieldId": "universalcommandvendorexecuted",
+                "label": "Vendor Executed",
+                "type": "custom"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
