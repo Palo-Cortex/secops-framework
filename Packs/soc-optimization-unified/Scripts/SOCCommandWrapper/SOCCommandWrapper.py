@@ -64,7 +64,11 @@ def _resolve_ctx_string(s, ctx):
             or s.startswith("issue.")
             or s.startswith("parentIncidentFields.")
     ):
-        return demisto.get(ctx, s)
+        val = demisto.get(ctx, s)
+        # Context values are often stored as lists — extract first non-empty element
+        if isinstance(val, list):
+            val = next((v for v in val if v not in (None, "", [], {})), None)
+        return val
 
     return s
 
