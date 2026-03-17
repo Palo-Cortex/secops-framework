@@ -1,55 +1,47 @@
-fromversion: 5.0.0
 id: SOC Email Containment_V3
-version: 6
-contentitemexportablefields:
-  contentitemfields:
-    packID: soc-framework-nist-ir
-    packName: SOC Framework Unified
-    itemVersion: 3.1.4
-    fromServerVersion: 5.0.0
-    toServerVersion: ""
-    definitionid: ""
-    prevname: ""
-    isoverridable: false
-    supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Containment_V3
-description: |-
-  Primary owners: Alert responders, automation, endpoint/network teams.
-
-  Analyst role: May initiate or recommend containment actions (isolate host, disable account, block IP), often via playbook automation or escalation.
+version: -1
+fromversion: 6.10.0
+description: "NIST IR 800-61 — Containment Phase — Email / SEG\n\nExecutes the appropriate\
+  \ containment action for a confirmed malicious email threat.\n\nValue Driver: VD1\
+  \ (Reduce Risk) — automated containment drives MTTC.\nValue Driver: VD2 (Simplify\
+  \ Ops) — Universal Command abstracts retract/quarantine across Microsoft Graph,\
+  \ Gmail, Trend Micro, Mimecast.\n\nGate: verdict=malicious AND confidence=high or\
+  \ medium.\nAll actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.\n\
+  \nRouting by Analysis.Email.response_recommended:\n  escalate_IR     → no automated\
+  \ action, story set for analyst engagement\n  search_and_purge → soc-retract-email\
+  \ (URL clicked by recipient)\n  retract_message  → soc-retract-email (delivered,\
+  \ no click yet)\n  quarantine       → soc-quarantine-email (blocked at SEG / pre-delivery)\n\
+  \  no_action        → Containment.required = false\n\nContext keys produced:\n \
+  \ Containment.required  — true/false\n  Containment.action    — action taken (mirrors\
+  \ response_recommended)\n  Containment.story     — narrative for war room\n  Containment.Execution\
+  \ — SOCCommandWrapper execution record"
 tags:
-- SOC
-- SOC_Framework_Unified
-- NIST 800-61
-- Containment
-- Email Security
-starttaskid: "0"
+  - SOC
+  - SOC_Framework_Unified
+  - Containment
+  - NIST 800-61
+  - Email
+starttaskid: '0'
 tasks:
-  "0":
-    id: "0"
-    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
+  '0':
+    id: '0'
+    taskid: ae0f22de-9bfe-4f3a-a885-9a4d42a0ae1c
     type: start
     task:
-      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
+      id: 95a87d7e-6a7e-496c-8b76-5fa3d70a0eaf
       version: -1
-      name: ""
+      name: ''
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "2"
+        - '1'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 450,
-          "y": 50
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 50\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -57,58 +49,545 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "1":
-    id: "1"
-    taskid: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
-    type: playbook
-    task:
-      id: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
-      version: -1
-      name: Foundation - Error Handling_V3
-      playbookName: Foundation - Error Handling_V3
-      type: playbook
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 740,
-          "y": 290
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "2":
-    id: "2"
-    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+  '1':
+    id: '1'
+    taskid: 8348ec2d-c70d-4222-b29f-7c5950e5581e
     type: title
     task:
-      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+      id: 3c66fd61-b87f-4e9a-ad0d-b44e0a0229e1
+      version: -1
+      name: Evaluate Verdict for Containment
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '2'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 195\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '2':
+    id: '2'
+    taskid: 0174f6a3-a52e-4725-92f9-745a67a720c0
+    type: condition
+    task:
+      id: ca666ed4-de94-4931-9f33-ccb6a24451d8
+      version: -1
+      name: Verdict Warrants Containment?
+      type: condition
+      description: 'Gate: only proceed to containment actions if verdict=malicious
+        AND confidence is high or medium.
+
+        Benign or low-confidence verdicts skip all actions → Done.'
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+        - '3'
+      'yes':
+        - '4'
+    conditions:
+      - label: 'yes'
+        condition:
+          - - operator: isEqualString
+              left:
+                value:
+                  simple: inputs.Verdict
+                iscontext: true
+              right:
+                value:
+                  simple: malicious
+              ignorecase: true
+          - - operator: isEqualString
+              left:
+                value:
+                  simple: inputs.Confidence
+                iscontext: true
+              right:
+                value:
+                  simple: high
+              ignorecase: true
+            - operator: isEqualString
+              left:
+                value:
+                  simple: inputs.Confidence
+                iscontext: true
+              right:
+                value:
+                  simple: medium
+              ignorecase: true
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 365\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '3':
+    id: '3'
+    taskid: b179837a-cc57-4d53-b65f-8548d8557cb0
+    type: regular
+    task:
+      id: 3db2aba1-420b-44c0-be79-0dd85f0150e4
+      version: -1
+      name: Set Containment Not Required
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '18'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.required
+      value:
+        simple: 'false'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 555\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '4':
+    id: '4'
+    taskid: 78ddf832-3221-47d0-9d03-ae88a3e3ccdb
+    type: title
+    task:
+      id: 299c25db-5a6c-40fd-8808-de2cc9af3ab0
+      version: -1
+      name: Route by Response Recommendation
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '5'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 555\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '5':
+    id: '5'
+    taskid: ddec6537-5979-46c3-8deb-08582ab9901d
+    type: condition
+    task:
+      id: e125f6e5-d011-4c3b-af26-68ee3e0939dd
+      version: -1
+      name: Response Recommended?
+      type: condition
+      description: 'Routes to the appropriate containment action based on advisory
+        recommendation set by Verdict Resolution.
+
+        escalate_IR    → no automated action, set story for analyst
+
+        search_and_purge → retract (clicked, high blast radius)
+
+        retract_message  → retract (delivered, no click)
+
+        quarantine       → quarantine at SEG
+
+        default (no_action) → not required'
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+        - '3'
+      escalate_IR:
+        - '6'
+      search_and_purge:
+        - '8'
+      retract_message:
+        - '10'
+      quarantine:
+        - '12'
+    conditions:
+      - label: escalate_IR
+        condition:
+          - - operator: isEqualString
+              left:
+                value:
+                  simple: inputs.ResponseRecommended
+                iscontext: true
+              right:
+                value:
+                  simple: escalate_IR
+              ignorecase: true
+      - label: search_and_purge
+        condition:
+          - - operator: isEqualString
+              left:
+                value:
+                  simple: inputs.ResponseRecommended
+                iscontext: true
+              right:
+                value:
+                  simple: search_and_purge
+              ignorecase: true
+      - label: retract_message
+        condition:
+          - - operator: isEqualString
+              left:
+                value:
+                  simple: inputs.ResponseRecommended
+                iscontext: true
+              right:
+                value:
+                  simple: retract_message
+              ignorecase: true
+      - label: quarantine
+        condition:
+          - - operator: isEqualString
+              left:
+                value:
+                  simple: inputs.ResponseRecommended
+                iscontext: true
+              right:
+                value:
+                  simple: quarantine
+              ignorecase: true
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 725\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '6':
+    id: '6'
+    taskid: 9f7df4b9-86d2-4514-9dae-a1fd7bfea91e
+    type: title
+    task:
+      id: 7898e71b-0b59-481c-b92b-039e6ce21c02
+      version: -1
+      name: Escalate IR — No Automated Containment
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '7'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 920\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '7':
+    id: '7'
+    taskid: 5524beee-91aa-4b03-82b6-c55933232744
+    type: regular
+    task:
+      id: 970501a2-3af8-400f-8655-0f2111fe13d9
+      version: -1
+      name: Set Containment Not Required — Escalate IR
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '20'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.required
+      value:
+        simple: 'false'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 970\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '8':
+    id: '8'
+    taskid: 8a6ddc39-c1ec-4672-8add-7d7c85e23c3c
+    type: title
+    task:
+      id: 01cdd9dc-898f-457a-8e8e-efe0e8d0dbb2
+      version: -1
+      name: Search and Purge — Retract Email
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '9'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 310,\n    \"y\": 920\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '9':
+    id: '9'
+    taskid: 9b9c08a5-cbe8-425d-92a9-abefaeb72990
+    type: regular
+    task:
+      id: 6db28e2d-3375-43d7-ae54-d6b27314ee58
+      version: -1
+      name: Retract Email — Universal Command
+      scriptName: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '13'
+    scriptarguments:
+      Action_Actor:
+        simple: automation
+      Phase:
+        simple: Containment
+      action:
+        simple: soc-retract-email
+      output_key:
+        simple: Containment.Execution
+      shadow_mode:
+        simple: ${inputs.ShadowMode}
+      tags: &id001
+        complex:
+          root: inputs.ShadowMode
+          transformers:
+            - operator: If-Then-Else
+              args:
+                condition: {}
+                conditionB: {}
+                conditionInBetween: {}
+                else:
+                  value:
+                    simple: Containment
+                equals:
+                  value:
+                    simple: inputs.ShadowMode
+                  iscontext: true
+                lhs: {}
+                lhsB: {}
+                options: {}
+                optionsB: {}
+                rhs: {}
+                rhsB: {}
+                then:
+                  value:
+                    simple: Shadow Mode,Containment
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 310,\n    \"y\": 1090\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '10':
+    id: '10'
+    taskid: 041985f7-b461-4a57-96c9-9ad52cb78851
+    type: title
+    task:
+      id: 943462ec-c23e-435f-8fb0-5343a63aa8be
+      version: -1
+      name: Retract Delivered Message
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '11'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 570,\n    \"y\": 920\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '11':
+    id: '11'
+    taskid: 6a683543-07d6-4a97-9f50-06e87855df95
+    type: regular
+    task:
+      id: 5f265b66-46e4-4bf7-8409-d4a427b3641b
+      version: -1
+      name: Retract Email — Universal Command
+      scriptName: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '13'
+    scriptarguments:
+      Action_Actor:
+        simple: automation
+      Phase:
+        simple: Containment
+      action:
+        simple: soc-retract-email
+      output_key:
+        simple: Containment.Execution
+      shadow_mode:
+        simple: ${inputs.ShadowMode}
+      tags: *id001
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 570,\n    \"y\": 1090\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '12':
+    id: '12'
+    taskid: 9a97ae94-4524-4fa0-ba2f-153bcb10f7b7
+    type: title
+    task:
+      id: 684a5679-f244-4bb9-ab0d-bb5183af8165
+      version: -1
+      name: Quarantine at SEG
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '15'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 830,\n    \"y\": 920\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '13':
+    id: '13'
+    taskid: 26f60d23-3264-4a99-8ac0-4c7c017a52e6
+    type: regular
+    task:
+      id: c17b52fe-4587-4e23-9d39-450afd9bd091
+      version: -1
+      name: Set Containment Required
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '16'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.required
+      value:
+        simple: 'true'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1280\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '14':
+    id: '14'
+    taskid: 63f86d8b-c6a3-49af-b95f-793cd570a360
+    type: title
+    task:
+      id: 305b1f41-39b7-4881-bce5-90168b65e0d2
       version: -1
       name: Done
       type: title
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
+    nexttasks: {}
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 430,
-          "y": 470
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1810\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -116,49 +595,391 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-system: true
-view: |-
-  {
-    "linkLabelsPosition": {},
-    "paper": {
-      "dimensions": {
-        "height": 480,
-        "width": 690,
-        "x": 430,
-        "y": 50
-      }
-    }
-  }
+  '15':
+    id: '15'
+    taskid: c6128e45-399e-4548-8aac-db1d04a48a75
+    type: regular
+    task:
+      id: 82018a77-d0c5-4f8c-b25d-54ae9477f376
+      version: -1
+      name: Quarantine Email — Universal Command
+      scriptName: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '13'
+    scriptarguments:
+      Action_Actor:
+        simple: automation
+      Phase:
+        simple: Containment
+      action:
+        simple: soc-quarantine-email
+      output_key:
+        simple: Containment.Execution
+      shadow_mode:
+        simple: ${inputs.ShadowMode}
+      tags: *id001
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 830,\n    \"y\": 1090\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '16':
+    id: '16'
+    taskid: caf17156-0cf2-4e22-9237-01c3b825df44
+    type: regular
+    task:
+      id: 38b3928b-e9db-4a74-b8b8-48fb8a988e75
+      version: -1
+      name: Set Containment Action
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '17'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.action
+      value:
+        simple: ${inputs.ResponseRecommended}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1450\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '17':
+    id: '17'
+    taskid: 1e128de1-9db4-4576-8eda-2d99c97a8358
+    type: regular
+    task:
+      id: efd8e9e4-141c-4b69-9d51-07ca0f8d99cf
+      version: -1
+      name: Set Containment Story
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '14'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.story
+      value:
+        simple: 'Email containment executed.
+
+
+          Verdict: ${inputs.Verdict} (${inputs.Confidence} confidence)
+
+          Action: ${inputs.ResponseRecommended}
+
+          Sender: ${SOCFramework.Artifacts.Email.From}
+
+          Recipient: ${SOCFramework.Artifacts.Email.To}
+
+          Subject: ${SOCFramework.Artifacts.Email.Subject}
+
+          Message ID: ${SOCFramework.Artifacts.Email.MessageID}
+
+          Exposure: ${Analysis.Email.ExposureLevel} | Scope: ${Analysis.Email.RecipientScope}
+
+          Shadow Mode: ${inputs.ShadowMode}'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1620\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '18':
+    id: '18'
+    taskid: 584967a4-3008-4af1-a154-eea346e8a3d0
+    type: regular
+    task:
+      id: 56a43d44-75d9-46ac-ac8e-f50e64f2e9e5
+      version: -1
+      name: Set Containment Action — None
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '19'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.action
+      value:
+        simple: none
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 740\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '19':
+    id: '19'
+    taskid: 53e5ac08-20e2-487e-8e0e-c37e77fdafc3
+    type: regular
+    task:
+      id: b877b478-ec75-4931-9e5d-3f32d004f88b
+      version: -1
+      name: Set Containment Story — No Action
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '14'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.story
+      value:
+        simple: 'No containment action taken. Verdict did not meet threshold.
+
+
+          Verdict: ${inputs.Verdict} | Confidence: ${inputs.Confidence}
+
+          Required: malicious + high or medium confidence.'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 910\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '20':
+    id: '20'
+    taskid: c255a3b2-5afc-4c61-8267-694dc7040102
+    type: regular
+    task:
+      id: ea1dbefb-f04a-4d3f-ae9a-9e49aec84259
+      version: -1
+      name: Set Containment Action — Escalate IR
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '21'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.action
+      value:
+        simple: escalate_IR
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1140\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '21':
+    id: '21'
+    taskid: 95f0cc30-e7f2-4677-ae85-7e61db9e92b4
+    type: regular
+    task:
+      id: 379e878d-66ec-4501-8e07-3fa77e769dfc
+      version: -1
+      name: Set Containment Story — Escalate IR
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - '14'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Containment.story
+      value:
+        simple: 'VIP recipient involved. Threat verdict: ${inputs.Verdict} (${inputs.Confidence}
+          confidence).
+
+          Recommendation: escalate_IR — manual IR engagement required.
+
+          Email: ${SOCFramework.Artifacts.Email.From} → ${SOCFramework.Artifacts.Email.To}
+
+          Subject: ${SOCFramework.Artifacts.Email.Subject}
+
+          Exposure: ${Analysis.Email.ExposureLevel} | Scope: ${Analysis.Email.RecipientScope}'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1310\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
 inputs:
-- key: ShadowMode
-  value:
-    complex:
-      root: lists
-      accessor: SOCExecutionList_V3
-      transformers:
-      - operator: getField
-        args:
-          field:
-            value:
-              simple: SOC Email Containment_V3
-      - operator: getField
-        args:
-          field:
-            value:
-              simple: shadow_mode
-  required: false
-  description: ""
-  playbookInputQuery: null
+  - key: Verdict
+    value:
+      simple: ${Analysis.Email.verdict}
+    required: false
+    description: Analysis.Email.verdict — malicious / benign
+    playbookInputQuery: null
+  - key: Confidence
+    value:
+      simple: ${Analysis.Email.confidence}
+    required: false
+    description: Analysis.Email.confidence — high / medium / low
+    playbookInputQuery: null
+  - key: ResponseRecommended
+    value:
+      simple: ${Analysis.Email.response_recommended}
+    required: false
+    description: Advisory action from Verdict Resolution — escalate_IR / search_and_purge
+      / retract_message / quarantine / no_action
+    playbookInputQuery: null
+  - key: ExposureLevel
+    value:
+      simple: ${Analysis.Email.ExposureLevel}
+    required: false
+    description: clicked / delivered / blocked — informational, used in story
+    playbookInputQuery: null
+  - key: ShadowMode
+    value:
+      complex:
+        root: lists
+        accessor: SOCExecutionList_V3
+        transformers:
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: SOC Email Containment_V3
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: shadow_mode
+    required: false
+    description: 'Shadow mode flag from SOCExecutionList_V3. true = log only, false
+    = execute. Default: true in all PoV deployments.'
+    playbookInputQuery: null
 inputSections:
-- inputs:
-  - ShadowMode
-  name: General (Inputs group)
-  description: Generic group for inputs
+  - inputs:
+      - Verdict
+      - Confidence
+      - ResponseRecommended
+    name: Analysis Contract
+    description: Outputs from SOC Email Analysis_V3 — drive gate and routing
+  - inputs:
+      - ExposureLevel
+      - ShadowMode
+    name: Execution Context
+    description: Exposure context for story; ShadowMode from SOCExecutionList_V3
+outputs:
+  - contextPath: Containment.required
+    description: true if a containment action was taken
+    type: boolean
+  - contextPath: Containment.action
+    description: 'Action executed: retract_message / search_and_purge / quarantine /
+    escalate_IR'
+    type: string
+  - contextPath: Containment.story
+    description: War room narrative summarizing containment result
+    type: string
+  - contextPath: Containment.Execution
+    description: SOCCommandWrapper execution record — written to xsiam_socfw_ir_execution_raw
+    type: unknown
 outputSections:
-- outputs: []
-  name: General (Outputs group)
-  description: Generic group for outputs
-outputs: []
-sourceplaybookid: SOC Data Analysis_V3
-dirtyInputs: true
+  - outputs:
+      - Containment.required
+      - Containment.action
+      - Containment.story
+      - Containment.Execution
+    name: Containment Contract
+    description: Consumed by SOC Eradication_V3 and Value Metrics dashboard
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
+  \     \"height\": 1870,\n      \"width\": 1200,\n      \"x\": 50,\n      \"y\":\
+  \ 50\n    }\n  }\n}"
+contentitemexportablefields:
+  contentitemfields:
+    definitionid: ''
+    fromServerVersion: 6.10.0
+    isoverridable: false
+    itemVersion: 3.0.0
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR
+    prevname: ''
+    supportedModules: []
+    toServerVersion: ''
+dirtyInputs: false
 adopted: true
