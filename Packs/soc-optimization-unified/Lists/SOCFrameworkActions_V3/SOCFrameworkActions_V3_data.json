@@ -139,10 +139,6 @@
           "machine_ids": "SOCFramework.Artifacts.EndPointID",
           "file_hashes": "SOCFramework.Artifacts.File"
         }
-      },
-      "Trend Micro Vision One V3": {
-        "command": "trendmicro-visionone-quarantine-email-message",
-        "inline_args": {}
       }
     }
   },
@@ -317,6 +313,163 @@
           "threatId": "SOCFramework.Artifacts.Hash"
         }
       }
+    }
+  },
+  "soc-get-email-events": {
+    "responses": {
+      "Proofpoint TAP v2": {
+        "command": "proofpoint-get-messages-delivered",
+        "inline_args": {
+          "interval": "P7D",
+          "threatType": "url",
+          "url": "SOCFramework.Artifacts.Email.ThreatURL"
+        }
+      },
+      "Proofpoint TAP v2 (clicks)": {
+        "command": "proofpoint-get-clicks-permitted",
+        "inline_args": {
+          "interval": "P7D",
+          "threatType": "url",
+          "url": "SOCFramework.Artifacts.Email.ThreatURL"
+        }
+      }
+    },
+    "output_map": {
+      "UC.Email.Events.click_count": "PaloAltoNetworksXQL.GenericQuery.results[type=clicks permitted].count",
+      "UC.Email.Events.delivered_count": "PaloAltoNetworksXQL.GenericQuery.results[type=messages delivered].count",
+      "UC.Email.Events.message_id": "PaloAltoNetworksXQL.GenericQuery.results.messageID",
+      "UC.Email.Events.mailbox_count": "PaloAltoNetworksXQL.GenericQuery.results.recipient.uniq.count"
+    }
+  },
+  "soc-get-email-forensics": {
+    "responses": {
+      "Proofpoint TAP v2": {
+        "command": "proofpoint-get-forensics",
+        "inline_args": {
+          "threatId": "SOCFramework.Email.TAP.ThreatID",
+          "campaignId": "SOCFramework.Email.TAP.CampaignID",
+          "includeCampaignForensics": "true"
+        }
+      }
+    },
+    "output_map": {
+      "UC.Email.Forensics.behavior": "Proofpoint.Report.Behavior",
+      "UC.Email.Forensics.dns": "Proofpoint.Report.DNS",
+      "UC.Email.Forensics.network": "Proofpoint.Report.Network",
+      "UC.Email.Forensics.file": "Proofpoint.Report.File",
+      "UC.Email.Forensics.attachment": "Proofpoint.Report.Attachment"
+    }
+  },
+  "soc-retract-email": {
+    "responses": {
+      "Microsoft Graph": {
+        "command": "msgraph-mail-delete-email",
+        "inline_args": {
+          "user_id": "SOCFramework.Artifacts.Email.To",
+          "message_id": "SOCFramework.Artifacts.Email.MessageID"
+        }
+      },
+      "Gmail": {
+        "command": "gmail-delete-mail",
+        "inline_args": {
+          "user_id": "SOCFramework.Artifacts.Email.To",
+          "message_id": "SOCFramework.Artifacts.Email.MessageID"
+        }
+      },
+      "O365 Compliance": {
+        "command": "o365-sc-compliance-search-purge",
+        "inline_args": {
+          "search_name": "SOCFramework.Email.ComplianceSearchName",
+          "purge_type": "SoftDelete"
+        }
+      }
+    },
+    "output_map": {
+      "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
+      "UC.Email.Retract.message": "MicrosoftGraph.Mail.Delete.message"
+    }
+  },
+  "soc-quarantine-email": {
+    "responses": {
+      "Trend Micro Vision One": {
+        "command": "trendmicro-visionone-quarantine-email-message",
+        "inline_args": {
+          "message_id": "SOCFramework.Artifacts.Email.MessageID",
+          "mailbox": "SOCFramework.Artifacts.Email.To"
+        }
+      },
+      "Mimecast": {
+        "command": "mimecast-reject-held-message",
+        "inline_args": {
+          "id": "SOCFramework.Artifacts.Email.MessageID",
+          "reason": "Quarantined by SOC Framework automated response"
+        }
+      }
+    },
+    "output_map": {
+      "UC.Email.Quarantine.status": "TrendMicro.QuarantineEmail.status",
+      "UC.Email.Quarantine.message": "TrendMicro.QuarantineEmail.message"
+    }
+  },
+  "soc-block-sender": {
+    "responses": {
+      "Mimecast": {
+        "command": "mimecast-create-blocked-sender-policy",
+        "inline_args": {
+          "sender": "SOCFramework.Artifacts.Email.From",
+          "description": "Blocked by SOC Framework \u2014 threat sender"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-add-tiindicator",
+        "inline_args": {
+          "indicator_value": "SOCFramework.Artifacts.Email.From",
+          "indicator_type": "EmailSenderAddress",
+          "action": "BlockAndRemediate",
+          "description": "SOCFramework block sender",
+          "expiration_date_time": "90"
+        }
+      },
+      "Proofpoint TAP v2": {
+        "command": "proofpoint-block-sender",
+        "inline_args": {
+          "sender_address": "SOCFramework.Artifacts.Email.From",
+          "action": "block"
+        }
+      }
+    },
+    "output_map": {
+      "UC.Email.BlockSender.status": "Mimecast.BlockedSender.status",
+      "UC.Email.BlockSender.message": "Mimecast.BlockedSender.message"
+    }
+  },
+  "soc-unblock-sender": {
+    "responses": {
+      "Mimecast": {
+        "command": "mimecast-delete-blocked-sender-policy",
+        "inline_args": {
+          "sender": "SOCFramework.Artifacts.Email.From"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-sc-delete-indicator",
+        "inline_args": {
+          "indicator_value": "SOCFramework.Artifacts.Email.From"
+        }
+      },
+      "Proofpoint TAP v2": {
+        "command": "proofpoint-delete-blocked-sender",
+        "inline_args": {
+          "sender": "SOCFramework.Artifacts.Email.From"
+        }
+      }
+    },
+    "phase": "Recovery",
+    "category": "Email",
+    "description": "Remove a blocked sender entry. Used in Recovery phase when a false positive is confirmed.",
+    "output_map": {
+      "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
+      "UC.Email.UnblockSender.message": "Mimecast.DeleteBlockedSender.message"
     }
   }
 }
