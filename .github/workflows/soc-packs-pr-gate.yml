@@ -1,20 +1,20 @@
 name: SOC Packs — PR Gate
 
 # ─────────────────────────────────────────────────────────────────
-# Replaces: no-customer-data.yml + soc-packs-validate.yml
-#
 # Runs on every PR targeting main. All jobs must pass before merge.
 #
-# Job 1 · scan       — no customer data in the diff
-# Job 2 · validate   — demisto-sdk normalize + validate
-# Job 3 · deploy     — build zip + deploy to test tenant (pre-merge)
+# Job 1 · scan          — no customer data in the diff
+# Job 2 · detect        — find packs with version bumps
+# Job 3 · validate      — demisto-sdk normalize + validate
+# Job 4 · preflight     — xsoar_config.json format + doc URL checks
+# Job 5 · prerelease    — build zip + upload as PR prerelease tag
+#                         e.g. SocFrameworkProofPointTap-v1.1.1-pr647
+#                         Also uploads a modified xsoar_config.json
+#                         as a release asset with the prerelease zip URL.
+# Job 6 · deploy-dev    — deploy to test tenant using prerelease assets
 #
-# Only packs with a version bump are processed. Version diff uses
-# the merge-base (not HEAD^) so multi-commit feature branches work.
-#
-# Flow: feature/* → PR → main [scan + validate + deploy to tenant]
-#                  ↓ verify tenant → approve → merge
-#       push → main → soc-packs-release.yml (prod release tag)
+# After merge, soc-packs-release.yml creates the real immutable tag
+# and the prerelease is superseded.
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -24,14 +24,13 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   PACKS_DIR: Packs
   DEMISTO_SDK_VERSION: "1.38.14"
   DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
 
-# Cancel in-flight runs on the same PR when a new commit is pushed
 concurrency:
   group: pr-gate-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -103,7 +102,6 @@ jobs:
 
           packs_dir = Path(os.environ["PACKS_DIR"])
 
-          # merge-base diff: correct for feature branches with many commits
           base = subprocess.check_output(
               ["git", "merge-base", "HEAD", "origin/main"], text=True
           ).strip()
@@ -122,7 +120,6 @@ jobs:
                   meta = packs_dir / pack / "pack_metadata.json"
                   if not meta.exists():
                       continue
-                  # Check version changed vs base
                   try:
                       old = subprocess.check_output(
                           ["git", "show", f"{base}:{packs_dir}/{pack}/pack_metadata.json"],
@@ -191,12 +188,33 @@ jobs:
           done
           exit $FAILED
 
-  # ── JOB 4: DEPLOY TO TEST TENANT ────────────────────────────────
-  deploy-dev:
-    name: Deploy — dev tenant (pre-merge)
+  # ── JOB 4: PREFLIGHT xsoar_config.json ──────────────────────────
+  preflight:
+    name: Preflight — xsoar_config.json
     needs: [detect, validate]
     if: needs.detect.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Validate xsoar_config.json zip format + doc URLs
+        env:
+          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
+        run: |
+          python tools/preflight_xsoar_config.py --packs "$CHANGED_PACKS"
+
+  # ── JOB 5: BUILD PRERELEASE ZIP ─────────────────────────────────
+  prerelease:
+    name: Build prerelease zip
+    needs: [detect, preflight]
+    if: needs.detect.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      config_url: ${{ steps.upload.outputs.config_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -209,45 +227,123 @@ jobs:
       - name: Install demisto-sdk
         run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
 
-      - name: Build pack zips (marketplacev2)
+      - name: Build zip + create prerelease + upload modified xsoar_config.json
+        id: upload
         env:
           CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
-          set -euo pipefail
-          mkdir -p dist
-          IFS=',' read -r -a PACKS <<< "$CHANGED_PACKS"
+          python - << 'PY'
+          import json, os, subprocess, tempfile
+          from pathlib import Path
 
-          for PACK in "${PACKS[@]}"; do
-            [ -z "$PACK" ] && continue
-            PACK_PATH="${PACKS_DIR}/${PACK}"
-            META="${PACK_PATH}/pack_metadata.json"
-            VER=$(python -c "import json; m=json.load(open('$META')); print(m.get('version') or m.get('currentVersion','0.0.0'))")
-            ASSET="dist/${PACK}-v${VER}-dev.zip"
+          packs_dir   = Path(os.environ["PACKS_DIR"])
+          changed     = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
+          repo        = os.environ["REPO"]
+          pr_number   = os.environ["PR_NUMBER"]
+          repo_root   = Path.cwd()
+          dist        = Path("dist")
+          dist.mkdir(exist_ok=True)
 
-            echo "=== Building ${PACK} v${VER} ==="
+          def run(cmd, **kw):
+              print("+", " ".join(cmd))
+              subprocess.run(cmd, check=True, **kw)
 
-            SENTINEL=$(mktemp dist/.sentinel.XXXX)
+          def gh(*args, check=True):
+              return subprocess.run(["gh", *args], check=check, capture_output=True, text=True)
 
-            demisto-sdk prepare-content \
-              -i "$PACK_PATH" \
-              -o dist \
-              --marketplace marketplacev2
+          config_url = ""
 
-            NEWEST=$(find dist -name "*.zip" -newer "$SENTINEL" | xargs ls -t 2>/dev/null | head -1 || true)
-            rm -f "$SENTINEL"
+          for pack in changed:
+              pack_path  = packs_dir / pack
+              meta_path  = pack_path / "pack_metadata.json"
+              config_path = pack_path / "xsoar_config.json"
 
-            if [ -z "$NEWEST" ]; then
-              NEWEST=$(find dist -name "*${PACK}*.zip" | xargs ls -t 2>/dev/null | head -1 || true)
-            fi
-            if [ -z "$NEWEST" ]; then
-              echo "::error::prepare-content produced no zip for ${PACK}"
-              exit 1
-            fi
+              if not meta_path.exists():
+                  print(f"{pack}: no pack_metadata.json, skipping")
+                  continue
 
-            mv "$NEWEST" "$ASSET"
-            echo "Built: $ASSET"
-          done
+              meta    = json.loads(meta_path.read_text())
+              version = meta.get("version") or meta.get("currentVersion") or ""
+              if not version:
+                  print(f"{pack}: no version, skipping")
+                  continue
+
+              # PR prerelease tag — ephemeral, overwritten on every push to this PR
+              pr_tag   = f"{pack}-v{version}-pr{pr_number}"
+              pr_asset = f"{pack}-v{version}-pr{pr_number}.zip"
+              pr_zip_url = f"https://github.com/{repo}/releases/download/{pr_tag}/{pr_asset}"
+
+              # Build the zip
+              sentinel = dist / ".sentinel"
+              sentinel.touch()
+              sentinel_mtime = sentinel.stat().st_mtime
+
+              run([
+                  "demisto-sdk", "prepare-content",
+                  "-i", str(pack_path),
+                  "-o", str(dist),
+                  "--marketplace", "marketplacev2",
+              ], cwd=str(repo_root))
+
+              sentinel.unlink(missing_ok=True)
+
+              created = sorted(
+                  (z for z in dist.rglob("*.zip") if z.stat().st_mtime >= sentinel_mtime),
+                  key=lambda p: p.stat().st_mtime
+              )
+              if not created:
+                  raise RuntimeError(f"{pack}: prepare-content produced no zip")
+
+              final = dist / pr_asset
+              if final.exists():
+                  final.unlink()
+              created[-1].rename(final)
+              print(f"Built: {final}")
+
+              # Delete existing prerelease if present, then create fresh
+              gh("release", "delete", pr_tag, "--yes", "--cleanup-tag", check=False)
+              gh("release", "create", pr_tag, str(final),
+                 "-t", f"{pack} v{version} (PR #{pr_number})",
+                 "-n", f"Ephemeral prerelease for PR #{pr_number}. Will be superseded on merge.",
+                 "--prerelease")
+
+              # Build modified xsoar_config.json with prerelease zip URL
+              if config_path.exists():
+                  cfg = json.loads(config_path.read_text())
+                  for entry in cfg.get("custom_packs", []):
+                      entry["url"] = pr_zip_url
+                      entry["id"]  = pr_asset
+
+                  pr_config = dist / "xsoar_config.json"
+                  pr_config.write_text(json.dumps(cfg, indent=2) + "\n")
+
+                  # Upload modified xsoar_config.json as release asset
+                  gh("release", "upload", pr_tag, str(pr_config), "--clobber")
+
+                  config_url = f"https://github.com/{repo}/releases/download/{pr_tag}/xsoar_config.json"
+                  print(f"Config URL: {config_url}")
+
+          # Write output
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"config_url={config_url}\n")
+          PY
+
+  # ── JOB 6: DEPLOY TO TEST TENANT ────────────────────────────────
+  deploy-dev:
+    name: Deploy — dev tenant (pre-merge)
+    needs: [detect, prerelease]
+    if: needs.detect.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
       - name: Checkout xsiam-pov-automation
         uses: actions/checkout@v4
@@ -262,13 +358,12 @@ jobs:
       - name: Deploy to test tenant
         working-directory: xsiam-pov-automation
         env:
-          DEMISTO_BASE_URL:  ${{ secrets.XSIAM_API_URL }}
-          DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
-          XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
-          CONTENT_REPO_RAW_LINK: >-
-            https://raw.githubusercontent.com/${{ github.repository }}/${{ github.head_ref }}/Packs/${{ needs.detect.outputs.packs }}/xsoar_config.json
+          DEMISTO_BASE_URL:      ${{ secrets.XSIAM_API_URL }}
+          DEMISTO_API_KEY:       ${{ secrets.XSIAM_API_KEY }}
+          XSIAM_AUTH_ID:         ${{ secrets.XSIAM_API_ID }}
+          # Use the prerelease xsoar_config.json which points at the prerelease zip
+          CONTENT_REPO_RAW_LINK: ${{ needs.prerelease.outputs.config_url }}
           DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
-          echo "Deploying to test tenant: $DEMISTO_BASE_URL"
-          echo "Config: $CONTENT_REPO_RAW_LINK"
+          echo "Deploying using prerelease config: $CONTENT_REPO_RAW_LINK"
           printf 'yes\n' | python setup.py
