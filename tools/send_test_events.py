@@ -8,6 +8,12 @@ from dotenv import load_dotenv
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 
+"""
+python3 tools/send_test_events.py \
+  --file output/test_messages_delivered.json \
+  --env .env-httpcollector-proofpoint
+"""
+
 
 # ---------- Env + file helpers (unchanged API) ----------
 
