@@ -1,0 +1,175 @@
+name: SOC Packs — Release
+
+# ─────────────────────────────────────────────────────────────────
+# Replaces: soc-packs-release-v2.yml
+#
+# push → main  builds zip + creates an immutable production release
+#
+# Pre-merge tenant deploy lives in soc-packs-pr-gate.yml.
+# This job only runs after content has already passed the gate
+# and been approved.
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+env:
+  PACKS_DIR: Packs
+  DEMISTO_SDK_VERSION: "1.38.14"
+  DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+
+jobs:
+
+  release:
+    name: Build & release (production)
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    environment:
+      name: main
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install demisto-sdk
+        run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
+
+      - name: Find packs with version bumps
+        id: changed
+        run: |
+          python - << 'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+
+          changed_files = subprocess.check_output(
+              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
+          ).splitlines()
+
+          changed = set()
+          for f in changed_files:
+              p = Path(f)
+              if p.parts and p.parts[0] == str(packs_dir):
+                  pack = p.parts[1] if len(p.parts) > 1 else None
+                  if not pack:
+                      continue
+                  meta = packs_dir / pack / "pack_metadata.json"
+                  if not meta.exists():
+                      continue
+                  try:
+                      old = subprocess.check_output(
+                          ["git", "show", f"HEAD~1:{packs_dir}/{pack}/pack_metadata.json"],
+                          stderr=subprocess.DEVNULL, text=True
+                      )
+                      new_text = meta.read_text()
+                      old_ver = json.loads(old).get("version") or json.loads(old).get("currentVersion")
+                      new_ver = json.loads(new_text).get("version") or json.loads(new_text).get("currentVersion")
+                      if old_ver != new_ver:
+                          changed.add(pack)
+                  except subprocess.CalledProcessError:
+                      changed.add(pack)
+
+          out = ",".join(sorted(changed))
+          print("Changed packs:", out or "(none)")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={out}\n")
+              fh.write(f"has_changes={'true' if changed else 'false'}\n")
+          PY
+
+      - name: Build & publish production releases
+        if: steps.changed.outputs.has_changes == 'true'
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
+        run: |
+          python - << 'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed   = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
+          repo      = os.environ["GITHUB_REPOSITORY"]
+          repo_root = Path.cwd()
+          dist      = Path("dist")
+          dist.mkdir(exist_ok=True)
+
+          def run(cmd, **kw):
+              print("+", " ".join(cmd))
+              subprocess.run(cmd, check=True, **kw)
+
+          def gh(*args, check=True):
+              return subprocess.run(["gh", *args], check=check)
+
+          for pack in changed:
+              pack_path = packs_dir / pack
+              meta_path = pack_path / "pack_metadata.json"
+              if not meta_path.exists():
+                  print(f"{pack}: no pack_metadata.json, skipping")
+                  continue
+
+              meta    = json.loads(meta_path.read_text())
+              version = meta.get("version") or meta.get("currentVersion") or ""
+              if not version:
+                  print(f"{pack}: no version, skipping")
+                  continue
+
+              tag   = f"{pack}-v{version}"
+              asset = f"{pack}-v{version}.zip"
+
+              # Never clobber a production release — force a version bump
+              if gh("release", "view", tag, check=False).returncode == 0:
+                  raise RuntimeError(
+                      f"Release tag {tag} already exists. "
+                      f"Bump pack_metadata.json version to publish a new release."
+                  )
+
+              sentinel = dist / ".sentinel"
+              sentinel.touch()
+              sentinel_mtime = sentinel.stat().st_mtime
+
+              run([
+                  "demisto-sdk", "prepare-content",
+                  "-i", str(pack_path),
+                  "-o", str(dist),
+                  "--marketplace", "marketplacev2",
+              ], cwd=str(repo_root))
+
+              sentinel.unlink(missing_ok=True)
+
+              created = sorted(
+                  (z for z in dist.rglob("*.zip") if z.stat().st_mtime >= sentinel_mtime),
+                  key=lambda p: p.stat().st_mtime
+              )
+
+              if not created:
+                  raise RuntimeError(f"{pack}: prepare-content produced no zip")
+
+              final = dist / asset
+              if final.exists():
+                  final.unlink()
+              created[-1].rename(final)
+              print(f"Built: {final}")
+
+              gh("release", "create", tag, str(final),
+                 "-t", f"{pack} v{version}",
+                 "-n", f"Production release for {pack} v{version}")
+
+              url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+              print(f"Published: {url}")
+          PY
+
+      - name: No packs changed
+        if: steps.changed.outputs.has_changes != 'true'
+        run: echo "No version bumps detected — nothing to release."
