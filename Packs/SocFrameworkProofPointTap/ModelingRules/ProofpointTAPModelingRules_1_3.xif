@@ -1,0 +1,88 @@
+[MODEL: dataset=proofpoint_tap_v2_generic_alert_raw]
+// Intermediate alters — normalize fields that need cleanup before XDM mapping
+alter
+    // fromAddress arrives as either a JSON array string ["addr"] or a scalar
+    fromAddress_clean = if(
+        fromAddress contains "[",
+        arraystring(arraymap(fromAddress -> [], trim("@element", "\"")), ", "),
+        fromAddress
+    ),
+    // recipient arrives as JSON array on messages delivered, scalar on clicks permitted
+    recipient_array = if(
+        recipient contains "[",
+        arraymap(recipient -> [], trim("@element", "\"")),
+        arraycreate(recipient)
+    ),
+    // Extract all threat IDs and types across multi-threat messages
+    threat_ids_string = arraystring(
+        arraymap(threatsInfoMap -> [], "@element" -> threatID), ", "
+    ),
+    threat_types_string = arraystring(
+        arraymap(threatsInfoMap -> [], "@element" -> threatType), ", "
+    ),
+    threat_classifications_string = arraystring(
+        arraymap(threatsInfoMap -> [], "@element" -> classification), ", "
+    ),
+    threat_statuses_string = arraystring(
+        arraymap(threatsInfoMap -> [], "@element" -> threatStatus), ", "
+    ),
+    threat_urls_string = arraystring(
+        arraymap(threatsInfoMap -> [], "@element" -> threatUrl), ", "
+    ),
+    // Human-readable alert description for the alert UI
+    alert_description_clean = if(
+        type = "clicks permitted",
+        concat("Proofpoint TAP - Click Permitted | ", coalesce(subject, "No Subject"),
+               " | Sender: ", coalesce(sender, "unknown"),
+               " | Threat: ", coalesce(classification, threat_classifications_string, "unknown")),
+        concat("Proofpoint TAP - Message Delivered | ", coalesce(subject, "No Subject"),
+               " | Sender: ", coalesce(sender, "unknown"),
+               " | Threat: ", coalesce(classification, threat_classifications_string, "unknown"))
+    )
+| alter
+    // Event identity
+    xdm.event.type             = concat(_vendor, " - ", type),
+    xdm.event.id               = GUID,
+    xdm.alert.original_alert_id = GUID,
+
+    // Alert threat classification
+    xdm.alert.original_threat_id   = coalesce(threatID, threat_ids_string),
+    xdm.alert.original_threat_name = coalesce(
+        classification,
+        threat_classifications_string,
+        json_extract_scalar(threatsInfoMap, "$['0'].classification")
+    ),
+    xdm.alert.subcategory = coalesce(threat_types_string, classification),
+    xdm.alert.description = alert_description_clean,
+    xdm.alert.severity    = coalesce(
+        threat_statuses_string,
+        threatStatus
+    ),
+
+    // Email fields
+    xdm.email.sender      = coalesce(fromAddress_clean, sender),
+    xdm.email.return_path = sender,
+    xdm.email.message_id  = messageID,
+    xdm.email.subject     = subject,
+    xdm.email.recipients  = recipient_array,
+    xdm.email.cc          = arraymap(json_extract_array(ccAddresses, "$."), trim("@element", "\"")),
+    xdm.email.delivery_timestamp = messageTime,
+
+    // Email attachments — all parts joined
+    xdm.email.attachment.filename = arraystring(
+        arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", "
+    ),
+    xdm.email.attachment.md5 = arraystring(
+        arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "
+    ),
+    xdm.email.attachment.sha256 = arraystring(
+        arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "
+    ),
+
+    // Network — senderIP is the mail server (intermediate hop), clickIP is the endpoint
+    xdm.email.server.ipv4_addresses = arraycreate(senderIP),
+    xdm.source.host.ipv4_addresses  = arraycreate(clickIP),
+    xdm.source.user_agent           = userAgent,
+
+    // URL — clicked URL (clicks permitted) or threat URL
+    xdm.target.url = coalesce(url, threat_urls_string, threatURL);

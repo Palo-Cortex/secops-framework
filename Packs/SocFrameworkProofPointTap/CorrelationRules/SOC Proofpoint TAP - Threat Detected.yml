@@ -1,0 +1,110 @@
+fromversion: 6.10.0
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  action_file_md5: proofpointmd5
+  action_file_name: proofpointfilename
+  action_file_sha256: proofpointsha256
+  action_remote_ip: senderIP
+  actor_effective_username: recipient
+  agent_device_domain: domain
+  dns_query_name: dns_name
+  emailmessageid: messageID
+  emailsenderip: senderIP
+  emailsource: sender
+  fw_email_recipient: recipient
+  fw_email_sender: sender
+  fw_email_subject: subject
+  fw_url_domain: domain
+  proofpointtapcampaignid: campaignId
+  proofpointtapclassification: classification_all
+  proofpointtapclickip: clickIP
+  proofpointtapclicktime: clickTime
+  proofpointtapguid: GUID
+  proofpointtapheadersfrom: headerFrom
+  proofpointtapheadersreplyto: headerReplyTo
+  proofpointtapid: id
+  proofpointtapimposterscore: impostorScore
+  proofpointtapmalwarescore: malwareScore
+  proofpointtapmessageid: messageID
+  proofpointtapmessageparts: messageParts
+  proofpointtapmessagesize: messageSize
+  proofpointtapphishingscore: phishScore
+  proofpointtapreplytoaddress: replyToAddress
+  proofpointtapsenderip: senderIP
+  proofpointtapsmtpsender: sender
+  proofpointtapspamscore: spamScore
+  proofpointtapsubject: subject
+  proofpointtapsuspiciousurl: threat_urls
+  proofpointtapthreatid: threat_ids
+  proofpointtapthreatinfomap: threatsInfoMap
+  proofpointtapthreatstatus: threat_statuses
+  proofpointtapthreattime: threatTime
+  proofpointtapthreaturl: threat_urls
+  proofpointtaptype: type
+alert_name: $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+description: Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection.
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC Proofpoint TAP - Threat Detected
+investigation_query_link: ''
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0001 - Initial Access:
+    - T1566 - Phishing
+  TA0009 - Collection:
+    - T1114 - Email Collection
+name: SOC Proofpoint TAP - Threat Detected
+rule_id: 0
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 24 hours
+suppression_enabled: true
+suppression_fields:
+  - GUID
+timezone: null
+user_defined_category: alert_category
+user_defined_severity: alert_severity
+xql_query: |
+  dataset = proofpoint_tap_v2_generic_alert_raw
+  | filter type in ("messages delivered", "clicks permitted")
+  | filter (
+      json_extract_scalar(threatsInfoMap, "$[0].threatStatus") in ("active", "malicious")
+      or threatStatus in ("active", "malicious")
+  )
+  | alter
+      alert_severity    = _alert_data -> severity,
+      alert_category    = _alert_data -> alert_category,
+      alert_description = _alert_data -> alert_description,
+      alert_name = if(
+          type = "clicks permitted",
+          concat("Proofpoint TAP - Click Permitted - ", GUID),
+          concat("Proofpoint TAP - Message Delivered - ", GUID)
+      ),
+      alert_type = if(
+          type = "clicks permitted",
+          "Proofpoint TAP - Click Permitted",
+          "Proofpoint TAP - Message Delivered"
+      )
+  | alter
+      threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
+      classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.classification")), ", "),
+      threat_types       = arraystring(arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.threatType")), ", "),
+      threat_statuses    = arraystring(arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.threatStatus")), ", "),
+      threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap, "$."), coalesce(json_extract_scalar("@element", "$.threatUrl"), json_extract_scalar("@element", "$.threatURL"))), ", "),
+      threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+  | alter
+      proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
+      proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
+      proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
+  | alter
+      domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
+      dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")

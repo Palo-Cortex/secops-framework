@@ -1,54 +1,51 @@
+adopted: true
 fromversion: 5.0.0
 id: SOC Identity Eradication_V3
-version: 5
-contentitemexportablefields:
-  contentitemfields:
-    packID: soc-framework-nist-ir
-    packName: SOC Framework Unified
-    itemVersion: 3.1.4
-    fromServerVersion: 5.0.0
-    toServerVersion: ""
-    definitionid: ""
-    prevname: ""
-    isoverridable: false
-    supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
+version: -1
 name: SOC Identity Eradication_V3
 description: |-
-  Primary owners: Alert responders, platform engineers.
+  Identity-specific eradication playbook. Runs inside SOC Eradication_V3 when
+  SOCFramework.Product.category = "Identity".
 
-  Analyst role: Provide forensic details (malware hash, registry paths, C2 domains) to guide eradication efforts.
+  Flow:
+    1. Response gate - skip if response_recommended = false
+    2. Compromise level check - likely_compromised runs reset + revoke; suspicious runs revoke only
+    3. Universal Command: soc-reset-password (Shadow Mode by default)
+    4. Universal Command: soc-revoke-tokens (Shadow Mode by default)
+    5. Set Eradication context keys and story
+
+  Shadow Mode: All vendor commands suppressed until PS flips SOCExecutionList_V3.
+  Universal Command reads shadow_mode directly from lists.SOCExecutionList_V3.
+
+  Context keys set:
+    Eradication.attempted, Eradication.credentials_reset, Eradication.tokens_revoked, Eradication.story
 tags:
 - SOC
 - SOC_Framework_Unified
-- NIST 800-61
 - Eradication
+- NIST 800-61
 - Identity
 starttaskid: "0"
 tasks:
   "0":
     id: "0"
-    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
+    taskid: id-ie-start-0001
     type: start
     task:
-      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
+      id: id-ie-start-0001
       version: -1
       name: ""
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "2"
+      - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
-        "position": {
-          "x": 450,
-          "y": 50
-        }
+        "position": { "x": 480, "y": 50 }
       }
     note: false
     timertriggers: []
@@ -57,28 +54,41 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+
   "1":
     id: "1"
-    taskid: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
-    type: playbook
+    taskid: id-ie-response-gate-0001
+    type: condition
     task:
-      id: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
+      id: id-ie-response-gate-0001
       version: -1
-      name: Foundation - Error Handling_V3
-      playbookName: Foundation - Error Handling_V3
-      type: playbook
+      name: Recommended Response?
+      description: Skip eradication entirely if analysis did not recommend a response.
+      type: condition
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: true
+    nexttasks:
+      '#default#':
+      - "11"
+      yes:
+      - "2"
+    separatecontext: false
+    conditions:
+    - label: yes
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${inputs.response_recommended}
+            iscontext: true
+          right:
+            value:
+              simple: "true"
     continueonerrortype: ""
     view: |-
       {
-        "position": {
-          "x": 740,
-          "y": 290
-        }
+        "position": { "x": 480, "y": 190 }
       }
     note: false
     timertriggers: []
@@ -87,27 +97,590 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+
   "2":
     id: "2"
-    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+    taskid: id-ie-compromise-check-0002
+    type: condition
+    task:
+      id: id-ie-compromise-check-0002
+      version: -1
+      name: Compromised Level?
+      description: |-
+        likely_compromised = full reset (password + tokens).
+        suspicious = token revocation only (less disruptive).
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#default#':
+      - "11"
+      likely_compromised:
+      - "20"
+      suspicious:
+      - "30"
+    separatecontext: false
+    conditions:
+    - label: likely_compromised
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${inputs.compromise_level}
+            iscontext: true
+          right:
+            value:
+              simple: likely_compromised
+    - label: suspicious
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${inputs.compromise_level}
+            iscontext: true
+          right:
+            value:
+              simple: suspicious
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 370 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  # ── LIKELY COMPROMISED PATH ──────────────────────────────────────────
+  "20":
+    id: "20"
+    taskid: id-ie-full-erad-title-0020
     type: title
     task:
-      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+      id: id-ie-full-erad-title-0020
+      version: -1
+      name: Full Eradication - Reset + Revoke
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "21"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 180, "y": 560 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "21":
+    id: "21"
+    taskid: id-ie-reset-password-0021
+    type: regular
+    task:
+      id: id-ie-reset-password-0021
+      version: -1
+      name: Reset Password - Universal Command
+      scriptName: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "22"
+    scriptarguments:
+      Action_Actor:
+        simple: automation
+      Phase:
+        simple: Eradication
+      action:
+        simple: soc-reset-password
+      list_name:
+        simple: SOCFrameworkActions_V3
+      output_key:
+        simple: Eradication.Execution
+      shadow_mode:
+        simple: ${inputs.ShadowMode}
+      tags:
+        complex:
+          root: inputs.ShadowMode
+          transformers:
+          - operator: If-Then-Else
+            args:
+              condition: {}
+              conditionB: {}
+              conditionInBetween: {}
+              else:
+                value:
+                  simple: Eradication
+              equals:
+                value:
+                  simple: inputs.ShadowMode
+                iscontext: true
+              lhs: {}
+              lhsB: {}
+              options: {}
+              optionsB: {}
+              rhs: {}
+              rhsB: {}
+              then:
+                value:
+                  simple: Shadow Mode,Eradication
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 180, "y": 720 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "22":
+    id: "22"
+    taskid: id-ie-set-creds-reset-0022
+    type: regular
+    task:
+      id: id-ie-set-creds-reset-0022
+      version: -1
+      name: Set Credentials Reset
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "29"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Eradication.credentials_reset
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 180, "y": 890 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  # ── SUSPICIOUS PATH (tokens only) ────────────────────────────────────
+  "30":
+    id: "30"
+    taskid: id-ie-revoke-only-title-0030
+    type: title
+    task:
+      id: id-ie-revoke-only-title-0030
+      version: -1
+      name: Token Revocation Only
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "31"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 780, "y": 560 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "31":
+    id: "31"
+    taskid: id-ie-set-creds-not-reset-0031
+    type: regular
+    task:
+      id: id-ie-set-creds-not-reset-0031
+      version: -1
+      name: Set Credentials NOT Reset
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "29"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Eradication.credentials_reset
+      value:
+        simple: "false"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 780, "y": 720 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  # ── SHARED: REVOKE TOKENS (both paths) ───────────────────────────────
+  "29":
+    id: "29"
+    taskid: id-ie-revoke-tokens-0029
+    type: regular
+    task:
+      id: id-ie-revoke-tokens-0029
+      version: -1
+      name: Revoke Tokens - Universal Command
+      scriptName: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "40"
+    scriptarguments:
+      Action_Actor:
+        simple: automation
+      Phase:
+        simple: Eradication
+      action:
+        simple: soc-revoke-tokens
+      list_name:
+        simple: SOCFrameworkActions_V3
+      output_key:
+        simple: Eradication.Execution
+      shadow_mode:
+        simple: ${inputs.ShadowMode}
+      tags:
+        complex:
+          root: inputs.ShadowMode
+          transformers:
+          - operator: If-Then-Else
+            args:
+              condition: {}
+              conditionB: {}
+              conditionInBetween: {}
+              else:
+                value:
+                  simple: Eradication
+              equals:
+                value:
+                  simple: inputs.ShadowMode
+                iscontext: true
+              lhs: {}
+              lhsB: {}
+              options: {}
+              optionsB: {}
+              rhs: {}
+              rhsB: {}
+              then:
+                value:
+                  simple: Shadow Mode,Eradication
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1060 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  # ── FINALIZE ─────────────────────────────────────────────────────────
+  "40":
+    id: "40"
+    taskid: id-ie-finalize-title-0040
+    type: title
+    task:
+      id: id-ie-finalize-title-0040
+      version: -1
+      name: Eradication Attempted
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "41"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1220 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "41":
+    id: "41"
+    taskid: id-ie-set-attempted-0041
+    type: regular
+    task:
+      id: id-ie-set-attempted-0041
+      version: -1
+      name: Set Eradication Attempted
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "42"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Eradication.attempted
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1365 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "42":
+    id: "42"
+    taskid: id-ie-set-tokens-revoked-0042
+    type: regular
+    task:
+      id: id-ie-set-tokens-revoked-0042
+      version: -1
+      name: Set Tokens Revoked
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "43"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Eradication.tokens_revoked
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1510 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "43":
+    id: "43"
+    taskid: id-ie-set-story-0043
+    type: regular
+    task:
+      id: id-ie-set-story-0043
+      version: -1
+      name: Set Eradication Story
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Eradication.story
+      value:
+        simple: "Identity Eradication Summary\n\nUser: ${inputs.primary_entity_user}\n\
+          Compromise Level: ${inputs.compromise_level}\n\nActions taken (Shadow Mode:\
+          \ ${inputs.ShadowMode}):\n\u2022 Credentials reset: ${Eradication.credentials_reset}\n\
+          \u2022 Tokens revoked: ${Eradication.tokens_revoked}\n\nIn Shadow Mode all\
+          \ actions were logged to warroom and dataset.\nFlip SOCExecutionList_V3\
+          \ shadow_mode to false to enable live execution."
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1655 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  # ── NO ACTION PATH ────────────────────────────────────────────────────
+  "11":
+    id: "11"
+    taskid: id-ie-no-erad-0011
+    type: regular
+    task:
+      id: id-ie-no-erad-0011
+      version: -1
+      name: Set Eradication Not Attempted
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "12"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Eradication.attempted
+      value:
+        simple: "false"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 900, "y": 1060 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "12":
+    id: "12"
+    taskid: id-ie-no-erad-story-0012
+    type: regular
+    task:
+      id: id-ie-no-erad-story-0012
+      version: -1
+      name: Set No Eradication Story
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Eradication.story
+      value:
+        simple: "Identity Eradication Not Required\n\nUser: ${inputs.primary_entity_user}\n\
+          Response recommended: ${inputs.response_recommended}\nCompromise level: ${inputs.compromise_level}\n\
+          \nNo eradication actions performed. Analysis did not meet threshold for\
+          \ credential reset or token revocation."
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 900, "y": 1220 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "99":
+    id: "99"
+    taskid: id-ie-done-0099
+    type: title
+    task:
+      id: id-ie-done-0099
       version: -1
       name: Done
       type: title
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
-        "position": {
-          "x": 430,
-          "y": 470
-        }
+        "position": { "x": 480, "y": 1850 }
       }
     note: false
     timertriggers: []
@@ -116,19 +689,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-system: true
-view: |-
-  {
-    "linkLabelsPosition": {},
-    "paper": {
-      "dimensions": {
-        "height": 480,
-        "width": 690,
-        "x": 430,
-        "y": 50
-      }
-    }
-  }
+
 inputs:
 - key: ShadowMode
   value:
@@ -149,16 +710,67 @@ inputs:
   required: false
   description: ""
   playbookInputQuery: null
+- key: compromise_level
+  value:
+    simple: ${Analysis.compromise_level}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: compromise_decision
+  value:
+    simple: ${Analysis.compromise_decision}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: response_recommended
+  value:
+    simple: ${Analysis.response_recommended}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: primary_entity_user
+  value:
+    simple: ${Analysis.primary_entity_user}
+  required: false
+  description: ""
+  playbookInputQuery: null
 inputSections:
 - inputs:
   - ShadowMode
+  - compromise_level
+  - compromise_decision
+  - response_recommended
+  - primary_entity_user
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
-- outputs: []
+- outputs:
+  - Eradication.attempted
+  - Eradication.credentials_reset
+  - Eradication.tokens_revoked
+  - Eradication.story
   name: General (Outputs group)
   description: Generic group for outputs
-outputs: []
-sourceplaybookid: SOC Data Analysis_V3
+outputs:
+- contextPath: Eradication.attempted
+  type: unknown
+- contextPath: Eradication.credentials_reset
+  type: unknown
+- contextPath: Eradication.tokens_revoked
+  type: unknown
+- contextPath: Eradication.story
+  type: unknown
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1860,
+        "width": 1100,
+        "x": 0,
+        "y": 50
+      }
+    }
+  }
+sourceplaybookid: SOC Data Eradication_V3
 dirtyInputs: true
-adopted: true
