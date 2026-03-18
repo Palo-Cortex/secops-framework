@@ -1,21 +1,18 @@
+adopted: true
 id: SOC Email Exposure Evaluation_V3
 name: SOC Email Exposure Evaluation_V3
 version: -1
 fromversion: 6.10.0
-description: "NIST IR 800-61 — Detection & Analysis — Email Exposure Evaluation\n\n\
-  Answers: how far did this threat get, how many users were affected, and does this\
-  \ involve a high-value target?\n\nValue Driver: VD1 (Reduce Risk) — blast radius\
-  \ determines MTTC urgency.\nValue Driver: VD3 (Efficiency) — automated scope assessment\
-  \ replaces manual log review.\n\nExecution:\n  1. XQL query — proofpoint_tap_v2_generic_alert_raw\
-  \ — 7-day window, filter by ThreatURL or ThreatID\n  2. Fan-out extract: ClickCount,\
-  \ DeliveredCount, MessageID, MailboxCount\n  3. Classification — issue.proofpointtapclassification\n\
-  \  4. ExposureLevel — clicked / delivered / blocked\n  5. RecipientScope — single\
-  \ / multi / tenant_wide (MapRangeValues on MailboxCount)\n  6. High Value User check\
-  \ — against SOCFramework VIP Users list\n\nContext keys produced (consumed by Containment\
-  \ and SOC Analysis Evaluation_V3):\n  SOCFramework.Email.TAP.ClickCount\n  SOCFramework.Email.TAP.DeliveredCount\n\
-  \  SOCFramework.Email.TAP.MailboxCount\n  SOCFramework.Email.TAP.Classification\n\
-  \  SOCFramework.Artifacts.Email.MessageID\n  SOCFramework.Email.HighValueUserInvolved\n\
-  \  Analysis.Email.ExposureLevel\n  Analysis.Email.RecipientScope"
+description: "NIST IR 800-61 — Detection & Analysis — Email Exposure Evaluation\n\nAnswers: how far did this threat get, how\
+  \ many users were affected, and does this involve a high-value target?\n\nValue Driver: VD1 (Reduce Risk) — blast radius\
+  \ determines MTTC urgency.\nValue Driver: VD3 (Efficiency) — automated scope assessment replaces manual log review.\n\n\
+  Execution:\n  1. XQL query — proofpoint_tap_v2_generic_alert_raw — 7-day window, filter by ThreatURL or ThreatID\n  2. Fan-out\
+  \ extract: ClickCount, DeliveredCount, MessageID, MailboxCount\n  3. Classification — issue.proofpointtapclassification\n\
+  \  4. ExposureLevel — clicked / delivered / blocked\n  5. RecipientScope — single / multi / tenant_wide (MapRangeValues\
+  \ on MailboxCount)\n  6. High Value User check — against SOCFramework VIP Users list\n\nContext keys produced (consumed\
+  \ by Containment and SOC Analysis Evaluation_V3):\n  SOCFramework.Email.TAP.ClickCount\n  SOCFramework.Email.TAP.DeliveredCount\n\
+  \  SOCFramework.Email.TAP.MailboxCount\n  SOCFramework.Email.TAP.Classification\n  SOCFramework.Artifacts.Email.MessageID\n\
+  \  SOCFramework.Email.HighValueUserInvolved\n  Analysis.Email.ExposureLevel\n  Analysis.Email.RecipientScope"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -83,14 +80,13 @@ tasks:
       id: b84acd4e-bc4b-48d9-82a8-881c7065411f
       version: -1
       name: XQL — Proofpoint TAP Delivery & Click Events
-      description: 'Query proofpoint_tap_v2_generic_alert_raw for all click and delivery
-        events matching this alert''s ThreatURL or ThreatID within a 7-day window.
+      description: 'Query proofpoint_tap_v2_generic_alert_raw for all click and delivery events matching this alert''s ThreatURL
+        or ThreatID within a 7-day window.
 
 
         Returns: type (messages delivered / clicks permitted), threatID, recipient.
 
-        Results fan-out to parallel set tasks for ClickCount, DeliveredCount, MessageID,
-        and MailboxCount.'
+        Results fan-out to parallel set tasks for ClickCount, DeliveredCount, MessageID, and MailboxCount.'
       script: '|||xdr-xql-generic-query'
       type: regular
       iscommand: true
@@ -113,8 +109,7 @@ tasks:
 
           | fields threatURL, type, messageID, threatID, recipient
 
-          | filter threatURL = "${SOCFramework.Artifacts.Email.ThreatURL}" or threatID
-          = "${SOCFramework.Email.TAP.ThreatID}"'
+          | filter threatURL = "${inputs.ThreatURL}" or threatID = "${inputs.ThreatID}"'
       query_name:
         simple: SOC Email Exposure Query
       time_frame:
@@ -138,8 +133,8 @@ tasks:
       id: 4ad692bb-5bb1-4611-8308-51678de7212e
       version: -1
       name: Set Click Count
-      description: Count of click events from XQL results. Drives ExposureLevel and
-        response_recommended routing in Verdict Resolution.
+      description: Count of click events from XQL results. Drives ExposureLevel and response_recommended routing in Verdict
+        Resolution.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -188,8 +183,7 @@ tasks:
       id: 61f238d3-8a0b-4a17-a817-10bc276838fd
       version: -1
       name: Set Delivered Count
-      description: Count of delivered message events from XQL results. Drives ExposureLevel
-        routing.
+      description: Count of delivered message events from XQL results. Drives ExposureLevel routing.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -238,8 +232,7 @@ tasks:
       id: e8b9c76b-27d5-46c6-9197-371fe750a7fd
       version: -1
       name: Set Message ID
-      description: Message ID extracted from XQL results. Required by soc-retract-email
-        and soc-quarantine-email UCs in Containment.
+      description: Message ID extracted from XQL results. Required by soc-retract-email and soc-quarantine-email UCs in Containment.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -279,8 +272,7 @@ tasks:
       id: e1d36c08-9dc1-4554-9faa-2956612a6993
       version: -1
       name: Set Mailbox Count
-      description: Unique recipient count from XQL results. Drives RecipientScope
-        mapping (single / multi / tenant_wide).
+      description: Unique recipient count from XQL results. Drives RecipientScope mapping (single / multi / tenant_wide).
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -347,9 +339,8 @@ tasks:
       id: 30d6b99e-724e-4d97-a9c3-36e468265e1e
       version: -1
       name: Set Email Classification
-      description: 'Proofpoint TAP classification (phish / malware / spam / impostor).
-        Source: issue.proofpointtapclassification. Consumed by Verdict Resolution
-        to set Analysis.Email.category.'
+      description: 'Proofpoint TAP classification (phish / malware / spam / impostor). Source: issue.proofpointtapclassification.
+        Consumed by Verdict Resolution to set Analysis.Email.category.'
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -480,8 +471,7 @@ tasks:
       id: 0af85e14-f402-409d-88e0-4a3ff9d6d71c
       version: -1
       name: Set Exposure Level — clicked
-      description: URL was clicked. Highest risk — soc-get-email-events confirmed
-        click events.
+      description: URL was clicked. Highest risk — soc-get-email-events confirmed click events.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -517,8 +507,7 @@ tasks:
       id: ffd553e2-f08e-4835-add9-06d17b674aa5
       version: -1
       name: Set Exposure Level — delivered
-      description: Message delivered to inbox, no click recorded. Retraction recommended
-        before user interaction.
+      description: Message delivered to inbox, no click recorded. Retraction recommended before user interaction.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -554,8 +543,7 @@ tasks:
       id: d80f1cc2-a7a4-43b6-b749-9fe22352e0de
       version: -1
       name: Set Exposure Level — blocked
-      description: Message blocked at SEG — no delivery, no click. Quarantine action
-        applicable.
+      description: Message blocked at SEG — no delivery, no click. Quarantine action applicable.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -701,8 +689,7 @@ tasks:
 
         Customer-managed list — PS populates with VIP/exec mailboxes during onboarding.
 
-        Positive match sets HighValueUserInvolved=True, which routes Verdict Resolution
-        to escalate_IR recommendation.'
+        Positive match sets HighValueUserInvolved=True, which routes Verdict Resolution to escalate_IR recommendation.'
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
@@ -742,8 +729,7 @@ tasks:
       id: 642b8f45-61d0-4822-a4a8-40d04a80bf35
       version: -1
       name: Set High Value User Involved
-      description: Recipient is in the VIP list. Consumed by Verdict Resolution to
-        route response_recommended to escalate_IR.
+      description: Recipient is in the VIP list. Consumed by Verdict Resolution to route response_recommended to escalate_IR.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -800,23 +786,22 @@ inputs:
   value:
     simple: ${SOCFramework.Artifacts.Email.ThreatURL}
   required: false
-  description: 'Proofpoint threat URL — primary XQL filter. Source: SOCFramework.Artifacts.Email.ThreatURL
-    (set by Foundation Normalize Artifacts).'
+  description: 'Proofpoint threat URL — primary XQL filter. Source: SOCFramework.Artifacts.Email.ThreatURL (set by Foundation
+    Normalize Artifacts).'
   playbookInputQuery: null
 - key: ThreatID
   value:
     simple: ${SOCFramework.Email.TAP.ThreatID}
   required: false
-  description: 'Proofpoint threat ID — secondary XQL filter. Source: SOCFramework.Email.TAP.ThreatID
-    (set by Forensics Evaluation).'
+  description: 'Proofpoint threat ID — secondary XQL filter. Source: SOCFramework.Email.TAP.ThreatID (set by Forensics Evaluation).'
   playbookInputQuery: null
 inputSections:
 - inputs:
   - ThreatURL
   - ThreatID
   name: XQL Query Filters
-  description: At least one must be non-empty for the query to return results. ThreatURL
-    is always available from Foundation; ThreatID available after Forensics Eval runs.
+  description: At least one must be non-empty for the query to return results. ThreatURL is always available from Foundation;
+    ThreatID available after Forensics Eval runs.
 outputs:
 - contextPath: SOCFramework.Email.TAP.ClickCount
   description: Number of URL click events in the 7-day window
@@ -851,16 +836,14 @@ outputSections:
   - SOCFramework.Artifacts.Email.MessageID
   - SOCFramework.Email.HighValueUserInvolved
   name: TAP Event Data
-  description: Raw counts and metadata from XQL query — consumed by Verdict Resolution
-    and Containment
+  description: Raw counts and metadata from XQL query — consumed by Verdict Resolution and Containment
 - outputs:
   - Analysis.Email.ExposureLevel
   - Analysis.Email.RecipientScope
   name: Exposure Contract
   description: Passed to SOC Analysis Evaluation_V3 and Containment phase
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
-  \     \"height\": 2610,\n      \"width\": 1200,\n      \"x\": 50,\n      \"y\":\
-  \ 50\n    }\n  }\n}"
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 2610,\n      \"width\":\
+  \ 1200,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
 contentitemexportablefields:
   contentitemfields:
     definitionid: ''
@@ -873,4 +856,3 @@ contentitemexportablefields:
     supportedModules: []
     toServerVersion: ''
 dirtyInputs: false
-adopted: true
