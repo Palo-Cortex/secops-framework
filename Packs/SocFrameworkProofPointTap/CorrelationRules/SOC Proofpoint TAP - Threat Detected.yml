@@ -1,42 +1,51 @@
-fromversion: 6.10.0
+fromversion: 8.0.0
 action: ALERTS
 alert_category: User Defined
 alert_description: $alert_description
 alert_domain: DOMAIN_SECURITY
 alert_fields:
-  action_file_md5: proofpointmd5
-  action_file_name: proofpointfilename
-  action_file_sha256: proofpointsha256
-  action_remote_ip: senderIP
-  actor_effective_username: recipient
-  agent_device_domain: domain
-  dns_query_name: dns_name
-  emailmessageid: messageID
-  emailsenderip: senderIP
-  emailsource: sender
-  fw_email_recipient: recipient
-  fw_email_sender: sender
-  fw_email_subject: subject
-  fw_url_domain: domain
-  proofpointtapcampaignid: campaignId
+  # ── Core identity / actor ──────────────────────────────────────────────────
+  actor_effective_username: recipient          # user who received the email
+  agent_device_domain: domain                  # registered domain from threat URL
+
+  # ── File indicators ────────────────────────────────────────────────────────
+  action_file_sha256: proofpointsha256          # attachment SHA256 (WildFire grouping)
+  action_file_md5:    proofpointmd5             # attachment MD5
+  action_file_name:   proofpointfilename        # attachment filename
+
+  # ── Network indicators ─────────────────────────────────────────────────────
+  action_remote_ip:  senderIP                  # sender IP (grouping + analytics)
+  dns_query_name:    dns_name                  # threat domain (DNS grouping)
+  fw_url_domain:     domain                    # URL domain
+
+  # ── Email-specific fields ──────────────────────────────────────────────────
+  emailmessageid:           messageID
+  emailsenderip:            senderIP
+  emailsource:              sender
+  fw_email_recipient:       recipient
+  fw_email_sender:          sender
+  fw_email_subject:         subject
+
+  # ── Proofpoint TAP extended fields ────────────────────────────────────────
+  proofpointtapcampaignid:    campaignId
   proofpointtapclassification: classification_all
-  proofpointtapclickip: clickIP
-  proofpointtapclicktime: clickTime
-  proofpointtapguid: GUID
-  proofpointtapheadersfrom: headerFrom
+  proofpointtapclickip:       clickIP
+  proofpointtapclicktime:     clickTime
+  proofpointtapguid:          GUID
+  proofpointtapheadersfrom:   headerFrom
   proofpointtapheadersreplyto: headerReplyTo
-  proofpointtapid: id
+  proofpointtapid:            id
   proofpointtapimposterscore: impostorScore
-  proofpointtapmalwarescore: malwareScore
-  proofpointtapmessageid: messageID
-  proofpointtapmessageparts: messageParts
-  proofpointtapmessagesize: messageSize
+  proofpointtapmalwarescore:  malwareScore
+  proofpointtapmessageid:     messageID
+  proofpointtapmessageparts:  messageParts
+  proofpointtapmessagesize:   messageSize
   proofpointtapphishingscore: phishScore
   proofpointtapreplytoaddress: replyToAddress
-  proofpointtapsenderip: senderIP
-  proofpointtapsmtpsender: sender
-  proofpointtapspamscore: spamScore
-  proofpointtapsubject: subject
+  proofpointtapsenderip:      senderIP
+  proofpointtapsmtpsender:    sender
+  proofpointtapspamscore:     spamScore
+  proofpointtapsubject:       subject
   proofpointtapsuspiciousurl: threat_urls
   proofpointtapthreatid: threat_ids
   proofpointtapthreatinfomap: threatsInfoMap_str
@@ -77,6 +86,7 @@ user_defined_category: alert_category
 user_defined_severity: alert_severity
 xql_query: |
   dataset = proofpoint_tap_v2_generic_alert_raw
+  // Step 1: type gate
   | filter type in ("messages delivered", "clicks permitted")
   | alter threatsInfoMap_str = to_json_string(threatsInfoMap)
   | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
@@ -84,6 +94,8 @@ xql_query: |
       first_threat_status in ("active", "malicious")
       or threatStatus in ("active", "malicious")
   )
+
+  // Step 5: alert name and type derivation
   | alter
       alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
       alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
@@ -98,6 +110,10 @@ xql_query: |
           "Proofpoint TAP - Click Permitted",
           "Proofpoint TAP - Message Delivered"
       )
+
+  // Step 6: severity and category from _alert_data
+  //   _alert_data -> severity returns XSIAM internal codes (e.g. SEV_030_MEDIUM).
+  //   Coalesce to "medium" as safe default if field is absent or null.
   | alter
       threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
       classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
