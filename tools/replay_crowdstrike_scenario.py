@@ -14,6 +14,12 @@ via HTTP Collector, with:
 
 This script expects a JSON array exported via your existing tsv_to_json.py,
 and uses send_test_events.py for env loading + HTTP send.
+
+python3 tools/replay_crowdstrike_scenario.py \
+  --file output/turla_csfalcon_events.json \
+  --env .env-httpcollector-crowdstrike \
+  --time-field created_timestamp \
+  --compress-window 2h
 """
 
 import os
