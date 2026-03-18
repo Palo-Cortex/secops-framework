@@ -6,13 +6,15 @@ name: SOC Packs — PR Gate
 # Runs on every PR targeting main. All jobs must pass before merge.
 #
 # Job 1 · scan       — no customer data in the diff
-# Job 2 · validate   — demisto-sdk normalize + validate
-# Job 3 · deploy     — build zip + deploy to test tenant (pre-merge)
+# Job 2 · detect     — find packs with version bumps
+# Job 3 · validate   — demisto-sdk normalize + validate
+# Job 4 · preflight  — xsoar_config.json zip + doc URL checks
+# Job 5 · deploy     — build zip + deploy to test tenant (pre-merge)
 #
 # Only packs with a version bump are processed. Version diff uses
 # the merge-base (not HEAD^) so multi-commit feature branches work.
 #
-# Flow: feature/* → PR → main [scan + validate + deploy to tenant]
+# Flow: feature/* → PR → main [scan + validate + preflight + deploy]
 #                  ↓ verify tenant → approve → merge
 #       push → main → soc-packs-release.yml (prod release tag)
 # ─────────────────────────────────────────────────────────────────
@@ -191,10 +193,29 @@ jobs:
           done
           exit $FAILED
 
-  # ── JOB 4: DEPLOY TO TEST TENANT ────────────────────────────────
+  # ── JOB 4: PREFLIGHT xsoar_config.json ──────────────────────────
+  preflight:
+    name: Preflight — xsoar_config.json
+    needs: [detect, validate]
+    if: needs.detect.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Validate xsoar_config.json zip + doc URLs
+        env:
+          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
+        run: |
+          python tools/preflight_xsoar_config.py --packs "$CHANGED_PACKS"
+
+  # ── JOB 5: DEPLOY TO TEST TENANT ────────────────────────────────
   deploy-dev:
     name: Deploy — dev tenant (pre-merge)
-    needs: [detect, validate]
+    needs: [detect, validate, preflight]
     if: needs.detect.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     steps:

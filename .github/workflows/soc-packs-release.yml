@@ -1,13 +1,16 @@
 name: SOC Packs — Release
 
 # ─────────────────────────────────────────────────────────────────
-# Replaces: soc-packs-release-v2.yml
+# push → main
 #
-# push → main  builds zip + creates an immutable production release
+# Job 1 · release     — build zip + create immutable GitHub release
+# Job 2 · deploy      — deploy released zip to tenant
+# Job 3 · catalog     — update pack_catalog.json [manual gate]
+#                       Requires approval in pack-catalog-gate
+#                       environment before running. Approve only
+#                       after verifying the tenant deploy succeeded.
 #
 # Pre-merge tenant deploy lives in soc-packs-pr-gate.yml.
-# This job only runs after content has already passed the gate
-# and been approved.
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -25,12 +28,16 @@ env:
 
 jobs:
 
+  # ── JOB 1: BUILD ZIP + CREATE GITHUB RELEASE ────────────────────
   release:
     name: Build & release (production)
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[skip release]')"
     runs-on: ubuntu-latest
     environment:
       name: main
+    outputs:
+      packs: ${{ steps.changed.outputs.packs }}
+      has_changes: ${{ steps.changed.outputs.has_changes }}
 
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +135,6 @@ jobs:
               tag   = f"{pack}-v{version}"
               asset = f"{pack}-v{version}.zip"
 
-              # Never clobber a production release — force a version bump
               if gh("release", "view", tag, check=False).returncode == 0:
                   raise RuntimeError(
                       f"Release tag {tag} already exists. "
@@ -173,3 +179,80 @@ jobs:
       - name: No packs changed
         if: steps.changed.outputs.has_changes != 'true'
         run: echo "No version bumps detected — nothing to release."
+
+  # ── JOB 2: DEPLOY TO TENANT ─────────────────────────────────────
+  deploy:
+    name: Deploy — tenant (post-merge)
+    needs: release
+    if: needs.release.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Checkout xsiam-pov-automation
+        uses: actions/checkout@v4
+        with:
+          repository: annabarone/xsiam-pov-automation
+          path: xsiam-pov-automation
+
+      - name: Install POV requirements
+        working-directory: xsiam-pov-automation
+        run: pip install -r requirements.txt
+
+      - name: Deploy to tenant
+        working-directory: xsiam-pov-automation
+        env:
+          DEMISTO_BASE_URL: ${{ secrets.XSIAM_API_URL }}
+          DEMISTO_API_KEY:  ${{ secrets.XSIAM_API_KEY }}
+          XSIAM_AUTH_ID:    ${{ secrets.XSIAM_API_ID }}
+          CONTENT_REPO_RAW_LINK: >-
+            https://raw.githubusercontent.com/${{ github.repository }}/main/Packs/${{ needs.release.outputs.packs }}/xsoar_config.json
+          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
+        run: |
+          echo "Deploying: $CONTENT_REPO_RAW_LINK"
+          printf 'yes\n' | python setup.py
+
+  # ── JOB 3: UPDATE PACK CATALOG [MANUAL GATE] ────────────────────
+  catalog:
+    name: Update pack_catalog.json
+    needs: [release, deploy]
+    if: needs.release.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: pack-catalog-gate   # ← requires your approval before running
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Update pack_catalog.json from pack_metadata.json
+        run: |
+          python tools/update_pack_catalog.py \
+            --packs-dir Packs \
+            --catalog pack_catalog.json \
+            --org Palo-Cortex \
+            --repo secops-framework \
+            --ref refs/heads/main
+
+      - name: Commit updated catalog
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pack_catalog.json
+          if git diff --cached --quiet; then
+            echo "pack_catalog.json unchanged — nothing to commit."
+          else
+            git commit -m "- Update pack_catalog.json [skip ci]"
+            git push origin main
+          fi
