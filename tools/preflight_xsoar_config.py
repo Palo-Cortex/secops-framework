@@ -5,9 +5,11 @@ preflight_xsoar_config.py
 Validates xsoar_config.json for one or more packs before deployment.
 
 Checks:
-  1. custom_packs[*].url       — GitHub release zip URL returns HTTP 200
-  2. pre_config_docs[*].url    — Doc URLs return HTTP 200
-  3. post_config_docs[*].url   — Doc URLs return HTTP 200
+  1. custom_packs[*].url  — Format validation only (release doesn't exist
+                             yet pre-merge). Verifies pack name matches
+                             directory name and version matches pack_metadata.json.
+  2. pre_config_docs[*].url  — HTTP check (file must exist on main)
+  3. post_config_docs[*].url — HTTP check (file must exist on main)
 
 Usage:
   python3 tools/preflight_xsoar_config.py Packs/SocFrameworkProofPointTap
@@ -25,9 +27,9 @@ import urllib.error
 from pathlib import Path
 from typing import List, Tuple
 
-GITHUB_REPO     = "Palo-Cortex/secops-framework"
+GITHUB_REPO = "Palo-Cortex/secops-framework"
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def load_json(path: Path) -> dict:
     try:
@@ -40,20 +42,22 @@ def load_json(path: Path) -> dict:
 
 def check_url(url: str, label: str) -> Tuple[bool, str]:
     """
-    Returns (ok, message).
-    Follows redirects. HEAD first, falls back to GET for servers that block HEAD.
+    HTTP check — HEAD first, falls back to GET.
+    Used for doc URLs which must already exist on main.
     """
     for method in ("HEAD", "GET"):
         try:
-            req = urllib.request.Request(url, method=method, headers={"User-Agent": "soc-framework-preflight/1.0"})
+            req = urllib.request.Request(
+                url, method=method,
+                headers={"User-Agent": "soc-framework-preflight/1.0"}
+            )
             with urllib.request.urlopen(req, timeout=15) as resp:
-                code = resp.status
-                if code == 200:
+                if resp.status == 200:
                     return True, f"  ✓ {label}: {url}"
-                return False, f"  ✗ {label}: HTTP {code} — {url}"
+                return False, f"  ✗ {label}: HTTP {resp.status} — {url}"
         except urllib.error.HTTPError as e:
             if method == "HEAD" and e.code in (405, 403):
-                continue  # retry with GET
+                continue
             return False, f"  ✗ {label}: HTTP {e.code} — {url}"
         except urllib.error.URLError as e:
             return False, f"  ✗ {label}: Connection error — {url} ({e.reason})"
@@ -62,12 +66,53 @@ def check_url(url: str, label: str) -> Tuple[bool, str]:
     return False, f"  ✗ {label}: Unreachable — {url}"
 
 
+def validate_zip_url_format(
+        url: str, pack_id: str, version: str, label: str
+) -> Tuple[bool, str]:
+    """
+    Format-only validation for custom_packs zip URLs.
+
+    The release zip doesn't exist yet at PR time — we can't HTTP check it.
+    Instead verify the URL is structurally correct:
+      - References the right repo
+      - Pack name in URL matches the directory name (pack_id)
+      - Version in URL matches pack_metadata.json version
+
+    Expected format:
+      https://github.com/{repo}/releases/download/{pack_id}-v{version}/{pack_id}-v{version}.zip
+    """
+    expected = (
+        f"https://github.com/{GITHUB_REPO}/releases/download/"
+        f"{pack_id}-v{version}/{pack_id}-v{version}.zip"
+    )
+
+    if url == expected:
+        return True, f"  ✓ {label} format: {url}"
+
+    # Diagnose what's wrong
+    if GITHUB_REPO not in url:
+        detail = f"wrong repo (expected {GITHUB_REPO})"
+    elif f"{pack_id}-v{version}" not in url:
+        if pack_id not in url:
+            detail = f"pack name mismatch (expected '{pack_id}', got something else)"
+        else:
+            detail = f"version mismatch (expected v{version})"
+    else:
+        detail = f"expected:\n      {expected}"
+
+    return False, (
+        f"  ✗ {label} format error — {detail}\n"
+        f"    was: {url}\n"
+        f"    want: {expected}"
+    )
+
+
 # ── Per-pack validation ───────────────────────────────────────────────────────
 
 def validate_pack(pack_dir: Path) -> List[str]:
     """
     Validate xsoar_config.json for a single pack.
-    Returns a list of error strings. Empty list = all checks passed.
+    Returns a list of error strings. Empty = all checks passed.
     """
     config_path = pack_dir / "xsoar_config.json"
     errors = []
@@ -78,21 +123,35 @@ def validate_pack(pack_dir: Path) -> List[str]:
 
     cfg = load_json(config_path)
 
-    # ── 1. custom_packs zip URLs ──────────────────────────────────────────────
+    # Read version from pack_metadata.json — source of truth
+    meta_path = pack_dir / "pack_metadata.json"
+    if not meta_path.exists():
+        errors.append(f"  ✗ pack_metadata.json not found in {pack_dir}")
+        return errors
+
+    meta = load_json(meta_path)
+    version = meta.get("version") or meta.get("currentVersion") or ""
+    if not version:
+        errors.append(f"  ✗ No version found in pack_metadata.json")
+        return errors
+
+    pack_id = pack_dir.name
+
+    # ── 1. custom_packs zip URL — format check only ───────────────────────────
     custom_packs = cfg.get("custom_packs", [])
     if custom_packs:
-        print("  Checking custom_packs zip URLs...")
+        print(f"  Checking custom_packs zip URL format (pack={pack_id}, version={version})...")
     for entry in custom_packs:
         url = entry.get("url", "")
         if not url:
             errors.append(f"  ✗ custom_packs entry missing 'url': {entry.get('id', '?')}")
             continue
-        ok, msg = check_url(url, f"zip [{entry.get('id', '?')}]")
+        ok, msg = validate_zip_url_format(url, pack_id, version, f"zip [{entry.get('id', '?')}]")
         print(msg)
         if not ok:
             errors.append(msg)
 
-    # ── 2. pre_config_docs URLs ───────────────────────────────────────────────
+    # ── 2. pre_config_docs URLs — HTTP check ─────────────────────────────────
     pre_docs = cfg.get("pre_config_docs", [])
     if pre_docs:
         print("  Checking pre_config_docs URLs...")
@@ -105,7 +164,7 @@ def validate_pack(pack_dir: Path) -> List[str]:
         if not ok:
             errors.append(msg)
 
-    # ── 3. post_config_docs URLs ──────────────────────────────────────────────
+    # ── 3. post_config_docs URLs — HTTP check ────────────────────────────────
     post_docs = cfg.get("post_config_docs", [])
     if post_docs:
         print("  Checking post_config_docs URLs...")
