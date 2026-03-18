@@ -3,18 +3,15 @@ name: SOC Packs — PR Gate
 # ─────────────────────────────────────────────────────────────────
 # Replaces: no-customer-data.yml + soc-packs-validate.yml
 #
-# Runs on every PR targeting main. All jobs must pass before merge.
+# Runs on every PR targeting main. All three jobs must pass before
+# the PR can merge (configure as required checks in branch protection).
 #
 # Job 1 · scan       — no customer data in the diff
 # Job 2 · validate   — demisto-sdk normalize + validate
-# Job 3 · deploy     — build zip + deploy to test tenant (pre-merge)
+# Job 3 · deploy-dev — build zip + install to dev tenant (pre-merge)
 #
 # Only packs with a version bump are processed. Version diff uses
 # the merge-base (not HEAD^) so multi-commit feature branches work.
-#
-# Flow: feature/* → PR → main [scan + validate + deploy to tenant]
-#                  ↓ verify tenant → approve → merge
-#       push → main → soc-packs-release.yml (prod release tag)
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -47,39 +44,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch base branch
-        run: git fetch origin main --depth=50
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
 
-      - name: Load forbidden patterns
-        id: patterns
+      - name: Load customer identifiers
         run: |
-          if [ -f Lists/customer-identifiers.json ]; then
-            PATTERNS=$(python -c "
-          import json, sys
-          data = json.load(open('Lists/customer-identifiers.json'))
-          items = data if isinstance(data, list) else data.get('identifiers', [])
-          print('|'.join(str(i) for i in items if i))
-          ")
-            echo "patterns=$PATTERNS" >> "$GITHUB_OUTPUT"
+          if [ -f "Lists/customer-identifiers.json" ]; then
+            jq -r '.[]' Lists/customer-identifiers.json > patterns.txt
           else
-            echo "patterns=" >> "$GITHUB_OUTPUT"
+            echo "" > patterns.txt
           fi
 
       - name: Scan diff for forbidden patterns
         run: |
           DIFF="$(git diff origin/main HEAD)"
-          PATTERNS="${{ steps.patterns.outputs.patterns }}"
-          if [ -z "$PATTERNS" ]; then
-            echo "No customer identifiers configured — scan skipped."
-            exit 0
-          fi
-          if echo "$DIFF" | grep -Eq "$PATTERNS"; then
-            echo "::error::Customer data found in diff. Remove before merging."
-            exit 1
-          fi
-          echo "Scan passed — no customer data found."
+          FOUND=0
+          while IFS= read -r pattern; do
+            [[ -z "$pattern" ]] && continue
+            if echo "$DIFF" | grep -qE "$pattern" 2>/dev/null; then
+              echo "::error::Found customer data pattern: $pattern"
+              FOUND=1
+            fi
+          done < patterns.txt
+          [ "$FOUND" -eq 1 ] && exit 1
+          echo "No customer identifiers detected."
 
-  # ── JOB 2: DETECT CHANGED PACKS ────────────────────────────────
+  # ── SHARED: DETECT CHANGED PACKS ────────────────────────────────
   detect:
     name: Detect changed packs
     runs-on: ubuntu-latest
@@ -91,59 +81,46 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch base branch
-        run: git fetch origin main --depth=50
-
-      - name: Find packs with version bumps
+      - name: Compute changed packs (merge-base diff)
         id: changed
         run: |
           python - << 'PY'
-          import json, os, subprocess
+          import io, json, os, subprocess
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
+          packs = sorted(
+              p.name for p in packs_dir.iterdir()
+              if (p / "pack_metadata.json").is_file()
+          )
 
           # merge-base diff: correct for feature branches with many commits
           base = subprocess.check_output(
               ["git", "merge-base", "HEAD", "origin/main"], text=True
           ).strip()
 
-          changed_files = subprocess.check_output(
-              ["git", "diff", "--name-only", base, "HEAD"], text=True
-          ).splitlines()
+          changed = []
+          for pack in packs:
+              meta_path = packs_dir / pack / "pack_metadata.json"
+              new_meta = json.loads(meta_path.read_text())
+              new_ver = new_meta.get("version") or new_meta.get("currentVersion") or ""
+              try:
+                  blob = subprocess.check_output(["git", "show", f"{base}:{meta_path}"], text=True)
+                  old_ver = json.load(io.StringIO(blob)).get("version") or ""
+              except subprocess.CalledProcessError:
+                  old_ver = ""
+              if new_ver != old_ver:
+                  print(f"{pack}: {old_ver} -> {new_ver}")
+                  changed.append(pack)
 
-          changed = set()
-          for f in changed_files:
-              p = Path(f)
-              if p.parts and p.parts[0] == str(packs_dir):
-                  pack = p.parts[1] if len(p.parts) > 1 else None
-                  if not pack:
-                      continue
-                  meta = packs_dir / pack / "pack_metadata.json"
-                  if not meta.exists():
-                      continue
-                  # Check version changed vs base
-                  try:
-                      old = subprocess.check_output(
-                          ["git", "show", f"{base}:{packs_dir}/{pack}/pack_metadata.json"],
-                          stderr=subprocess.DEVNULL, text=True
-                      )
-                      new_text = meta.read_text()
-                      old_ver = json.loads(old).get("version") or json.loads(old).get("currentVersion")
-                      new_ver = json.loads(new_text).get("version") or json.loads(new_text).get("currentVersion")
-                      if old_ver != new_ver:
-                          changed.add(pack)
-                  except subprocess.CalledProcessError:
-                      changed.add(pack)
-
-          out = ",".join(sorted(changed))
+          out = ",".join(changed)
           print("Changed packs:", out or "(none)")
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"packs={out}\n")
               fh.write(f"has_changes={'true' if changed else 'false'}\n")
           PY
 
-  # ── JOB 3: VALIDATE ─────────────────────────────────────────────
+  # ── JOB 2: VALIDATE ─────────────────────────────────────────────
   validate:
     name: Validate — demisto-sdk
     needs: detect
@@ -161,42 +138,38 @@ jobs:
       - name: Install demisto-sdk
         run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
 
-      - name: Normalize rule IDs and adopted flags
-        env:
-          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
+      - name: Verify SDK version
         run: |
-          IFS=',' read -r -a PACKS <<< "$CHANGED_PACKS"
-          for PACK in "${PACKS[@]}"; do
-            [ -z "$PACK" ] && continue
-            echo "=== Normalizing ${PACK} ==="
-            python tools/normalize_ruleid_adopted.py --fix "${PACKS_DIR}/${PACK}" || true
-          done
+          VER=$(demisto-sdk --version | grep -Eo '([0-9]+\.)+[0-9]+' | head -1)
+          echo "SDK version = $VER"
+          [ "$VER" = "${DEMISTO_SDK_VERSION}" ] || { echo "::error::Expected demisto-sdk ${DEMISTO_SDK_VERSION}, got $VER"; exit 1; }
 
-      - name: Run demisto-sdk validate
+      - name: Normalize + validate changed packs
         env:
           CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
           DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
+          set -euo pipefail
           IFS=',' read -r -a PACKS <<< "$CHANGED_PACKS"
-          FAILED=0
           for PACK in "${PACKS[@]}"; do
             [ -z "$PACK" ] && continue
-            echo "=== Validating ${PACK} ==="
-            demisto-sdk validate \
-              -i "${PACKS_DIR}/${PACK}" \
-              --no-docker-checks \
-              --allow-skipped \
-              --skip-pack-dependencies \
-              --no-multiprocessing || FAILED=1
+            PACK_PATH="${PACKS_DIR}/${PACK}"
+            echo "=== ${PACK} ==="
+            python tools/normalize_ruleid_adopted.py --root "$PACK_PATH"
+            demisto-sdk validate -i "$PACK_PATH" --no-docker-checks
           done
-          exit $FAILED
 
-  # ── JOB 4: DEPLOY TO TEST TENANT ────────────────────────────────
+  # ── JOB 3: BUILD + DEV TENANT DEPLOY ────────────────────────────
+  # Proves the pack installs in the tenant before merge is allowed.
+  # Uses 'develop' environment secrets — prod tenant never touched by
+  # an unreviewed PR.
   deploy-dev:
     name: Deploy — dev tenant (pre-merge)
     needs: [detect, validate]
     if: needs.detect.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    environment:
+      name: develop
     steps:
       - uses: actions/checkout@v4
         with:
@@ -227,6 +200,7 @@ jobs:
 
             echo "=== Building ${PACK} v${VER} ==="
 
+            # Timestamp sentinel so we can identify what prepare-content creates
             SENTINEL=$(mktemp dist/.sentinel.XXXX)
 
             demisto-sdk prepare-content \
@@ -234,9 +208,11 @@ jobs:
               -o dist \
               --marketplace marketplacev2
 
+            # Find zip created after the sentinel
             NEWEST=$(find dist -name "*.zip" -newer "$SENTINEL" | xargs ls -t 2>/dev/null | head -1 || true)
             rm -f "$SENTINEL"
 
+            # Fallback: most recent zip with pack name
             if [ -z "$NEWEST" ]; then
               NEWEST=$(find dist -name "*${PACK}*.zip" | xargs ls -t 2>/dev/null | head -1 || true)
             fi
@@ -259,16 +235,17 @@ jobs:
         working-directory: xsiam-pov-automation
         run: pip install -r requirements.txt
 
-      - name: Deploy to test tenant
+      - name: Deploy to dev tenant
         working-directory: xsiam-pov-automation
         env:
           DEMISTO_BASE_URL:  ${{ secrets.XSIAM_API_URL }}
           DEMISTO_API_KEY:   ${{ secrets.XSIAM_API_KEY }}
           XSIAM_AUTH_ID:     ${{ secrets.XSIAM_API_ID }}
+          # xsoar_config.json read from the PR branch, not main
           CONTENT_REPO_RAW_LINK: >-
             https://raw.githubusercontent.com/${{ github.repository }}/${{ github.head_ref }}/Packs/${{ needs.detect.outputs.packs }}/xsoar_config.json
           DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
-          echo "Deploying to test tenant: $DEMISTO_BASE_URL"
+          echo "Deploying to dev tenant: $DEMISTO_BASE_URL"
           echo "Config: $CONTENT_REPO_RAW_LINK"
           printf 'yes\n' | python setup.py

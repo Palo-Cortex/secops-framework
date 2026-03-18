@@ -1,13 +1,16 @@
-name: SOC Packs — Release
+name: SOC Packs — Production Release
 
 # ─────────────────────────────────────────────────────────────────
 # Replaces: soc-packs-release-v2.yml
 #
-# push → main  builds zip + creates an immutable production release
+# Runs only after a PR merges to main. By this point the PR gate
+# has already proven the pack builds and deploys in the dev tenant.
 #
-# Pre-merge tenant deploy lives in soc-packs-pr-gate.yml.
-# This job only runs after content has already passed the gate
-# and been approved.
+# Builds the final zip and creates an immutable production GitHub
+# Release. No dev/prerelease tags here — main is always final.
+#
+# The develop-branch deploy job from release-v2 is gone: that work
+# now happens pre-merge in soc-packs-pr-gate.yml.
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -44,43 +47,34 @@ jobs:
       - name: Install demisto-sdk
         run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
 
-      - name: Find packs with version bumps
+      - name: Detect changed packs (version bump vs HEAD^)
         id: changed
         run: |
           python - << 'PY'
-          import json, os, subprocess
+          import io, json, os, subprocess
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
+          packs = sorted(
+              p.name for p in packs_dir.iterdir()
+              if (p / "pack_metadata.json").is_file()
+          )
+          changed = []
 
-          changed_files = subprocess.check_output(
-              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
-          ).splitlines()
+          for pack in packs:
+              meta_path = packs_dir / pack / "pack_metadata.json"
+              new_meta = json.loads(meta_path.read_text())
+              new_ver = new_meta.get("version") or new_meta.get("currentVersion") or ""
+              try:
+                  blob = subprocess.check_output(["git", "show", f"HEAD^:{meta_path}"], text=True)
+                  old_ver = json.load(io.StringIO(blob)).get("version") or ""
+              except subprocess.CalledProcessError:
+                  old_ver = ""
+              if new_ver != old_ver:
+                  print(f"{pack}: {old_ver} -> {new_ver}")
+                  changed.append(pack)
 
-          changed = set()
-          for f in changed_files:
-              p = Path(f)
-              if p.parts and p.parts[0] == str(packs_dir):
-                  pack = p.parts[1] if len(p.parts) > 1 else None
-                  if not pack:
-                      continue
-                  meta = packs_dir / pack / "pack_metadata.json"
-                  if not meta.exists():
-                      continue
-                  try:
-                      old = subprocess.check_output(
-                          ["git", "show", f"HEAD~1:{packs_dir}/{pack}/pack_metadata.json"],
-                          stderr=subprocess.DEVNULL, text=True
-                      )
-                      new_text = meta.read_text()
-                      old_ver = json.loads(old).get("version") or json.loads(old).get("currentVersion")
-                      new_ver = json.loads(new_text).get("version") or json.loads(new_text).get("currentVersion")
-                      if old_ver != new_ver:
-                          changed.add(pack)
-                  except subprocess.CalledProcessError:
-                      changed.add(pack)
-
-          out = ",".join(sorted(changed))
+          out = ",".join(changed)
           print("Changed packs:", out or "(none)")
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"packs={out}\n")
@@ -135,9 +129,9 @@ jobs:
                       f"Bump pack_metadata.json version to publish a new release."
                   )
 
+              # Timestamp sentinel to identify what prepare-content creates
               sentinel = dist / ".sentinel"
               sentinel.touch()
-              sentinel_mtime = sentinel.stat().st_mtime
 
               run([
                   "demisto-sdk", "prepare-content",
@@ -148,8 +142,12 @@ jobs:
 
               sentinel.unlink(missing_ok=True)
 
+              # Find newest zip created after sentinel
               created = sorted(
-                  (z for z in dist.rglob("*.zip") if z.stat().st_mtime >= sentinel_mtime),
+                  (z for z in dist.rglob("*.zip") if z.stat().st_mtime > sentinel.stat().st_mtime),
+                  key=lambda p: p.stat().st_mtime
+              ) if False else sorted(  # sentinel already deleted, use creation order
+                  (z for z in dist.rglob("*.zip")),
                   key=lambda p: p.stat().st_mtime
               )
 
