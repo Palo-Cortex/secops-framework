@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Tuple
 
+GITHUB_REPO = "Palo-Cortex/secops-framework"
+
 
 def load_json(path: Path):
     try:
@@ -107,70 +109,151 @@ def bump_pack_metadata(pack_metadata_path: Path) -> Tuple[str, str]:
     return old_version, new_version
 
 
-def bump_xsoar_config(config_path: Path, old_version: str, new_version: str) -> None:
+def build_correct_url(pack_id: str, version: str) -> str:
     """
-    - If top-level 'version' exists, set it to new_version.
-    - For ALL custom_packs entries, replace
-        ...-v<old_version>...
-      with
-        ...-v<new_version>...
-      in the 'url' field.
-    - Only write the file if something actually changed.
+    Build the canonical GitHub release zip URL for a pack.
+    Format: https://github.com/{repo}/releases/download/{pack_id}-v{version}/{pack_id}-v{version}.zip
+    """
+    tag = f"{pack_id}-v{version}"
+    return f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{tag}.zip"
+
+
+def build_correct_doc_base(pack_id: str) -> str:
+    """
+    Build the canonical GitHub blob base URL for a pack's docs.
+    Format: https://github.com/{repo}/blob/main/Packs/{pack_id}
+    """
+    return f"https://github.com/{GITHUB_REPO}/blob/main/Packs/{pack_id}"
+
+
+def fix_doc_urls(config_path: Path, pack_id: str) -> None:
+    """
+    Fix URLs in pre_config_docs and post_config_docs so they point at the
+    correct pack directory in the current repo.
+
+    Any URL that doesn't already start with the correct base is replaced.
+    The filename portion (everything after the last '/') is preserved.
+    """
+    if not config_path.exists():
+        return
+
+    cfg = load_json(config_path)
+    correct_base = build_correct_doc_base(pack_id)
+    changed = False
+
+    for section in ("pre_config_docs", "post_config_docs"):
+        docs = cfg.get(section)
+        if not isinstance(docs, list):
+            continue
+
+        for entry in docs:
+            if not isinstance(entry, dict):
+                continue
+            url = entry.get("url", "")
+            if not url:
+                continue
+
+            # Preserve just the filename (e.g. POST_CONFIG_README.md)
+            filename = url.rstrip("/").split("/")[-1]
+            correct_url = f"{correct_base}/{filename}"
+
+            if url != correct_url:
+                print(f"{section}[{entry.get('name', '?')}] url:")
+                print(f"  was: {url}")
+                print(f"  now: {correct_url}")
+                entry["url"] = correct_url
+                changed = True
+
+    if changed:
+        save_json(config_path, cfg)
+    else:
+        print("pre/post_config_docs urls are already correct; not rewriting file.")
+
+
+def fix_custom_pack_url(config_path: Path, pack_id: str, new_version: str) -> None:
+    """
+    Derive the correct zip URL from the pack directory name and new version,
+    then replace whatever is currently in custom_packs[*].url.
+
+    This catches both stale pack names (renamed directories) and stale
+    version numbers in one pass.
+
+    Also corrects custom_packs[*].id to match the expected filename.
     """
     if not config_path.exists():
         print(f"xsoar_config.json not found at {config_path}, skipping.")
         return
 
     cfg = load_json(config_path)
+    custom_packs = cfg.get("custom_packs")
+    if not isinstance(custom_packs, list):
+        print(f"No 'custom_packs' list in {config_path}, skipping URL fix.")
+        return
+
+    correct_url = build_correct_url(pack_id, new_version)
+    correct_id  = f"{pack_id}-v{new_version}.zip"
     changed = False
 
-    # Top-level version (if present)
+    for entry in custom_packs:
+        if not isinstance(entry, dict):
+            continue
+
+        current_url = entry.get("url", "")
+        current_id  = entry.get("id", "")
+
+        if current_url != correct_url:
+            print(f"custom_packs url:")
+            print(f"  was: {current_url}")
+            print(f"  now: {correct_url}")
+            entry["url"] = correct_url
+            changed = True
+
+        if current_id != correct_id:
+            print(f"custom_packs id:")
+            print(f"  was: {current_id}")
+            print(f"  now: {correct_id}")
+            entry["id"] = correct_id
+            changed = True
+
+    if changed:
+        save_json(config_path, cfg)
+    else:
+        print("custom_packs url and id are already correct; not rewriting file.")
+
+
+def bump_xsoar_config_version(config_path: Path, old_version: str, new_version: str) -> None:
+    """
+    Update the top-level 'version' field in xsoar_config.json if present.
+    URL/id correction is handled separately by fix_custom_pack_url.
+    """
+    if not config_path.exists():
+        return
+
+    cfg = load_json(config_path)
+    changed = False
+
     old_cfg_version = cfg.get("version")
     if old_cfg_version is not None and old_cfg_version != new_version:
         print(f"xsoar_config.json version: {old_cfg_version} -> {new_version}")
         cfg["version"] = new_version
         changed = True
 
-    # Update URLs under custom_packs[*].url
-    custom_packs = cfg.get("custom_packs")
-    if isinstance(custom_packs, list):
-        pattern_old = f"-v{old_version}"
-        pattern_new = f"-v{new_version}"
-
-        for entry in custom_packs:
-            if not isinstance(entry, dict):
-                continue
-            url = entry.get("url")
-            if not isinstance(url, str):
-                continue
-
-            new_url = url.replace(pattern_old, pattern_new)
-            if new_url != url:
-                print(f"custom_packs[{entry.get('id', '?')}].url:")
-                print(f"  {url}")
-                print(f"  -> {new_url}")
-                entry["url"] = new_url
-                changed = True
-    else:
-        print(f"No 'custom_packs' list in {config_path}, skipping URL updates.")
-
     if changed:
         save_json(config_path, cfg)
-    else:
-        print("No changes made to xsoar_config.json; not rewriting file.")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description=(
             "Interactively bump version in pack_metadata.json and xsoar_config.json "
-            "for a given pack (Major / Minor / Revision), and update custom_packs.url "
-            "version segments in-place."
+            "for a given pack (Major / Minor / Revision). "
+            "Auto-corrects custom_packs zip URL and id based on the actual pack "
+            "directory name — catches stale names from directory renames."
         )
     )
     parser.add_argument(
         "pack_path",
-        help="Path to the pack directory (e.g. Packs/soc-optimization-unified)",
+        help="Path to the pack directory (e.g. Packs/SocFrameworkProofPointTap)",
     )
 
     args = parser.parse_args()
@@ -179,16 +262,29 @@ def main():
     if not pack_dir.is_dir():
         raise SystemExit(f"ERROR: Pack directory does not exist: {pack_dir}")
 
+    # Derive pack ID from the directory name — this is the source of truth
+    pack_id = pack_dir.name
     pack_metadata_path = pack_dir / "pack_metadata.json"
-    xsoar_config_path = pack_dir / "xsoar_config.json"
+    xsoar_config_path  = pack_dir / "xsoar_config.json"
 
-    print(f"Using pack directory: {pack_dir}")
+    print(f"Pack directory : {pack_dir}")
+    print(f"Pack ID (dir)  : {pack_id}")
+    print()
 
     old_ver, new_ver = bump_pack_metadata(pack_metadata_path)
-    bump_xsoar_config(xsoar_config_path, old_ver, new_ver)
+
+    # 1. Update top-level version in xsoar_config.json
+    bump_xsoar_config_version(xsoar_config_path, old_ver, new_ver)
+
+    # 2. Fix custom_packs url + id using directory name as source of truth
+    fix_custom_pack_url(xsoar_config_path, pack_id, new_ver)
+
+    # 3. Fix pre/post_config_docs urls using directory name as source of truth
+    fix_doc_urls(xsoar_config_path, pack_id)
 
     print()
     print(f"Done. Version bumped from {old_ver} to {new_ver}.")
+    print(f"Zip URL target : {build_correct_url(pack_id, new_ver)}")
 
 
 if __name__ == "__main__":
