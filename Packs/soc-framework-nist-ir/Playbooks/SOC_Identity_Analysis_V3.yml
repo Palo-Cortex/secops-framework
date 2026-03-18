@@ -1,133 +1,1394 @@
 adopted: true
-description: |-
-  This is the analyst’s core domain.
-
-  Key tasks:
-
-  Investigate alerts and anomalies.
-
-  Validate true/false positives.
-
-  Perform triage, correlation, and root cause analysis.
-
-  Classify the incident (category, severity, impact).
-
-  Document findings and escalate confirmed incidents.
-
-  Outcome: Determine whether an event is a legitimate incident and assess its scope.
-
-  This phase measures alert fidelity, investigation efficiency, and time to validate — all analyst performance metrics.
-id: 'SOC Identity Analysis_V3'
-inputs: []
+fromversion: 5.0.0
+id: SOC Identity Analysis_V3
+version: -1
 name: SOC Identity Analysis_V3
-outputs: []
-sourceplaybookid: 'SOC Data Analysis_V3'
-starttaskid: "0"
+description: |-
+  Identity-specific analysis playbook. Runs inside SOC Analysis_V3 when
+  SOCFramework.Product.category = "Identity".
+
+  Follows the standard analysis pattern:
+    1. SOC Initialize Investigation Context_V3 - clean keys, load case counts
+    2. Signal Characterization - evaluate MITRE tactics and identity threat type
+    3. Compromise Evaluation - set compromise_level and compromise_decision
+    4. Spread Evaluation - set spread_level based on user/host scope
+    5. Recommendations - set confidence and response_recommended
+    6. SOC Analysis Evaluation_V3 - publish canonical Analysis.* context keys
+
+  Intermediate keys: Analysis.Identity.*
+  Published keys: canonical Analysis.* consumed by SOC NIST IR (800-61)_V3
+
+  Value Driver: VD1 (MTTD), VD3 (analyst efficiency - automated assessment)
+  SOC Challenges: Repetitive Workflows, Analyst Fatigue, Too Many Manual Investigations
 tags:
 - SOC
 - SOC_Framework_Unified
 - Detection & Analysis
 - NIST 800-61
 - Identity
+starttaskid: "0"
 tasks:
   "0":
-    continueonerrortype: ""
     id: "0"
+    taskid: id-ia-start-0001
+    type: start
+    task:
+      id: id-ia-start-0001
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 50 }
+      }
+    note: false
+    timertriggers: []
     ignoreworker: false
-    isautoswitchedtoquietmode: false
+    skipunavailable: false
+    quietmode: 0
     isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "1":
+    id: "1"
+    taskid: id-ia-prep-title-0002
+    type: title
+    task:
+      id: id-ia-prep-title-0002
+      version: -1
+      name: Preparation
+      description: Clean context keys and load case counts from incident fields.
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
       - "2"
-    note: false
-    quietmode: 0
     separatecontext: false
-    skipunavailable: false
-    task:
-      brand: ""
-      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
-      iscommand: false
-      name: ""
-      playbooktaskmissingcomponent:
-      version: -1
-    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
-    timertriggers: []
-    type: start
-    view: |-
-      {
-        "position": {
-          "x": 450,
-          "y": 50
-        }
-      }
-  "1":
     continueonerrortype: ""
-    id: "1"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    note: false
-    quietmode: 0
-    separatecontext: true
-    skipunavailable: false
-    task:
-      brand: ""
-      id: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
-      iscommand: false
-      name: Foundation - Error Handling_V3
-      playbookId: Foundation - Error Handling_V3
-      playbooktaskmissingcomponent:
-      type: playbook
-      version: -1
-    taskid: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
-    timertriggers: []
-    type: playbook
     view: |-
       {
-        "position": {
-          "x": 740,
-          "y": 290
-        }
+        "position": { "x": 480, "y": 185 }
       }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
   "2":
-    continueonerrortype: ""
     id: "2"
-    ignoreworker: false
-    isautoswitchedtoquietmode: false
-    isoversize: false
-    note: false
-    quietmode: 0
-    separatecontext: false
-    skipunavailable: false
+    taskid: id-ia-init-ctx-0003
+    type: playbook
     task:
-      brand: ""
-      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
-      iscommand: false
-      name: Done
-      playbooktaskmissingcomponent:
-      type: title
+      id: id-ia-init-ctx-0003
       version: -1
-    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
-    timertriggers: []
-    type: title
+      name: SOC Initialize Investigation Context
+      description: Clean up the data context and prepare to perform the investigation.
+      playbookName: SOC Initialize Investigation Context_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "3"
+    scriptarguments:
+      case_host_count:
+        simple: ${parentIncidentFields.host_count}
+      case_issue_count:
+        simple: ${parentIncidentFields.alert_count}
+      case_score:
+        simple: ${parentIncidentFields.predicted_score}
+      case_user_count:
+        simple: ${parentIncidentFields.user_count}
+      reset_issue_keys:
+        simple: Investigation, Analysis, Containment, Eradication, Recovery
+    separatecontext: false
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
     view: |-
       {
-        "position": {
-          "x": 430,
-          "y": 470
-        }
+        "position": { "x": 480, "y": 330 }
       }
-version: -1
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "3":
+    id: "3"
+    taskid: id-ia-sigchar-title-0004
+    type: title
+    task:
+      id: id-ia-sigchar-title-0004
+      version: -1
+      name: Signal Characterization
+      description: Evaluate MITRE tactics and classify the identity threat type.
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 500 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "4":
+    id: "4"
+    taskid: id-ia-tactic-check-0005
+    type: condition
+    task:
+      id: id-ia-tactic-check-0005
+      version: -1
+      name: Identity Threat Signal Type
+      description: Classifies the primary identity threat from MITRE tactics in the case.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#default#':
+      - "5"
+      Credential Access:
+      - "10"
+      Privilege Escalation:
+      - "11"
+      Persistence:
+      - "12"
+      Lateral Movement:
+      - "13"
+    separatecontext: false
+    conditions:
+    - label: Privilege Escalation
+      condition:
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: ${parentIncidentFields.mitre_tactics_ids_and_names}
+            iscontext: true
+          right:
+            value:
+              simple: TA0004
+    - label: Persistence
+      condition:
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: ${parentIncidentFields.mitre_tactics_ids_and_names}
+            iscontext: true
+          right:
+            value:
+              simple: TA0003
+    - label: Lateral Movement
+      condition:
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: ${parentIncidentFields.mitre_tactics_ids_and_names}
+            iscontext: true
+          right:
+            value:
+              simple: TA0008
+    - label: Credential Access
+      condition:
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: ${parentIncidentFields.mitre_tactics_ids_and_names}
+            iscontext: true
+          right:
+            value:
+              simple: TA0006
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 640 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "5":
+    id: "5"
+    taskid: id-ia-sigtype-default-0006
+    type: regular
+    task:
+      id: id-ia-sigtype-default-0006
+      version: -1
+      name: Set Signal Type - Identity Anomaly
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.signal_type
+      value:
+        simple: identity_anomaly
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 830 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "10":
+    id: "10"
+    taskid: id-ia-sigtype-cred-0010
+    type: regular
+    task:
+      id: id-ia-sigtype-cred-0010
+      version: -1
+      name: Set Signal Type - Credential Access
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.signal_type
+      value:
+        simple: credential_access
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 0, "y": 830 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "11":
+    id: "11"
+    taskid: id-ia-sigtype-privesc-0011
+    type: regular
+    task:
+      id: id-ia-sigtype-privesc-0011
+      version: -1
+      name: Set Signal Type - Privilege Escalation
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.signal_type
+      value:
+        simple: privilege_escalation
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 240, "y": 830 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "12":
+    id: "12"
+    taskid: id-ia-sigtype-persist-0012
+    type: regular
+    task:
+      id: id-ia-sigtype-persist-0012
+      version: -1
+      name: Set Signal Type - Persistence
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.signal_type
+      value:
+        simple: identity_persistence
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 720, "y": 830 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "13":
+    id: "13"
+    taskid: id-ia-sigtype-lateral-0013
+    type: regular
+    task:
+      id: id-ia-sigtype-lateral-0013
+      version: -1
+      name: Set Signal Type - Lateral Movement
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.signal_type
+      value:
+        simple: lateral_movement
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 960, "y": 830 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "20":
+    id: "20"
+    taskid: id-ia-compromise-title-0020
+    type: title
+    task:
+      id: id-ia-compromise-title-0020
+      version: -1
+      name: Compromise Evaluation
+      description: Evaluate compromise level based on XSIAM risk score and signal type.
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "21"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1020 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "21":
+    id: "21"
+    taskid: id-ia-risk-score-check-0021
+    type: condition
+    task:
+      id: id-ia-risk-score-check-0021
+      version: -1
+      name: Risk Score - High?
+      description: Score >= 70 OR privilege_escalation/persistence signal drives likely_compromised.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#default#':
+      - "23"
+      high:
+      - "22"
+    separatecontext: false
+    conditions:
+    - label: high
+      condition:
+      - - operator: greaterThanOrEqual
+          left:
+            value:
+              simple: ${parentIncidentFields.predicted_score}
+            iscontext: true
+          right:
+            value:
+              simple: "70"
+        - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.signal_type}
+            iscontext: true
+          right:
+            value:
+              simple: privilege_escalation
+      - - operator: greaterThanOrEqual
+          left:
+            value:
+              simple: ${parentIncidentFields.predicted_score}
+            iscontext: true
+          right:
+            value:
+              simple: "70"
+        - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.signal_type}
+            iscontext: true
+          right:
+            value:
+              simple: identity_persistence
+      - - operator: greaterThanOrEqual
+          left:
+            value:
+              simple: ${parentIncidentFields.predicted_score}
+            iscontext: true
+          right:
+            value:
+              simple: "85"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1165 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "22":
+    id: "22"
+    taskid: id-ia-compromise-high-0022
+    type: regular
+    task:
+      id: id-ia-compromise-high-0022
+      version: -1
+      name: Set Compromise Level - likely_compromised
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "24"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.compromise_level
+      value:
+        simple: likely_compromised
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 240, "y": 1350 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "23":
+    id: "23"
+    taskid: id-ia-compromise-med-0023
+    type: regular
+    task:
+      id: id-ia-compromise-med-0023
+      version: -1
+      name: Set Compromise Level - suspicious
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "25"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.compromise_level
+      value:
+        simple: suspicious
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 720, "y": 1350 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "24":
+    id: "24"
+    taskid: id-ia-decision-malicious-0024
+    type: regular
+    task:
+      id: id-ia-decision-malicious-0024
+      version: -1
+      name: Set Compromise Decision - malicious
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "30"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.compromise_decision
+      value:
+        simple: malicious
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 240, "y": 1530 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "25":
+    id: "25"
+    taskid: id-ia-decision-suspicious-0025
+    type: regular
+    task:
+      id: id-ia-decision-suspicious-0025
+      version: -1
+      name: Set Compromise Decision - suspicious_activity
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "30"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.compromise_decision
+      value:
+        simple: suspicious_activity
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 720, "y": 1530 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "30":
+    id: "30"
+    taskid: id-ia-spread-title-0030
+    type: title
+    task:
+      id: id-ia-spread-title-0030
+      version: -1
+      name: Evaluate Spread Level
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "31"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1710 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "31":
+    id: "31"
+    taskid: id-ia-spread-check-0031
+    type: condition
+    task:
+      id: id-ia-spread-check-0031
+      version: -1
+      name: Spread Level - Multi-User?
+      description: multi_entity if 3+ users or lateral movement signal.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#default#':
+      - "33"
+      multi_entity:
+      - "32"
+    separatecontext: false
+    conditions:
+    - label: multi_entity
+      condition:
+      - - operator: greaterThanOrEqual
+          left:
+            value:
+              simple: ${parentIncidentFields.user_count}
+            iscontext: true
+          right:
+            value:
+              simple: "3"
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.signal_type}
+            iscontext: true
+          right:
+            value:
+              simple: lateral_movement
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1850 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "32":
+    id: "32"
+    taskid: id-ia-spread-multi-0032
+    type: regular
+    task:
+      id: id-ia-spread-multi-0032
+      version: -1
+      name: Set Spread Level - multi_entity
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "40"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.spread_level
+      value:
+        simple: multi_entity
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 240, "y": 2030 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "33":
+    id: "33"
+    taskid: id-ia-spread-single-0033
+    type: regular
+    task:
+      id: id-ia-spread-single-0033
+      version: -1
+      name: Set Spread Level - single_entity
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "40"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.spread_level
+      value:
+        simple: single_entity
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 720, "y": 2030 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "40":
+    id: "40"
+    taskid: id-ia-recommend-title-0040
+    type: title
+    task:
+      id: id-ia-recommend-title-0040
+      version: -1
+      name: Make Recommendations
+      description: Set confidence and response_recommended based on compromise evaluation.
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "41"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 2215 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "41":
+    id: "41"
+    taskid: id-ia-confidence-check-0041
+    type: condition
+    task:
+      id: id-ia-confidence-check-0041
+      version: -1
+      name: Analysis Confidence
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#default#':
+      - "44"
+      high:
+      - "42"
+      medium:
+      - "43"
+    separatecontext: false
+    conditions:
+    - label: high
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.compromise_level}
+            iscontext: true
+          right:
+            value:
+              simple: likely_compromised
+        - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.spread_level}
+            iscontext: true
+          right:
+            value:
+              simple: multi_entity
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.compromise_level}
+            iscontext: true
+          right:
+            value:
+              simple: likely_compromised
+        - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.signal_type}
+            iscontext: true
+          right:
+            value:
+              simple: privilege_escalation
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.compromise_level}
+            iscontext: true
+          right:
+            value:
+              simple: likely_compromised
+        - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.signal_type}
+            iscontext: true
+          right:
+            value:
+              simple: identity_persistence
+    - label: medium
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${Analysis.Identity.compromise_level}
+            iscontext: true
+          right:
+            value:
+              simple: likely_compromised
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 2370 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "42":
+    id: "42"
+    taskid: id-ia-confidence-high-0042
+    type: regular
+    task:
+      id: id-ia-confidence-high-0042
+      version: -1
+      name: Investigation Confidence High
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "45"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.confidence
+      value:
+        simple: high
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 240, "y": 2560 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "43":
+    id: "43"
+    taskid: id-ia-confidence-med-0043
+    type: regular
+    task:
+      id: id-ia-confidence-med-0043
+      version: -1
+      name: Investigation Confidence Medium
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "45"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.confidence
+      value:
+        simple: medium
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 720, "y": 2560 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "44":
+    id: "44"
+    taskid: id-ia-confidence-low-0044
+    type: regular
+    task:
+      id: id-ia-confidence-low-0044
+      version: -1
+      name: Investigation Confidence Low
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "46"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.confidence
+      value:
+        simple: low
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 2560 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "45":
+    id: "45"
+    taskid: id-ia-response-yes-0045
+    type: regular
+    task:
+      id: id-ia-response-yes-0045
+      version: -1
+      name: Analysis Response Recommended
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "50"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.response_recommended
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 2745 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "46":
+    id: "46"
+    taskid: id-ia-response-no-0046
+    type: regular
+    task:
+      id: id-ia-response-no-0046
+      version: -1
+      name: Analysis Response NOT Recommended
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "50"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Identity.response_recommended
+      value:
+        simple: "false"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 2745 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "50":
+    id: "50"
+    taskid: id-ia-eval-publish-0050
+    type: playbook
+    task:
+      id: id-ia-eval-publish-0050
+      version: -1
+      name: SOC Analysis Evaluation_V3
+      description: Publishes Analysis.Identity.* to canonical Analysis.* keys consumed by SOC NIST IR.
+      playbookName: SOC Analysis Evaluation_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      case_category:
+        simple: ${Analysis.Identity.signal_type}
+      case_host_count:
+        simple: ${parentIncidentFields.host_count}
+      case_issue_count:
+        simple: ${parentIncidentFields.alert_count}
+      case_score:
+        simple: ${parentIncidentFields.predicted_score}
+      case_user_count:
+        simple: ${parentIncidentFields.user_count}
+      compromise_decision:
+        simple: ${Analysis.Identity.compromise_decision}
+      compromise_level:
+        simple: ${Analysis.Identity.compromise_level}
+      confidence:
+        simple: ${Analysis.Identity.confidence}
+      mitre_tactic:
+        simple: ${SOCFramework.Mitre.Tactic}
+      mitre_tactic_id:
+        simple: ${SOCFramework.Mitre.Tactic.ID}
+      mitre_technique:
+        simple: ${SOCFramework.Mitre.Technique}
+      mitre_technique_id:
+        simple: ${SOCFramework.Mitre.Technique.ID}
+      primary_entity_id:
+        simple: ${SOCFramework.Artifacts.UserName}
+      primary_entity_name:
+        simple: ${SOCFramework.Artifacts.UserName}
+      primary_entity_type:
+        simple: Identity
+      primary_entity_user:
+        simple: ${SOCFramework.Artifacts.UserName}
+      response_recommended:
+        simple: ${Analysis.Identity.response_recommended}
+      spread_level:
+        simple: ${Analysis.Identity.spread_level}
+      story:
+        simple: "Identity Analysis Summary\n\nThe primary identity under investigation\
+          \ is \"${SOCFramework.Artifacts.UserName}\".\n\nThe identity threat signal\
+          \ has been classified as \"${Analysis.Identity.signal_type}\" with a compromise\
+          \ level of \"${Analysis.Identity.compromise_level}\", based on MITRE ATT&CK\
+          \ tactic correlation and XSIAM risk scoring.\n\nActivity scope:\n\u2022\
+          \ Users involved: ${parentIncidentFields.user_count}\n\u2022 Hosts involved:\
+          \ ${parentIncidentFields.host_count}\n\u2022 Alerts in case: ${parentIncidentFields.alert_count}\n\
+          \u2022 Spread level: ${Analysis.Identity.spread_level}\n\nInvestigation\
+          \ confidence is \"${Analysis.Identity.confidence}\".\nResponse recommendation:\
+          \ ${Analysis.Identity.response_recommended}."
+      verdict:
+        simple: ${Analysis.Identity.compromise_decision}
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": { "x": 480, "y": 2930 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "99":
+    id: "99"
+    taskid: id-ia-done-0099
+    type: title
+    task:
+      id: id-ia-done-0099
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 3120 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+inputs:
+- key: entity_id
+  value:
+    simple: ${SOCFramework.Artifacts.UserName}
+  required: false
+  description: Primary user under investigation
+  playbookInputQuery: null
+- key: case_category
+  value:
+    simple: ${SOCFramework.Product.category}
+  required: false
+  description: ""
+  playbookInputQuery: null
+- key: entity_type
+  value:
+    simple: ${SOCFramework.Product.category}
+  required: false
+  description: ""
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - entity_id
+  - case_category
+  - entity_type
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs:
+  - Analysis.verdict
+  - Analysis.confidence
+  - Analysis.response_recommended
+  - Analysis.compromise_level
+  - Analysis.compromise_decision
+  - Analysis.spread_level
+  - Analysis.primary_entity_id
+  - Analysis.primary_entity_name
+  - Analysis.primary_entity_user
+  - Analysis.primary_entity_type
+  - Analysis.case_category
+  - Analysis.mitre_tactic
+  - Analysis.mitre_tactic_id
+  - Analysis.mitre_technique
+  - Analysis.mitre_technique_id
+  - Analysis.story
+  - Analysis.case_score
+  - Analysis.case_host_count
+  - Analysis.case_issue_count
+  - Analysis.case_user_count
+  name: General (Outputs group)
+  description: Generic group for outputs
+outputs:
+- contextPath: Analysis.verdict
+  type: unknown
+- contextPath: Analysis.confidence
+  type: unknown
+- contextPath: Analysis.response_recommended
+  type: unknown
+- contextPath: Analysis.compromise_level
+  type: unknown
+- contextPath: Analysis.compromise_decision
+  type: unknown
+- contextPath: Analysis.spread_level
+  type: unknown
+- contextPath: Analysis.primary_entity_id
+  type: unknown
+- contextPath: Analysis.primary_entity_name
+  type: unknown
+- contextPath: Analysis.primary_entity_user
+  type: unknown
+- contextPath: Analysis.primary_entity_type
+  type: unknown
+- contextPath: Analysis.case_category
+  type: unknown
+- contextPath: Analysis.mitre_tactic
+  type: unknown
+- contextPath: Analysis.mitre_tactic_id
+  type: unknown
+- contextPath: Analysis.mitre_technique
+  type: unknown
+- contextPath: Analysis.mitre_technique_id
+  type: unknown
+- contextPath: Analysis.story
+  type: unknown
+- contextPath: Analysis.case_score
+  type: unknown
+- contextPath: Analysis.case_host_count
+  type: unknown
+- contextPath: Analysis.case_issue_count
+  type: unknown
+- contextPath: Analysis.case_user_count
+  type: unknown
 view: |-
   {
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 480,
-        "width": 690,
-        "x": 430,
+        "height": 3130,
+        "width": 1340,
+        "x": 0,
         "y": 50
       }
     }
   }
-fromversion: 5.0.0
+sourceplaybookid: SOC Data Analysis_V3
+dirtyInputs: true

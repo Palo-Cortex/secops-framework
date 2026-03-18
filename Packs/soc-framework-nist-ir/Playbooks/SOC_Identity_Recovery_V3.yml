@@ -1,54 +1,50 @@
+adopted: true
 fromversion: 5.0.0
 id: SOC Identity Recovery_V3
-version: 5
-contentitemexportablefields:
-  contentitemfields:
-    packID: soc-framework-nist-ir
-    packName: SOC Framework Unified
-    itemVersion: 3.1.4
-    fromServerVersion: 5.0.0
-    toServerVersion: ""
-    definitionid: ""
-    prevname: ""
-    isoverridable: false
-    supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
+version: -1
 name: SOC Identity Recovery_V3
 description: |-
-  Primary owners: IT Ops, IR leads.
+  Identity-specific recovery playbook. Runs inside SOC Recovery_V3 when
+  SOCFramework.Product.category = "Identity".
 
-  Analyst role: Verify that systems are restored, monitor for recurrence, and close out alert documentation.
+  Flow:
+    1. Eradication gate - only proceeds if Eradication.attempted = true
+    2. Universal Command: soc-enable-user (task 200, Shadow Mode by default)
+    3. Set Recovery context keys and story
+
+  Shadow Mode: All vendor commands suppressed until PS flips SOCExecutionList_V3.
+  Universal Command reads shadow_mode directly from lists.SOCExecutionList_V3.
+
+  Context keys set:
+    Recovery.attempted, Recovery.account_restored, Recovery.monitoring_required,
+    Recovery.restore_method, Recovery.story
 tags:
 - SOC
 - SOC_Framework_Unified
-- NIST 800-61
 - Recovery
+- NIST 800-61
 - Identity
 starttaskid: "0"
 tasks:
   "0":
     id: "0"
-    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
+    taskid: id-ir-start-0001
     type: start
     task:
-      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
+      id: id-ir-start-0001
       version: -1
       name: ""
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "2"
+      - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
-        "position": {
-          "x": 450,
-          "y": 50
-        }
+        "position": { "x": 480, "y": 50 }
       }
     note: false
     timertriggers: []
@@ -57,28 +53,43 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+
   "1":
     id: "1"
-    taskid: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
-    type: playbook
+    taskid: id-ir-erad-gate-0001
+    type: condition
     task:
-      id: 7fad044e-60c9-4baa-8bb6-316d5aea8cfa
+      id: id-ir-erad-gate-0001
       version: -1
-      name: Foundation - Error Handling_V3
-      playbookName: Foundation - Error Handling_V3
-      type: playbook
+      name: Did Eradication Happen?
+      description: |-
+        Only proceed with recovery if eradication was attempted.
+        This prevents re-enabling accounts before credentials were reset.
+      type: condition
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: true
+    nexttasks:
+      '#default#':
+      - "10"
+      yes:
+      - "2"
+    separatecontext: false
+    conditions:
+    - label: yes
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${Eradication.attempted}
+            iscontext: true
+          right:
+            value:
+              simple: "true"
     continueonerrortype: ""
     view: |-
       {
-        "position": {
-          "x": 740,
-          "y": 290
-        }
+        "position": { "x": 480, "y": 190 }
       }
     note: false
     timertriggers: []
@@ -87,27 +98,406 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+
+  # ── RECOVERY PATH ─────────────────────────────────────────────────────
   "2":
     id: "2"
-    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+    taskid: id-ir-recovery-title-0002
     type: title
     task:
-      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
+      id: id-ir-recovery-title-0002
+      version: -1
+      name: Identity Recovery Actions
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "200"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 370 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "200":
+    id: "200"
+    taskid: id-ir-enable-user-0200
+    type: regular
+    task:
+      id: id-ir-enable-user-0200
+      version: -1
+      name: Re-enable User Account - Universal Command
+      scriptName: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "3"
+    scriptarguments:
+      Action_Actor:
+        simple: automation
+      Phase:
+        simple: Recovery
+      action:
+        simple: soc-enable-user
+      list_name:
+        simple: SOCFrameworkActions_V3
+      output_key:
+        simple: Recovery.Execution
+      shadow_mode:
+        simple: ${inputs.ShadowMode}
+      tags:
+        complex:
+          root: inputs.ShadowMode
+          transformers:
+          - operator: If-Then-Else
+            args:
+              condition: {}
+              conditionB: {}
+              conditionInBetween: {}
+              else:
+                value:
+                  simple: Recovery
+              equals:
+                value:
+                  simple: inputs.ShadowMode
+                iscontext: true
+              lhs: {}
+              lhsB: {}
+              options: {}
+              optionsB: {}
+              rhs: {}
+              rhsB: {}
+              then:
+                value:
+                  simple: Shadow Mode,Recovery
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 520 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "3":
+    id: "3"
+    taskid: id-ir-set-attempted-0003
+    type: regular
+    task:
+      id: id-ir-set-attempted-0003
+      version: -1
+      name: Set Recovery Attempted
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.attempted
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 690 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "4":
+    id: "4"
+    taskid: id-ir-set-account-restored-0004
+    type: regular
+    task:
+      id: id-ir-set-account-restored-0004
+      version: -1
+      name: Set Account Restored
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "5"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.account_restored
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 840 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "5":
+    id: "5"
+    taskid: id-ir-set-monitoring-0005
+    type: regular
+    task:
+      id: id-ir-set-monitoring-0005
+      version: -1
+      name: Set Monitoring Required
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "6"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.monitoring_required
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 990 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "6":
+    id: "6"
+    taskid: id-ir-set-restore-method-0006
+    type: regular
+    task:
+      id: id-ir-set-restore-method-0006
+      version: -1
+      name: Set Restore Method
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "7"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.restore_method
+      value:
+        simple: account_re-enable
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1140 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "7":
+    id: "7"
+    taskid: id-ir-set-story-0007
+    type: regular
+    task:
+      id: id-ir-set-story-0007
+      version: -1
+      name: Set Recovery Story
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.story
+      value:
+        simple: "Recovery Assessment\n\nAnalysis confirmed identity compromise: ${Analysis.verdict}\n\
+          Compromise level: ${Analysis.compromise_level}\n\nRecovery actions taken\
+          \ (Shadow Mode: ${inputs.ShadowMode}):\n\u2022 Account re-enabled: ${Recovery.account_restored}\n\
+          \u2022 Restore method: ${Recovery.restore_method}\n\u2022 Ongoing monitoring\
+          \ required: ${Recovery.monitoring_required}\n\nCredentials were reset and\
+          \ tokens revoked during Eradication before this account was re-enabled.\n\
+          In Shadow Mode all actions were logged to warroom and dataset.\nFlip SOCExecutionList_V3\
+          \ shadow_mode to false to enable live execution."
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 480, "y": 1290 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  # ── NO RECOVERY PATH ──────────────────────────────────────────────────
+  "10":
+    id: "10"
+    taskid: id-ir-no-recovery-0010
+    type: regular
+    task:
+      id: id-ir-no-recovery-0010
+      version: -1
+      name: Set Recovery Not Attempted
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "11"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.attempted
+      value:
+        simple: "false"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 900, "y": 370 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "11":
+    id: "11"
+    taskid: id-ir-no-recovery-story-0011
+    type: regular
+    task:
+      id: id-ir-no-recovery-story-0011
+      version: -1
+      name: Set No Recovery Story
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.story
+      value:
+        simple: "Recovery Not Required\n\nUser: ${Analysis.primary_entity_user}\n\
+          Eradication attempted: ${Eradication.attempted}\n\nRecovery skipped —\
+          \ eradication did not occur. Account was not disabled so\nno re-enable\
+          \ action was needed."
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": { "x": 900, "y": 520 }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "99":
+    id: "99"
+    taskid: id-ir-done-0099
+    type: title
+    task:
+      id: id-ir-done-0099
       version: -1
       name: Done
       type: title
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
-        "position": {
-          "x": 430,
-          "y": 470
-        }
+        "position": { "x": 480, "y": 1490 }
       }
     note: false
     timertriggers: []
@@ -116,19 +506,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-system: true
-view: |-
-  {
-    "linkLabelsPosition": {},
-    "paper": {
-      "dimensions": {
-        "height": 480,
-        "width": 690,
-        "x": 430,
-        "y": 50
-      }
-    }
-  }
+
 inputs:
 - key: ShadowMode
   value:
@@ -149,16 +527,49 @@ inputs:
   required: false
   description: ""
   playbookInputQuery: null
+- key: compromise_decision
+  value:
+    simple: ${Analysis.compromise_decision}
+  required: false
+  description: ""
+  playbookInputQuery: null
 inputSections:
 - inputs:
   - ShadowMode
+  - compromise_decision
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
-- outputs: []
+- outputs:
+  - Recovery.attempted
+  - Recovery.account_restored
+  - Recovery.monitoring_required
+  - Recovery.restore_method
+  - Recovery.story
   name: General (Outputs group)
   description: Generic group for outputs
-outputs: []
-sourceplaybookid: SOC Data Analysis_V3
+outputs:
+- contextPath: Recovery.attempted
+  type: unknown
+- contextPath: Recovery.account_restored
+  type: unknown
+- contextPath: Recovery.monitoring_required
+  type: unknown
+- contextPath: Recovery.restore_method
+  type: unknown
+- contextPath: Recovery.story
+  type: unknown
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1500,
+        "width": 1100,
+        "x": 0,
+        "y": 50
+      }
+    }
+  }
+sourceplaybookid: SOC Data Recovery_V3
 dirtyInputs: true
-adopted: true
