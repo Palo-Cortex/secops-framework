@@ -325,7 +325,7 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category = \"use_case\"\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, PlaybookID as playbook_id\n) as vt (task_name = vt.value_taskname)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, playbook_id \n\n| fields value_time , value_tag , value_category\n| alter soc_event_mintutes = to_integer(value_time)\n| comp sum(soc_event_mintutes) as total_soc_minutes by value_tag\n| alter total_soc_hours = divide(total_soc_minutes,60)\n| sort desc total_soc_hours \n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Use Case Time\" xaxis = value_tag yaxis = total_soc_hours ",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category = \"use_case\"\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, PlaybookID as playbook_id\n) as vt (task_name = vt.value_taskname)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, playbook_id \n\n| fields value_time , value_tag , value_category\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_tag\n| alter total_soc_hours = divide(total_soc_minutes,60)\n| sort desc total_soc_hours \n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Use Case Time\" xaxis = value_tag yaxis = total_soc_hours ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -474,9 +474,9 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "config case_sensitive = false\n| dataset = incidents \n| filter status contains \"new\" or status contains \"investigation\"\n| comp count_distinct(incident_id) as total_incidents\n| alter incidents_per_day = round(divide(total_incidents, 7))\n| alter incidents_per_hour = round(divide(incidents_per_day, 8))\n| alter analyst_required = round(divide(incidents_per_hour, 13))\n| alter analyst_required = if(analyst_required < 1, 1, analyst_required )\n\n\n\n| view graph type = single subtype = standard yaxis = analyst_required ",
+                "phrase": "config case_sensitive = false\n| dataset = cases\n| filter xdm.case.status_progress = \"NEW\" or xdm.case.status_progress = \"UNDER_INVESTIGATION\"\n| comp count_distinct(xdm.case.id) as total_cases\n| alter incidents_per_day = divide(total_cases, 30)\n| alter incidents_per_hour = divide(incidents_per_day, 8)\n| alter analyst_required = round(divide(incidents_per_hour, 13))\n| alter analyst_required = if(analyst_required < 1, 1, analyst_required)\n\n\n\n\n| view graph type = single subtype = standard yaxis = analyst_required ",
                 "time_frame": {
-                  "relativeTime": 86400000
+                  "relativeTime": 2592000000
                 },
                 "viewOptions": {
                   "type": "single",
@@ -510,7 +510,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts \n| arrayexpand original_tags\n| filter original_tags contains \"DS:\"\n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by original_tags \n| sort desc total_alerts\n\n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Total Alerts\" xaxis = original_tags yaxis = total_alerts xaxistitle = \"Alerts\" yaxistitle = \"Data Sources\" seriestitle(\"total_alerts\",\"Alerts by Data Source\") ",
+                "phrase": "dataset = alerts \n| arrayexpand original_tags\n| filter original_tags contains \"DS:\"\n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by original_tags \n| sort desc total_alerts\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Total Alerts\" xaxis = original_tags yaxis = total_alerts xaxistitle = \"Alerts\" yaxistitle = \"Data Sources\" seriestitle(\"total_alerts\",\"Alerts by Data Source\") ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -630,7 +630,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts\n// Alert Detection Lag: time from source event to XSIAM ingestion\n// Maps to MTTD \u2014 Value Driver 1 & 3\n| alter event_ts   = to_epoch(event_timestamp, \"millis\")\n| alter ingest_ts  = to_epoch(_time, \"millis\")\n| alter lag_ms     = subtract(ingest_ts, event_ts)\n// Sanity: only positive lags under 24h (filter clock skew / bad timestamps)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes)   as avg_lag_min,\n    max(lag_minutes)   as max_lag_min,\n    count()            as alert_count\n  by alert_source\n| sort desc avg_lag_min\n| view graph type = column subtype = grouped layout = horizontal\n  header = \"Alert Detection Lag by Source (Avg Minutes)\"\n  xaxis = alert_source\n  yaxis = avg_lag_min, max_lag_min\n  xaxistitle = \"Alert Source\"\n  yaxistitle = \"Minutes\"\n  seriestitle(\"avg_lag_min\", \"Avg Lag (min)\")\n  seriestitle(\"max_lag_min\", \"Max Lag (min)\")\n",
+                "phrase": "dataset = alerts\n// Alert Detection Lag: time from event to XSIAM ingestion \u2014 maps to MTTD (VD1 & VD3)\n| alter event_ts_ms = to_integer(arrayindex(event_timestamp, 0))\n| alter ingest_ts_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(ingest_ts_ms, event_ts_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes) as avg_lag_min,\n    max(lag_minutes) as max_lag_min,\n    count() as alert_count\n  by alert_source\n| sort desc avg_lag_min\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Detection Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -710,7 +710,7 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "dataset = incidents  \n| comp count_distinct(incident_id) as total_incidents  \n| sort desc total_incidents\n\n\n\n| view graph type = single subtype = standard yaxis = total_incidents ",
+                "phrase": "dataset = cases  \n| comp count_distinct(xdm.case.id) as total_cases  \n| sort desc total_cases\n\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
                 "time_frame": {
                   "relativeTime": 604800000
                 },
@@ -741,7 +741,7 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "dataset = incidents  \n| filter (status  = ENUM.RESOLVED_OTHER and (resolve_comment = \"Resolved by the Auto Triage Job\")) or status = ENUM.RESOLVED_AUTO_RESOLVE or status = ENUM.RESOLVED_AUTO_RESOLVE\n| comp count_distinct(incident_id) as total_incidents  \n| sort desc total_incidents\n| view graph type = single subtype = standard yaxis = total_incidents ",
+                "phrase": "dataset = cases   \n| filter xdm.case.status_progress = \"RESOLVED\" and (xdm.case.status.resolution_comment  = \"Resolved by the Auto Triage Job\" or xdm.case.status.resolution_comment = \"Auto-resolved by Cortex XSIAM because all of the alerts contained in this incident are excluded or resolved\")\n| comp count_distinct(xdm.case.id) as total_cases  \n| sort desc total_cases\n\n| view graph type = single subtype = standard yaxis = total_cases ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -772,7 +772,7 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "dataset = incidents  \n| filter (status  = ENUM.NEW  or status = ENUM.UNDER_INVESTIGATION)\n| comp count_distinct(incident_id) as total_incidents  \n| sort desc total_incidents\n\n\n| view graph type = single subtype = standard yaxis = total_incidents ",
+                "phrase": "dataset = cases  \n| filter xdm.case.status_progress = \"NEW\"  or xdm.case.status_progress  = \"UNDER_INVESTIGATION\"\n| comp count_distinct(xdm.case.id) as total_cases\n| sort desc total_cases\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
                 "time_frame": {
                   "relativeTime": 604800000
                 },
@@ -803,7 +803,7 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "dataset = incidents  \n| filter (status  = ENUM.NEW  or status = ENUM.UNDER_INVESTIGATION)\n| filter starred = 1\n| comp count_distinct(incident_id) as total_incidents  \n| sort desc total_incidents\n\n\n\n| view graph type = single subtype = standard yaxis = total_incidents ",
+                "phrase": "dataset = cases  \n| filter xdm.case.status_progress = \"NEW\"  or xdm.case.status_progress  = \"UNDER_INVESTIGATION\"\n| filter xdm.case.starred = true\n| comp count_distinct(xdm.case.id) as total_cases  \n| sort desc total_cases\n\n\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
                 "time_frame": {
                   "relativeTime": 604800000
                 },
@@ -938,7 +938,7 @@
       "creation_time": 1770245294279,
       "description": "Given the total number of manual incidents post-XSIAM and using the Palo SOC benchmark of 8 to 13 events per hour per analyst, how many analysts would be required to handle all incidents?",
       "data": {
-        "phrase": "config case_sensitive = false\n| dataset = cases \n| filter xdm.case.status_progress = \"NEW\"  or xdm.case.status_progress  = \"UNDER_INVESTIGATION\"\n| filter xdm.case.starred = true\n| comp \n    min(_time) as t_start, \n    max(_time) as t_end,\n    count_distinct(xdm.case.id) as total_cases\n| alter days_selected = add(timestamp_diff(t_end, t_start, \"DAY\"), 1)\n| alter incidents_per_day = round(divide(total_cases, days_selected))\n| alter incidents_per_hour = round(divide(incidents_per_day, 24))\n| alter analyst_required = round(divide(incidents_per_hour, 13))\n| alter analyst_required = if(analyst_required < 1, 1, analyst_required )\n\n\n\n\n\n| view graph type = single subtype = standard yaxis = analyst_required ",
+        "phrase": "config case_sensitive = false\n| dataset = cases\n| filter xdm.case.status_progress = \"NEW\" or xdm.case.status_progress = \"UNDER_INVESTIGATION\"\n| comp count_distinct(xdm.case.id) as total_cases\n| alter incidents_per_day = divide(total_cases, 30)\n| alter incidents_per_hour = divide(incidents_per_day, 8)\n| alter analyst_required = round(divide(incidents_per_hour, 13))\n| alter analyst_required = if(analyst_required < 1, 1, analyst_required)\n\n\n\n\n| view graph type = single subtype = standard yaxis = analyst_required ",
         "time_frame": {
           "relativeTime": 2592000000
         },
@@ -1036,9 +1036,9 @@
       "widget_key": "xql_1745756206179",
       "title": "Total Alerts",
       "creation_time": 1770245291870,
-      "description": "All alerts firing by alert type",
+      "description": "All alerts firing by data source",
       "data": {
-        "phrase": "dataset = alerts \n| arrayexpand original_tags\n| filter original_tags contains \"DS:\"\n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by original_tags \n| sort desc total_alerts\n\n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Total Alerts\" xaxis = original_tags yaxis = total_alerts xaxistitle = \"Alerts\" yaxistitle = \"Data Sources\" seriestitle(\"total_alerts\",\"Alerts by Data Source\") ",
+        "phrase": "dataset = alerts \n| arrayexpand original_tags\n| filter original_tags contains \"DS:\"\n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by original_tags \n| sort desc total_alerts\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Total Alerts\" xaxis = original_tags yaxis = total_alerts xaxistitle = \"Alerts\" yaxistitle = \"Data Sources\" seriestitle(\"total_alerts\",\"Alerts by Data Source\") ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -1686,9 +1686,9 @@
       "widget_key": "xql_1745756206179",
       "title": "Total Alerts",
       "creation_time": 1770245291870,
-      "description": "All alerts firing by alert type",
+      "description": "All alerts firing by data source",
       "data": {
-        "phrase": "dataset = alerts\n// Alert Detection Lag: time from source event to XSIAM ingestion\n// Maps to MTTD \u2014 Value Driver 1 & 3\n| alter event_ts   = to_epoch(event_timestamp, \"millis\")\n| alter ingest_ts  = to_epoch(_time, \"millis\")\n| alter lag_ms     = subtract(ingest_ts, event_ts)\n// Sanity: only positive lags under 24h (filter clock skew / bad timestamps)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes)   as avg_lag_min,\n    max(lag_minutes)   as max_lag_min,\n    count()            as alert_count\n  by alert_source\n| sort desc avg_lag_min\n| view graph type = column subtype = grouped layout = horizontal\n  header = \"Alert Detection Lag by Source (Avg Minutes)\"\n  xaxis = alert_source\n  yaxis = avg_lag_min, max_lag_min\n  xaxistitle = \"Alert Source\"\n  yaxistitle = \"Minutes\"\n  seriestitle(\"avg_lag_min\", \"Avg Lag (min)\")\n  seriestitle(\"max_lag_min\", \"Max Lag (min)\")\n",
+        "phrase": "dataset = alerts \n| arrayexpand original_tags\n| filter original_tags contains \"DS:\"\n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by original_tags \n| sort desc total_alerts\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Total Alerts\" xaxis = original_tags yaxis = total_alerts xaxistitle = \"Alerts\" yaxistitle = \"Data Sources\" seriestitle(\"total_alerts\",\"Alerts by Data Source\") ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -1751,6 +1751,59 @@
                   "Alerts by Data Source"
                 ],
                 "name": "seriestitle"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "alerts"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A"
+    },
+    {
+      "widget_key": "alert-lag-detection",
+      "title": "Alert Detection Lag by Source",
+      "creation_time": 1773887140953,
+      "description": "Time from source event to XSIAM ingestion by alert source. Maps to MTTD \u2014 VD1 & VD3.",
+      "data": {
+        "phrase": "dataset = alerts\n// Alert Detection Lag: time from event to XSIAM ingestion \u2014 maps to MTTD (VD1 & VD3)\n| alter event_ts_ms = to_integer(arrayindex(event_timestamp, 0))\n| alter ingest_ts_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(ingest_ts_ms, event_ts_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes) as avg_lag_min,\n    max(lag_minutes) as max_lag_min,\n    count() as alert_count\n  by alert_source\n| sort desc avg_lag_min\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Detection Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
+        "time_frame": {
+          "relativeTime": 86400000
+        },
+        "viewOptions": {
+          "type": "column",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "grouped"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "layout",
+                "value": "horizontal"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "xaxis",
+                "value": "alert_source"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_lag_min,max_lag_min"
               }
             }
           ]

@@ -95,10 +95,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '3'
-      - '4'
-      - '5'
-      - '6'
+      - '20'
     scriptarguments:
       query:
         simple: 'dataset = proofpoint_tap_v2_generic_alert_raw
@@ -109,7 +106,7 @@ tasks:
 
           | fields threatURL, type, messageID, threatID, recipient
 
-          | filter threatURL = "${inputs.ThreatURL}" or threatID = "${inputs.ThreatID}"'
+          | filter threatURL = "${issue.proofpointtapthreaturl}" or threatID = "${issue.proofpointtapthreatid}"'
       query_name:
         simple: SOC Email Exposure Query
       time_frame:
@@ -774,6 +771,85 @@ tasks:
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2560\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '20':
+    id: '20'
+    taskid: cc11dd22-ee33-ff44-1122-334455667788
+    type: condition
+    task:
+      id: cc11dd22-ee33-ff44-1122-334455667788
+      version: -1
+      name: Is Click Event?
+      description: If the alert is already a "clicks permitted" event, seed ClickCount = 1 as a floor before the XQL count
+        runs. Prevents null/zero from blocking the search_and_purge recommendation when the user already clicked.
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '3'
+      'yes':
+      - '21'
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: alert.proofpointtaptype
+            iscontext: true
+          right:
+            value:
+              simple: click
+          ignorecase: true
+    separatecontext: false
+    continueonerrortype: ''
+    view: '{"position": {"x": 480, "y": 560}}'
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '21':
+    id: '21'
+    taskid: dd22ee33-ff44-5566-2233-445566778899
+    type: regular
+    task:
+      id: dd22ee33-ff44-5566-2233-445566778899
+      version: -1
+      name: Seed Click Count — Alert Is Click Event
+      description: Set ClickCount floor = 1. XQL count may subsequently add to this.
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '3'
+    scriptarguments:
+      key:
+        simple: SOCFramework.Email.TAP.ClickCount
+      value:
+        simple: '1'
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+    separatecontext: false
+    continueonerrortype: ''
+    view: '{"position": {"x": 760, "y": 730}}'
     note: false
     timertriggers: []
     ignoreworker: false
