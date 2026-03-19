@@ -17,8 +17,8 @@ description: |
   Uses our alert fingerprinting - and compares the alert to the alert ledger
   If a duplicate is identified - the parent alert is recorded, and the alert resolves
 tags:
-- SOC
-- SOC_Framework_Unified
+  - SOC
+  - SOC_Framework_Unified
 starttaskid: "0"
 tasks:
   "0":
@@ -34,7 +34,7 @@ tasks:
       playbooktaskmissingcomponent:
     nexttasks:
       '#none#':
-      - "10"
+        - "10"
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -97,30 +97,30 @@ tasks:
       playbooktaskmissingcomponent:
     nexttasks:
       '#error#':
-      - "17"
+        - "18"
       '#none#':
-      - "16"
+        - "16"
     scriptarguments:
       fromDate:
         complex:
           root: lists
           accessor: SOCOptimizationConfig_V3
           transformers:
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: Dedup
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: fields
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: DedupWindow
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Dedup
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: DedupWindow
       minimunIncidentSimilarity:
         simple: "0.8"
       query:
@@ -162,9 +162,9 @@ tasks:
       playbooktaskmissingcomponent:
     nexttasks:
       '#error#':
-      - "17"
+        - "18"
       '#none#':
-      - "8"
+        - "8"
     scriptarguments:
       closeNotes:
         simple: Auto-Close Duplicate
@@ -205,12 +205,12 @@ tasks:
       playbooktaskmissingcomponent:
     nexttasks:
       '#error#':
-      - "17"
+        - "18"
       '#none#':
-      - "14"
+        - "14"
     scriptarguments:
       value:
-        simple: ${DBotFindSimilarIncidents.similarIncident.id}
+        simple: "🔁 **Duplicate alert detected** — current alert (${alert.id}) is the latest. Closing older duplicate(s): ${DBotFindSimilarIncidents.similarIncident.id}"
     separatecontext: false
     continueonerror: true
     continueonerrortype: errorPath
@@ -242,26 +242,63 @@ tasks:
       playbooktaskmissingcomponent:
     nexttasks:
       '#default#':
-      - "8"
+        - "8"
       "yes":
-      - "15"
+        - "15"
     separatecontext: false
     conditions:
-    - label: "yes"
-      condition:
-      - - operator: isTrue
-          left:
-            value:
-              simple: DBotFindSimilarIncidents.isSimilarIncidentFound
-            iscontext: true
-          right:
-            value: {}
+      - label: "yes"
+        condition:
+          - - operator: isTrue
+              left:
+                value:
+                  simple: DBotFindSimilarIncidents.isSimilarIncidentFound
+                iscontext: true
+              right:
+                value: {}
     continueonerrortype: ""
     view: |-
       {
         "position": {
           "x": 162.5,
           "y": 400
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "18":
+    id: "18"
+    taskid: b7e14f2c-3a8d-4901-bc56-d2f9a3e7c084
+    type: regular
+    task:
+      id: b7e14f2c-3a8d-4901-bc56-d2f9a3e7c084
+      version: -1
+      name: Print Dedup Skipped Warning
+      description: Prints text to war room (Markdown supported)
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#none#':
+        - "17"
+    scriptarguments:
+      value:
+        simple: "⚠️ **Dedup skipped** — an error occurred during alert fingerprinting or dedup close. This alert was not evaluated for duplicates. Check the error log for details."
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 162.5,
+          "y": 760
         }
       }
     note: false
@@ -286,7 +323,7 @@ tasks:
       playbooktaskmissingcomponent:
     nexttasks:
       '#none#':
-      - "8"
+        - "8"
     separatecontext: true
     continueonerrortype: ""
     view: |-
@@ -313,6 +350,7 @@ view: |-
         "width": 717.5,
         "x": 50,
         "y": 50
+
       }
     }
   }
