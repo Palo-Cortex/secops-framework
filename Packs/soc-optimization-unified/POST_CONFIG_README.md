@@ -1,102 +1,75 @@
-# Completing the SOC Optimization XSIAM Tenant Configuration
+# Post-Installation Configuration
 
-Once the tenant configuration is pushed with either the [POV Companion application](https://pov-companion.ts.paloaltonetworks.com/tenant-configurations) or
-the [xsiam-pov-automation](https://github.com/annabarone/xsiam-pov-automation/tree/main) setup.py script, the following
-manual steps still need to be done: 
+After the pack is installed, these manual steps are required to complete the configuration.
 
 ---
-## Quick Start
-1. **Enable Auto Triage Job**
-   * Choose Auto Triage and Enable
-   * Refresh page and look for Running or Completed
-2. **Configure Starring**
-   * Star Issues on Medium or Higher + has MITRE Tactic
-![Starring_NIST_IR.png](../../docs/soc-optimization/Starring_NIST_IR.png)
-3. **Configure Automation Trigger**
-   * NIST Incident Response Flow (800-61)
-     * Trigger playbook "EP_IR_NIST(800-61)" on Medium Severity or Higher Alerts
-     ![Automation_Trigger_NIST_IR.png](https://github.com/Palo-Cortex/soc-optimization/blob/main/images/Automation_Trigger_NIST_IR.png)
---- 
-## What Next?
-1. XSIAM SOC Value Metrics Dashboard([Value Metrics](../../Documentation/Value_Metrics.md))
-   * These require alerts with triggered playbooks tasks.
-2. Customize Value Metrics tasks or playbooks "Use Cases" ([setValueTags_V3.md](../../Documentation/setValueTags_V3.md))
-3. Observe Playbooks running in Issues table.
----
 
-## Troubleshooting
-* Check xsiam_playbookmetrics_raw exists -- Once alerts start to flow and automation get triggered the JOB will start collecting metrics based on the JOB run interval.
+## Quick Start (5 minutes)
 
-### Manual Configuration
+**1. Enable the Auto Triage job**
+- Navigate to **Investigation & Response → Automation → Jobs**
+- Find **JOB - Triage Alerts V3** → click **Enable**
+- Refresh — status should show **Running** or **Completed**
 
-#### 1 - Enable Job - Auto Triage 
+**2. Configure the Starring Rule**
+- Navigate to **Cases & Issues → Case Configuration → Starred Issues**
+- Add rule: `Severity >= Medium` AND `Has MITRE Tactic`
 
-To guarantee the configuration does not interfere with existing tenants without the SC/DC’s understanding, 
-we have disabled the auto triage job by default. Once you are confident that the starred alerts for your 
-tenant are set up properly, please enable the job.
-
-1. Navigate to **Incident Response → Automation → Jobs**
-
-2. Find the _Auto Triage_ Job
-
-3. Click **Enable**
+**3. Configure the Automation Trigger**
+- Navigate to **Investigation & Response → Automation → Automation Rules**
+- Add rule: Run playbook **EP_IR_NIST (800-61)_V3** when `starred = true`
 
 ---
-### Errored Jobs
 
-If either of the "_Auto Triage_" or "_Collect Playbook Metrics_" jobs show as _**Error**_ for their _Last Run status_ as seen in 
-this picture below, please follow these troubleshooting steps:
+## What to Check Next
 
-![Job Troubleshooting](../../docs/soc-optimization/job-troubleshooting.png)
+**Value Metrics Dashboard**
+- Navigate to **Dashboards → XSIAM SOC Value Metrics V3**
+- Select a **7-day** window for reporting
+- The dashboard requires alerts to have fired playbooks with tasks. Give it a few hours after your first starred alert processes.
 
-#### Verify Job's Playbooks Exist in Library
+**Shadow Mode**
+- All Containment, Eradication, and Recovery actions default to Shadow Mode
+- Actions are logged to the warroom and written to `xsiam_socfw_ir_execution_raw` but vendor commands are not executed
+- To move individual actions to production, set `"shadow_mode": false` in `SOCFrameworkActions_V3`
 
-1. In the Playbook Library (**Incident Response -> Automation -> Playbooks**), verify that these playbooks exist. 
-        
-        JOB - Store Playbook Metrics in Dataset
-        JOB - Triage Alerts
+**Run a Health Check**
+- Open any case and run the `SOCFWHealthCheck` script from the warroom
+- It will report on integration instances, installed playbooks, jobs, and required lists
 
-If they don't exist, the custom content installation of the "SOC Framework" pack failed.
+---
 
-#### Check Job's Playbook Registered
+## Errored Jobs
 
-If the job's playbook shows as **"Missing/Deleted playbook"** in the job table even though the playbook exists in the library,
-this may mean the job's playbook has not fully registered with the tenant yet. There is an observed timing gap between 
-when a custom content pack gets installed and when the custom content's playbook can be used in a job. To resolve this issue:
+If **JOB - Triage Alerts V3** or **JOB - Store Playbook Metrics in Dataset V3** show as **Error**:
 
-1. Wait 30 to 60 minutes to give the tenant time to register the playbook 
+**Step 1 — Verify the playbooks are installed**
 
-- If you return, hard refresh the page, and the playbook is still missing, you will need to manually create the job. We recommend
-disabling the broken job and recreating it with the same parameters.
+In the Playbook Library (**Investigation & Response → Automation → Playbooks**), verify both playbooks exist:
 
-- If you return, hard refresh the page, and the job's playbook shows as the correct playbook but the _Last Run status_ still 
-shows as "**_Error_**", this is because the previous job runs need to be cleaned. These are the jobs that show as "Running". 
-Continue with these steps to clean the jobs.
+```
+JOB - Triage Alerts V3
+JOB - Store Playbook Metrics in Dataset V3
+```
 
-2. In the top right corner of the Jobs screen, click the hamburger menu to **Switch to Detailed View**.
+If they are missing, the pack installation failed. Re-run the installer.
 
-3. If you do not have any Job Runs that show as _**Completed**_, you need to verify that the playbook is registered: 
+**Step 2 — Check for a registration timing gap**
 
-   1. Click **Run now**
-   
-   2. Refresh the page 
-   
-   3. Click on the just-triggered Run ID
-   
-   4. Toggle to "_Work Plan_" tab
-   
-   5. Verify that the playbook was triggered for this alert. If not, you will need to manually recreate the job.
+A known XSIAM behavior: there is sometimes a delay between when a custom content pack installs and when its playbooks become available to jobs. If the job shows **"Missing/Deleted playbook"** but the playbook exists in the library:
 
-4. After verifying that the playbook gets properly triggered, we need to clean up the previous runs. For each of the jobs
-that show as "Running", do the following: 
+1. Wait 30–60 minutes
+2. Hard-refresh the page
+3. If the playbook now appears, click **Run now** to verify it executes
 
-   1. Click on the Run ID
-   
-   2. Toggle to the "Work Plan" tab
-   
-   3. Click "Choose a playbook"
+**Step 3 — Clean stuck job runs**
 
-   4. Select "Close Alerts" or some other simple playbook that requires no input/output to close
+If previous job runs are stuck in **Running** status, clean them before enabling:
 
-5. Once you've completed close all running jobs, you should be good to go! 
-
+1. In the top-right corner of the Jobs screen, click the hamburger menu → **Switch to Detailed View**
+2. For each run showing **Running**:
+   - Click the Run ID
+   - Go to the **Work Plan** tab
+   - Click **Choose a playbook**
+   - Select **SOC Close Cases V3** or another simple close playbook to terminate the run
+3. Once all stuck runs are cleared, click **Enable** on the job
