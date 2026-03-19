@@ -3,49 +3,37 @@ fromversion: 5.0.0
 id: SOC Identity Recovery_V3
 version: -1
 name: SOC Identity Recovery_V3
-description: |-
-  Identity-specific recovery playbook. Runs inside SOC Recovery_V3 when
-  SOCFramework.Product.category = "Identity".
-
-  Flow:
-    1. Eradication gate - only proceeds if Eradication.attempted = true
-    2. Universal Command: soc-enable-user (task 200, Shadow Mode by default)
-    3. Set Recovery context keys and story
-
-  Shadow Mode: All vendor commands suppressed until PS flips SOCExecutionList_V3.
-  Universal Command reads shadow_mode directly from lists.SOCExecutionList_V3.
-
-  Context keys set:
-    Recovery.attempted, Recovery.account_restored, Recovery.monitoring_required,
-    Recovery.restore_method, Recovery.story
+description: "Identity-specific recovery playbook. Runs inside SOC Recovery_V3 when\nSOCFramework.Product.category = \"Identity\"\
+  .\n\nFlow:\n  1. Eradication gate - only proceeds if Eradication.attempted = true\n  2. Universal Command: soc-enable-user\
+  \ (task 200, Shadow Mode by default)\n  3. Set Recovery context keys and story\n\nShadow Mode: All vendor commands suppressed\
+  \ until PS flips SOCExecutionList_V3.\nUniversal Command reads shadow_mode directly from lists.SOCExecutionList_V3.\n\n\
+  Context keys set:\n  Recovery.attempted, Recovery.account_restored, Recovery.monitoring_required,\n  Recovery.restore_method,\
+  \ Recovery.story"
 tags:
 - SOC
 - SOC_Framework_Unified
 - Recovery
 - NIST 800-61
 - Identity
-starttaskid: "0"
+starttaskid: '0'
 tasks:
-  "0":
-    id: "0"
+  '0':
+    id: '0'
     taskid: id-ir-start-0001
     type: start
     task:
       id: id-ir-start-0001
       version: -1
-      name: ""
+      name: ''
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "1"
+      - '1'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 50 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 50 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -53,30 +41,29 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "1":
-    id: "1"
+  '1':
+    id: '1'
     taskid: id-ir-erad-gate-0001
     type: condition
     task:
       id: id-ir-erad-gate-0001
       version: -1
       name: Did Eradication Happen?
-      description: |-
-        Only proceed with recovery if eradication was attempted.
-        This prevents re-enabling accounts before credentials were reset.
+      description: 'Only proceed with recovery if eradication was attempted.
+
+        This prevents re-enabling accounts before credentials were reset.'
       type: condition
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#default#':
-      - "10"
-      yes:
-      - "2"
+      - '10'
+      'true':
+      - '2'
     separatecontext: false
     conditions:
-    - label: yes
+    - label: true
       condition:
       - - operator: isEqualString
           left:
@@ -85,12 +72,9 @@ tasks:
             iscontext: true
           right:
             value:
-              simple: "true"
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 190 }
-      }
+              simple: 'true'
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 190 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -98,10 +82,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  # ── RECOVERY PATH ─────────────────────────────────────────────────────
-  "2":
-    id: "2"
+  '2':
+    id: '2'
     taskid: id-ir-recovery-title-0002
     type: title
     task:
@@ -110,17 +92,14 @@ tasks:
       name: Identity Recovery Actions
       type: title
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "200"
+      - '200'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 370 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 370 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -128,9 +107,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "200":
-    id: "200"
+  '200':
+    id: '200'
     taskid: id-ir-enable-user-0200
     type: regular
     task:
@@ -140,11 +118,11 @@ tasks:
       scriptName: SOCCommandWrapper
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "3"
+      - '3'
     scriptarguments:
       Action_Actor:
         simple: automation
@@ -156,8 +134,6 @@ tasks:
         simple: SOCFrameworkActions_V3
       output_key:
         simple: Recovery.Execution
-      shadow_mode:
-        simple: ${inputs.ShadowMode}
       tags:
         complex:
           root: inputs.ShadowMode
@@ -184,11 +160,8 @@ tasks:
                 value:
                   simple: Shadow Mode,Recovery
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 520 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 520 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -196,9 +169,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "3":
-    id: "3"
+  '3':
+    id: '3'
     taskid: id-ir-set-attempted-0003
     type: regular
     task:
@@ -208,26 +180,23 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "4"
+      - '4'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Recovery.attempted
       value:
-        simple: "true"
+        simple: 'true'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 690 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 690 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -235,9 +204,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "4":
-    id: "4"
+  '4':
+    id: '4'
     taskid: id-ir-set-account-restored-0004
     type: regular
     task:
@@ -247,26 +215,23 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "5"
+      - '5'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Recovery.account_restored
       value:
-        simple: "true"
+        simple: 'true'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 840 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 840 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -274,9 +239,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "5":
-    id: "5"
+  '5':
+    id: '5'
     taskid: id-ir-set-monitoring-0005
     type: regular
     task:
@@ -286,26 +250,23 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "6"
+      - '6'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Recovery.monitoring_required
       value:
-        simple: "true"
+        simple: 'true'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 990 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 990 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -313,9 +274,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "6":
-    id: "6"
+  '6':
+    id: '6'
     taskid: id-ir-set-restore-method-0006
     type: regular
     task:
@@ -325,26 +285,23 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "7"
+      - '7'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Recovery.restore_method
       value:
         simple: account_re-enable
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 1140 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 1140 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -352,9 +309,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "7":
-    id: "7"
+  '7':
+    id: '7'
     taskid: id-ir-set-story-0007
     type: regular
     task:
@@ -364,33 +320,44 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "99"
+      - '99'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Recovery.story
       value:
-        simple: "Recovery Assessment\n\nAnalysis confirmed identity compromise: ${Analysis.verdict}\n\
-          Compromise level: ${Analysis.compromise_level}\n\nRecovery actions taken\
-          \ (Shadow Mode: ${inputs.ShadowMode}):\n\u2022 Account re-enabled: ${Recovery.account_restored}\n\
-          \u2022 Restore method: ${Recovery.restore_method}\n\u2022 Ongoing monitoring\
-          \ required: ${Recovery.monitoring_required}\n\nCredentials were reset and\
-          \ tokens revoked during Eradication before this account was re-enabled.\n\
-          In Shadow Mode all actions were logged to warroom and dataset.\nFlip SOCExecutionList_V3\
-          \ shadow_mode to false to enable live execution."
+        simple: 'Recovery Assessment
+
+
+          Analysis confirmed identity compromise: ${Analysis.verdict}
+
+          Compromise level: ${Analysis.compromise_level}
+
+
+          Recovery actions taken (Shadow Mode: ${inputs.ShadowMode}):
+
+          • Account re-enabled: ${Recovery.account_restored}
+
+          • Restore method: ${Recovery.restore_method}
+
+          • Ongoing monitoring required: ${Recovery.monitoring_required}
+
+
+          Credentials were reset and tokens revoked during Eradication before this account was re-enabled.
+
+          In Shadow Mode all actions were logged to warroom and dataset.
+
+          Flip SOCExecutionList_V3 shadow_mode to false to enable live execution.'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 1290 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 1290 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -398,10 +365,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  # ── NO RECOVERY PATH ──────────────────────────────────────────────────
-  "10":
-    id: "10"
+  '10':
+    id: '10'
     taskid: id-ir-no-recovery-0010
     type: regular
     task:
@@ -411,26 +376,23 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "11"
+      - '11'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Recovery.attempted
       value:
-        simple: "false"
+        simple: 'false'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 900, "y": 370 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 900, \"y\": 370 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -438,9 +400,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "11":
-    id: "11"
+  '11':
+    id: '11'
     taskid: id-ir-no-recovery-story-0011
     type: regular
     task:
@@ -450,29 +411,33 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     nexttasks:
       '#none#':
-      - "99"
+      - '99'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Recovery.story
       value:
-        simple: "Recovery Not Required\n\nUser: ${Analysis.primary_entity_user}\n\
-          Eradication attempted: ${Eradication.attempted}\n\nRecovery skipped —\
-          \ eradication did not occur. Account was not disabled so\nno re-enable\
-          \ action was needed."
+        simple: 'Recovery Not Required
+
+
+          User: ${Analysis.primary_entity_user}
+
+          Eradication attempted: ${Eradication.attempted}
+
+
+          Recovery skipped — eradication did not occur. Account was not disabled so
+
+          no re-enable action was needed.'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 900, "y": 520 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 900, \"y\": 520 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -480,9 +445,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-  "99":
-    id: "99"
+  '99':
+    id: '99'
     taskid: id-ir-done-0099
     type: title
     task:
@@ -491,14 +455,11 @@ tasks:
       name: Done
       type: title
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": { "x": 480, "y": 1490 }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": { \"x\": 480, \"y\": 1490 }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -506,36 +467,15 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
 inputs:
-- key: ShadowMode
-  value:
-    complex:
-      root: lists
-      accessor: SOCExecutionList_V3
-      transformers:
-      - operator: getField
-        args:
-          field:
-            value:
-              simple: SOC Identity Recovery_V3
-      - operator: getField
-        args:
-          field:
-            value:
-              simple: shadow_mode
-  required: false
-  description: ""
-  playbookInputQuery: null
 - key: compromise_decision
   value:
     simple: ${Analysis.compromise_decision}
   required: false
-  description: ""
+  description: ''
   playbookInputQuery: null
 inputSections:
 - inputs:
-  - ShadowMode
   - compromise_decision
   name: General (Inputs group)
   description: Generic group for inputs
@@ -559,17 +499,7 @@ outputs:
   type: unknown
 - contextPath: Recovery.story
   type: unknown
-view: |-
-  {
-    "linkLabelsPosition": {},
-    "paper": {
-      "dimensions": {
-        "height": 1500,
-        "width": 1100,
-        "x": 0,
-        "y": 50
-      }
-    }
-  }
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1500,\n      \"width\":\
+  \ 1100,\n      \"x\": 0,\n      \"y\": 50\n    }\n  }\n}"
 sourceplaybookid: SOC Data Recovery_V3
 dirtyInputs: true

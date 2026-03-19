@@ -101,6 +101,48 @@ def append_context(key, record):
     demisto.setContext(key, existing)
 
 
+def apply_output_map(output_map, ctx, shadow_mode):
+    """
+    Write UC.* canonical keys from vendor-specific context paths.
+
+    output_map format (defined per vendor response in SOCFrameworkActions_V3):
+      { "UC.Email.Forensics.behavior": "Proofpoint.Report.Behavior", ... }
+
+    In shadow mode: writes "shadow_mode" sentinel so downstream conditions
+    can use isExists(UC.*) without erroring.
+
+    In execute mode: resolves each source path from context and writes
+    to the destination UC.* key. Skips entries where source resolves empty.
+    """
+    if not output_map or not isinstance(output_map, dict):
+        return
+
+    for dest_key, source_path in output_map.items():
+        if not dest_key or not source_path:
+            continue
+
+        if shadow_mode:
+            demisto.setContext(dest_key, "shadow_mode")
+            demisto.debug(f"apply_output_map shadow: {dest_key} = shadow_mode")
+            continue
+
+        # Resolve source path — strip filter expressions (e.g. path[key=val].count)
+        # Use the base path only; playbook transformers handle filtering
+        base_path = re.split(r'[\[\.]', source_path)[0] if '[' in source_path else source_path
+        # Re-add dotted sub-path if no filter was present
+        if '[' not in source_path:
+            base_path = source_path
+
+        value = demisto.get(ctx, base_path)
+
+        if value in (None, "", [], {}):
+            demisto.debug(f"apply_output_map: {dest_key} skipped — source {base_path} empty")
+            continue
+
+        demisto.setContext(dest_key, value)
+        demisto.debug(f"apply_output_map: {dest_key} <- {base_path}")
+
+
 def integration_failed(result):
     if not result:
         return True, "Empty result"
@@ -448,10 +490,14 @@ def main():
     demisto.debug(f"RAW TAGS: {args.get('tags')} | TYPE: {type(args.get('tags'))}")
 
     action = args.get("action")
-    shadow_mode = str(args.get("shadow_mode", "false")).lower() == "true"
     using = args.get("using")
     list_name = args.get("list_name")
     output_key = args.get("output_key")
+    # shadow_mode is now read from the action entry in SOCFrameworkActions_V3.
+    # Analysis/Enrichment: shadow_mode: false — always execute.
+    # C/E/R: shadow_mode: true — suppressed until PS flips to false.
+    # To go live: edit shadow_mode on the specific action in the list.
+    # The args shadow_mode field is retained for backward compat but ignored.
 
     raw_tags = args.get("tags")
     tags = parse_tags(raw_tags)
@@ -476,6 +522,11 @@ def main():
 
     if not action_entry:
         return_error(f"Action not found: {action}")
+
+    # Read shadow_mode from the action entry — single source of truth
+    shadow_mode = action_entry.get("shadow_mode", False)
+    if not isinstance(shadow_mode, bool):
+        shadow_mode = str(shadow_mode).lower() == "true"
 
     responses = action_entry.get("responses", {})
 
@@ -561,6 +612,11 @@ def main():
 
         dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
         post_dataset_payload(dataset_payload, tags)
+
+        # Write sentinel UC.* keys so downstream conditions work in shadow mode
+        output_map = vendor_data.get("output_map", {})
+        fresh_ctx = demisto.context()
+        apply_output_map(output_map, fresh_ctx, shadow_mode=True)
 
         warroom_log(
             "SOC Framework - SHADOW MODE (Command Not Executed)",
@@ -671,6 +727,11 @@ def main():
 
         dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
         post_dataset_payload(dataset_payload, tags)
+
+        # Map vendor output to canonical UC.* context keys
+        output_map = vendor_data.get("output_map", {})
+        fresh_ctx = demisto.context()
+        apply_output_map(output_map, fresh_ctx, shadow_mode=False)
 
         warroom_log(
             "SOC Framework - Command Success",

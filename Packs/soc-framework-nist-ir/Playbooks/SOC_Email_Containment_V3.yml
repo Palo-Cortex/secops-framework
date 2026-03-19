@@ -1,27 +1,24 @@
+adopted: true
 id: SOC Email Containment_V3
 name: SOC Email Containment_V3
 version: -1
 fromversion: 6.10.0
-description: "NIST IR 800-61 — Containment Phase — Email / SEG\n\nExecutes the appropriate\
-  \ containment action for a confirmed malicious email threat.\n\nValue Driver: VD1\
-  \ (Reduce Risk) — automated containment drives MTTC.\nValue Driver: VD2 (Simplify\
-  \ Ops) — Universal Command abstracts retract/quarantine across Microsoft Graph,\
-  \ Gmail, Trend Micro, Mimecast.\n\nGate: verdict=malicious AND confidence=high or\
-  \ medium.\nAll actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.\n\
-  \nRouting by Analysis.Email.response_recommended:\n  escalate_IR     → no automated\
-  \ action, story set for analyst engagement\n  search_and_purge → soc-retract-email\
-  \ (URL clicked by recipient)\n  retract_message  → soc-retract-email (delivered,\
-  \ no click yet)\n  quarantine       → soc-quarantine-email (blocked at SEG / pre-delivery)\n\
-  \  no_action        → Containment.required = false\n\nContext keys produced:\n \
-  \ Containment.required  — true/false\n  Containment.action    — action taken (mirrors\
-  \ response_recommended)\n  Containment.story     — narrative for war room\n  Containment.Execution\
-  \ — SOCCommandWrapper execution record"
+description: "NIST IR 800-61 — Containment Phase — Email / SEG\n\nExecutes the appropriate containment action for a confirmed\
+  \ malicious email threat.\n\nValue Driver: VD1 (Reduce Risk) — automated containment drives MTTC.\nValue Driver: VD2 (Simplify\
+  \ Ops) — Universal Command abstracts retract/quarantine across Microsoft Graph, Gmail, Trend Micro, Mimecast.\n\nGate: verdict=malicious\
+  \ AND confidence=high or medium.\nAll actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.\n\
+  \nRouting by Analysis.Email.response_recommended:\n  escalate_IR     → no automated action, story set for analyst engagement\n\
+  \  search_and_purge → soc-retract-email (URL clicked by recipient)\n  retract_message  → soc-retract-email (delivered, no\
+  \ click yet)\n  quarantine       → soc-quarantine-email (blocked at SEG / pre-delivery)\n  no_action        → Containment.required\
+  \ = false\n\nContext keys produced:\n  Containment.required  — true/false\n  Containment.action    — action taken (mirrors\
+  \ response_recommended)\n  Containment.story     — narrative for war room\n  Containment.Execution — SOCCommandWrapper execution\
+  \ record"
 tags:
-  - SOC
-  - SOC_Framework_Unified
-  - Containment
-  - NIST 800-61
-  - Email
+- SOC
+- SOC_Framework_Unified
+- Containment
+- NIST 800-61
+- Email
 starttaskid: '0'
 tasks:
   '0':
@@ -38,7 +35,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '1'
+      - '1'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 50\n  }\n}"
@@ -64,7 +61,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '2'
+      - '2'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 195\n  }\n}"
@@ -84,8 +81,7 @@ tasks:
       version: -1
       name: Verdict Warrants Containment?
       type: condition
-      description: 'Gate: only proceed to containment actions if verdict=malicious
-        AND confidence is high or medium.
+      description: 'Gate: only proceed to containment actions if verdict=malicious AND confidence is high or medium.
 
         Benign or low-confidence verdicts skip all actions → Done.'
       iscommand: false
@@ -94,39 +90,39 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-        - '3'
+      - '3'
       'yes':
-        - '4'
+      - '4'
     conditions:
-      - label: 'yes'
-        condition:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: inputs.Verdict
-                iscontext: true
-              right:
-                value:
-                  simple: malicious
-              ignorecase: true
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: inputs.Confidence
-                iscontext: true
-              right:
-                value:
-                  simple: high
-              ignorecase: true
-            - operator: isEqualString
-              left:
-                value:
-                  simple: inputs.Confidence
-                iscontext: true
-              right:
-                value:
-                  simple: medium
-              ignorecase: true
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.Verdict
+            iscontext: true
+          right:
+            value:
+              simple: malicious
+          ignorecase: true
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.Confidence
+            iscontext: true
+          right:
+            value:
+              simple: high
+          ignorecase: true
+        - operator: isEqualString
+          left:
+            value:
+              simple: inputs.Confidence
+            iscontext: true
+          right:
+            value:
+              simple: medium
+          ignorecase: true
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 365\n  }\n}"
@@ -153,7 +149,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '18'
+      - '18'
     scriptarguments:
       append:
         simple: 'false'
@@ -189,7 +185,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '5'
+      - '5'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 555\n  }\n}"
@@ -209,8 +205,7 @@ tasks:
       version: -1
       name: Response Recommended?
       type: condition
-      description: 'Routes to the appropriate containment action based on advisory
-        recommendation set by Verdict Resolution.
+      description: 'Routes to the appropriate containment action based on advisory recommendation set by Verdict Resolution.
 
         escalate_IR    → no automated action, set story for analyst
 
@@ -227,60 +222,60 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-        - '3'
+      - '3'
       escalate_IR:
-        - '6'
+      - '6'
       search_and_purge:
-        - '8'
+      - '8'
       retract_message:
-        - '10'
+      - '10'
       quarantine:
-        - '12'
+      - '12'
     conditions:
-      - label: escalate_IR
-        condition:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: inputs.ResponseRecommended
-                iscontext: true
-              right:
-                value:
-                  simple: escalate_IR
-              ignorecase: true
-      - label: search_and_purge
-        condition:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: inputs.ResponseRecommended
-                iscontext: true
-              right:
-                value:
-                  simple: search_and_purge
-              ignorecase: true
-      - label: retract_message
-        condition:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: inputs.ResponseRecommended
-                iscontext: true
-              right:
-                value:
-                  simple: retract_message
-              ignorecase: true
-      - label: quarantine
-        condition:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: inputs.ResponseRecommended
-                iscontext: true
-              right:
-                value:
-                  simple: quarantine
-              ignorecase: true
+    - label: escalate_IR
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ResponseRecommended
+            iscontext: true
+          right:
+            value:
+              simple: escalate_IR
+          ignorecase: true
+    - label: search_and_purge
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ResponseRecommended
+            iscontext: true
+          right:
+            value:
+              simple: search_and_purge
+          ignorecase: true
+    - label: retract_message
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ResponseRecommended
+            iscontext: true
+          right:
+            value:
+              simple: retract_message
+          ignorecase: true
+    - label: quarantine
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ResponseRecommended
+            iscontext: true
+          right:
+            value:
+              simple: quarantine
+          ignorecase: true
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 725\n  }\n}"
@@ -306,7 +301,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '7'
+      - '7'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 920\n  }\n}"
@@ -333,7 +328,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '20'
+      - '20'
     scriptarguments:
       append:
         simple: 'false'
@@ -369,7 +364,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '9'
+      - '9'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 310,\n    \"y\": 920\n  }\n}"
@@ -396,7 +391,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '13'
+      - '13'
     scriptarguments:
       Action_Actor:
         simple: automation
@@ -406,33 +401,31 @@ tasks:
         simple: soc-retract-email
       output_key:
         simple: Containment.Execution
-      shadow_mode:
-        simple: ${inputs.ShadowMode}
       tags: &id001
         complex:
           root: inputs.ShadowMode
           transformers:
-            - operator: If-Then-Else
-              args:
-                condition: {}
-                conditionB: {}
-                conditionInBetween: {}
-                else:
-                  value:
-                    simple: Containment
-                equals:
-                  value:
-                    simple: inputs.ShadowMode
-                  iscontext: true
-                lhs: {}
-                lhsB: {}
-                options: {}
-                optionsB: {}
-                rhs: {}
-                rhsB: {}
-                then:
-                  value:
-                    simple: Shadow Mode,Containment
+          - operator: If-Then-Else
+            args:
+              condition: {}
+              conditionB: {}
+              conditionInBetween: {}
+              else:
+                value:
+                  simple: Containment
+              equals:
+                value:
+                  simple: inputs.ShadowMode
+                iscontext: true
+              lhs: {}
+              lhsB: {}
+              options: {}
+              optionsB: {}
+              rhs: {}
+              rhsB: {}
+              then:
+                value:
+                  simple: Shadow Mode,Containment
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 310,\n    \"y\": 1090\n  }\n}"
@@ -458,7 +451,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '11'
+      - '11'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 570,\n    \"y\": 920\n  }\n}"
@@ -485,7 +478,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '13'
+      - '13'
     scriptarguments:
       Action_Actor:
         simple: automation
@@ -495,8 +488,6 @@ tasks:
         simple: soc-retract-email
       output_key:
         simple: Containment.Execution
-      shadow_mode:
-        simple: ${inputs.ShadowMode}
       tags: *id001
     separatecontext: false
     continueonerrortype: ''
@@ -523,7 +514,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '15'
+      - '15'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 830,\n    \"y\": 920\n  }\n}"
@@ -550,7 +541,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '16'
+      - '16'
     scriptarguments:
       append:
         simple: 'false'
@@ -611,7 +602,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '13'
+      - '13'
     scriptarguments:
       Action_Actor:
         simple: automation
@@ -621,8 +612,6 @@ tasks:
         simple: soc-quarantine-email
       output_key:
         simple: Containment.Execution
-      shadow_mode:
-        simple: ${inputs.ShadowMode}
       tags: *id001
     separatecontext: false
     continueonerrortype: ''
@@ -650,7 +639,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '17'
+      - '17'
     scriptarguments:
       append:
         simple: 'false'
@@ -687,7 +676,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '14'
+      - '14'
     scriptarguments:
       append:
         simple: 'false'
@@ -741,7 +730,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '19'
+      - '19'
     scriptarguments:
       append:
         simple: 'false'
@@ -778,7 +767,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '14'
+      - '14'
     scriptarguments:
       append:
         simple: 'false'
@@ -820,7 +809,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '21'
+      - '21'
     scriptarguments:
       append:
         simple: 'false'
@@ -857,7 +846,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - '14'
+      - '14'
     scriptarguments:
       append:
         simple: 'false'
@@ -866,8 +855,7 @@ tasks:
       key:
         simple: Containment.story
       value:
-        simple: 'VIP recipient involved. Threat verdict: ${inputs.Verdict} (${inputs.Confidence}
-          confidence).
+        simple: 'VIP recipient involved. Threat verdict: ${inputs.Verdict} (${inputs.Confidence} confidence).
 
           Recommendation: escalate_IR — manual IR engagement required.
 
@@ -888,88 +876,64 @@ tasks:
     isoversize: false
     isautoswitchedtoquietmode: false
 inputs:
-  - key: Verdict
-    value:
-      simple: ${Analysis.Email.verdict}
-    required: false
-    description: Analysis.Email.verdict — malicious / benign
-    playbookInputQuery: null
-  - key: Confidence
-    value:
-      simple: ${Analysis.Email.confidence}
-    required: false
-    description: Analysis.Email.confidence — high / medium / low
-    playbookInputQuery: null
-  - key: ResponseRecommended
-    value:
-      simple: ${Analysis.Email.response_recommended}
-    required: false
-    description: Advisory action from Verdict Resolution — escalate_IR / search_and_purge
-      / retract_message / quarantine / no_action
-    playbookInputQuery: null
-  - key: ExposureLevel
-    value:
-      simple: ${Analysis.Email.ExposureLevel}
-    required: false
-    description: clicked / delivered / blocked — informational, used in story
-    playbookInputQuery: null
-  - key: ShadowMode
-    value:
-      complex:
-        root: lists
-        accessor: SOCExecutionList_V3
-        transformers:
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: SOC Email Containment_V3
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: shadow_mode
-    required: false
-    description: 'Shadow mode flag from SOCExecutionList_V3. true = log only, false
-    = execute. Default: true in all PoV deployments.'
-    playbookInputQuery: null
+- key: Verdict
+  value:
+    simple: ${Analysis.Email.verdict}
+  required: false
+  description: Analysis.Email.verdict — malicious / benign
+  playbookInputQuery: null
+- key: Confidence
+  value:
+    simple: ${Analysis.Email.confidence}
+  required: false
+  description: Analysis.Email.confidence — high / medium / low
+  playbookInputQuery: null
+- key: ResponseRecommended
+  value:
+    simple: ${Analysis.Email.response_recommended}
+  required: false
+  description: Advisory action from Verdict Resolution — escalate_IR / search_and_purge / retract_message / quarantine / no_action
+  playbookInputQuery: null
+- key: ExposureLevel
+  value:
+    simple: ${Analysis.Email.ExposureLevel}
+  required: false
+  description: clicked / delivered / blocked — informational, used in story
+  playbookInputQuery: null
 inputSections:
-  - inputs:
-      - Verdict
-      - Confidence
-      - ResponseRecommended
-    name: Analysis Contract
-    description: Outputs from SOC Email Analysis_V3 — drive gate and routing
-  - inputs:
-      - ExposureLevel
-      - ShadowMode
-    name: Execution Context
-    description: Exposure context for story; ShadowMode from SOCExecutionList_V3
+- inputs:
+  - Verdict
+  - Confidence
+  - ResponseRecommended
+  name: Analysis Contract
+  description: Outputs from SOC Email Analysis_V3 — drive gate and routing
+- inputs:
+  - ExposureLevel
+  name: Execution Context
+  description: Exposure context for story; ShadowMode from SOCExecutionList_V3
 outputs:
-  - contextPath: Containment.required
-    description: true if a containment action was taken
-    type: boolean
-  - contextPath: Containment.action
-    description: 'Action executed: retract_message / search_and_purge / quarantine /
-    escalate_IR'
-    type: string
-  - contextPath: Containment.story
-    description: War room narrative summarizing containment result
-    type: string
-  - contextPath: Containment.Execution
-    description: SOCCommandWrapper execution record — written to xsiam_socfw_ir_execution_raw
-    type: unknown
+- contextPath: Containment.required
+  description: true if a containment action was taken
+  type: boolean
+- contextPath: Containment.action
+  description: 'Action executed: retract_message / search_and_purge / quarantine / escalate_IR'
+  type: string
+- contextPath: Containment.story
+  description: War room narrative summarizing containment result
+  type: string
+- contextPath: Containment.Execution
+  description: SOCCommandWrapper execution record — written to xsiam_socfw_ir_execution_raw
+  type: unknown
 outputSections:
-  - outputs:
-      - Containment.required
-      - Containment.action
-      - Containment.story
-      - Containment.Execution
-    name: Containment Contract
-    description: Consumed by SOC Eradication_V3 and Value Metrics dashboard
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
-  \     \"height\": 1870,\n      \"width\": 1200,\n      \"x\": 50,\n      \"y\":\
-  \ 50\n    }\n  }\n}"
+- outputs:
+  - Containment.required
+  - Containment.action
+  - Containment.story
+  - Containment.Execution
+  name: Containment Contract
+  description: Consumed by SOC Eradication_V3 and Value Metrics dashboard
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1870,\n      \"width\":\
+  \ 1200,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
 contentitemexportablefields:
   contentitemfields:
     definitionid: ''
@@ -982,4 +946,3 @@ contentitemexportablefields:
     supportedModules: []
     toServerVersion: ''
 dirtyInputs: false
-adopted: true
