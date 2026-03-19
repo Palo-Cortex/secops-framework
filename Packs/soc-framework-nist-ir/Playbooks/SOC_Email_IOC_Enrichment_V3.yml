@@ -464,8 +464,8 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '13'
-      - '14'
+      - g13
+      - g14i
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1295\n  }\n}"
@@ -512,12 +512,12 @@ tasks:
         simple: Core=.
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
+    continueonerrortype: errorPath
     view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 1465\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
-    skipunavailable: false
+    skipunavailable: true
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
@@ -548,12 +548,12 @@ tasks:
         simple: Core=.
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
+    continueonerrortype: errorPath
     view: "{\n  \"position\": {\n    \"x\": 800,\n    \"y\": 1465\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
-    skipunavailable: false
+    skipunavailable: true
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
@@ -767,6 +767,84 @@ tasks:
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2355\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  g13:
+    id: g13
+    taskid: gateg13-sig-alert.pr-check1234
+    type: condition
+    task:
+      id: gateg13-sig-alert.pr-check1234
+      version: -1
+      name: Sender Domain Available?
+      description: Skip Sender Domain prevalence check if value is empty — continueonerror fallback.
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '15'
+      'yes':
+      - '13'
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: alert.proofpointtapsmtpsender
+            iscontext: true
+          right:
+            value: {}
+    separatecontext: false
+    continueonerrortype: ''
+    view: '{"position": {"x": 480, "y": 0}}'
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  g14i:
+    id: g14i
+    taskid: gateg14i-sig-alert.lo-check1234
+    type: condition
+    task:
+      id: gateg14i-sig-alert.lo-check1234
+      version: -1
+      name: Sender IP Available?
+      description: Skip Sender IP prevalence check if value is empty — continueonerror fallback.
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '16'
+      'yes':
+      - '14'
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: alert.localip
+            iscontext: true
+          right:
+            value: {}
+    separatecontext: false
+    continueonerrortype: ''
+    view: '{"position": {"x": 480, "y": 0}}'
     note: false
     timertriggers: []
     ignoreworker: false

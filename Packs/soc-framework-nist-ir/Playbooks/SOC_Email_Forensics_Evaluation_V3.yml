@@ -211,9 +211,9 @@ tasks:
       Campaign + Threat:
       - '6'
       Campaign Only:
-      - '7'
+      - '6'
       Threat Only:
-      - '8'
+      - '6'
     conditions:
     - label: Campaign + Threat
       condition:
@@ -269,127 +269,33 @@ tasks:
     isautoswitchedtoquietmode: false
   '6':
     id: '6'
-    taskid: 5ece3468-3d57-4f9c-8f8d-ffccccbe1993
+    taskid: fc11dd22-ee33-ff44-aa55-bb6677889900
     type: regular
     task:
-      id: 5ece3468-3d57-4f9c-8f8d-ffccccbe1993
+      id: fc11dd22-ee33-ff44-aa55-bb6677889900
       version: -1
-      name: Get Forensics — Threat ID + Campaign
-      description: 'Retrieves forensic data using Threat ID with campaign-level forensics included.
-
-        Vendor output: Proofpoint.Report.*
-
-        Future UC path: UC.Email.Forensics.* via output_map in SOCFrameworkActions_V3.'
-      script: Proofpoint TAP v2|||proofpoint-get-forensics
+      name: Get Email Forensics — Universal Command
+      description: Retrieves Proofpoint TAP forensics via SOCCommandWrapper. In Shadow Mode logs the intended call to warroom
+        and dataset without requiring the Proofpoint TAP integration to be present. Continues on error so absence of integration
+        does not stop the playbook.
+      scriptName: SOCCommandWrapper
       type: regular
-      iscommand: true
-      brand: Proofpoint TAP v2
+      iscommand: false
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '10'
-      '#error#':
       - '9'
     scriptarguments:
-      threatId:
-        complex:
-          root: SOCFramework.Email.TAP
-          accessor: ThreatID
-          transformers:
-          - operator: uniq
-      includeCampaignForensics:
-        simple: 'true'
+      action:
+        simple: soc-get-email-forensics
+      shadow_mode:
+        simple: ${inputs.ShadowMode}
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 920\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '7':
-    id: '7'
-    taskid: 1ba6a22c-b3b0-4b42-9a3e-dbc5c431c4b2
-    type: regular
-    task:
-      id: 1ba6a22c-b3b0-4b42-9a3e-dbc5c431c4b2
-      version: -1
-      name: Get Forensics — Campaign ID
-      description: 'Retrieves forensic data using Campaign ID only.
-
-        Vendor output: Proofpoint.Report.*
-
-        Future UC path: UC.Email.Forensics.* via output_map in SOCFrameworkActions_V3.'
-      script: Proofpoint TAP v2|||proofpoint-get-forensics
-      type: regular
-      iscommand: true
-      brand: Proofpoint TAP v2
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '10'
-      '#error#':
-      - '9'
-    scriptarguments:
-      campaignId:
-        complex:
-          root: SOCFramework.Email.TAP
-          accessor: CampaignID
-          transformers:
-          - operator: uniq
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 920\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '8':
-    id: '8'
-    taskid: 3e7aef08-b567-4849-a375-a70ef074318d
-    type: regular
-    task:
-      id: 3e7aef08-b567-4849-a375-a70ef074318d
-      version: -1
-      name: Get Forensics — Threat ID
-      description: 'Retrieves forensic data using Threat ID only, no campaign context.
-
-        Vendor output: Proofpoint.Report.*
-
-        Future UC path: UC.Email.Forensics.* via output_map in SOCFrameworkActions_V3.'
-      script: Proofpoint TAP v2|||proofpoint-get-forensics
-      type: regular
-      iscommand: true
-      brand: Proofpoint TAP v2
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '10'
-      '#error#':
-      - '9'
-    scriptarguments:
-      threatId:
-        complex:
-          root: SOCFramework.Email.TAP
-          accessor: ThreatID
-          transformers:
-          - operator: uniq
-      includeCampaignForensics:
-        simple: 'false'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 800,\n    \"y\": 920\n  }\n}"
+    continueonerrortype: errorPath
+    view: '{"position": {"x": 480, "y": 560}}'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -607,14 +513,7 @@ tasks:
       key:
         simple: Analysis.Email.forensics_available
       value:
-        complex:
-          root: Proofpoint.Report.Behavior
-          transformers:
-          - operator: isExists
-            args:
-              left:
-                value:
-                  simple: Proofpoint.Report.Behavior
+        simple: 'true'
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -650,7 +549,26 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-inputs: []
+inputs:
+- key: ShadowMode
+  value:
+    complex:
+      root: lists
+      accessor: SOCExecutionList_V3
+      transformers:
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: SOC Email Forensics Evaluation_V3
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: shadow_mode
+  required: false
+  description: Shadow mode flag from SOCExecutionList_V3.
+  playbookInputQuery: null
 inputSections: []
 outputs:
 - contextPath: SOCFramework.Email.TAP.CampaignID
