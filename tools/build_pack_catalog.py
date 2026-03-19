@@ -79,6 +79,14 @@ def build_catalog_entry(
     if existing_entry is not None and isinstance(existing_entry.get("visible"), bool):
         visible = existing_entry["visible"]
 
+    # Preserve existing "category" if present; otherwise read from pack_metadata
+    category = None
+    if existing_entry is not None and existing_entry.get("category"):
+        category = existing_entry["category"]
+    elif meta.get("categories"):
+        cats = meta["categories"]
+        category = cats[0] if isinstance(cats, list) else cats
+
     # Detect xsoar_config.json and build raw URL if it exists
     xsoar_config_path = pack_dir / "xsoar_config.json"
     if xsoar_config_path.is_file():
@@ -92,6 +100,7 @@ def build_catalog_entry(
     return {
         "id": pack_id,
         "display_name": display_name,
+        "category": category,
         "version": version,
         "path": str(pack_dir.as_posix()),
         "visible": visible,
