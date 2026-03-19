@@ -26,6 +26,14 @@ ADDED (2026-03):
   auto-fixed. A clear manual fix instruction is printed instead.
 - Pre-flight scan of all Lists/**/*.json files for missing required descriptor fields,
   giving specific file paths rather than a general warning.
+
+CHANGED (2026-03b):
+- preflight_list_descriptors() now AUTO-FIXES missing fields by writing them back to the
+  descriptor JSON, rather than only printing a warning. The fix derives missing id/name/
+  display_name from the filename stem, and defaults type to 'json' if absent.
+- run_demisto_format() now sets DEMISTO_SDK_SKIP_CONTENT_GRAPH=1 to avoid crashing when
+  Docker is not running (Neo4j/content graph startup failure). If the format output still
+  contains a Docker error, a clear actionable message is printed instead of raw traceback.
 """
 import argparse
 import json
@@ -117,6 +125,12 @@ SCRIPT_YAML_RE = re.compile(
 # Required fields for List descriptor JSON files
 LIST_DESCRIPTOR_REQUIRED = ('id', 'name', 'display_name', 'type')
 
+# Signals a Docker / Neo4j failure inside format output
+DOCKER_ERROR_RE = re.compile(
+    r'docker\.errors\.DockerException|Failed to init docker client|neo4j_service',
+    re.IGNORECASE,
+)
+
 
 def parse_semver(v: str):
     if not v or not isinstance(v, str):
@@ -197,7 +211,8 @@ def _is_script_yaml(path: str) -> bool:
 def preflight_pydantic_errors(full_text: str) -> int:
     """
     Scans the full SDK output text for pydantic ValidationError blocks.
-    These are emitted before any per-file error lines and cannot be auto-fixed.
+    These are emitted before any per-file error lines and cannot be auto-fixed
+    (no file path is included in the error).
     Prints a clear manual fix instruction for each block found.
     Returns the count of blocks found.
     """
@@ -249,11 +264,15 @@ def preflight_pydantic_errors(full_text: str) -> int:
 def preflight_list_descriptors(repo_root: str) -> int:
     """
     Walks all Packs/**/Lists/**/*.json files (excluding *_data.json) and checks
-    for the four required descriptor fields. Prints specific file paths and
-    missing fields so the user knows exactly what to fix.
-    Returns the count of files with issues.
+    for the four required descriptor fields.
+
+    AUTO-FIX: If any required field is missing, writes it back to the file.
+    - id, name, display_name are derived from the filename stem.
+    - type defaults to 'json' if absent.
+
+    Returns the count of files that were fixed.
     """
-    issues = 0
+    fixed = 0
     packs_dir = os.path.join(repo_root, 'Packs')
     if not os.path.isdir(packs_dir):
         return 0
@@ -279,17 +298,32 @@ def preflight_list_descriptors(repo_root: str) -> int:
                 if not data.get(field)
             ]
 
-            if missing:
-                issues += 1
-                rel = os.path.relpath(fpath, repo_root)
-                print(
-                    f"\n⚠️  List descriptor missing required fields: {rel}\n"
-                    f"   Missing: {', '.join(missing)}\n"
-                    f"   Add these fields to {fname} — values should match the list name.\n"
-                    f"   Example: \"display_name\": \"{data.get('name') or os.path.splitext(fname)[0]}\""
-                )
+            if not missing:
+                continue
 
-    return issues
+            # Derive the canonical name from the filename stem (strip .json)
+            list_name = os.path.splitext(fname)[0]
+            rel = os.path.relpath(fpath, repo_root)
+
+            for field in missing:
+                if field == 'type':
+                    data['type'] = 'json'
+                else:
+                    # id, name, display_name all match the list name
+                    data[field] = list_name
+
+            try:
+                with open(fpath, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                fixed += 1
+                print(
+                    f"AUTO-FIXED list descriptor: {rel}\n"
+                    f"   Added: {', '.join(f'{k}={data[k]!r}' for k in missing)}"
+                )
+            except Exception as e:
+                print(f"ERROR writing {rel}: {e}")
+
+    return fixed
 
 
 # --- Parsing Error Fixer (JSON) ---------------------------------------------
@@ -604,6 +638,11 @@ def run_demisto_format(target_path: str, dry_run: bool = False):
     type: python). Running format on these rewrites the script block and can
     corrupt indentation, breaking the Python. A manual fix instruction is printed
     instead.
+
+    DOCKER GUARD: Sets DEMISTO_SDK_SKIP_CONTENT_GRAPH=1 so the SDK does not
+    attempt to start Neo4j via Docker. If the output still contains a Docker
+    error (e.g., older SDK ignoring the env var), a clear actionable message is
+    printed rather than dumping a raw traceback.
     """
     if not os.path.exists(target_path):
         return False, f"SKIP (missing): {target_path}"
@@ -633,13 +672,37 @@ def run_demisto_format(target_path: str, dry_run: bool = False):
 
     env = os.environ.copy()
     env.setdefault("DEMISTO_SDK_IGNORE_CONTENT_WARNING", "1")
+    # Prevent the SDK from starting Neo4j via Docker during format.
+    # Without Docker running this causes a hard crash with a long traceback.
+    env["DEMISTO_SDK_SKIP_CONTENT_GRAPH"] = "1"
 
     try:
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+        output = res.stdout or ""
+
+        # Check returncode first — a zero exit is always success regardless of log noise.
+        # (neo4j_service / docker strings can appear in verbose output even on success.)
         if res.returncode == 0:
-            tail = res.stdout.strip().splitlines()[-1] if res.stdout else "format completed"
+            tail = output.strip().splitlines()[-1] if output.strip() else "format completed"
             return True, f"FORMAT OK: {target_path} ({tail})"
-        return False, f"FORMAT FAILED ({res.returncode}): {target_path}\n{res.stdout}"
+
+        # Non-zero exit — now check whether Docker/Neo4j is the root cause.
+        if DOCKER_ERROR_RE.search(output):
+            return False, (
+                f"\n"
+                f"╔══════════════════════════════════════════════════════════════════╗\n"
+                f"║  FORMAT SKIPPED — Docker is not running                         ║\n"
+                f"╚══════════════════════════════════════════════════════════════════╝\n"
+                f"  File: {target_path}\n"
+                f"\n"
+                f"  demisto-sdk format requires Docker to start its Neo4j content\n"
+                f"  graph. Docker Desktop is not running on this machine.\n"
+                f"\n"
+                f"  To fix: start Docker Desktop, then re-run pack_prep.py.\n"
+                f"  The BA102 error for this file will be addressed on the next run.\n"
+            )
+
+        return False, f"FORMAT FAILED ({res.returncode}): {target_path}\n{output}"
     except FileNotFoundError:
         return False, "ERROR: `demisto-sdk` not found in PATH. Install it or add to PATH."
     except Exception as e:
@@ -670,17 +733,16 @@ def main():
     pydantic_count = preflight_pydantic_errors(full_text)
 
     # ── Pre-flight 2: walk Lists/ descriptors for missing required fields ────
-    # Gives specific file paths so the user knows exactly what to fix.
-    list_issue_count = preflight_list_descriptors(repo_root)
+    # Now AUTO-FIXES files in place; returns count of files fixed.
+    list_fixed_count = preflight_list_descriptors(repo_root)
 
-    if pydantic_count == 0 and list_issue_count == 0:
+    if pydantic_count == 0 and list_fixed_count == 0:
         pass  # no pre-flight issues — proceed silently to per-line fixes
     else:
         print(
             f"\n{'─' * 68}\n"
-            f"Pre-flight found {pydantic_count} pydantic error block(s) and "
-            f"{list_issue_count} list descriptor issue(s).\n"
-            f"Fix these manually before re-running the SDK.\n"
+            f"Pre-flight: {pydantic_count} pydantic block(s) require manual fix. "
+            f"{list_fixed_count} list descriptor(s) auto-fixed.\n"
             f"{'─' * 68}\n"
         )
 
