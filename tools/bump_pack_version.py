@@ -201,6 +201,11 @@ def fix_custom_pack_url(config_path: Path, pack_id: str, new_version: str) -> No
         current_url = entry.get("url", "")
         current_id  = entry.get("id", "")
 
+        # Only update the entry that belongs to this pack — match on pack_id
+        # in either the existing id or url to avoid clobbering sibling packs.
+        if pack_id not in current_id and pack_id not in current_url:
+            continue
+
         if current_url != correct_url:
             print(f"custom_packs url:")
             print(f"  was: {current_url}")
