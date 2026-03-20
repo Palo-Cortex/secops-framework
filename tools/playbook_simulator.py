@@ -55,7 +55,7 @@ class Context:
 
 # ── Transformers ─────────────────────────────────────────────────────────────
 
-def apply_transformers(value: Any, transformers: list) -> Any:
+def apply_transformers(value: Any, transformers: list, ctx=None) -> Any:
     for t in transformers:
         op   = t.get('operator')
         args = t.get('args', {})
@@ -74,8 +74,13 @@ def apply_transformers(value: Any, transformers: list) -> Any:
                     if k not in seen: seen.add(k); out.append(v)
                 value = out
         elif op == 'getField':
-            field = args.get('field', {})
-            if isinstance(field, dict): field = field.get('value', {}).get('simple', '')
+            field_spec = args.get('field', {})
+            field_iscontext = isinstance(field_spec, dict) and field_spec.get('iscontext', False)
+            field = field_spec.get('value', {}).get('simple', '') if isinstance(field_spec, dict) else str(field_spec)
+            if field_iscontext and ctx is not None:
+                resolved = ctx.get_by_path(field)
+                if resolved is not None:
+                    field = str(resolved)
             if isinstance(value, dict) and field:
                 value = value.get(field)
             elif isinstance(value, list) and field:
@@ -154,7 +159,7 @@ def resolve_value_spec(spec: Any, ctx: Context, iscontext: bool = False) -> Any:
                 elif value is None:
                     # root not in context — try flat dotted key
                     value = ctx.get_by_path(f'{root}.{accessor}')
-            value = apply_transformers(value, transformers)
+            value = apply_transformers(value, transformers, ctx=ctx)
             return value
     return ctx.resolve_string(str(spec)) if spec is not None else None
 
@@ -290,12 +295,23 @@ def mock_set_multiple_values(args: dict, ctx: Context):
     for key, val in zip(keys, values):
         ctx.set(f"{prefix}{key}", val)
 
+def mock_dbot_find_similar(args: dict, ctx: Context):
+    """
+    Mock for DBotFindSimilarAlerts.
+    In test fixtures inject the result directly into context before running:
+      'DBotFindSimilarIncidents.isSimilarIncidentFound': True/False
+      'DBotFindSimilarIncidents.similarIncident.id': 'INC-001'
+    This mock is a no-op — the fixture pre-seeds context with the result.
+    """
+    pass  # result pre-seeded via context_inputs in fixture
+
 SCRIPT_MOCKS = {
     'SetAndHandleEmpty':              mock_set_and_handle_empty,
     'SetMultipleValues':              mock_set_multiple_values,
     'SetField':                       mock_set_and_handle_empty,
     'AddDBotScoreToContext':          mock_add_dbot_score,
     'GetIndicatorDBotScoreFromCache': lambda a, c: None,
+    'DBotFindSimilarAlerts':          mock_dbot_find_similar,
 }
 
 
@@ -437,8 +453,9 @@ class PlaybookSimulator:
                 elif script_name:
                     result.warnings.append(f"Unmocked script {script_name!r} at task {tid} — skipped")
 
-                for targets in nexttasks.values():
-                    queue.extend(targets)
+                for key, targets in nexttasks.items():
+                    if key != '#error#':
+                        queue.extend(targets)
 
             elif task_type == 'playbook':
                 sub_name = task_def.get('playbookName', '')

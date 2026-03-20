@@ -1,0 +1,306 @@
+[
+  {
+    "name": "Dedup \u2014 no similar alerts found \u2192 passes through to Done",
+    "playbook": "Foundation_-_Dedup",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "parentIncidentFields.incident_id": "INC-001",
+      "DBotFindSimilarIncidents.isSimilarIncidentFound": false
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "16",
+        "expected": "#default#",
+        "description": "No similar alerts \u2192 default path \u2192 Done without closing"
+      },
+      {
+        "type": "task_not_executed",
+        "target": "14",
+        "description": "Close As Duplicates must NOT run when no duplicate found"
+      },
+      {
+        "type": "task_not_executed",
+        "target": "15",
+        "description": "Print Duplicate Alerts must NOT run"
+      }
+    ]
+  },
+  {
+    "name": "Dedup \u2014 duplicate found \u2192 prints warning and closes duplicate",
+    "playbook": "Foundation_-_Dedup",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "parentIncidentFields.incident_id": "INC-001",
+      "alert.id": "INC-002",
+      "DBotFindSimilarIncidents.isSimilarIncidentFound": true,
+      "DBotFindSimilarIncidents.similarIncident": {
+        "id": "INC-001"
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "16",
+        "expected": "yes",
+        "description": "Duplicate found \u2192 yes branch"
+      },
+      {
+        "type": "task_executed",
+        "target": "15",
+        "description": "Print Duplicate Alerts must run"
+      },
+      {
+        "type": "task_executed",
+        "target": "14",
+        "description": "Close As Duplicates must run"
+      }
+    ]
+  },
+  {
+    "name": "Dedup \u2014 DBotFindSimilarAlerts error \u2192 skipped warning, not halting",
+    "playbook": "Foundation_-_Dedup",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "parentIncidentFields.incident_id": "INC-001"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "task_not_executed",
+        "target": "14",
+        "description": "Close As Duplicates must NOT run on error path"
+      },
+      {
+        "type": "task_not_executed",
+        "target": "15",
+        "description": "Print Duplicate Alerts must NOT run on error path"
+      }
+    ]
+  },
+  {
+    "name": "Dedup \u2014 burst duplicate: second alert with same incident_id \u2192 closed",
+    "playbook": "Foundation_-_Dedup",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "non_happy",
+      "race_condition"
+    ],
+    "context_inputs": {
+      "parentIncidentFields.incident_id": "INC-001",
+      "alert.id": "INC-001-b",
+      "DBotFindSimilarIncidents.isSimilarIncidentFound": true,
+      "DBotFindSimilarIncidents.similarIncident": {
+        "id": "INC-001"
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "16",
+        "expected": "yes"
+      },
+      {
+        "type": "task_executed",
+        "target": "14",
+        "description": "Burst duplicate \u2014 second alert must be closed"
+      }
+    ]
+  },
+  {
+    "name": "Product Classification \u2014 Proofpoint TAP maps to Email",
+    "playbook": "Foundation_-_Product_Classification_V3",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.ProductKey": "Proofpoint TAP",
+      "SOCFramework.Product.key": "Proofpoint TAP",
+      "lists.SOCProductCategoryMap_V3": {
+        "Proofpoint TAP": {
+          "category": "Email",
+          "type": "Email",
+          "confidence": "high",
+          "response": "proofpoint"
+        },
+        "CrowdStrike Falcon": {
+          "category": "Endpoint",
+          "type": "Endpoint",
+          "confidence": "high",
+          "response": "crowdstrike"
+        }
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "SOCFramework.Product.category",
+        "expected": "Email"
+      },
+      {
+        "type": "branch_taken",
+        "target": "24",
+        "expected": "yes",
+        "description": "Product category map exists \u2192 yes path"
+      }
+    ]
+  },
+  {
+    "name": "Product Classification \u2014 CrowdStrike Falcon maps to Endpoint",
+    "playbook": "Foundation_-_Product_Classification_V3",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.ProductKey": "CrowdStrike Falcon",
+      "SOCFramework.Product.key": "CrowdStrike Falcon",
+      "lists.SOCProductCategoryMap_V3": {
+        "Proofpoint TAP": {
+          "category": "Email",
+          "type": "Email",
+          "confidence": "high",
+          "response": "proofpoint"
+        },
+        "CrowdStrike Falcon": {
+          "category": "Endpoint",
+          "type": "Endpoint",
+          "confidence": "high",
+          "response": "crowdstrike"
+        }
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "SOCFramework.Product.category",
+        "expected": "Endpoint"
+      },
+      {
+        "type": "branch_taken",
+        "target": "24",
+        "expected": "yes"
+      }
+    ]
+  },
+  {
+    "name": "Product Classification \u2014 unknown source \u2192 default category",
+    "playbook": "Foundation_-_Product_Classification_V3",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "non_happy",
+      "edge_case"
+    ],
+    "context_inputs": {
+      "inputs.ProductKey": "Unknown Vendor XYZ",
+      "SOCFramework.Product.key": "Unknown Vendor XYZ"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "24",
+        "expected": "#default#",
+        "description": "No product map in context \u2192 default \u2192 Done without category set"
+      }
+    ]
+  },
+  {
+    "name": "Normalize Artifacts \u2014 email artifact fields populated",
+    "playbook": "Foundation_-_Normalize_Artifacts_V3",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.EmailFrom": "noreply@sktlocal.it",
+      "inputs.EmailTo": "Gunter@SKT.LOCAL",
+      "inputs.EmailSubject": "Windows Security Update - Action Required",
+      "inputs.EmailThreatURL": "http://brieftragerin.skt.local/update/NTFVersion.exe",
+      "inputs.EmailThreatType": "url",
+      "inputs.HostName": "",
+      "inputs.UserName": "Gunter",
+      "inputs.SHA256": "",
+      "inputs.SourceIP": "198.51.100.45"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "SOCFramework.Artifacts.Email.From",
+        "expected": "noreply@sktlocal.it"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "SOCFramework.Artifacts.Email.ThreatType",
+        "expected": "url"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "SOCFramework.Artifacts.Email.ThreatURL",
+        "expected": "http://brieftragerin.skt.local/update/NTFVersion.exe"
+      }
+    ]
+  },
+  {
+    "name": "Normalize Artifacts \u2014 endpoint artifact fields populated",
+    "playbook": "Foundation_-_Normalize_Artifacts_V3",
+    "category": "foundation",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.HostName": "WIN-WORKSTATION-01",
+      "inputs.EndpointID": "ep-abc-123",
+      "inputs.SHA256": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a",
+      "inputs.UserName": "jsmith",
+      "inputs.SourceIP": "10.20.20.102"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "SOCFramework.Artifacts.HostName",
+        "expected": "WIN-WORKSTATION-01"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "SOCFramework.Artifacts.UserName",
+        "expected": "jsmith"
+      }
+    ]
+  }
+]
