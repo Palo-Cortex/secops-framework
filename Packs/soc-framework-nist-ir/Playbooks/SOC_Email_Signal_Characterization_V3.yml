@@ -1,8 +1,19 @@
-adopted: true
+fromversion: 5.0.0
 id: SOC Email Signal Characterization_V3
+version: 11
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.1.0
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Signal Characterization_V3
-version: -1
-fromversion: 6.10.0
 description: "Purpose\nDetermine what kind of email threat this is and build the indicator intelligence needed for verdict\
   \ resolution.\n\nThis is not verdict determination — that belongs in SOC Email Verdict Resolution_V3.\nThis playbook answers:\
   \ what is the nature of the threat object?\n\nSignal Types Produced:\n  url_phish    — threat type is URL (phishing link,\
@@ -36,7 +47,7 @@ tasks:
       - '1'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 50\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 910,\n    \"y\": 50\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -52,17 +63,17 @@ tasks:
       id: 5bdf589d-bd70-4316-b817-34b201a9952c
       version: -1
       name: Characterize Threat Type
+      type: title
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: title
     nexttasks:
       '#none#':
       - '2'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 195\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 910,\n    \"y\": 220\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -78,29 +89,20 @@ tasks:
       id: c2893eed-6d85-4b5a-9564-19e8cec61f2e
       version: -1
       name: What is the Threat Type?
+      description: Routes on SOCFramework.Artifacts.Email.ThreatType to determine IOC creation and enrichment path.
+      type: condition
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Routes on SOCFramework.Artifacts.Email.ThreatType to determine IOC creation and enrichment path.
-      type: condition
     nexttasks:
       '#default#':
       - '10'
-      URL:
-      - '3'
       Attachment:
       - '7'
+      URL:
+      - '3'
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 365\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     conditions:
     - label: URL
       condition:
@@ -124,6 +126,15 @@ tasks:
             value:
               simple: attachment
           ignorecase: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 910,\n    \"y\": 390\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '3':
     id: '3'
     taskid: 88bbf74f-0a0a-4fa3-b8fc-ad62b38a7eeb
@@ -132,19 +143,26 @@ tasks:
       id: 88bbf74f-0a0a-4fa3-b8fc-ad62b38a7eeb
       version: -1
       name: Create URL Indicator
+      description: Creates a URL indicator from the threat URL extracted at entry point.
+      script: Builtin|||createNewIndicator
+      type: regular
       iscommand: true
       brand: Builtin
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Creates a URL indicator from the threat URL extracted at entry point.
-      type: regular
-      script: Builtin|||createNewIndicator
     nexttasks:
       '#none#':
       - '4'
+    scriptarguments:
+      proofpointtaplink:
+        simple: ${inputs.ThreatURL}
+      type:
+        simple: URL
+      value:
+        simple: ${inputs.ThreatURL}
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 560\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 265,\n    \"y\": 575\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -152,13 +170,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      value:
-        simple: ${inputs.ThreatURL}
-      type:
-        simple: URL
-      proofpointtaplink:
-        simple: ${inputs.ThreatURL}
   '4':
     id: '4'
     taskid: 0e891e39-9645-463f-86d0-b0ec9101f706
@@ -167,20 +178,31 @@ tasks:
       id: 0e891e39-9645-463f-86d0-b0ec9101f706
       version: -1
       name: Assign DBot Score — URL
+      description: Seeds DBot score for the threat URL from Proofpoint TAP signal.
+      scriptName: AddDBotScoreToContext
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Seeds DBot score for the threat URL from Proofpoint TAP signal.
-      type: regular
-      scriptName: AddDBotScoreToContext
     nexttasks:
       '#none#':
       - '5'
       - '6'
+    scriptarguments:
+      indicator:
+        simple: ${inputs.ThreatURL}
+      indicatorType:
+        simple: URL
+      reliability:
+        simple: C - Fairly reliable
+      score:
+        simple: '2'
+      vendor:
+        simple: Proofpoint TAP
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 740\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 265,\n    \"y\": 760\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -188,17 +210,6 @@ tasks:
     quietmode: 2
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      indicator:
-        simple: ${inputs.ThreatURL}
-      indicatorType:
-        simple: URL
-      score:
-        simple: '2'
-      reliability:
-        simple: C - Fairly reliable
-      vendor:
-        simple: Proofpoint TAP
   '5':
     id: '5'
     taskid: 3b410dc5-8726-46bb-a70e-159b99fb1bd8
@@ -207,19 +218,22 @@ tasks:
       id: 3b410dc5-8726-46bb-a70e-159b99fb1bd8
       version: -1
       name: Extract Domains from URL Threat
+      description: Extracts domain indicators from the threat URL for prevalence analysis.
+      script: Builtin|||extractIndicators
+      type: regular
       iscommand: true
       brand: Builtin
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Extracts domain indicators from the threat URL for prevalence analysis.
-      type: regular
-      script: Builtin|||extractIndicators
     nexttasks:
       '#none#':
       - '11'
+    scriptarguments:
+      text:
+        simple: ${inputs.ThreatURL}
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 920\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 945\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -227,9 +241,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      text:
-        simple: ${inputs.ThreatURL}
   '6':
     id: '6'
     taskid: b4161365-b353-4eba-9886-5051c8909f3d
@@ -238,19 +249,23 @@ tasks:
       id: b4161365-b353-4eba-9886-5051c8909f3d
       version: -1
       name: Rasterize URL
+      description: Captures a screenshot of the threat URL for analyst review. Best-effort — continues on error.
+      script: '|||rasterize'
+      type: regular
       iscommand: true
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Captures a screenshot of the threat URL for analyst review. Best-effort — continues on error.
-      type: regular
-      script: '|||rasterize'
     nexttasks:
       '#none#':
       - '11'
+    scriptarguments:
+      url:
+        simple: ${inputs.ThreatURL}
     separatecontext: false
+    continueonerror: true
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 430,\n    \"y\": 920\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 480,\n    \"y\": 945\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -258,10 +273,6 @@ tasks:
     quietmode: 2
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      url:
-        simple: ${inputs.ThreatURL}
-    continueonerror: true
   '7':
     id: '7'
     taskid: 0b69ca12-08ef-4b3e-afaf-3862617168dd
@@ -270,19 +281,26 @@ tasks:
       id: 0b69ca12-08ef-4b3e-afaf-3862617168dd
       version: -1
       name: Create File Indicator
+      description: Creates a File indicator from the attachment hash extracted at entry point.
+      script: Builtin|||createNewIndicator
+      type: regular
       iscommand: true
       brand: Builtin
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Creates a File indicator from the attachment hash extracted at entry point.
-      type: regular
-      script: Builtin|||createNewIndicator
     nexttasks:
       '#none#':
       - '8'
+    scriptarguments:
+      proofpointtaplink:
+        simple: ${inputs.ThreatURL}
+      type:
+        simple: File
+      value:
+        simple: ${inputs.ThreatIndicator}
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 985,\n    \"y\": 560\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 910,\n    \"y\": 760\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -290,13 +308,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      value:
-        simple: ${inputs.ThreatIndicator}
-      type:
-        simple: File
-      proofpointtaplink:
-        simple: ${inputs.ThreatURL}
   '8':
     id: '8'
     taskid: e0106919-475c-4d4a-af74-2b7e3ca023c5
@@ -305,19 +316,30 @@ tasks:
       id: e0106919-475c-4d4a-af74-2b7e3ca023c5
       version: -1
       name: Assign DBot Score — File
+      description: Seeds DBot score for the attachment hash from Proofpoint TAP signal.
+      scriptName: AddDBotScoreToContext
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Seeds DBot score for the attachment hash from Proofpoint TAP signal.
-      type: regular
-      scriptName: AddDBotScoreToContext
     nexttasks:
       '#none#':
       - '11'
+    scriptarguments:
+      indicator:
+        simple: ${inputs.ThreatIndicator}
+      indicatorType:
+        simple: File
+      reliability:
+        simple: C - Fairly reliable
+      score:
+        simple: '2'
+      vendor:
+        simple: Proofpoint TAP
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 985,\n    \"y\": 740\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 910,\n    \"y\": 945\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -325,17 +347,6 @@ tasks:
     quietmode: 2
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      indicator:
-        simple: ${inputs.ThreatIndicator}
-      indicatorType:
-        simple: File
-      score:
-        simple: '2'
-      reliability:
-        simple: C - Fairly reliable
-      vendor:
-        simple: Proofpoint TAP
   '10':
     id: '10'
     taskid: 597e2d1e-b058-462b-b10a-ca9c460a07dd
@@ -344,17 +355,17 @@ tasks:
       id: 597e2d1e-b058-462b-b10a-ca9c460a07dd
       version: -1
       name: Unknown Threat Type
+      type: title
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: title
     nexttasks:
       '#none#':
       - '11'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1280,\n    \"y\": 560\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 1340,\n    \"y\": 952.5\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -370,17 +381,17 @@ tasks:
       id: a6a7a4c2-216f-4453-bdfe-2e5329a49f79
       version: -1
       name: Sender Prevalence Checks
+      type: title
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: title
     nexttasks:
       '#none#':
       - g12
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 1110\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 1130\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -396,27 +407,17 @@ tasks:
       id: 7d6781b0-a2be-4d00-8d74-6911e25d1c04
       version: -1
       name: Sender Domain Prevalence Check
+      description: Checks whether the sender domain has been seen before in the environment. Low prevalence is an indicator
+        of a first-seen phishing domain.
+      script: '|||core-get-domain-analytics-prevalence'
+      type: regular
       iscommand: true
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Checks whether the sender domain has been seen before in the environment. Low prevalence is an indicator
-        of a first-seen phishing domain.
-      type: regular
-      script: '|||core-get-domain-analytics-prevalence'
     nexttasks:
       '#none#':
       - '13'
-    separatecontext: false
-    continueonerrortype: errorPath
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 1280\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: true
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     scriptarguments:
       domain_name:
         complex:
@@ -429,7 +430,17 @@ tasks:
                   simple: '@'
       extend-context:
         simple: Core=.
+    separatecontext: false
     continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 582.5,\n    \"y\": 1485\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '13':
     id: '13'
     taskid: 0205ceb1-4015-4b2d-ab0b-07157927e28a
@@ -438,26 +449,17 @@ tasks:
       id: 0205ceb1-4015-4b2d-ab0b-07157927e28a
       version: -1
       name: Non-Prevalent Domain?
+      type: condition
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: condition
     nexttasks:
       '#default#':
       - g14
       'yes':
       - '15'
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 1460\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     conditions:
     - label: 'yes'
       condition:
@@ -474,6 +476,15 @@ tasks:
                       iscontext: true
                 accessor: value
             iscontext: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 1670\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '14':
     id: '14'
     taskid: a0e1cb99-bb2f-4beb-b72d-8a1ac9a371b2
@@ -482,19 +493,25 @@ tasks:
       id: a0e1cb99-bb2f-4beb-b72d-8a1ac9a371b2
       version: -1
       name: Sender IP Prevalence Check
+      description: Checks sender IP prevalence. Low prevalence may indicate a new sending infrastructure.
+      script: '|||core-get-IP-analytics-prevalence'
+      type: regular
       iscommand: true
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Checks sender IP prevalence. Low prevalence may indicate a new sending infrastructure.
-      type: regular
-      script: '|||core-get-IP-analytics-prevalence'
     nexttasks:
       '#none#':
       - '16'
+    scriptarguments:
+      extend-context:
+        simple: Core=.
+      ip_address:
+        simple: ${inputs.SenderIP}
     separatecontext: false
+    continueonerror: true
     continueonerrortype: errorPath
-    view: "{\n  \"position\": {\n    \"x\": 850,\n    \"y\": 1650\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 582.5,\n    \"y\": 2225\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -502,12 +519,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      ip_address:
-        simple: ${inputs.SenderIP}
-      extend-context:
-        simple: Core=.
-    continueonerror: true
   '15':
     id: '15'
     taskid: 171e6204-bb58-431f-9307-f4f3e202097f
@@ -516,25 +527,15 @@ tasks:
       id: 171e6204-bb58-431f-9307-f4f3e202097f
       version: -1
       name: Tag Domain — Uncommon
+      script: Builtin|||setIndicators
+      type: regular
       iscommand: true
       brand: Builtin
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: regular
-      script: Builtin|||setIndicators
     nexttasks:
       '#none#':
       - g14
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 340,\n    \"y\": 1650\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     scriptarguments:
       indicatorsValues:
         complex:
@@ -558,6 +559,16 @@ tasks:
                   simple: ','
       tags:
         simple: Uncommon
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 807.5,\n    \"y\": 1855\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '16':
     id: '16'
     taskid: 8369ebbf-da84-4ec0-8472-83ee1cbb7b8f
@@ -566,26 +577,17 @@ tasks:
       id: 8369ebbf-da84-4ec0-8472-83ee1cbb7b8f
       version: -1
       name: Non-Prevalent IP?
+      type: condition
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: condition
     nexttasks:
       '#default#':
       - '17'
       'yes':
       - '18'
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 850,\n    \"y\": 1835\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     conditions:
     - label: 'yes'
       condition:
@@ -602,6 +604,15 @@ tasks:
                       iscontext: true
                 accessor: value
             iscontext: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 2410\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '17':
     id: '17'
     taskid: 5a8cc61c-8e3e-47bd-9fad-755db1711b87
@@ -610,17 +621,17 @@ tasks:
       id: 5a8cc61c-8e3e-47bd-9fad-755db1711b87
       version: -1
       name: Tag Indicators
+      type: title
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: title
     nexttasks:
       '#none#':
       - '19'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1100,\n    \"y\": 2025\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 2780\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -636,25 +647,15 @@ tasks:
       id: 5a9b09d2-5d6e-47d9-8f15-506fb793be98
       version: -1
       name: Tag IP — Uncommon
+      script: Builtin|||setIndicators
+      type: regular
       iscommand: true
       brand: Builtin
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: regular
-      script: Builtin|||setIndicators
     nexttasks:
       '#none#':
       - '17'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 600,\n    \"y\": 2025\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     scriptarguments:
       indicatorsValues:
         complex:
@@ -678,6 +679,16 @@ tasks:
                   simple: ','
       tags:
         simple: Uncommon
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 807.5,\n    \"y\": 2595\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '19':
     id: '19'
     taskid: d63ac3d3-a6ca-41dc-88f8-ea9309fe1450
@@ -686,26 +697,16 @@ tasks:
       id: d63ac3d3-a6ca-41dc-88f8-ea9309fe1450
       version: -1
       name: Tag Threat Indicators
+      description: Tags all threat indicators with the detection source for downstream filtering and reporting.
+      script: Builtin|||setIndicators
+      type: regular
       iscommand: true
       brand: Builtin
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Tags all threat indicators with the detection source for downstream filtering and reporting.
-      type: regular
-      script: Builtin|||setIndicators
     nexttasks:
       '#none#':
       - '20'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 850,\n    \"y\": 2210\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     scriptarguments:
       indicatorsValues:
         complex:
@@ -718,6 +719,16 @@ tasks:
                   simple: ','
       tags:
         simple: ProofpointTAPThreat
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 2950\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '20':
     id: '20'
     taskid: c22b6d6c-cb2a-4870-98e8-75d350a5d666
@@ -726,26 +737,17 @@ tasks:
       id: c22b6d6c-cb2a-4870-98e8-75d350a5d666
       version: -1
       name: Threat Indicator Defined?
+      type: condition
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: condition
     nexttasks:
       '#default#':
       - '23'
       'yes':
       - '21'
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 850,\n    \"y\": 2400\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     conditions:
     - label: 'yes'
       condition:
@@ -754,6 +756,15 @@ tasks:
             value:
               simple: inputs.ThreatIndicator
             iscontext: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 3135\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '21':
     id: '21'
     taskid: 160fc4ae-0779-4852-89e5-9c6b80fd678a
@@ -762,19 +773,23 @@ tasks:
       id: 160fc4ae-0779-4852-89e5-9c6b80fd678a
       version: -1
       name: Get Indicator DBot Score
+      description: Retrieves the cached DBot score for the threat indicator to use in verdict resolution.
+      scriptName: GetIndicatorDBotScoreFromCache
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Retrieves the cached DBot score for the threat indicator to use in verdict resolution.
-      type: regular
-      scriptName: GetIndicatorDBotScoreFromCache
     nexttasks:
       '#none#':
       - '22'
+    scriptarguments:
+      value:
+        simple: ${inputs.ThreatIndicator}
     separatecontext: false
+    continueonerror: true
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1100,\n    \"y\": 2590\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 807.5,\n    \"y\": 3320\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -782,10 +797,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      value:
-        simple: ${inputs.ThreatIndicator}
-    continueonerror: true
   '22':
     id: '22'
     taskid: 97d2885d-b15b-4b36-b1c0-40e01db2fbbe
@@ -794,28 +805,22 @@ tasks:
       id: 97d2885d-b15b-4b36-b1c0-40e01db2fbbe
       version: -1
       name: Set Email Source Verdict from DBot
+      description: Maps the numeric DBot score to the standard source_verdict string used in Analysis. Used as a secondary
+        signal — primary verdict comes from Proofpoint ThreatStatus.
+      scriptName: SetAndHandleEmpty
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      description: Maps the numeric DBot score to the standard source_verdict string used in Analysis. Used as a secondary
-        signal — primary verdict comes from Proofpoint ThreatStatus.
-      type: regular
-      scriptName: SetAndHandleEmpty
     nexttasks:
       '#none#':
       - '23'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1100,\n    \"y\": 2775\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
       key:
         simple: Analysis.Email.source_verdict
       value:
@@ -838,10 +843,16 @@ tasks:
                 value:
                   simple: benign,suspicious,malicious
               sep: {}
-      append:
-        simple: 'false'
-      force:
-        simple: 'true'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 807.5,\n    \"y\": 3505\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '23':
     id: '23'
     taskid: 779d977b-7cd8-4322-8045-cbab913210e0
@@ -850,17 +861,17 @@ tasks:
       id: 779d977b-7cd8-4322-8045-cbab913210e0
       version: -1
       name: Set Signal Type
+      type: title
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: title
     nexttasks:
       '#none#':
       - '24'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 2960\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 3690\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -876,28 +887,19 @@ tasks:
       id: c91af9b6-2a49-4585-a96f-8e94b1572c1c
       version: -1
       name: Classify Signal Type
+      type: condition
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: condition
     nexttasks:
       '#default#':
       - '27'
-      URL Phish:
-      - '25'
       File Malware:
       - '26'
+      URL Phish:
+      - '25'
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 3130\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
     conditions:
     - label: URL Phish
       condition:
@@ -921,6 +923,15 @@ tasks:
             value:
               simple: attachment
           ignorecase: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 3860\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '25':
     id: '25'
     taskid: 2b8c2bd5-c608-4083-bf1b-d598cfa93e97
@@ -929,18 +940,27 @@ tasks:
       id: 2b8c2bd5-c608-4083-bf1b-d598cfa93e97
       version: -1
       name: Set Signal Type — url_phish
+      scriptName: SetAndHandleEmpty
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: regular
-      scriptName: SetAndHandleEmpty
     nexttasks:
       '#none#':
       - '28'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Analysis.Email.signal_type
+      value:
+        simple: url_phish
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 3320\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 265,\n    \"y\": 4045\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -948,15 +968,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      key:
-        simple: Analysis.Email.signal_type
-      value:
-        simple: url_phish
-      append:
-        simple: 'false'
-      force:
-        simple: 'true'
   '26':
     id: '26'
     taskid: ace0321d-e7e3-4fea-a901-583b475a9687
@@ -965,18 +976,27 @@ tasks:
       id: ace0321d-e7e3-4fea-a901-583b475a9687
       version: -1
       name: Set Signal Type — file_malware
+      scriptName: SetAndHandleEmpty
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: regular
-      scriptName: SetAndHandleEmpty
     nexttasks:
       '#none#':
       - '28'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Analysis.Email.signal_type
+      value:
+        simple: file_malware
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 3320\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 4045\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -984,15 +1004,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      key:
-        simple: Analysis.Email.signal_type
-      value:
-        simple: file_malware
-      append:
-        simple: 'false'
-      force:
-        simple: 'true'
   '27':
     id: '27'
     taskid: 733d359e-2a41-4ce2-bb62-e9bbcebc0234
@@ -1001,18 +1012,27 @@ tasks:
       id: 733d359e-2a41-4ce2-bb62-e9bbcebc0234
       version: -1
       name: Set Signal Type — unknown
+      scriptName: SetAndHandleEmpty
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: regular
-      scriptName: SetAndHandleEmpty
     nexttasks:
       '#none#':
       - '28'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Analysis.Email.signal_type
+      value:
+        simple: unknown
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 985,\n    \"y\": 3320\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 1125,\n    \"y\": 4045\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -1020,15 +1040,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-    scriptarguments:
-      key:
-        simple: Analysis.Email.signal_type
-      value:
-        simple: unknown
-      append:
-        simple: 'false'
-      force:
-        simple: 'true'
   '28':
     id: '28'
     taskid: dfd77dbc-f8ca-44c3-b95d-63f4f3bb028f
@@ -1037,15 +1048,14 @@ tasks:
       id: dfd77dbc-f8ca-44c3-b95d-63f4f3bb028f
       version: -1
       name: Done
+      type: title
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-      type: title
-    nexttasks: {}
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 592,\n    \"y\": 3510\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 4230\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -1055,10 +1065,10 @@ tasks:
     isautoswitchedtoquietmode: false
   g12:
     id: g12
-    taskid: gateg12-sig-inputs.S-check1234
+    taskid: 3f7e2d1c-4b5a-4987-b8c9-d0e1f2a3b4c5
     type: condition
     task:
-      id: gateg12-sig-inputs.S-check1234
+      id: 3f7e2d1c-4b5a-4987-b8c9-d0e1f2a3b4c5
       version: -1
       name: Sender Domain Available?
       description: Skip Sender Domain prevalence check if value is empty — continueonerror fallback.
@@ -1072,6 +1082,7 @@ tasks:
       - '13'
       'yes':
       - '12'
+    separatecontext: false
     conditions:
     - label: 'yes'
       condition:
@@ -1082,9 +1093,8 @@ tasks:
             iscontext: true
           right:
             value: {}
-    separatecontext: false
     continueonerrortype: ''
-    view: '{"position": {"x": 480, "y": 0}}'
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 1300\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -1094,10 +1104,10 @@ tasks:
     isautoswitchedtoquietmode: false
   g14:
     id: g14
-    taskid: gateg14-sig-inputs.S-check1234
+    taskid: 4e8f3d2c-5c6b-4098-c9da-e1f2a3b4c5d6
     type: condition
     task:
-      id: gateg14-sig-inputs.S-check1234
+      id: 4e8f3d2c-5c6b-4098-c9da-e1f2a3b4c5d6
       version: -1
       name: Sender IP Available?
       description: Skip Sender IP prevalence check if value is empty — continueonerror fallback.
@@ -1111,6 +1121,7 @@ tasks:
       - '16'
       'yes':
       - '14'
+    separatecontext: false
     conditions:
     - label: 'yes'
       condition:
@@ -1121,9 +1132,8 @@ tasks:
             iscontext: true
           right:
             value: {}
-    separatecontext: false
     continueonerrortype: ''
-    view: '{"position": {"x": 480, "y": 0}}'
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 2040\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -1131,6 +1141,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+system: true
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 4240,\n      \"width\":\
+  \ 1670,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
 inputs:
 - key: ThreatType
   value:
@@ -1178,6 +1191,12 @@ inputSections:
   - SenderIP
   name: Sender
   description: Sender identity inputs for prevalence analysis
+outputSections:
+- outputs:
+  - Analysis.Email.signal_type
+  - Analysis.Email.source_verdict
+  name: Signal Characterization
+  description: ''
 outputs:
 - contextPath: Analysis.Email.signal_type
   description: 'Behavioral classification of the email threat: url_phish / file_malware / unknown'
@@ -1186,23 +1205,4 @@ outputs:
   description: 'DBot-derived indicator verdict: malicious / suspicious / benign. Secondary signal — primary verdict comes
     from ThreatStatus in SOC Email Verdict Resolution_V3.'
   type: string
-outputSections:
-- outputs:
-  - Analysis.Email.signal_type
-  - Analysis.Email.source_verdict
-  name: Signal Characterization
-  description: ''
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 3530,\n      \"width\":\
-  \ 1620,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
-contentitemexportablefields:
-  contentitemfields:
-    definitionid: ''
-    fromServerVersion: 6.10.0
-    isoverridable: false
-    itemVersion: 3.0.0
-    packID: soc-framework-nist-ir
-    packName: SOC Framework Unified
-    prevname: ''
-    supportedModules: []
-    toServerVersion: ''
-dirtyInputs: true
+adopted: true
