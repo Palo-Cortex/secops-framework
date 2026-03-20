@@ -647,6 +647,15 @@ def main():
         failed, error_msg = integration_failed(result)
 
         if failed:
+            # Check for error 23 — integration not installed or not enabled in this tenant.
+            # Soft-fail so the playbook can continue in degraded mode rather than halting
+            # the entire lifecycle. Shadow mode never reaches this path (vendor command is
+            # suppressed), so this check is execute-only by construction.
+            integration_unavailable = (
+                    "Unsupported Command" in (error_msg or "")
+                    or "(23)" in (error_msg or "")
+            )
+
             record = {
                 "run_id": run_id,
                 "action": action,
@@ -672,12 +681,12 @@ def main():
                 "action": action,
                 "vendor": vendor,
                 "command": command,
-                "action_status": "failed",
+                "action_status": "integration_unavailable" if integration_unavailable else "failed",
                 "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
                 "execution_mode": "production",
                 "shadow_mode_state": "not_applicable",
                 "has_error": True,
-                "error_type": "command_execution",
+                "error_type": "integration_unavailable" if integration_unavailable else "command_execution",
                 "error_message": error_msg
             }
 
@@ -689,6 +698,29 @@ def main():
                 record,
                 tags
             )
+
+            if integration_unavailable:
+                # Null out UC.* output keys so downstream conditions evaluate cleanly
+                # (missing key → default/blocked path) rather than raising errors
+                output_map = vendor_data.get("output_map", {})
+                for dest_key in (output_map or {}).keys():
+                    demisto.setContext(dest_key, None)
+
+                return_warning(
+                    f"[SOCCommandWrapper] Integration not available for action '{action}'. "
+                    f"Command: {command}. "
+                    f"Install and configure the required integration to enable this action."
+                )
+                return_results(CommandResults(
+                    readable_output=(
+                        f"⚠️ Integration unavailable: `{command}`\n\n"
+                        f"Action `{action}` requires an integration that is not installed or enabled. "
+                        f"Playbook continues in degraded mode."
+                    ),
+                    outputs_prefix="UC",
+                    outputs={"action": action, "status": "integration_unavailable", "command": command}
+                ))
+                return
 
             return_error(error_msg)
 
