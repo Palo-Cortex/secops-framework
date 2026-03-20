@@ -1,0 +1,711 @@
+[
+  {
+    "name": "Signal Char \u2014 URL phish happy path",
+    "playbook": "SOC_Email_Signal_Characterization_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "SOCFramework.Artifacts.Email.ThreatType": "url",
+      "SOCFramework.Artifacts.Email.ThreatURL": "http://brieftragerin.skt.local/update/NTFVersion.exe",
+      "SOCFramework.Artifacts.Email.From": "noreply@sktlocal.it",
+      "alert.senderip": "198.51.100.45"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.signal_type",
+        "expected": "url_phish"
+      }
+    ]
+  },
+  {
+    "name": "Signal Char \u2014 attachment/file malware path",
+    "playbook": "SOC_Email_Signal_Characterization_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "SOCFramework.Artifacts.Email.ThreatType": "attachment",
+      "SOCFramework.Artifacts.Email.ThreatURL": "http://brieftragerin.skt.local/update/NTFVersion.exe",
+      "SOCFramework.Artifacts.Email.From": "noreply@sktlocal.it",
+      "alert.senderip": "198.51.100.45",
+      "alert.proofpointtapthreatinfomap": [
+        {
+          "threat": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a"
+        }
+      ]
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.signal_type",
+        "expected": "file_malware"
+      }
+    ]
+  },
+  {
+    "name": "Signal Char \u2014 unknown threat type falls to default",
+    "playbook": "SOC_Email_Signal_Characterization_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "SOCFramework.Artifacts.Email.ThreatType": "spam",
+      "SOCFramework.Artifacts.Email.From": "noreply@sktlocal.it"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.signal_type",
+        "expected": "unknown"
+      }
+    ]
+  },
+  {
+    "name": "Signal Char \u2014 empty SenderDomain skips prevalence check",
+    "playbook": "SOC_Email_Signal_Characterization_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "edge_case"
+    ],
+    "context_inputs": {
+      "SOCFramework.Artifacts.Email.ThreatType": "url",
+      "SOCFramework.Artifacts.Email.ThreatURL": "http://evil.com/payload",
+      "SOCFramework.Artifacts.Email.From": ""
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.signal_type",
+        "expected": "url_phish"
+      },
+      {
+        "type": "task_not_executed",
+        "target": "12",
+        "description": "Sender Domain Prevalence Check gated"
+      }
+    ]
+  },
+  {
+    "name": "Exposure \u2014 click event seeds clicked level",
+    "playbook": "SOC_Email_Exposure_Evaluation_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "alert.type": "clicks permitted",
+      "alert.username": "jsmith@corp.com",
+      "lists.SOCFWHighValueUsers": "ceo@corp.com,cfo@corp.com"
+    },
+    "uc_mocks": {
+      "soc-get-email-events": {
+        "UC.Email.Events.clicks_permitted": [
+          "click1"
+        ],
+        "UC.Email.Events.messages_delivered": [
+          "msg1"
+        ]
+      },
+      "soc-get-email-forensics": {}
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.level",
+        "expected": "clicked"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.recipient_scope",
+        "expected": "targeted",
+        "description": "1 mailbox = targeted (<=5)"
+      }
+    ]
+  },
+  {
+    "name": "Exposure \u2014 delivery only \u2192 delivered",
+    "playbook": "SOC_Email_Exposure_Evaluation_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "alert.type": "messages delivered",
+      "alert.username": "jsmith@corp.com"
+    },
+    "uc_mocks": {
+      "soc-get-email-events": {
+        "UC.Email.Events.clicks_permitted": [],
+        "UC.Email.Events.messages_delivered": [
+          "msg1",
+          "msg2",
+          "msg3"
+        ]
+      },
+      "soc-get-email-forensics": {}
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.level",
+        "expected": "delivered"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.recipient_scope",
+        "expected": "targeted"
+      }
+    ]
+  },
+  {
+    "name": "Exposure \u2014 no events \u2192 blocked",
+    "playbook": "SOC_Email_Exposure_Evaluation_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "alert.type": "messages blocked",
+      "alert.username": "jsmith@corp.com"
+    },
+    "uc_mocks": {
+      "soc-get-email-events": {},
+      "soc-get-email-forensics": {}
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.level",
+        "expected": "blocked"
+      }
+    ]
+  },
+  {
+    "name": "Exposure \u2014 broad blast (>5 mailboxes) \u2192 broad scope",
+    "playbook": "SOC_Email_Exposure_Evaluation_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "alert.type": "messages delivered",
+      "alert.username": "jsmith@corp.com"
+    },
+    "uc_mocks": {
+      "soc-get-email-events": {
+        "UC.Email.Events.clicks_permitted": [],
+        "UC.Email.Events.messages_delivered": [
+          "m1",
+          "m2",
+          "m3",
+          "m4",
+          "m5",
+          "m6",
+          "m7",
+          "m8"
+        ]
+      },
+      "soc-get-email-forensics": {}
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.recipient_scope",
+        "expected": "broad"
+      }
+    ]
+  },
+  {
+    "name": "Exposure \u2014 high value user flagged",
+    "playbook": "SOC_Email_Exposure_Evaluation_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "edge_case"
+    ],
+    "context_inputs": {
+      "alert.type": "clicks permitted",
+      "alert.username": "ceo@corp.com",
+      "lists.SOCFWHighValueUsers": "ceo@corp.com,cfo@corp.com"
+    },
+    "uc_mocks": {
+      "soc-get-email-events": {
+        "UC.Email.Events.clicks_permitted": [
+          "c1"
+        ],
+        "UC.Email.Events.messages_delivered": [
+          "m1"
+        ]
+      },
+      "soc-get-email-forensics": {}
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.high_value_user",
+        "expected": "true"
+      }
+    ]
+  },
+  {
+    "name": "Verdict \u2014 active ThreatStatus \u2192 malicious high confidence + search_and_purge",
+    "playbook": "SOC_Email_Verdict_Resolution_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.ThreatStatus": "active",
+      "inputs.Classification": "phish",
+      "inputs.HighValueUserInvolved": "false",
+      "inputs.ClickCount": "1",
+      "inputs.DeliveredCount": "1",
+      "Analysis.Email.source_verdict": "malicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.verdict",
+        "expected": "malicious"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.confidence",
+        "expected": "high"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.response_recommended",
+        "expected": "search_and_purge"
+      }
+    ]
+  },
+  {
+    "name": "Verdict \u2014 suspicious ThreatStatus \u2192 medium confidence malicious",
+    "playbook": "SOC_Email_Verdict_Resolution_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.ThreatStatus": "suspicious",
+      "inputs.Classification": "phish",
+      "inputs.ClickCount": "0",
+      "inputs.DeliveredCount": "1",
+      "Analysis.Email.source_verdict": "suspicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.verdict",
+        "expected": "malicious"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.confidence",
+        "expected": "medium"
+      }
+    ]
+  },
+  {
+    "name": "Verdict \u2014 cleared ThreatStatus \u2192 benign low confidence no action",
+    "playbook": "SOC_Email_Verdict_Resolution_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.ThreatStatus": "cleared",
+      "inputs.Classification": "spam",
+      "inputs.ClickCount": "0",
+      "inputs.DeliveredCount": "0"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.verdict",
+        "expected": "benign"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.confidence",
+        "expected": "low"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.response_recommended",
+        "expected": "no_action"
+      }
+    ]
+  },
+  {
+    "name": "Forensics \u2014 both IDs available \u2192 forensics returned",
+    "playbook": "SOC_Email_Forensics_Evaluation_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "alert": {
+        "proofpointtapcampaignid": "turla-carbon-spearphish-skt-2025",
+        "proofpointtapthreatid": "a1b2c3d4e5f6a7b8c9d0"
+      }
+    },
+    "uc_mocks": {
+      "soc-get-email-forensics": {
+        "UC.Email.Forensics": {
+          "threatType": "url",
+          "display": "Malicious redirect observed"
+        }
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "SOCFramework.Email.TAP.CampaignID"
+      },
+      {
+        "type": "context_key_exists",
+        "target": "SOCFramework.Email.TAP.ThreatID"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.forensics_available",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "Forensics \u2014 no IDs \u2192 no forensics call",
+    "playbook": "SOC_Email_Forensics_Evaluation_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {},
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.forensics_available",
+        "expected": "true",
+        "description": "Task 13 always runs \u2014 forensics_available always set true (playbook limitation)"
+      }
+    ]
+  },
+  {
+    "name": "IOC Enrichment \u2014 URL threat enriched and flagged",
+    "playbook": "SOC_Email_IOC_Enrichment_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.ThreatURL": "http://brieftragerin.skt.local/update/NTFVersion.exe",
+      "SOCFramework.Artifacts.Email.ThreatType": "url",
+      "alert.senderip": "198.51.100.45"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.ioc_enriched",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "IOC Enrichment \u2014 file attachment path",
+    "playbook": "SOC_Email_IOC_Enrichment_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "SOCFramework.Artifacts.Email.ThreatType": "attachment",
+      "alert.proofpointtapthreatinfomap.threatType": "attachment",
+      "alert.proofpointtapthreatinfomap": {
+        "threatType": "attachment",
+        "threat": "a3f8e2d94c1b7065"
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.ioc_enriched",
+        "expected": true
+      },
+      {
+        "type": "task_executed",
+        "target": "7",
+        "description": "Create File Indicator should run"
+      },
+      {
+        "type": "task_not_executed",
+        "target": "3",
+        "description": "URL IOC Path skipped"
+      }
+    ]
+  },
+  {
+    "name": "IOC Enrichment \u2014 no threat type \u2192 still completes",
+    "playbook": "SOC_Email_IOC_Enrichment_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "edge_case"
+    ],
+    "context_inputs": {},
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.ioc_enriched",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "Containment \u2014 malicious + search_and_purge \u2192 required",
+    "playbook": "SOC_Email_Containment_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.Verdict": "malicious",
+      "inputs.Confidence": "high",
+      "inputs.ResponseRecommended": "search_and_purge",
+      "inputs.ExposureLevel": "clicked"
+    },
+    "uc_mocks": {
+      "soc-email-search-and-purge": {
+        "Containment.action": "search_and_purge"
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Containment.required",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "Containment \u2014 benign verdict \u2192 not required",
+    "playbook": "SOC_Email_Containment_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.Verdict": "benign",
+      "inputs.Confidence": "low",
+      "inputs.ResponseRecommended": "no_action",
+      "inputs.ExposureLevel": "blocked"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Containment.required",
+        "expected": false
+      }
+    ]
+  },
+  {
+    "name": "Eradication \u2014 containment required \u2192 eradication attempted",
+    "playbook": "SOC_Email_Eradication_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.ContainmentRequired": "true",
+      "inputs.ResponseRecommended": "search_and_purge",
+      "inputs.PersistenceType": "none"
+    },
+    "uc_mocks": {
+      "soc-email-delete-message": {}
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "Eradication \u2014 escalate_IR skips automated eradication",
+    "playbook": "SOC_Email_Eradication_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.ContainmentRequired": "true",
+      "inputs.ResponseRecommended": "escalate_IR",
+      "inputs.PersistenceType": "none"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": false,
+        "description": "escalate_IR skips automated eradication"
+      }
+    ]
+  },
+  {
+    "name": "Eradication \u2014 no containment \u2192 not attempted",
+    "playbook": "SOC_Email_Eradication_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.ContainmentRequired": "false",
+      "inputs.ResponseRecommended": "no_action"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": false
+      }
+    ]
+  },
+  {
+    "name": "Recovery \u2014 eradication succeeded \u2192 complete",
+    "playbook": "SOC_Email_Recovery_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.EradicationAttempted": "true",
+      "inputs.EradicationSuccess": "true",
+      "inputs.Verdict": "malicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.status",
+        "expected": "contained"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.monitoring_required",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "Recovery \u2014 eradication failed \u2192 partial",
+    "playbook": "SOC_Email_Recovery_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.EradicationAttempted": "true",
+      "inputs.EradicationSuccess": "false",
+      "inputs.Verdict": "malicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.status",
+        "expected": "eradication_failed"
+      }
+    ]
+  },
+  {
+    "name": "Recovery \u2014 false positive \u2192 unblock sender path",
+    "playbook": "SOC_Email_Recovery_V3",
+    "category": "email",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.EradicationAttempted": "true",
+      "inputs.EradicationSuccess": "true",
+      "inputs.Verdict": "benign"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.status",
+        "expected": "false_positive_cleared",
+        "description": "FP path: verdict=benign \u2192 unblock sender \u2192 false_positive_cleared"
+      }
+    ]
+  }
+]

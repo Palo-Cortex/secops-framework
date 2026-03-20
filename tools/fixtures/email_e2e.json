@@ -1,0 +1,536 @@
+[
+  {
+    "name": "E2E/Turla \u2014 Signal Char (URL phish)",
+    "playbook": "SOC_Email_Signal_Characterization_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "SOCFramework.Artifacts.Email.ThreatType": "url",
+      "SOCFramework.Artifacts.Email.ThreatURL": "http://brieftragerin.skt.local/update/NTFVersion.exe",
+      "SOCFramework.Artifacts.Email.From": "noreply@sktlocal.it",
+      "alert.senderip": "198.51.100.45"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.signal_type",
+        "expected": "url_phish"
+      }
+    ]
+  },
+  {
+    "name": "E2E/Turla \u2014 Exposure (click event, targeted scope)",
+    "playbook": "SOC_Email_Exposure_Evaluation_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "alert.type": "clicks permitted",
+      "alert.username": "Gunter@SKT.LOCAL",
+      "lists.SOCFWHighValueUsers": ""
+    },
+    "uc_mocks": {
+      "soc-get-email-events": {
+        "UC.Email.Events.clicks_permitted": [
+          {
+            "GUID": "TAP-GUID-TURLA-CLICK-002",
+            "clickIP": "10.20.20.102"
+          }
+        ],
+        "UC.Email.Events.messages_delivered": [
+          {
+            "GUID": "TAP-GUID-TURLA-DELIVERY-001",
+            "recipient": "Gunter@SKT.LOCAL"
+          }
+        ]
+      },
+      "soc-get-email-forensics": {
+        "UC.Email.Forensics": {
+          "threatType": "url",
+          "display": "NTFVersion.exe redirect"
+        }
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.level",
+        "expected": "clicked"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.recipient_scope",
+        "expected": "targeted"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.click_count",
+        "expected": 1
+      }
+    ]
+  },
+  {
+    "name": "E2E/Turla \u2014 IOC Enrichment (URL path, domain tagged)",
+    "playbook": "SOC_Email_IOC_Enrichment_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "inputs.ThreatURL": "http://brieftragerin.skt.local/update/NTFVersion.exe",
+      "SOCFramework.Artifacts.Email.ThreatType": "url",
+      "alert.senderip": "198.51.100.45"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.ioc_enriched",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "E2E/Turla \u2014 Forensics (campaign+threat IDs present)",
+    "playbook": "SOC_Email_Forensics_Evaluation_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "alert": {
+        "proofpointtapcampaignid": "turla-carbon-spearphish-skt-2025",
+        "proofpointtapthreatid": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
+      }
+    },
+    "uc_mocks": {
+      "soc-get-email-forensics": {
+        "UC.Email.Forensics": {
+          "threatType": "url",
+          "display": "NTFVersion.exe malicious redirect"
+        }
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.forensics_available",
+        "expected": true
+      },
+      {
+        "type": "context_key_exists",
+        "target": "SOCFramework.Email.TAP.CampaignID"
+      },
+      {
+        "type": "context_key_exists",
+        "target": "SOCFramework.Email.TAP.ThreatID"
+      }
+    ]
+  },
+  {
+    "name": "E2E/Turla \u2014 Verdict (active \u2192 malicious/high/search_and_purge)",
+    "playbook": "SOC_Email_Verdict_Resolution_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "inputs.ThreatStatus": "active",
+      "inputs.Classification": "phish",
+      "inputs.HighValueUserInvolved": "false",
+      "inputs.ClickCount": "1",
+      "inputs.DeliveredCount": "1",
+      "Analysis.Email.source_verdict": "malicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.verdict",
+        "expected": "malicious"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.confidence",
+        "expected": "high"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.response_recommended",
+        "expected": "search_and_purge"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.internal_lateral_risk",
+        "expected": false
+      }
+    ]
+  },
+  {
+    "name": "E2E/Turla \u2014 Containment (search_and_purge in shadow mode)",
+    "playbook": "SOC_Email_Containment_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "inputs.Verdict": "malicious",
+      "inputs.Confidence": "high",
+      "inputs.ResponseRecommended": "search_and_purge",
+      "inputs.ExposureLevel": "clicked"
+    },
+    "uc_mocks": {
+      "soc-email-search-and-purge": {
+        "Containment.action": "search_and_purge",
+        "Containment.story": "Shadow mode \u2014 search_and_purge logged"
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Containment.required",
+        "expected": true
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Containment.action",
+        "expected": "search_and_purge"
+      }
+    ]
+  },
+  {
+    "name": "E2E/Turla \u2014 Eradication (message deleted)",
+    "playbook": "SOC_Email_Eradication_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "inputs.ContainmentRequired": "true",
+      "inputs.ResponseRecommended": "search_and_purge",
+      "inputs.PersistenceType": "none"
+    },
+    "uc_mocks": {
+      "soc-email-delete-message": {
+        "Eradication.success": true
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": true
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.success",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "E2E/Turla \u2014 Recovery (complete, monitoring on)",
+    "playbook": "SOC_Email_Recovery_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "turla_carbon"
+    ],
+    "context_inputs": {
+      "inputs.EradicationAttempted": "true",
+      "inputs.EradicationSuccess": "true",
+      "inputs.Verdict": "malicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.status",
+        "expected": "contained"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.monitoring_required",
+        "expected": true
+      }
+    ]
+  },
+  {
+    "name": "E2E/File Malware \u2014 Signal Char (attachment)",
+    "playbook": "SOC_Email_Signal_Characterization_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "file_malware"
+    ],
+    "context_inputs": {
+      "SOCFramework.Artifacts.Email.ThreatType": "attachment",
+      "SOCFramework.Artifacts.Email.ThreatURL": "http://cdn.evil.io/payload.exe",
+      "SOCFramework.Artifacts.Email.From": "billing@evil.io",
+      "alert.senderip": "203.0.113.42",
+      "alert.proofpointtapthreatinfomap": [
+        {
+          "threat": "deadbeef1234deadbeef1234deadbeef1234deadbeef1234deadbeef1234dead"
+        }
+      ]
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.signal_type",
+        "expected": "file_malware"
+      }
+    ]
+  },
+  {
+    "name": "E2E/File Malware \u2014 Verdict (active/malware \u2192 quarantine)",
+    "playbook": "SOC_Email_Verdict_Resolution_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "happy_path",
+      "file_malware"
+    ],
+    "context_inputs": {
+      "inputs.ThreatStatus": "active",
+      "inputs.Classification": "malware",
+      "inputs.ClickCount": "0",
+      "inputs.DeliveredCount": "3",
+      "Analysis.Email.source_verdict": "malicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.verdict",
+        "expected": "malicious"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.response_recommended",
+        "expected": "retract_message",
+        "description": "delivered=3, clicks=0 \u2192 retract delivered messages (quarantine only if delivered==0)"
+      }
+    ]
+  },
+  {
+    "name": "E2E/False Positive \u2014 Verdict (cleared \u2192 benign/no_action)",
+    "playbook": "SOC_Email_Verdict_Resolution_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "non_happy",
+      "false_positive"
+    ],
+    "context_inputs": {
+      "inputs.ThreatStatus": "cleared",
+      "inputs.Classification": "spam",
+      "inputs.ClickCount": "0",
+      "inputs.DeliveredCount": "0",
+      "Analysis.Email.source_verdict": "benign"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.verdict",
+        "expected": "benign"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.confidence",
+        "expected": "low"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.response_recommended",
+        "expected": "no_action"
+      }
+    ]
+  },
+  {
+    "name": "E2E/False Positive \u2014 Containment (benign \u2192 not required)",
+    "playbook": "SOC_Email_Containment_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "non_happy",
+      "false_positive"
+    ],
+    "context_inputs": {
+      "inputs.Verdict": "benign",
+      "inputs.Confidence": "low",
+      "inputs.ResponseRecommended": "no_action",
+      "inputs.ExposureLevel": "blocked"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Containment.required",
+        "expected": false
+      }
+    ]
+  },
+  {
+    "name": "E2E/False Positive \u2014 Recovery (FP \u2192 unblock sender path)",
+    "playbook": "SOC_Email_Recovery_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "non_happy",
+      "false_positive"
+    ],
+    "context_inputs": {
+      "inputs.EradicationAttempted": "true",
+      "inputs.EradicationSuccess": "true",
+      "inputs.Verdict": "benign"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.status",
+        "expected": "false_positive_cleared"
+      }
+    ]
+  },
+  {
+    "name": "E2E/Broad Campaign \u2014 Exposure (12 mailboxes \u2192 broad)",
+    "playbook": "SOC_Email_Exposure_Evaluation_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "non_happy",
+      "broad_campaign"
+    ],
+    "context_inputs": {
+      "alert.type": "messages delivered",
+      "alert.username": "user@corp.com"
+    },
+    "uc_mocks": {
+      "soc-get-email-events": {
+        "UC.Email.Events.clicks_permitted": [],
+        "UC.Email.Events.messages_delivered": [
+          "m1",
+          "m2",
+          "m3",
+          "m4",
+          "m5",
+          "m6",
+          "m7",
+          "m8",
+          "m9",
+          "m10",
+          "m11",
+          "m12"
+        ]
+      },
+      "soc-get-email-forensics": {}
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.recipient_scope",
+        "expected": "broad"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Email.Exposure.level",
+        "expected": "delivered"
+      }
+    ]
+  },
+  {
+    "name": "E2E/Broad Campaign \u2014 Verdict (HVU + wide click \u2192 escalate_IR)",
+    "playbook": "SOC_Email_Verdict_Resolution_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "non_happy",
+      "broad_campaign"
+    ],
+    "context_inputs": {
+      "inputs.ThreatStatus": "active",
+      "inputs.Classification": "phish",
+      "inputs.HighValueUserInvolved": "true",
+      "inputs.ClickCount": "8",
+      "inputs.DeliveredCount": "12",
+      "Analysis.Email.source_verdict": "malicious"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.verdict",
+        "expected": "malicious"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Email.response_recommended",
+        "expected": "escalate_IR"
+      }
+    ]
+  },
+  {
+    "name": "E2E/Broad Campaign \u2014 Eradication (escalate_IR \u2192 no automation)",
+    "playbook": "SOC_Email_Eradication_V3",
+    "category": "email",
+    "suite": "e2e",
+    "tags": [
+      "non_happy",
+      "broad_campaign"
+    ],
+    "context_inputs": {
+      "inputs.ContainmentRequired": "true",
+      "inputs.ResponseRecommended": "escalate_IR",
+      "inputs.PersistenceType": "none"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": false,
+        "description": "escalate_IR: analyst takes over, no automated eradication"
+      }
+    ]
+  }
+]

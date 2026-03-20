@@ -1,0 +1,456 @@
+[
+  {
+    "name": "Identity Analysis \u2014 Credential Access \u2192 signal_type + medium confidence",
+    "playbook": "SOC_Identity_Analysis_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.entity_id": "user-001",
+      "inputs.case_category": "identity",
+      "inputs.entity_type": "user",
+      "parentIncidentFields.mitre_tactics_ids_and_names": "TA0006 - Credential Access",
+      "parentIncidentFields.predicted_score": "75",
+      "parentIncidentFields.user_count": "1",
+      "parentIncidentFields.host_count": "1",
+      "parentIncidentFields.alert_count": "5"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {
+      "SOC Initialize Investigation Context_V3": {},
+      "SOC Analysis Evaluation_V3": {
+        "Analysis.verdict": "malicious",
+        "Analysis.confidence": "medium",
+        "Analysis.response_recommended": "true"
+      }
+    },
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "4",
+        "expected": "Credential Access"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Identity.signal_type",
+        "expected": "credential_access"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Identity.compromise_level",
+        "expected": "suspicious",
+        "description": "score=75 (<85) \u2192 t21 group2 fails \u2192 #default# \u2192 suspicious"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.verdict",
+        "expected": "malicious"
+      }
+    ]
+  },
+  {
+    "name": "Identity Analysis \u2014 Lateral Movement \u2192 lateral_movement signal",
+    "playbook": "SOC_Identity_Analysis_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.entity_id": "user-002",
+      "inputs.case_category": "identity",
+      "inputs.entity_type": "user",
+      "parentIncidentFields.mitre_tactics_ids_and_names": "TA0008 - Lateral Movement",
+      "parentIncidentFields.predicted_score": "75",
+      "parentIncidentFields.user_count": "3",
+      "parentIncidentFields.host_count": "2",
+      "parentIncidentFields.alert_count": "8"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {
+      "SOC Initialize Investigation Context_V3": {},
+      "SOC Analysis Evaluation_V3": {
+        "Analysis.verdict": "malicious",
+        "Analysis.confidence": "high",
+        "Analysis.response_recommended": "true"
+      }
+    },
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "4",
+        "expected": "Lateral Movement"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Identity.signal_type",
+        "expected": "lateral_movement"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.verdict",
+        "expected": "malicious"
+      }
+    ]
+  },
+  {
+    "name": "Identity Analysis \u2014 Privilege Escalation \u2192 privilege_escalation signal",
+    "playbook": "SOC_Identity_Analysis_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.entity_id": "user-003",
+      "inputs.case_category": "identity",
+      "inputs.entity_type": "user",
+      "parentIncidentFields.mitre_tactics_ids_and_names": "TA0004 - Privilege Escalation",
+      "parentIncidentFields.predicted_score": "90",
+      "parentIncidentFields.user_count": "1",
+      "parentIncidentFields.host_count": "1",
+      "parentIncidentFields.alert_count": "3"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {
+      "SOC Initialize Investigation Context_V3": {},
+      "SOC Analysis Evaluation_V3": {
+        "Analysis.verdict": "malicious",
+        "Analysis.confidence": "high"
+      }
+    },
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "4",
+        "expected": "Privilege Escalation"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Identity.signal_type",
+        "expected": "privilege_escalation"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Identity.compromise_level",
+        "expected": "likely_compromised",
+        "description": "score=90 (>=85) \u2192 t21 group2 passes \u2192 high \u2192 t22 \u2192 likely_compromised"
+      }
+    ]
+  },
+  {
+    "name": "Identity Analysis \u2014 Persistence \u2192 identity_persistence signal",
+    "playbook": "SOC_Identity_Analysis_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.entity_id": "user-004",
+      "inputs.case_category": "identity",
+      "inputs.entity_type": "user",
+      "parentIncidentFields.mitre_tactics_ids_and_names": "TA0003 - Persistence",
+      "parentIncidentFields.predicted_score": "70",
+      "parentIncidentFields.user_count": "1",
+      "parentIncidentFields.host_count": "1",
+      "parentIncidentFields.alert_count": "2"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {
+      "SOC Initialize Investigation Context_V3": {},
+      "SOC Analysis Evaluation_V3": {
+        "Analysis.verdict": "suspicious"
+      }
+    },
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "4",
+        "expected": "Persistence"
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Identity.signal_type",
+        "expected": "identity_persistence"
+      }
+    ]
+  },
+  {
+    "name": "Identity Containment \u2014 auto-contain \u2192 soc-disable-user and soc-clear-sessions",
+    "playbook": "SOC_Identity_Containment_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.AutoContainment": "true",
+      "inputs.UserContainment": "true",
+      "inputs.ClearUserSessions": "true",
+      "inputs.Username": "gunter.skt",
+      "inputs.IAMUserDomain": "SKT.LOCAL",
+      "inputs.FeaturedUser": "gunter.skt@SKT.LOCAL",
+      "inputs.FeaturedAD": "SKT.LOCAL",
+      "issue.mitreattcktechnique": "T1078"
+    },
+    "uc_mocks": {
+      "soc-disable-user": {
+        "Containment.user_disabled": true
+      },
+      "soc-clear-sessions": {
+        "Containment.sessions_cleared": true
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "164",
+        "expected": "yes",
+        "description": "MITRE T1078 matches \u2192 disable-user decision point reached"
+      },
+      {
+        "type": "branch_taken",
+        "target": "166",
+        "expected": "yes",
+        "description": "MITRE T1078 matches \u2192 clear-sessions decision point reached"
+      },
+      {
+        "type": "branch_taken",
+        "target": "157",
+        "expected": "#default#",
+        "description": "PLAYBOOK GAP: t157 Disable Account? has no condition body \u2192 always defaults to Done"
+      },
+      {
+        "type": "branch_taken",
+        "target": "159",
+        "expected": "#default#",
+        "description": "PLAYBOOK GAP: t159 Clear Sessions? has no condition body \u2192 always defaults to Done"
+      }
+    ]
+  },
+  {
+    "name": "Identity Containment \u2014 auto-contain disabled \u2192 manual path, no UC calls",
+    "playbook": "SOC_Identity_Containment_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.AutoContainment": "false",
+      "inputs.UserContainment": "false",
+      "inputs.ClearUserSessions": "false",
+      "inputs.Username": "jsmith",
+      "inputs.IAMUserDomain": "CORP.LOCAL",
+      "inputs.FeaturedUser": "jsmith@CORP.LOCAL",
+      "inputs.FeaturedAD": "CORP.LOCAL"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "138",
+        "expected": "#default#",
+        "description": "AutoContainment=false \u2192 goes to manual analyst path"
+      }
+    ]
+  },
+  {
+    "name": "Identity Eradication \u2014 likely_compromised \u2192 reset password + revoke tokens",
+    "playbook": "SOC_Identity_Eradication_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.compromise_level": "likely_compromised",
+      "inputs.compromise_decision": "confirmed_compromise",
+      "inputs.response_recommended": "true",
+      "inputs.primary_entity_user": "gunter.skt@SKT.LOCAL"
+    },
+    "uc_mocks": {
+      "soc-reset-password": {
+        "Eradication.credentials_reset": true
+      },
+      "soc-revoke-tokens": {
+        "Eradication.tokens_revoked": true
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": true
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.credentials_reset",
+        "expected": true
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.tokens_revoked",
+        "expected": true
+      },
+      {
+        "type": "task_executed",
+        "target": "21",
+        "description": "Reset Password UC task executed"
+      },
+      {
+        "type": "task_executed",
+        "target": "29",
+        "description": "Revoke Tokens UC task executed"
+      }
+    ]
+  },
+  {
+    "name": "Identity Eradication \u2014 suspicious \u2192 tokens revoked only (no password reset)",
+    "playbook": "SOC_Identity_Eradication_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.compromise_level": "suspicious",
+      "inputs.compromise_decision": "possible_compromise",
+      "inputs.response_recommended": "true",
+      "inputs.primary_entity_user": "jsmith@CORP.LOCAL"
+    },
+    "uc_mocks": {
+      "soc-revoke-tokens": {
+        "Eradication.tokens_revoked": true
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": true
+      },
+      {
+        "type": "branch_taken",
+        "target": "2",
+        "expected": "suspicious",
+        "description": "suspicious path \u2192 revoke only, no password reset"
+      },
+      {
+        "type": "task_not_executed",
+        "target": "21",
+        "description": "Password reset skipped for suspicious (not likely_compromised)"
+      }
+    ]
+  },
+  {
+    "name": "Identity Eradication \u2014 response_recommended=false \u2192 not attempted",
+    "playbook": "SOC_Identity_Eradication_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.compromise_level": "none",
+      "inputs.compromise_decision": "false_positive",
+      "inputs.response_recommended": "false",
+      "inputs.primary_entity_user": ""
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Eradication.attempted",
+        "expected": false
+      }
+    ]
+  },
+  {
+    "name": "Identity Recovery \u2014 eradication attempted \u2192 re-enable user",
+    "playbook": "SOC_Identity_Recovery_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.compromise_decision": "confirmed_compromise",
+      "Eradication.attempted": "true"
+    },
+    "uc_mocks": {
+      "soc-enable-user": {
+        "Recovery.account_restored": true
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.attempted",
+        "expected": true
+      },
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.account_restored",
+        "expected": true
+      },
+      {
+        "type": "task_executed",
+        "target": "200",
+        "description": "soc-enable-user UC task executed"
+      }
+    ]
+  },
+  {
+    "name": "Identity Recovery \u2014 eradication not attempted \u2192 no recovery",
+    "playbook": "SOC_Identity_Recovery_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.compromise_decision": "false_positive",
+      "Eradication.attempted": "false"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.attempted",
+        "expected": false
+      }
+    ]
+  },
+  {
+    "name": "Identity Recovery \u2014 no eradication context set \u2192 not attempted",
+    "playbook": "SOC_Identity_Recovery_V3",
+    "category": "identity",
+    "suite": "unit",
+    "tags": [
+      "edge_case"
+    ],
+    "context_inputs": {
+      "inputs.compromise_decision": "possible_compromise"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.attempted",
+        "expected": false
+      }
+    ]
+  }
+]
