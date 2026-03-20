@@ -23,26 +23,39 @@ def main():
     pack_name = pack_path.name
     failed = False
 
-    # ── Step 1: Normalize rule IDs and adopted flags ─────────────────────────
+    # ── Step 1: Normalize rule IDs and adopted flags ──────────────────────────
     print(f"\n=== Normalizing rule IDs: {pack_path} ===\n")
     subprocess.run(
         [sys.executable, "tools/normalize_ruleid_adopted.py", "--root", str(pack_path), "--fix"]
     )
 
-    # ── Step 2: Validate xsoar_config.json (if present) ──────────────────────
+    # ── Step 2: Validate xsoar_config.json — JSON validity ───────────────────
     config_path = pack_path / "xsoar_config.json"
     if config_path.exists():
-        print(f"\n=== Checking xsoar_config.json: {config_path} ===\n")
+        print(f"\n=== Checking xsoar_config.json (JSON validity): {config_path} ===\n")
         rc = subprocess.run(
             [sys.executable, "tools/validate_xsoar_configs.py", "--packs", pack_name]
         ).returncode
         if rc != 0:
-            print(f"xsoar_config.json is invalid — fix before uploading.")
+            print("xsoar_config.json is invalid JSON — fix before uploading.")
             failed = True
     else:
         print(f"\n--- No xsoar_config.json in {pack_path} — skipping config check ---")
 
-    # ── Step 3: demisto-sdk validate ─────────────────────────────────────────
+    # ── Step 3: Preflight xsoar_config.json — URL format check (no HTTP) ─────
+    # Runs format validation only (--no-http skips doc URL live checks).
+    # Full HTTP checks run in CI via the preflight job.
+    if config_path.exists() and not failed:
+        print(f"\n=== Preflight xsoar_config.json (URL format): {config_path} ===\n")
+        rc = subprocess.run(
+            [sys.executable, "tools/preflight_xsoar_config.py",
+             "--packs", pack_name, "--no-http"]
+        ).returncode
+        if rc != 0:
+            print("xsoar_config.json preflight failed — fix zip URL format before uploading.")
+            failed = True
+
+    # ── Step 4: demisto-sdk validate ─────────────────────────────────────────
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
     error_log = output_dir / "sdk_errors.txt"
