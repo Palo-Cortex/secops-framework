@@ -1,0 +1,449 @@
+[
+  {
+    "name": "Endpoint Signal Char \u2014 malware in case name",
+    "playbook": "SOC_Endpoint_Signal_Characterization_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.case_name": "Malware: CrowdStrike Falcon Detection",
+      "inputs.cgo_name": ""
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Endpoint.signal_type",
+        "expected": "file_malware",
+        "description": "Malware case name \u2192 file_malware signal type"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Signal Char \u2014 wildfire in case name \u2192 malware path",
+    "playbook": "SOC_Endpoint_Signal_Characterization_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.case_name": "wildfire",
+      "inputs.cgo_name": ""
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "Analysis.Endpoint.signal_type"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Signal Char \u2014 no match \u2192 default signal type",
+    "playbook": "SOC_Endpoint_Signal_Characterization_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.case_name": "Suspicious Network Activity",
+      "inputs.cgo_name": ""
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_absent",
+        "target": "Analysis.Endpoint.signal_type",
+        "description": "No matching case_name pattern \u2192 no signal_type written (playbook design)"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Verdict \u2014 malicious verdict \u2192 malicious output",
+    "playbook": "SOC_Endpoint_Verdict_Resolution_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.verdict": "malicious",
+      "inputs.SHA256": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a",
+      "DBotAvgScore": {
+        "Indicator": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a",
+        "Score": "3"
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {
+      "WildFire - Detonate file v2": {}
+    },
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Endpoint.verdict",
+        "expected": "malicious"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Verdict \u2014 benign verdict \u2192 benign output",
+    "playbook": "SOC_Endpoint_Verdict_Resolution_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.verdict": "benign",
+      "inputs.SHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "DBotAvgScore": {
+        "Indicator": "0000000000000000000000000000000000000000000000000000000000000000",
+        "Score": "1"
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {
+      "WildFire - Detonate file v2": {}
+    },
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Endpoint.verdict",
+        "expected": "benign"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Verdict \u2014 suspicious verdict",
+    "playbook": "SOC_Endpoint_Verdict_Resolution_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.verdict": "suspicious",
+      "inputs.SHA256": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a",
+      "DBotAvgScore": {
+        "Indicator": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a",
+        "Score": "2"
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {
+      "WildFire - Detonate file v2": {}
+    },
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Endpoint.verdict",
+        "expected": "suspicious"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Compromise \u2014 host likely compromised, execution confirmed",
+    "playbook": "SOC_Endpoint_Compromise_Evaluation_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.host_likely_compromised": "true",
+      "inputs.host_suspicious": "true",
+      "inputs.host_isolated_signal": "false",
+      "inputs.host_high_issue_count": "true",
+      "inputs.SHA256": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a",
+      "inputs.verdict": "malicious",
+      "inputs.initiator_sha256": "",
+      "inputs.case_mitre_tactics": "TA0002,TA0003",
+      "inputs.case_mitre_techniques": "T1059",
+      "inputs.case_issue_count": "15",
+      "inputs.tactic_id": "TA0002",
+      "inputs.xdm_sourceprocess_executable_sha256": "",
+      "inputs.cgo_sha256": ""
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "Analysis.Endpoint.compromise_level"
+      },
+      {
+        "type": "context_key_exists",
+        "target": "Analysis.Endpoint.compromise_decision"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Compromise \u2014 benign verdict, no execution \u2192 no_evidence path",
+    "playbook": "SOC_Endpoint_Compromise_Evaluation_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.host_likely_compromised": "false",
+      "inputs.host_suspicious": "false",
+      "inputs.host_isolated_signal": "false",
+      "inputs.host_high_issue_count": "false",
+      "inputs.verdict": "benign",
+      "inputs.case_issue_count": "1",
+      "inputs.SHA256": "",
+      "inputs.case_mitre_tactics": "",
+      "inputs.tactic_id": "",
+      "inputs.initiator_sha256": "",
+      "inputs.cgo_sha256": "",
+      "inputs.xdm_sourceprocess_executable_sha256": ""
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Analysis.Endpoint.compromise_level",
+        "expected": "no_evidence"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Containment \u2014 auto-contain high confidence malicious",
+    "playbook": "SOC_Endpoint_Containment_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.AutoContainment": "true",
+      "inputs.FileRemediation": "true",
+      "inputs.FeaturedHost": "WIN-WORKSTATION-01",
+      "inputs.Verdict": "malicious",
+      "inputs.SourceBrand": "CrowdStrike Falcon",
+      "inputs.Confidence": "high",
+      "inputs.ExecutionConfirmed": "malicious_and_executed",
+      "inputs.CompromiseLevel": "likely_compromised",
+      "inputs.CaseScore": "90"
+    },
+    "uc_mocks": {
+      "soc-isolate-endpoint": {
+        "Containment.isolated_hosts": [
+          "WIN-WORKSTATION-01"
+        ],
+        "Containment.status": "isolated"
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Containment.status",
+        "expected": "isolated"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Containment \u2014 low confidence no containment",
+    "playbook": "SOC_Endpoint_Containment_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.AutoContainment": "false",
+      "inputs.Verdict": "suspicious",
+      "inputs.Confidence": "low",
+      "inputs.CompromiseLevel": "not_compromised",
+      "inputs.CaseScore": "20"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "branch_taken",
+        "target": "171",
+        "expected": "#default#",
+        "description": "Low confidence \u2192 Potentially Contain condition fails \u2192 Done directly"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Eradication \u2014 response recommended \u2192 eradication attempted",
+    "playbook": "SOC_EndPoint_Eradication_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.Analysis": {
+        "response_recommended": "true",
+        "compromise_level": "Likely Compromised",
+        "spread_level": "Single Entity",
+        "persistence_type": "none"
+      }
+    },
+    "uc_mocks": {
+      "soc-remove-file": {
+        "Eradication.files_removed": true
+      },
+      "soc-remove-persistence": {
+        "Eradication.persistence_removed": true
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "Eradication.attempted"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Eradication \u2014 no response recommended \u2192 skipped",
+    "playbook": "SOC_EndPoint_Eradication_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.Analysis": {
+        "response_recommended": "false",
+        "compromise_level": "Isolated Signal"
+      }
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "Eradication.attempted"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Recovery \u2014 malicious_and_executed compromise \u2192 restore required",
+    "playbook": "SOC_EndPoint_Recovery_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.compromise_decision": "malicious_and_executed",
+      "Eradication.status": "true",
+      "Eradication.reimage_required": "true"
+    },
+    "uc_mocks": {
+      "soc-deisolate-endpoint": {
+        "Recovery.restore_required": true
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_equals",
+        "target": "Recovery.status",
+        "expected": "rebuild_required"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Recovery \u2014 isolated signal only \u2192 monitoring not isolation",
+    "playbook": "SOC_EndPoint_Recovery_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.compromise_decision": "isolated_signal",
+      "Eradication.status": "false"
+    },
+    "uc_mocks": {},
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "Recovery.status"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Spread \u2014 multi-host, multi-hash \u2192 Multi Entity",
+    "playbook": "SOC_EndPoint_Spread_Evaluation_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "happy_path"
+    ],
+    "context_inputs": {
+      "inputs.case_host_count": "8",
+      "inputs.case_user_count": "4",
+      "inputs.high_host_count_per_case": "5",
+      "inputs.high_hash_count_per_case": "3",
+      "inputs.limited_host_count_per_case": "3",
+      "inputs.limited_hash_count_per_case": "2",
+      "inputs.limited_user_count_per_case": "2",
+      "inputs.SHA256": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a",
+      "inputs.case_tactics": "TA0002,TA0008"
+    },
+    "uc_mocks": {
+      "soc-get-file-hash-prevalence": {
+        "UC.Enrich.File.hash_prevalence_count": 12
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "Analysis.Endpoint.spread_level"
+      }
+    ]
+  },
+  {
+    "name": "Endpoint Spread \u2014 single host, single hash \u2192 Single Entity",
+    "playbook": "SOC_EndPoint_Spread_Evaluation_V3",
+    "category": "endpoint",
+    "suite": "unit",
+    "tags": [
+      "non_happy"
+    ],
+    "context_inputs": {
+      "inputs.case_host_count": "1",
+      "inputs.case_user_count": "1",
+      "inputs.high_host_count_per_case": "5",
+      "inputs.high_hash_count_per_case": "3",
+      "inputs.limited_host_count_per_case": "3",
+      "inputs.limited_hash_count_per_case": "2",
+      "inputs.limited_user_count_per_case": "2",
+      "inputs.SHA256": "a3f8e2d94c1b7065f2a9c8d3e4b51f6a",
+      "inputs.case_tactics": "TA0002"
+    },
+    "uc_mocks": {
+      "soc-get-file-hash-prevalence": {
+        "UC.Enrich.File.hash_prevalence_count": 1
+      }
+    },
+    "sub_mocks": {},
+    "assertions": [
+      {
+        "type": "context_key_exists",
+        "target": "Analysis.Endpoint.spread_level"
+      }
+    ]
+  }
+]
