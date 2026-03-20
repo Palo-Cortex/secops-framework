@@ -14,10 +14,7 @@ Usage:
 Exit code 0 = all pass. Exit code 1 = failures present.
 """
 
-
 from __future__ import annotations
-import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
 import argparse, json, os, sys, textwrap, time
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,7 +29,7 @@ from playbook_simulator import PlaybookSimulator, Context, ExecutionResult
 class Assertion:
     """A single assertion on the output context or execution path."""
     type: str           # context_key_equals | context_key_exists | context_key_absent
-                        # branch_taken | task_executed | task_not_executed
+    # branch_taken | task_executed | task_not_executed
     target: str         # key name, task id, etc.
     expected: Any = None
     description: str = ''
@@ -207,9 +204,9 @@ def report(results: list[TestResult], verbose: bool = False) -> bool:
             if verbose and r.passed:
                 ctx = r.execution.context_after if r.execution else {}
                 relevant = {k: v for k, v in ctx.items()
-                           if any(k.startswith(p) for p in
-                                  ('Analysis.', 'Containment.', 'Eradication.',
-                                   'Recovery.', 'Email.', 'DBotScore'))}
+                            if any(k.startswith(p) for p in
+                                   ('Analysis.', 'Containment.', 'Eradication.',
+                                    'Recovery.', 'Email.', 'DBotScore'))}
                 if relevant:
                     print(f"       Context: {json.dumps(relevant, default=str)}")
 
@@ -271,7 +268,7 @@ def main():
         """)
     )
     parser.add_argument('--category',  default='all',
-                        choices=['email','endpoint','identity','all'])
+                        choices=['email','endpoint','identity','foundation','all'])
     parser.add_argument('--suite',     default='all',
                         choices=['unit','e2e','all'])
     parser.add_argument('--playbook',  default=None,
@@ -310,7 +307,9 @@ def main():
 
     # Filter
     filtered = all_cases
-    if args.category != 'all':
+    if args.category == 'all':
+        filtered = [c for c in filtered if c.category != 'foundation']
+    else:
         filtered = [c for c in filtered if c.category == args.category]
     if args.suite != 'all':
         filtered = [c for c in filtered if c.suite == args.suite]

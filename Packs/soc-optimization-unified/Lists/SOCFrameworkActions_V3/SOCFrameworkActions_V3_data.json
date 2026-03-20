@@ -6,25 +6,25 @@
       "Cortex Core - IR": {
         "command": "core-isolate-endpoint",
         "inline_args": {
-          "endpoint_id": "SOCFramework.Artifacts.EndPointID"
+          "endpoint_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       },
       "CrowdstrikeFalcon": {
         "command": "cs-falcon-contain-host",
         "inline_args": {
-          "agent_id": "SOCFramework.Artifacts.EndPointID"
+          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       },
       "Trend Micro Vision One V3": {
         "command": "trendmicro-visionone-isolate-endpoint",
         "inline_args": {
-          "endpoint_identifiers": "SOCFramework.Artifacts.EndPointID"
+          "endpoint_identifiers": "${SOCFramework.Artifacts.EndPointID}"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-isolate-machine",
         "inline_args": {
-          "machine_id": "SOCFramework.Artifacts.EndPointID",
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}",
           "comment": "SOCFramework isolate endpoint",
           "isolation_type": "Full"
         }
@@ -32,74 +32,24 @@
     },
     "shadow_mode": true
   },
-  "soc-delete-file": {
+  "soc-deisolate-endpoint": {
     "responses": {
       "Cortex Core - IR": {
-        "command": "core-run-script-delete-file",
+        "command": "core-unisolate-endpoint",
         "inline_args": {
-          "endpoint_id": "SOCFramework.Artifacts.EndPointID",
-          "file_path": "SOCFramework.Artifacts.FilePath"
+          "endpoint_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       },
       "CrowdstrikeFalcon": {
-        "command": "cs-falcon-delete-file",
+        "command": "cs-falcon-lift-host-containment",
         "inline_args": {
-          "file_name": "SOCFramework.Artifacts.ProcessName"
-        }
-      }
-    },
-    "shadow_mode": true
-  },
-  "soc-file-exists": {
-    "responses": {
-      "Cortex Core - IR": {
-        "command": "core-run-script-file-exists",
-        "inline_args": {
-          "endpoint_id": "SOCFramework.Artifacts.EndPointID",
-          "file_path": "SOCFramework.Artifacts.FilePath"
+          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       },
-      "CrowdstrikeFalcon": {
-        "command": "cs-falcon-delete-file",
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-unisolate-machine",
         "inline_args": {
-          "file_name": "SOCFramework.Artifacts.ProcessName"
-        }
-      }
-    },
-    "shadow_mode": false
-  },
-  "soc-disable-user": {
-    "responses": {
-      "Active Directory Query v2": {
-        "command": "disable-user",
-        "inline_args": {
-          "user_email": "SOCFramework.Artifacts.UserEmail",
-          "user_name": "SOCFramework.Artifacts.UserName",
-          "user_id": "SOCFramework.Artifacts.UserID"
-        }
-      },
-      "Microsoft Graph User": {
-        "command": "disable-user",
-        "inline_args": {
-          "user_email": "SOCFramework.Artifacts.UserEmail",
-          "user_name": "SOCFramework.Artifacts.UserName",
-          "user_id": "SOCFramework.Artifacts.UserID"
-        }
-      },
-      "Okta IAM": {
-        "command": "disable-user",
-        "inline_args": {
-          "user_email": "SOCFramework.Artifacts.UserEmail",
-          "user_name": "SOCFramework.Artifacts.UserName",
-          "user_id": "SOCFramework.Artifacts.UserID"
-        }
-      },
-      "Okta V2": {
-        "command": "disable-user",
-        "inline_args": {
-          "user_email": "SOCFramework.Artifacts.UserEmail",
-          "user_name": "SOCFramework.Artifacts.UserName",
-          "user_id": "SOCFramework.Artifacts.UserID"
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       }
     },
@@ -110,41 +60,225 @@
       "Cortex Core - IR": {
         "command": "core-run-script-kill-process",
         "inline_args": {
-          "endpoint_ids": "SOCFramework.Artifacts.EndPointID",
-          "process_names": "SOCFramework.Artifacts.ProcessName"
+          "endpoint_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "process_names": "${SOCFramework.Artifacts.ProcessName}"
         }
       },
       "CrowdstrikeFalcon": {
-        "command": "cs-falcon-rtr-kill-process",
+        "command": "cs-falcon-run-script",
         "inline_args": {
-          "host_id": "SOCFramework.Artifacts.EndPointID",
-          "process_ids": "SOCFramework.Artifacts.PID"
+          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "raw": "Stop-Process -Id ${SOCFramework.Artifacts.PID} -Force -ErrorAction SilentlyContinue"
         }
       },
       "Trend Micro Vision One V3": {
         "command": "trendmicro-visionone-terminate-process",
         "inline_args": {
-          "process_identifiers": "SOCFramework.Artifacts.PID"
+          "process_identifiers": "${SOCFramework.Artifacts.PID}"
         }
       }
     },
     "shadow_mode": true
+  },
+  "soc-remove-file": {
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-run-script-delete-file",
+        "inline_args": {
+          "endpoint_id": "${SOCFramework.Artifacts.EndPointID}",
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
+        }
+      },
+      "CrowdstrikeFalcon": {
+        "command": "cs-falcon-run-script",
+        "inline_args": {
+          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "raw": "Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-stop-and-quarantine-file",
+        "inline_args": {
+          "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "file_hashes": "${SOCFramework.Artifacts.File}"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-remove-persistence": {
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-run-script-execute",
+        "inline_args": {
+          "endpoint_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "script_name": "remove_persistence",
+          "parameters": "${SOCFramework.Artifacts.FilePath}"
+        }
+      },
+      "CrowdstrikeFalcon": {
+        "command": "cs-falcon-run-script",
+        "inline_args": {
+          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "raw": "Remove-ItemProperty -Path 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name '${SOCFramework.Artifacts.ProcessName}' -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName '${SOCFramework.Artifacts.ProcessName}' -Confirm:$false -ErrorAction SilentlyContinue"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-delete-file": {
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-run-script-delete-file",
+        "inline_args": {
+          "endpoint_id": "${SOCFramework.Artifacts.EndPointID}",
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
+        }
+      },
+      "CrowdstrikeFalcon": {
+        "command": "cs-falcon-run-script",
+        "inline_args": {
+          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "raw": "Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-file-exists": {
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-run-script-file-exists",
+        "inline_args": {
+          "endpoint_id": "${SOCFramework.Artifacts.EndPointID}",
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
+        }
+      },
+      "CrowdstrikeFalcon": {
+        "command": "cs-falcon-run-script",
+        "inline_args": {
+          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "raw": "Test-Path -Path '${SOCFramework.Artifacts.FilePath}'"
+        }
+      }
+    },
+    "shadow_mode": false
   },
   "soc-quarantine-files": {
     "responses": {
       "Cortex Core - IR": {
         "command": "core-quarantine-files",
         "inline_args": {
-          "endpoint_id_list": "SOCFramework.Artifacts.EndPointID",
-          "file_hash": "SOCFramework.Artifacts.File",
-          "file_path": "SOCFramework.Artifacts.FilePath"
+          "endpoint_id_list": "${SOCFramework.Artifacts.EndPointID}",
+          "file_hash": "${SOCFramework.Artifacts.File}",
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
-          "machine_ids": "SOCFramework.Artifacts.EndPointID",
-          "file_hashes": "SOCFramework.Artifacts.File"
+          "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "file_hashes": "${SOCFramework.Artifacts.File}"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-disable-user": {
+    "responses": {
+      "Active Directory Query v2": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "${SOCFramework.Artifacts.UserEmail}",
+          "user_name": "${SOCFramework.Artifacts.UserName}",
+          "user_id": "${SOCFramework.Artifacts.UserID}"
+        }
+      },
+      "Microsoft Graph User": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "${SOCFramework.Artifacts.UserEmail}",
+          "user_name": "${SOCFramework.Artifacts.UserName}",
+          "user_id": "${SOCFramework.Artifacts.UserID}"
+        }
+      },
+      "Okta IAM": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "${SOCFramework.Artifacts.UserEmail}",
+          "user_name": "${SOCFramework.Artifacts.UserName}",
+          "user_id": "${SOCFramework.Artifacts.UserID}"
+        }
+      },
+      "Okta V2": {
+        "command": "disable-user",
+        "inline_args": {
+          "user_email": "${SOCFramework.Artifacts.UserEmail}",
+          "user_name": "${SOCFramework.Artifacts.UserName}",
+          "user_id": "${SOCFramework.Artifacts.UserID}"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-clear-sessions": {
+    "responses": {
+      "Okta v2": {
+        "command": "okta-clear-user-sessions",
+        "inline_args": {
+          "userId": "${SOCFramework.Artifacts.UserName}"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-reset-password": {
+    "responses": {
+      "Active Directory Query v2": {
+        "command": "ad-set-new-password",
+        "inline_args": {
+          "sAMAccountName": "${SOCFramework.Artifacts.UserName}",
+          "password": "auto-generated"
+        }
+      },
+      "Okta v2": {
+        "command": "okta-expire-password",
+        "inline_args": {
+          "userId": "${SOCFramework.Artifacts.UserName}"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-revoke-tokens": {
+    "responses": {
+      "Okta v2": {
+        "command": "okta-clear-user-sessions",
+        "inline_args": {
+          "userId": "${SOCFramework.Artifacts.UserName}"
+        }
+      },
+      "Azure Active Directory Identity And Access": {
+        "command": "msgraph-user-account-disable",
+        "inline_args": {
+          "user": "${SOCFramework.Artifacts.UserName}"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-enable-user": {
+    "responses": {
+      "Active Directory Query v2": {
+        "command": "ad-enable-account",
+        "inline_args": {
+          "sAMAccountName": "${SOCFramework.Artifacts.UserName}"
+        }
+      },
+      "Okta v2": {
+        "command": "okta-activate-user",
+        "inline_args": {
+          "userId": "${SOCFramework.Artifacts.UserName}"
         }
       }
     },
@@ -155,43 +289,43 @@
       "Active Directory Query v2": {
         "command": "ad-get-user",
         "inline_args": {
-          "username": "SOCFramework.Primary.User"
+          "username": "${SOCFramework.Primary.User}"
         }
       },
       "Microsoft Graph User": {
         "command": "msgraph-user-get",
         "inline_args": {
-          "user": "SOCFramework.Primary.User"
+          "user": "${SOCFramework.Primary.User}"
         }
       },
       "Okta v2": {
         "command": "okta-get-user",
         "inline_args": {
-          "userId": "SOCFramework.Primary.User"
+          "userId": "${SOCFramework.Primary.User}"
         }
       },
       "Okta IAM": {
         "command": "iam-get-user",
         "inline_args": {
-          "user_profile": "SOCFramework.Primary.User"
+          "user_profile": "${SOCFramework.Primary.User}"
         }
       },
       "Google Workspace": {
         "command": "gsuite-user-get",
         "inline_args": {
-          "user-key": "SOCFramework.Primary.Email"
+          "user-key": "${SOCFramework.Primary.Email}"
         }
       },
       "AWS - IAM": {
         "command": "aws-iam-get-user",
         "inline_args": {
-          "userName": "SOCFramework.Primary.User"
+          "userName": "${SOCFramework.Primary.User}"
         }
       },
       "PingOne": {
         "command": "pingone-get-user",
         "inline_args": {
-          "userId": "SOCFramework.Primary.User"
+          "userId": "${SOCFramework.Primary.User}"
         }
       }
     },
@@ -202,31 +336,31 @@
       "Cortex Core - IR": {
         "command": "core-get-endpoints",
         "inline_args": {
-          "endpoint_id_list": "SOCFramework.Primary.Endpoint"
+          "endpoint_id_list": "${SOCFramework.Primary.Endpoint}"
         }
       },
       "CrowdstrikeFalcon": {
         "command": "cs-falcon-search-device",
         "inline_args": {
-          "filter": "SOCFramework.Primary.Endpoint"
+          "filter": "${SOCFramework.Primary.Endpoint}"
         }
       },
       "Carbon Black EDR": {
         "command": "cb-edr-sensors-list",
         "inline_args": {
-          "hostname": "SOCFramework.Primary.Endpoint"
+          "hostname": "${SOCFramework.Primary.Endpoint}"
         }
       },
       "Armis": {
         "command": "armis-search-devices",
         "inline_args": {
-          "name": "SOCFramework.Primary.Endpoint"
+          "name": "${SOCFramework.Primary.Endpoint}"
         }
       },
       "ExtraHop": {
         "command": "extrahop-devices-search",
         "inline_args": {
-          "name": "SOCFramework.Primary.Endpoint"
+          "name": "${SOCFramework.Primary.Endpoint}"
         }
       }
     },
@@ -237,7 +371,7 @@
       "Cortex Core - IR": {
         "command": "core-get-hash-analytics-prevalence",
         "inline_args": {
-          "sha256": "SOCFramework.Artifacts.Hash"
+          "sha256": "${SOCFramework.Artifacts.Hash}"
         },
         "output_map": {
           "UC.Enrich.File.hash_prevalence_count": "Core.AnalyticsPrevalence.Hash.data.global_prevalence.value",
@@ -248,7 +382,7 @@
       "WildFire": {
         "command": "wildfire-get-verdict",
         "inline_args": {
-          "hash": "SOCFramework.Artifacts.Hash"
+          "hash": "${SOCFramework.Artifacts.Hash}"
         },
         "output_map": {
           "UC.Enrich.File.verdict": "WildFire.Report.verdict",
@@ -258,7 +392,7 @@
       "VirusTotal (Private API)": {
         "command": "vt-private-get-file-report",
         "inline_args": {
-          "resource": "SOCFramework.Artifacts.Hash"
+          "resource": "${SOCFramework.Artifacts.Hash}"
         },
         "output_map": {
           "UC.Enrich.File.verdict": "VirusTotal.File.Verdict",
@@ -273,7 +407,7 @@
       "Cortex Core - IR": {
         "command": "core-get-IP-analytics-prevalence",
         "inline_args": {
-          "ip_address": "SOCFramework.Artifacts.IP"
+          "ip_address": "${SOCFramework.Artifacts.IP}"
         },
         "output_map": {
           "UC.Enrich.IP.prevalence": "Core.AnalyticsPrevalence.IP.prevalence",
@@ -283,7 +417,7 @@
       "VirusTotal (Private API)": {
         "command": "vt-private-get-ip-report",
         "inline_args": {
-          "ip": "SOCFramework.Artifacts.IP"
+          "ip": "${SOCFramework.Artifacts.IP}"
         },
         "output_map": {
           "UC.Enrich.IP.verdict": "VirusTotal.IP.Verdict",
@@ -293,7 +427,7 @@
       "Recorded Future": {
         "command": "recordedfuture-intelligence",
         "inline_args": {
-          "entity": "SOCFramework.Artifacts.IP",
+          "entity": "${SOCFramework.Artifacts.IP}",
           "entity_type": "ip"
         },
         "output_map": {
@@ -309,7 +443,7 @@
       "Cortex Core - IR": {
         "command": "core-get-domain-analytics-prevalence",
         "inline_args": {
-          "domain": "SOCFramework.Artifacts.Domain"
+          "domain": "${SOCFramework.Artifacts.Domain}"
         },
         "output_map": {
           "UC.Enrich.Domain.prevalence": "Core.AnalyticsPrevalence.Domain.prevalence",
@@ -319,7 +453,7 @@
       "Cisco Umbrella": {
         "command": "umbrella-domain-categorization",
         "inline_args": {
-          "name": "SOCFramework.Artifacts.Domain"
+          "name": "${SOCFramework.Artifacts.Domain}"
         },
         "output_map": {
           "UC.Enrich.Domain.category": "Umbrella.Domain.category",
@@ -329,7 +463,7 @@
       "Recorded Future": {
         "command": "recordedfuture-intelligence",
         "inline_args": {
-          "entity": "SOCFramework.Artifacts.Domain",
+          "entity": "${SOCFramework.Artifacts.Domain}",
           "entity_type": "domain"
         },
         "output_map": {
@@ -345,20 +479,20 @@
       "Cortex Core - IR": {
         "command": "enrichIndicators",
         "inline_args": {
-          "indicators": "SOCFramework.Artifacts"
+          "indicators": "${SOCFramework.Artifacts}"
         }
       },
       "Recorded Future": {
         "command": "recordedfuture-intelligence",
         "inline_args": {
-          "entity": "SOCFramework.Artifacts.IP",
+          "entity": "${SOCFramework.Artifacts.IP}",
           "entity_type": "indicator"
         }
       },
       "Proofpoint TAP": {
         "command": "proofpoint-get-forensics",
         "inline_args": {
-          "threatId": "SOCFramework.Artifacts.Hash"
+          "threatId": "${SOCFramework.Artifacts.Hash}"
         }
       }
     },
@@ -371,7 +505,7 @@
         "inline_args": {
           "interval": "P7D",
           "threatType": "url",
-          "url": "SOCFramework.Artifacts.Email.ThreatURL"
+          "url": "${SOCFramework.Artifacts.Email.ThreatURL}"
         },
         "output_map": {
           "UC.Email.Events.messages_delivered": "Proofpoint.MessagesDelivered",
@@ -384,7 +518,7 @@
         "inline_args": {
           "interval": "P7D",
           "threatType": "url",
-          "url": "SOCFramework.Artifacts.Email.ThreatURL"
+          "url": "${SOCFramework.Artifacts.Email.ThreatURL}"
         },
         "output_map": {
           "UC.Email.Events.clicks_permitted": "Proofpoint.ClicksPermitted",
@@ -400,8 +534,8 @@
       "Proofpoint TAP v2": {
         "command": "proofpoint-get-forensics",
         "inline_args": {
-          "threatId": "SOCFramework.Email.TAP.ThreatID",
-          "campaignId": "SOCFramework.Email.TAP.CampaignID",
+          "threatId": "${SOCFramework.Email.TAP.ThreatID}",
+          "campaignId": "${SOCFramework.Email.TAP.CampaignID}",
           "includeCampaignForensics": "true"
         },
         "output_map": {
@@ -420,8 +554,8 @@
       "Microsoft Graph": {
         "command": "msgraph-mail-delete-email",
         "inline_args": {
-          "user_id": "SOCFramework.Artifacts.Email.To",
-          "message_id": "SOCFramework.Artifacts.Email.MessageID"
+          "user_id": "${SOCFramework.Artifacts.Email.To}",
+          "message_id": "${SOCFramework.Artifacts.Email.MessageID}"
         },
         "output_map": {
           "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
@@ -431,8 +565,8 @@
       "Gmail": {
         "command": "gmail-delete-mail",
         "inline_args": {
-          "user_id": "SOCFramework.Artifacts.Email.To",
-          "message_id": "SOCFramework.Artifacts.Email.MessageID"
+          "user_id": "${SOCFramework.Artifacts.Email.To}",
+          "message_id": "${SOCFramework.Artifacts.Email.MessageID}"
         },
         "output_map": {
           "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
@@ -442,7 +576,7 @@
       "O365 Compliance": {
         "command": "o365-sc-compliance-search-purge",
         "inline_args": {
-          "search_name": "SOCFramework.Email.ComplianceSearchName",
+          "search_name": "${SOCFramework.Email.ComplianceSearchName}",
           "purge_type": "SoftDelete"
         },
         "output_map": {
@@ -458,8 +592,8 @@
       "Trend Micro Vision One": {
         "command": "trendmicro-visionone-quarantine-email-message",
         "inline_args": {
-          "message_id": "SOCFramework.Artifacts.Email.MessageID",
-          "mailbox": "SOCFramework.Artifacts.Email.To"
+          "message_id": "${SOCFramework.Artifacts.Email.MessageID}",
+          "mailbox": "${SOCFramework.Artifacts.Email.To}"
         },
         "output_map": {
           "UC.Email.Quarantine.status": "TrendMicro.QuarantineEmail.status",
@@ -469,7 +603,7 @@
       "Mimecast": {
         "command": "mimecast-reject-held-message",
         "inline_args": {
-          "id": "SOCFramework.Artifacts.Email.MessageID",
+          "id": "${SOCFramework.Artifacts.Email.MessageID}",
           "reason": "Quarantined by SOC Framework automated response"
         },
         "output_map": {
@@ -485,7 +619,7 @@
       "Mimecast": {
         "command": "mimecast-create-blocked-sender-policy",
         "inline_args": {
-          "sender": "SOCFramework.Artifacts.Email.From",
+          "sender": "${SOCFramework.Artifacts.Email.From}",
           "description": "Blocked by SOC Framework — threat sender"
         },
         "output_map": {
@@ -496,7 +630,7 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-add-tiindicator",
         "inline_args": {
-          "indicator_value": "SOCFramework.Artifacts.Email.From",
+          "indicator_value": "${SOCFramework.Artifacts.Email.From}",
           "indicator_type": "EmailSenderAddress",
           "action": "BlockAndRemediate",
           "description": "SOCFramework block sender",
@@ -510,7 +644,7 @@
       "Proofpoint TAP v2": {
         "command": "proofpoint-block-sender",
         "inline_args": {
-          "sender_address": "SOCFramework.Artifacts.Email.From",
+          "sender_address": "${SOCFramework.Artifacts.Email.From}",
           "action": "block"
         },
         "output_map": {
@@ -526,7 +660,7 @@
       "Mimecast": {
         "command": "mimecast-delete-blocked-sender-policy",
         "inline_args": {
-          "sender": "SOCFramework.Artifacts.Email.From"
+          "sender": "${SOCFramework.Artifacts.Email.From}"
         },
         "output_map": {
           "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
@@ -536,7 +670,7 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-sc-delete-indicator",
         "inline_args": {
-          "indicator_value": "SOCFramework.Artifacts.Email.From"
+          "indicator_value": "${SOCFramework.Artifacts.Email.From}"
         },
         "output_map": {
           "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
@@ -546,7 +680,7 @@
       "Proofpoint TAP v2": {
         "command": "proofpoint-delete-blocked-sender",
         "inline_args": {
-          "sender": "SOCFramework.Artifacts.Email.From"
+          "sender": "${SOCFramework.Artifacts.Email.From}"
         },
         "output_map": {
           "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
@@ -554,110 +688,21 @@
         }
       }
     },
-    "phase": "Recovery",
-    "category": "Email",
-    "description": "Remove a blocked sender entry. Used in Recovery phase when a false positive is confirmed.",
-    "shadow_mode": true
-  },
-  "soc-clear-sessions": {
-    "responses": {
-      "Okta v2": {
-        "command": "okta-clear-user-sessions",
-        "arguments": {
-          "userId": "SOCFramework.Artifacts.UserName"
-        }
-      }
-    },
-    "shadow_mode": true
-  },
-  "soc-reset-password": {
-    "responses": {
-      "Active Directory Query v2": {
-        "command": "ad-set-new-password",
-        "arguments": {
-          "sAMAccountName": "SOCFramework.Artifacts.UserName",
-          "password": "auto-generated"
-        }
-      },
-      "Okta v2": {
-        "command": "okta-expire-password",
-        "arguments": {
-          "userId": "SOCFramework.Artifacts.UserName"
-        }
-      }
-    },
-    "shadow_mode": true
-  },
-  "soc-revoke-tokens": {
-    "responses": {
-      "Okta v2": {
-        "command": "okta-clear-user-sessions",
-        "arguments": {
-          "userId": "SOCFramework.Artifacts.UserName"
-        }
-      },
-      "Azure Active Directory Identity And Access": {
-        "command": "msgraph-user-account-disable",
-        "arguments": {
-          "user": "SOCFramework.Artifacts.UserName"
-        }
-      }
-    },
-    "shadow_mode": true
-  },
-  "soc-enable-user": {
-    "responses": {
-      "Active Directory Query v2": {
-        "command": "ad-enable-account",
-        "arguments": {
-          "sAMAccountName": "SOCFramework.Artifacts.UserName"
-        }
-      },
-      "Okta v2": {
-        "command": "okta-activate-user",
-        "arguments": {
-          "userId": "SOCFramework.Artifacts.UserName"
-        }
-      }
-    },
     "shadow_mode": true
   },
   "soc-remove-inbox-rule": {
-    "shadow_mode": true,
     "responses": {
       "Microsoft Graph Mail": {
         "command": "msgraph-mail-delete-rule",
         "inline_args": {
-          "user_id": "SOCFramework.Artifacts.Email.To",
-          "rule_id": "SOCFramework.Email.InboxRule.ID"
+          "user_id": "${SOCFramework.Artifacts.Email.To}",
+          "rule_id": "${SOCFramework.Email.InboxRule.ID}"
         },
         "output_map": {
           "UC.Email.RemoveInboxRule.status": "MicrosoftGraph.Mail.Rule.Delete.status"
         }
       }
-    }
-  },
-  "soc-deisolate-endpoint": {
-    "shadow_mode": true,
-    "responses": {
-      "Cortex Core - IR": {
-        "command": "core-unisolate-endpoint",
-        "inline_args": {
-          "endpoint_id": "SOCFramework.Artifacts.EndPointID"
-        }
-      },
-      "CrowdstrikeFalcon": {
-        "command": "cs-falcon-lift-host-containment",
-        "inline_args": {
-          "agent_id": "SOCFramework.Artifacts.EndPointID"
-        }
-      },
-      "Microsoft Defender Advanced Threat Protection": {
-        "command": "microsoft-atp-unisolate-machine",
-        "inline_args": {
-          "machine_id": "SOCFramework.Artifacts.EndPointID"
-        }
-      }
-    }
+    },
+    "shadow_mode": true
   }
 }
