@@ -20,7 +20,10 @@ python3 tools/send_test_events.py \
 def load_env(env_path: str) -> None:
     if not os.path.isfile(env_path):
         raise FileNotFoundError(f".env file not found at: {env_path}")
-    load_dotenv(env_path)
+    # override=True ensures that when replay_scenario.py iterates multiple
+    # sources with different .env files, each source's API_URL and API_KEY
+    # replace the previously loaded values rather than being silently ignored.
+    load_dotenv(env_path, override=True)
     for var in ("API_URL", "API_KEY"):
         if os.getenv(var) is None:
             raise EnvironmentError(f"Missing {var} in {env_path}")
