@@ -61,7 +61,7 @@ def main():
     error_log = output_dir / "sdk_errors.txt"
 
     print(f"\n=== Validating: {pack_path} (output → {error_log}) ===\n")
-    with open(error_log, "a") as log:
+    with open(error_log, "w") as log:
         rc = subprocess.run(
             ["demisto-sdk", "validate", "-i", str(pack_path)],
             stdout=log, stderr=log
