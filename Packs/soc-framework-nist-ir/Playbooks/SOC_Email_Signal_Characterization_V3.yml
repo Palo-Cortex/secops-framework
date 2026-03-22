@@ -1,27 +1,20 @@
-fromversion: 5.0.0
+adopted: true
 id: SOC Email Signal Characterization_V3
-version: 11
-contentitemexportablefields:
-  contentitemfields:
-    packID: soc-framework-nist-ir
-    packName: SOC Framework NIST IR (800-61)
-    itemVersion: 1.1.0
-    fromServerVersion: 6.10.0
-    toServerVersion: ''
-    definitionid: ''
-    prevname: ''
-    isoverridable: false
-    supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Signal Characterization_V3
-description: "Purpose\nDetermine what kind of email threat this is and build the indicator intelligence needed for verdict\
-  \ resolution.\n\nThis is not verdict determination — that belongs in SOC Email Verdict Resolution_V3.\nThis playbook answers:\
-  \ what is the nature of the threat object?\n\nSignal Types Produced:\n  url_phish    — threat type is URL (phishing link,\
-  \ credential harvest, malicious redirect)\n  file_malware — threat type is attachment (malicious file, hash-based detection)\n\
-  \  unknown      — threat type not identified from available artifacts\n\nCurrent Tasks:\n  Characterize Threat Type\n  Create\
-  \ IOC (URL or File)\n  Assign DBot Score from Proofpoint TAP signal\n  Extract domains from threat URL\n  Rasterize URL\
-  \ (best-effort)\n  Sender Domain Prevalence Check\n  Sender IP Prevalence Check\n  Tag Uncommon indicators\n  Tag threat\
-  \ indicators with detection source\n  Set Analysis.Email.signal_type\n  Set Analysis.Email.source_verdict from DBot"
+version: -1
+fromversion: 6.10.0
+description: "Purpose\nDetermine what kind of email threat this is and build the indicator\
+  \ intelligence needed for verdict resolution.\n\nThis is not verdict determination\
+  \ — that belongs in SOC Email Verdict Resolution_V3.\nThis playbook answers: what\
+  \ is the nature of the threat object?\n\nSignal Types Produced:\n  url_phish   \
+  \ — threat type is URL (phishing link, credential harvest, malicious redirect)\n\
+  \  file_malware — threat type is attachment (malicious file, hash-based detection)\n\
+  \  unknown      — threat type not identified from available artifacts\n\nCurrent\
+  \ Tasks:\n  Characterize Threat Type\n  Create IOC (URL or File)\n  Assign DBot\
+  \ Score from email source threat signal\n  Extract domains from threat URL\n  Rasterize\
+  \ URL (best-effort)\n  Sender Domain Prevalence Check\n  Sender IP Prevalence Check\n\
+  \  Tag Uncommon indicators\n  Tag threat indicators with detection source\n  Set\
+  \ Analysis.Email.signal_type\n  Set Analysis.Email.source_verdict from DBot"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -89,7 +82,8 @@ tasks:
       id: c2893eed-6d85-4b5a-9564-19e8cec61f2e
       version: -1
       name: What is the Threat Type?
-      description: Routes on SOCFramework.Artifacts.Email.ThreatType to determine IOC creation and enrichment path.
+      description: Routes on SOCFramework.Artifacts.Email.ThreatType to determine
+        IOC creation and enrichment path.
       type: condition
       iscommand: false
       brand: ''
@@ -143,7 +137,8 @@ tasks:
       id: 88bbf74f-0a0a-4fa3-b8fc-ad62b38a7eeb
       version: -1
       name: Create URL Indicator
-      description: Creates a URL indicator from the threat URL extracted at entry point.
+      description: Creates a URL indicator from the threat URL extracted at entry
+        point.
       script: Builtin|||createNewIndicator
       type: regular
       iscommand: true
@@ -154,7 +149,7 @@ tasks:
       '#none#':
       - '4'
     scriptarguments:
-      proofpointtaplink:
+      emailsourcethreatlink:
         simple: ${inputs.ThreatURL}
       type:
         simple: URL
@@ -178,7 +173,7 @@ tasks:
       id: 0e891e39-9645-463f-86d0-b0ec9101f706
       version: -1
       name: Assign DBot Score — URL
-      description: Seeds DBot score for the threat URL from Proofpoint TAP signal.
+      description: Seeds DBot score for the threat URL from the email source.
       scriptName: AddDBotScoreToContext
       type: regular
       iscommand: false
@@ -199,7 +194,7 @@ tasks:
       score:
         simple: '2'
       vendor:
-        simple: Proofpoint TAP
+        simple: Email SEG
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 265,\n    \"y\": 760\n  }\n}"
@@ -249,7 +244,8 @@ tasks:
       id: b4161365-b353-4eba-9886-5051c8909f3d
       version: -1
       name: Rasterize URL
-      description: Captures a screenshot of the threat URL for analyst review. Best-effort — continues on error.
+      description: Captures a screenshot of the threat URL for analyst review. Best-effort
+        — continues on error.
       script: '|||rasterize'
       type: regular
       iscommand: true
@@ -281,7 +277,8 @@ tasks:
       id: 0b69ca12-08ef-4b3e-afaf-3862617168dd
       version: -1
       name: Create File Indicator
-      description: Creates a File indicator from the attachment hash extracted at entry point.
+      description: Creates a File indicator from the attachment hash extracted at
+        entry point.
       script: Builtin|||createNewIndicator
       type: regular
       iscommand: true
@@ -292,7 +289,7 @@ tasks:
       '#none#':
       - '8'
     scriptarguments:
-      proofpointtaplink:
+      emailsourcethreatlink:
         simple: ${inputs.ThreatURL}
       type:
         simple: File
@@ -316,7 +313,7 @@ tasks:
       id: e0106919-475c-4d4a-af74-2b7e3ca023c5
       version: -1
       name: Assign DBot Score — File
-      description: Seeds DBot score for the attachment hash from Proofpoint TAP signal.
+      description: Seeds DBot score for the attachment hash from the email source.
       scriptName: AddDBotScoreToContext
       type: regular
       iscommand: false
@@ -336,7 +333,7 @@ tasks:
       score:
         simple: '2'
       vendor:
-        simple: Proofpoint TAP
+        simple: Email SEG
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 910,\n    \"y\": 945\n  }\n}"
@@ -407,8 +404,8 @@ tasks:
       id: 7d6781b0-a2be-4d00-8d74-6911e25d1c04
       version: -1
       name: Sender Domain Prevalence Check
-      description: Checks whether the sender domain has been seen before in the environment. Low prevalence is an indicator
-        of a first-seen phishing domain.
+      description: Checks whether the sender domain has been seen before in the environment.
+        Low prevalence is an indicator of a first-seen phishing domain.
       script: '|||core-get-domain-analytics-prevalence'
       type: regular
       iscommand: true
@@ -493,7 +490,8 @@ tasks:
       id: a0e1cb99-bb2f-4beb-b72d-8a1ac9a371b2
       version: -1
       name: Sender IP Prevalence Check
-      description: Checks sender IP prevalence. Low prevalence may indicate a new sending infrastructure.
+      description: Checks sender IP prevalence. Low prevalence may indicate a new
+        sending infrastructure.
       script: '|||core-get-IP-analytics-prevalence'
       type: regular
       iscommand: true
@@ -697,7 +695,8 @@ tasks:
       id: d63ac3d3-a6ca-41dc-88f8-ea9309fe1450
       version: -1
       name: Tag Threat Indicators
-      description: Tags all threat indicators with the detection source for downstream filtering and reporting.
+      description: Tags all threat indicators with the detection source for downstream
+        filtering and reporting.
       script: Builtin|||setIndicators
       type: regular
       iscommand: true
@@ -718,7 +717,7 @@ tasks:
                 value:
                   simple: ','
       tags:
-        simple: ProofpointTAPThreat
+        simple: EmailThreat
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 2950\n  }\n}"
@@ -773,7 +772,8 @@ tasks:
       id: 160fc4ae-0779-4852-89e5-9c6b80fd678a
       version: -1
       name: Get Indicator DBot Score
-      description: Retrieves the cached DBot score for the threat indicator to use in verdict resolution.
+      description: Retrieves the cached DBot score for the threat indicator to use
+        in verdict resolution.
       scriptName: GetIndicatorDBotScoreFromCache
       type: regular
       iscommand: false
@@ -805,8 +805,9 @@ tasks:
       id: 97d2885d-b15b-4b36-b1c0-40e01db2fbbe
       version: -1
       name: Set Email Source Verdict from DBot
-      description: Maps the numeric DBot score to the standard source_verdict string used in Analysis. Used as a secondary
-        signal — primary verdict comes from Proofpoint ThreatStatus.
+      description: Maps the numeric DBot score to the standard source_verdict string
+        used in Analysis. Used as a secondary signal — primary verdict comes from
+        Proofpoint ThreatStatus.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -948,7 +949,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '28'
+      - '29'
     scriptarguments:
       append:
         simple: 'false'
@@ -984,7 +985,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '28'
+      - '29'
     scriptarguments:
       append:
         simple: 'false'
@@ -1020,7 +1021,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '28'
+      - '29'
     scriptarguments:
       append:
         simple: 'false'
@@ -1040,6 +1041,322 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  '29':
+    id: '29'
+    taskid: 803ccd5a-1e58-401d-9061-d70a09be755c
+    type: title
+    task:
+      id: 803ccd5a-1e58-401d-9061-d70a09be755c
+      version: -1
+      name: Email Authentication
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '30'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 4390\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '30':
+    id: '30'
+    taskid: 08e86fe8-312a-42bd-9372-b1ccde24617d
+    type: condition
+    task:
+      id: 08e86fe8-312a-42bd-9372-b1ccde24617d
+      version: -1
+      name: Email Authentication Enabled? (SPF/DKIM/DMARC)
+      type: condition
+      description: 'Gate: only run if AuthenticateEmail = true AND headers available.
+        Auth failure on SPF/DKIM/DMARC is a strong spoofed-sender signal. Source:
+        Phishing - Generic v3 task 79/82.'
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '32'
+      'yes':
+      - '31'
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: lists
+                accessor: SOCFWFeatureFlags
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: email_authentication
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: enabled
+            iscontext: true
+          right:
+            value:
+              simple: 'true'
+          ignorecase: true
+        - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.EmailHeaders
+            iscontext: true
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 4560\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '31':
+    id: '31'
+    taskid: b14e2eb0-f8f5-47b1-b24a-43addfa7c1ca
+    type: regular
+    task:
+      id: b14e2eb0-f8f5-47b1-b24a-43addfa7c1ca
+      version: -1
+      name: Check Email Authentication (SPF/DKIM/DMARC)
+      description: 'Runs CheckEmailAuthenticity script against email headers. Auth
+        FAIL = spoofed sender signal. Source: Phishing - Generic v3 task 82.'
+      scriptName: CheckEmailAuthenticity
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '32'
+    scriptarguments:
+      headers:
+        complex:
+          root: inputs.EmailHeaders
+      original_authentication_header:
+        complex:
+          root: inputs.OriginalAuthenticationHeader
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 265,\n    \"y\": 4750\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '32':
+    id: '32'
+    taskid: 1f6c6b3b-83c2-4933-9b38-60cdf2da4441
+    type: condition
+    task:
+      id: 1f6c6b3b-83c2-4933-9b38-60cdf2da4441
+      version: -1
+      name: Run ML Phishing Analysis?
+      type: condition
+      description: 'Gate: only run if PhishingModelName configured AND email body
+        available (HTML or text). ML scores content as a secondary signal. Source:
+        Phishing - Generic v3 task 160.'
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '34'
+      'yes':
+      - '33'
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.PhishingModelName
+            iscontext: true
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.EmailHtml
+            iscontext: true
+        - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.EmailText
+            iscontext: true
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 4940\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '33':
+    id: '33'
+    taskid: f7722ceb-4f28-4bf5-9873-a84ce341cb9a
+    type: playbook
+    task:
+      id: f7722ceb-4f28-4bf5-9873-a84ce341cb9a
+      version: -1
+      name: Phishing - Machine Learning Analysis
+      playbookName: Phishing - Machine Learning Analysis
+      type: playbook
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '34'
+    scriptarguments:
+      EmailHTML:
+        complex:
+          root: inputs.EmailHtml
+      EmailSubject:
+        complex:
+          root: inputs.EmailSubject
+      EmailText:
+        complex:
+          root: inputs.EmailText
+      PhishingModelName:
+        complex:
+          root: inputs.PhishingModelName
+      DBotPredictURLPhishingURLsNumber:
+        simple: '10'
+    separatecontext: true
+    continueonerror: true
+    continueonerrortype: ''
+    loop:
+      iscommand: false
+      exitCondition: ''
+      wait: 1
+      max: 100
+    view: "{\n  \"position\": {\n    \"x\": 265,\n    \"y\": 5130\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '34':
+    id: '34'
+    taskid: e3875f45-010b-42d5-b2d4-351399f32e38
+    type: condition
+    task:
+      id: e3875f45-010b-42d5-b2d4-351399f32e38
+      version: -1
+      name: Email Header Scoring Enabled?
+      type: condition
+      description: 'Gate: only run if CheckMicrosoftHeaders = true AND headers available.
+        Extracts SCL/BCL/PCL scores from Exchange/O365 headers. Source: Phishing -
+        Generic v3 task 132/133.'
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '28'
+      'yes':
+      - '35'
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: lists
+                accessor: SOCFWFeatureFlags
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: email_header_scoring
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: enabled
+            iscontext: true
+          right:
+            value:
+              simple: 'true'
+          ignorecase: true
+        - operator: isNotEmpty
+          left:
+            value:
+              simple: inputs.EmailHeaders
+            iscontext: true
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 5320\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '35':
+    id: '35'
+    taskid: 9a8c4934-2844-4224-9945-1772f8c83d4d
+    type: playbook
+    task:
+      id: 9a8c4934-2844-4224-9945-1772f8c83d4d
+      version: -1
+      name: Process Microsoft's Anti-Spam Headers
+      playbookName: Process Microsoft's Anti-Spam Headers
+      type: playbook
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '28'
+    scriptarguments: {}
+    separatecontext: true
+    continueonerror: true
+    continueonerrortype: ''
+    loop:
+      iscommand: false
+      exitCondition: ''
+      wait: 1
+      max: 100
+    view: "{\n  \"position\": {\n    \"x\": 265,\n    \"y\": 5510\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
   '28':
     id: '28'
     taskid: dfd77dbc-f8ca-44c3-b95d-63f4f3bb028f
@@ -1055,7 +1372,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 4230\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 5700\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -1071,7 +1388,8 @@ tasks:
       id: 3f7e2d1c-4b5a-4987-b8c9-d0e1f2a3b4c5
       version: -1
       name: Sender Domain Available?
-      description: Skip Sender Domain prevalence check if value is empty — continueonerror fallback.
+      description: Skip Sender Domain prevalence check if value is empty — continueonerror
+        fallback.
       type: condition
       iscommand: false
       brand: ''
@@ -1110,7 +1428,8 @@ tasks:
       id: 4e8f3d2c-5c6b-4098-c9da-e1f2a3b4c5d6
       version: -1
       name: Sender IP Available?
-      description: Skip Sender IP prevalence check if value is empty — continueonerror fallback.
+      description: Skip Sender IP prevalence check if value is empty — continueonerror
+        fallback.
       type: condition
       iscommand: false
       brand: ''
@@ -1141,29 +1460,23 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-system: true
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 4240,\n      \"width\":\
-  \ 1670,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
 inputs:
 - key: ThreatType
   value:
     simple: ${SOCFramework.Artifacts.Email.ThreatType}
   required: false
-  description: url / attachment — from SOCFramework.Artifacts.Email.ThreatType set by Foundation Normalize Artifacts
+  description: url / attachment — from SOCFramework.Artifacts.Email.ThreatType set
+    by Foundation Normalize Artifacts
   playbookInputQuery: null
 - key: ThreatURL
   value:
     simple: ${SOCFramework.Artifacts.Email.ThreatURL}
   required: false
-  description: Threat URL from Proofpoint TAP alert
+  description: Threat URL from email source alert
   playbookInputQuery: null
 - key: ThreatIndicator
   value:
-    complex:
-      root: alert.proofpointtapthreatinfomap
-      accessor: threat
-      transformers:
-      - operator: uniq
+    simple: ${SOCFramework.Email.threat_id}
   required: false
   description: The threat indicator value — URL string or file hash depending on ThreatType
   playbookInputQuery: null
@@ -1171,7 +1484,8 @@ inputs:
   value:
     simple: ${SOCFramework.Artifacts.Email.From}
   required: false
-  description: Sender email address — domain extracted via @ substring for prevalence check
+  description: Sender email address — domain extracted via @ substring for prevalence
+    check
   playbookInputQuery: null
 - key: SenderIP
   value:
@@ -1179,30 +1493,106 @@ inputs:
   required: false
   description: Sender IP address for prevalence check
   playbookInputQuery: null
+- key: OriginalAuthenticationHeader
+  value:
+    simple: ''
+  required: false
+  description: Optional override for the Authentication-Results header. Used by CheckEmailAuthenticity
+    for environments that rewrite auth headers.
+  playbookInputQuery: null
+- key: EmailHeaders
+  value:
+    simple: ${Email.Headers}
+  required: false
+  description: Full email headers — populated by Process Email - Generic v2 (user-reported
+    phishing) or by Foundation Normalize Artifacts. Required for auth and MS headers
+    checks.
+  playbookInputQuery: null
+- key: EmailHtml
+  value:
+    simple: ${Email.HTML}
+  required: false
+  description: Email HTML body — populated by Process Email. Required for ML analysis.
+  playbookInputQuery: null
+- key: EmailText
+  value:
+    simple: ${Email.Text}
+  required: false
+  description: Email plain text body — populated by Process Email. Used as ML fallback
+    when HTML not available.
+  playbookInputQuery: null
+- key: EmailSubject
+  value:
+    simple: ${SOCFramework.Artifacts.Email.Subject}
+  required: false
+  description: Email subject line — from SOCFramework.Artifacts.Email.Subject or Email.Subject
+    from Process Email.
+  playbookInputQuery: null
+- key: PhishingModelName
+  value:
+    simple: ''
+  required: false
+  description: Name of the XSOAR ML phishing model to use in Phishing - Machine Learning
+    Analysis. Leave empty to skip ML analysis. Source capability from Phishing - Generic
+    v3.
+  playbookInputQuery: null
 inputSections:
 - inputs:
   - ThreatType
   - ThreatURL
   - ThreatIndicator
   name: Threat Artifact
-  description: Threat object inputs — populated from SOCFramework.Artifacts.Email.* set by Foundation Normalize Artifacts
+  description: Threat object inputs — populated from SOCFramework.Artifacts.Email.*
+    set by Foundation Normalize Artifacts
 - inputs:
   - SenderDomain
   - SenderIP
   name: Sender
   description: Sender identity inputs for prevalence analysis
+- inputs:
+  - AuthenticateEmail
+  - EmailHeaders
+  - OriginalAuthenticationHeader
+  name: Email Authentication
+  description: SPF/DKIM/DMARC check — requires email headers from Process Email or
+    Foundation
+- inputs:
+  - PhishingModelName
+  - EmailHtml
+  - EmailText
+  - EmailSubject
+  name: ML Analysis
+  description: Phishing ML model scoring — requires email body from Process Email
+- inputs:
+  - CheckMicrosoftHeaders
+  name: Microsoft Headers
+  description: SCL/BCL/PCL extraction — O365/Exchange environments only
+outputs:
+- contextPath: Analysis.Email.signal_type
+  description: 'Behavioral classification of the email threat: url_phish / file_malware
+    / unknown'
+  type: string
+- contextPath: Analysis.Email.source_verdict
+  description: 'DBot-derived indicator verdict: malicious / suspicious / benign. Secondary
+    signal — primary verdict comes from ThreatStatus in SOC Email Verdict Resolution_V3.'
+  type: string
 outputSections:
 - outputs:
   - Analysis.Email.signal_type
   - Analysis.Email.source_verdict
   name: Signal Characterization
   description: ''
-outputs:
-- contextPath: Analysis.Email.signal_type
-  description: 'Behavioral classification of the email threat: url_phish / file_malware / unknown'
-  type: string
-- contextPath: Analysis.Email.source_verdict
-  description: 'DBot-derived indicator verdict: malicious / suspicious / benign. Secondary signal — primary verdict comes
-    from ThreatStatus in SOC Email Verdict Resolution_V3.'
-  type: string
-adopted: true
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
+  \     \"height\": 4240,\n      \"width\": 1670,\n      \"x\": 50,\n      \"y\":\
+  \ 50\n    }\n  }\n}"
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.1.0
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []

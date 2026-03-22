@@ -1,21 +1,11 @@
-fromversion: 5.0.0
+adopted: true
 id: SOC Endpoint Verdict Resolution_V3
-version: 3
-contentitemexportablefields:
-  contentitemfields:
-    packID: soc-framework-nist-ir
-    packName: SOC Framework NIST IR (800-61)
-    itemVersion: 1.0.0
-    fromServerVersion: 5.0.0
-    toServerVersion: ''
-    definitionid: ''
-    prevname: ''
-    isoverridable: false
-    supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Endpoint Verdict Resolution_V3
-description: "Purpose: Is the artifact malicious, suspicious, benign, or unknown?\n\nCurrent Tasks\nWhat is Current File Verdict\
-  \ \nCan We Get the Verdict\nWildFire Detonate \nDBot Score \nDoes DBot Think It’s Malicious? \nSet Verdict "
+version: -1
+fromversion: 6.10.0
+description: "Purpose: Is the artifact malicious, suspicious, benign, or unknown?\n\
+  \nCurrent Tasks\nWhat is Current File Verdict \nCan We Get the Verdict\nWildFire\
+  \ Detonate \nDBot Score \nDoes DBot Think It’s Malicious? \nSet Verdict "
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -74,25 +64,19 @@ tasks:
     isautoswitchedtoquietmode: false
   '18':
     id: '18'
-    taskid: 1f2777b4-95d9-4165-bb28-a2058dfb0f76
-    type: playbook
+    taskid: 3568b6fc-d2d2-487f-8ba6-2f4fd9b0f08f
+    type: regular
     task:
-      id: 1f2777b4-95d9-4165-bb28-a2058dfb0f76
+      id: 3568b6fc-d2d2-487f-8ba6-2f4fd9b0f08f
       version: -1
-      name: WildFire - Detonate file v2
-      description: 'Detonate one or more files using the Wildfire v2 integration. This playbook
-
-        returns relevant reports to the War Room and file reputations to the context data.
-
-        The detonation supports the following file types -
-
-        APK, JAR, DOC, DOCX, RTF, XLS, XLSX, PPT, PPTX, OOXML, PE32, PE, PDF, DMG, PKG, RAR, 7Z, JS, ELF, HTA, LNK, VBS, PS1,
-        PERL, PYTHON, SHELL.
-
-
-        Note: Base64 encoded files are currently not supported.'
-      playbookName: WildFire - Detonate file v2
-      type: playbook
+      name: Detonate File — Universal Command
+      description: Submits file for sandbox analysis via soc-detonate-file. Vendor
+        selection is determined by SOCFrameworkActions_V3 entry — Cortex Core hash
+        prevalence is the built-in baseline. WildFire, VirusTotal, or CrowdStrike
+        Falcon Sandbox fire when configured. shadow_mode=false — Analysis phase always
+        executes.
+      scriptName: SOCCommandWrapper
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
@@ -101,27 +85,24 @@ tasks:
       '#none#':
       - '25'
     scriptarguments:
-      File:
-        complex:
-          root: inputs.SHA256
-          transformers:
-          - operator: uniq
-      Interval:
-        simple: '60'
-      Timeout:
-        simple: '480'
-    separatecontext: true
+      Action_Actor:
+        simple: automation
+      Phase:
+        simple: Analysis
+      action:
+        simple: soc-detonate-file
+      output_key:
+        simple: Analysis.Endpoint.Detonation
+      entity_value:
+        simple: ${SOCFramework.Artifacts.Hash}
+    separatecontext: false
+    continueonerror: true
     continueonerrortype: ''
-    loop:
-      iscommand: false
-      exitCondition: ''
-      wait: 1
-      max: 100
-    view: "{\n  \"position\": {\n    \"x\": 817.5,\n    \"y\": 745\n  }\n}"
+    skipunavailable: true
+    view: '{"position": {"x": 310, "y": 1110}}'
     note: false
     timertriggers: []
     ignoreworker: false
-    skipunavailable: false
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
@@ -152,9 +133,10 @@ tasks:
     skipunavailable: false
     task:
       brand: ''
-      description: Capture the original verdict from the source detection platform before any enrichment runs. Preserved in
-        Analysis.Endpoint.source_verdict so downstream playbooks can detect discrepancies between source classification and
-        enrichment results.
+      description: Capture the original verdict from the source detection platform
+        before any enrichment runs. Preserved in Analysis.Endpoint.source_verdict
+        so downstream playbooks can detect discrepancies between source classification
+        and enrichment results.
       id: b2c3d4e5-f6a7-8901-bcde-f23456789012
       iscommand: false
       istaskmissingcomponenterrordismissed: false
@@ -488,7 +470,8 @@ tasks:
       id: 18476c9f-e302-479f-812c-0ff30a09de78
       version: -1
       name: Get Dbot Indicator Score
-      description: The script calculates the average DBot score for each indicator in the context.
+      description: The script calculates the average DBot score for each indicator
+        in the context.
       scriptName: DBotAverageScore
       type: regular
       iscommand: false
@@ -516,9 +499,11 @@ tasks:
       id: 2d37c317-fbcc-47c3-93bf-f8872db22468
       version: -1
       name: Set Verdict Malicious
-      description: "Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.\n\
-        \nThis automation runs using the default Limited User role, unless you explicitly change the permissions.\nFor more\
-        \ information, see the section about permissions here:\n- For Cortex XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
+      description: "Set a value in context under the key you entered. If no value\
+        \ is entered, the script doesn't do anything.\n\nThis automation runs using\
+        \ the default Limited User role, unless you explicitly change the permissions.\n\
+        For more information, see the section about permissions here:\n- For Cortex\
+        \ XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
         \ \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n\
         - For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
       scriptName: SetAndHandleEmpty
@@ -557,9 +542,11 @@ tasks:
       id: bc349f0b-d8ec-4dd4-b6ea-578509e2b929
       version: -1
       name: Set Verdict Suspicious
-      description: "Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.\n\
-        \nThis automation runs using the default Limited User role, unless you explicitly change the permissions.\nFor more\
-        \ information, see the section about permissions here:\n- For Cortex XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
+      description: "Set a value in context under the key you entered. If no value\
+        \ is entered, the script doesn't do anything.\n\nThis automation runs using\
+        \ the default Limited User role, unless you explicitly change the permissions.\n\
+        For more information, see the section about permissions here:\n- For Cortex\
+        \ XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
         \ \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n\
         - For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
       scriptName: SetAndHandleEmpty
@@ -598,9 +585,11 @@ tasks:
       id: 844144f5-b61a-45f0-8e9e-739511f2b43f
       version: -1
       name: Set Verdict Unknown
-      description: "Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.\n\
-        \nThis automation runs using the default Limited User role, unless you explicitly change the permissions.\nFor more\
-        \ information, see the section about permissions here:\n- For Cortex XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
+      description: "Set a value in context under the key you entered. If no value\
+        \ is entered, the script doesn't do anything.\n\nThis automation runs using\
+        \ the default Limited User role, unless you explicitly change the permissions.\n\
+        For more information, see the section about permissions here:\n- For Cortex\
+        \ XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
         \ \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n\
         - For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
       scriptName: SetAndHandleEmpty
@@ -672,7 +661,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '18'
+      - '48'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 817.5,\n    \"y\": 575\n  }\n}"
@@ -691,9 +680,11 @@ tasks:
       id: 05b85087-43b9-4d28-94c9-8ad2c98db66b
       version: -1
       name: Set Verdict Benign
-      description: "Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.\n\
-        \nThis automation runs using the default Limited User role, unless you explicitly change the permissions.\nFor more\
-        \ information, see the section about permissions here:\n- For Cortex XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
+      description: "Set a value in context under the key you entered. If no value\
+        \ is entered, the script doesn't do anything.\n\nThis automation runs using\
+        \ the default Limited User role, unless you explicitly change the permissions.\n\
+        For more information, see the section about permissions here:\n- For Cortex\
+        \ XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
         \ \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n\
         - For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
       scriptName: SetAndHandleEmpty
@@ -724,9 +715,63 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-system: true
-view: "{\n  \"linkLabelsPosition\": {\n    \"19_21_Suspicious\": 0.56\n  },\n  \"paper\": {\n    \"dimensions\": {\n     \
-  \ \"height\": 1690,\n      \"width\": 1910,\n      \"x\": 80,\n      \"y\": 50\n    }\n  }\n}"
+  '48':
+    id: '48'
+    taskid: a72f6c17-0e14-468e-969b-a8ac71d9def9
+    type: condition
+    task:
+      id: a72f6c17-0e14-468e-969b-a8ac71d9def9
+      version: -1
+      name: Sandbox Detonation Enabled?
+      description: 'Gate: only run soc-detonate-file if SOCFWFeatureFlags.sandbox_detonation
+        = true. When false, flow proceeds to DBot verdict using hash prevalence from
+        soc-enrich-file (already executed in SOC Email/Endpoint IOC Enrichment). Flip
+        flag after configuring WildFire, VirusTotal, or another sandbox integration.'
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '25'
+      'yes':
+      - '18'
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: lists
+                accessor: SOCFWFeatureFlags
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: sandbox_detonation
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: enabled
+            iscontext: true
+          right:
+            value:
+              simple: 'true'
+          ignorecase: true
+    separatecontext: false
+    continueonerrortype: ''
+    view: '{"position": {"x": 500, "y": 920}}'
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
 inputs:
 - key: SHA256
   value:
@@ -746,20 +791,34 @@ inputSections:
   - verdict
   name: General (Inputs group)
   description: Generic group for inputs
+outputs:
+- contextPath: Analysis.Endpoint.verdict
+  description: Confirmed artifact verdict after all enrichment sources and WildFire/DBot
+    aggregation
+  type: string
+- contextPath: Analysis.Endpoint.source_verdict
+  description: Original verdict from the source detection platform before enrichment
+    (e.g. malicious from CrowdStrike). Preserved for discrepancy detection downstream.
+  type: string
 outputSections:
 - outputs:
   - Analysis.Endpoint.verdict
   - Analysis.Endpoint.source_verdict
   name: General (Outputs group)
   description: Generic group for outputs
-outputs:
-- contextPath: Analysis.Endpoint.verdict
-  description: Confirmed artifact verdict after all enrichment sources and WildFire/DBot aggregation
-  type: string
-- contextPath: Analysis.Endpoint.source_verdict
-  description: Original verdict from the source detection platform before enrichment (e.g. malicious from CrowdStrike). Preserved
-    for discrepancy detection downstream.
-  type: string
-sourceplaybookid: SOC Data Analysis_V3
+view: "{\n  \"linkLabelsPosition\": {\n    \"19_21_Suspicious\": 0.56\n  },\n  \"\
+  paper\": {\n    \"dimensions\": {\n      \"height\": 1690,\n      \"width\": 1910,\n\
+  \      \"x\": 80,\n      \"y\": 50\n    }\n  }\n}"
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.0.0
+    fromServerVersion: 5.0.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
 dirtyInputs: false
-adopted: true
+sourceplaybookid: SOC Data Analysis_V3

@@ -505,7 +505,7 @@
         "inline_args": {
           "interval": "P7D",
           "threatType": "url",
-          "url": "${SOCFramework.Artifacts.Email.ThreatURL}"
+          "url": "${SOCFramework.Email.threat_url}"
         },
         "output_map": {
           "UC.Email.Events.messages_delivered": "Proofpoint.MessagesDelivered",
@@ -518,7 +518,7 @@
         "inline_args": {
           "interval": "P7D",
           "threatType": "url",
-          "url": "${SOCFramework.Artifacts.Email.ThreatURL}"
+          "url": "${SOCFramework.Email.threat_url}"
         },
         "output_map": {
           "UC.Email.Events.clicks_permitted": "Proofpoint.ClicksPermitted",
@@ -534,8 +534,8 @@
       "Proofpoint TAP v2": {
         "command": "proofpoint-get-forensics",
         "inline_args": {
-          "threatId": "${SOCFramework.Email.TAP.ThreatID}",
-          "campaignId": "${SOCFramework.Email.TAP.CampaignID}",
+          "threatId": "${SOCFramework.Email.threat_id}",
+          "campaignId": "${SOCFramework.Email.campaign_id}",
           "includeCampaignForensics": "true"
         },
         "output_map": {
@@ -554,8 +554,8 @@
       "Microsoft Graph": {
         "command": "msgraph-mail-delete-email",
         "inline_args": {
-          "user_id": "${SOCFramework.Artifacts.Email.To}",
-          "message_id": "${SOCFramework.Artifacts.Email.MessageID}"
+          "user_id": "${SOCFramework.Email.recipient}",
+          "message_id": "${SOCFramework.Email.message_id}"
         },
         "output_map": {
           "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
@@ -565,8 +565,8 @@
       "Gmail": {
         "command": "gmail-delete-mail",
         "inline_args": {
-          "user_id": "${SOCFramework.Artifacts.Email.To}",
-          "message_id": "${SOCFramework.Artifacts.Email.MessageID}"
+          "user_id": "${SOCFramework.Email.recipient}",
+          "message_id": "${SOCFramework.Email.message_id}"
         },
         "output_map": {
           "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
@@ -592,8 +592,8 @@
       "Trend Micro Vision One": {
         "command": "trendmicro-visionone-quarantine-email-message",
         "inline_args": {
-          "message_id": "${SOCFramework.Artifacts.Email.MessageID}",
-          "mailbox": "${SOCFramework.Artifacts.Email.To}"
+          "message_id": "${SOCFramework.Email.message_id}",
+          "mailbox": "${SOCFramework.Email.recipient}"
         },
         "output_map": {
           "UC.Email.Quarantine.status": "TrendMicro.QuarantineEmail.status",
@@ -603,7 +603,7 @@
       "Mimecast": {
         "command": "mimecast-reject-held-message",
         "inline_args": {
-          "id": "${SOCFramework.Artifacts.Email.MessageID}",
+          "id": "${SOCFramework.Email.message_id}",
           "reason": "Quarantined by SOC Framework automated response"
         },
         "output_map": {
@@ -619,7 +619,7 @@
       "Mimecast": {
         "command": "mimecast-create-blocked-sender-policy",
         "inline_args": {
-          "sender": "${SOCFramework.Artifacts.Email.From}",
+          "sender": "${SOCFramework.Email.sender}",
           "description": "Blocked by SOC Framework \u2014 threat sender"
         },
         "output_map": {
@@ -630,7 +630,7 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-add-tiindicator",
         "inline_args": {
-          "indicator_value": "${SOCFramework.Artifacts.Email.From}",
+          "indicator_value": "${SOCFramework.Email.sender}",
           "indicator_type": "EmailSenderAddress",
           "action": "BlockAndRemediate",
           "description": "SOCFramework block sender",
@@ -644,7 +644,7 @@
       "Proofpoint TAP v2": {
         "command": "proofpoint-block-sender",
         "inline_args": {
-          "sender_address": "${SOCFramework.Artifacts.Email.From}",
+          "sender_address": "${SOCFramework.Email.sender}",
           "action": "block"
         },
         "output_map": {
@@ -660,7 +660,7 @@
       "Mimecast": {
         "command": "mimecast-delete-blocked-sender-policy",
         "inline_args": {
-          "sender": "${SOCFramework.Artifacts.Email.From}"
+          "sender": "${SOCFramework.Email.sender}"
         },
         "output_map": {
           "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
@@ -670,7 +670,7 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-sc-delete-indicator",
         "inline_args": {
-          "indicator_value": "${SOCFramework.Artifacts.Email.From}"
+          "indicator_value": "${SOCFramework.Email.sender}"
         },
         "output_map": {
           "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
@@ -680,7 +680,7 @@
       "Proofpoint TAP v2": {
         "command": "proofpoint-delete-blocked-sender",
         "inline_args": {
-          "sender": "${SOCFramework.Artifacts.Email.From}"
+          "sender": "${SOCFramework.Email.sender}"
         },
         "output_map": {
           "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
@@ -695,8 +695,8 @@
       "Microsoft Graph Mail": {
         "command": "msgraph-mail-delete-rule",
         "inline_args": {
-          "user_id": "${SOCFramework.Artifacts.Email.To}",
-          "rule_id": "${SOCFramework.Email.InboxRule.ID}"
+          "user_id": "${SOCFramework.Email.recipient}",
+          "rule_id": "${SOCFramework.Email.InboxRules}"
         },
         "output_map": {
           "UC.Email.RemoveInboxRule.status": "MicrosoftGraph.Mail.Rule.Delete.status"
@@ -718,5 +718,78 @@
       }
     },
     "shadow_mode": true
+  },
+  "soc-notify-user": {
+    "responses": {
+      "Mail Sender (New)": {
+        "command": "send-mail",
+        "inline_args": {
+          "to": "${SOCFramework.Email.recipient}",
+          "subject": "${SOCFramework.Comms.Email.subject}",
+          "body": "${SOCFramework.Comms.Email.body}"
+        },
+        "output_map": {
+          "UC.Comms.Email.status": "SendMail.status",
+          "UC.Comms.Email.message": "SendMail.message"
+        }
+      },
+      "Send Email v2": {
+        "command": "send-mail",
+        "inline_args": {
+          "to": "${SOCFramework.Email.recipient}",
+          "subject": "${SOCFramework.Comms.Email.subject}",
+          "body": "${SOCFramework.Comms.Email.body}"
+        },
+        "output_map": {
+          "UC.Comms.Email.status": "SendMail.status",
+          "UC.Comms.Email.message": "SendMail.message"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-detonate-file": {
+    "shadow_mode": false,
+    "description": "Submit file for sandbox analysis and return verdict. Cortex Core hash prevalence is the built-in baseline \u2014 no integration required. Add WildFire, VirusTotal, or another sandbox for full dynamic detonation.",
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-get-hash-analytics-prevalence",
+        "inline_args": {
+          "sha256": "${SOCFramework.Artifacts.Hash}"
+        }
+      },
+      "WildFire v2": {
+        "command": "wildfire-upload-file",
+        "inline_args": {
+          "upload": "${SOCFramework.Artifacts.FilePath}",
+          "format": "auto"
+        }
+      },
+      "WildFire v2 (hash)": {
+        "command": "wildfire-get-verdict",
+        "inline_args": {
+          "hash": "${SOCFramework.Artifacts.Hash}"
+        }
+      },
+      "VirusTotal (Private API)": {
+        "command": "vt-private-get-file-report",
+        "inline_args": {
+          "resource": "${SOCFramework.Artifacts.Hash}"
+        }
+      },
+      "Joe Security": {
+        "command": "joe-analysis-submit-sample",
+        "inline_args": {
+          "sample": "${SOCFramework.Artifacts.FilePath}"
+        }
+      },
+      "CrowdStrike Falcon Sandbox v2": {
+        "command": "cs-fx-submit-uploaded-file",
+        "inline_args": {
+          "sha256": "${SOCFramework.Artifacts.Hash}",
+          "environment_id": "160"
+        }
+      }
+    }
   }
 }

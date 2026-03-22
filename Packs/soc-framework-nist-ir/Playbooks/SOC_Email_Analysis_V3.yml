@@ -3,10 +3,12 @@ id: SOC Email Analysis_V3
 name: SOC Email Analysis_V3
 version: -1
 fromversion: 6.10.0
-description: "NIST IR 800-61 — Analysis Phase Orchestrator — Email / SEG\n\nExecution order:\n  1. Initialize Investigation\
-  \ Context\n  2. IOC Enrichment\n  3. Signal Characterization\n  4. Exposure Evaluation\n  5. Verdict Resolution\n  6. Forensics\
-  \ Evaluation\n  7. Spread Evaluation — map RecipientScope → spread_level; inbox rule audit\n  8. Analysis Evaluation\n\n\
-  Context key contract produced:\n  Analysis.Email.verdict, confidence, category, signal_type,\n  source_verdict, response_recommended,\n\
+description: "NIST IR 800-61 — Analysis Phase Orchestrator — Email / SEG\n\nExecution\
+  \ order:\n  1. Initialize Investigation Context\n  2. IOC Enrichment\n  3. Signal\
+  \ Characterization\n  4. Exposure Evaluation\n  5. Verdict Resolution\n  6. Forensics\
+  \ Evaluation\n  7. Spread Evaluation — map RecipientScope → spread_level; inbox\
+  \ rule audit\n  8. Analysis Evaluation\n\nContext key contract produced:\n  Analysis.Email.verdict,\
+  \ confidence, category, signal_type,\n  source_verdict, response_recommended,\n\
   \  Analysis.Email.spread_level, Analysis.Email.persistence_type"
 tags:
 - SOC
@@ -18,7 +20,7 @@ starttaskid: '0'
 tasks:
   '0':
     id: '0'
-    taskid: 11d05782-f96c-4140-a991-db6999cffe19
+    taskid: 4344b438-5961-4633-bf23-7349531f006c
     type: start
     task:
       id: 4344b438-5961-4633-bf23-7349531f006c
@@ -33,7 +35,7 @@ tasks:
       - '1'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 50\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 50\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -43,7 +45,7 @@ tasks:
     isautoswitchedtoquietmode: false
   '1':
     id: '1'
-    taskid: 12b66231-3c8d-45ed-ad40-a72dc9355485
+    taskid: 220587fb-12a0-4164-88f9-6aa5acb8fcd7
     type: title
     task:
       id: 220587fb-12a0-4164-88f9-6aa5acb8fcd7
@@ -59,7 +61,7 @@ tasks:
       - '2'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 195\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 220\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -69,7 +71,7 @@ tasks:
     isautoswitchedtoquietmode: false
   '2':
     id: '2'
-    taskid: d9fd3b2e-c04c-47b3-9097-f8a58db4c452
+    taskid: 9cf4dd47-ec3f-4331-bf82-30c1822af4f7
     type: playbook
     task:
       id: 9cf4dd47-ec3f-4331-bf82-30c1822af4f7
@@ -86,16 +88,16 @@ tasks:
       '#none#':
       - '21'
     scriptarguments:
-      reset_issue_keys:
-        simple: Investigation, Analysis, Containment, Eradication, Recovery
       case_host_count:
         simple: ${parentIncidentFields.host_count}
-      case_score:
-        simple: ${parentIncidentFields.predicted_score}
       case_issue_count:
         simple: ${parentIncidentFields.alert_count}
+      case_score:
+        simple: ${parentIncidentFields.predicted_score}
       case_user_count:
         simple: ${parentIncidentFields.user_count}
+      reset_issue_keys:
+        simple: Investigation, Analysis, Containment, Eradication, Recovery
     separatecontext: false
     continueonerrortype: ''
     loop:
@@ -103,7 +105,7 @@ tasks:
       exitCondition: ''
       wait: 1
       max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 365\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 390\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -113,7 +115,7 @@ tasks:
     isautoswitchedtoquietmode: false
   '3':
     id: '3'
-    taskid: 2e4e4c94-dd84-4885-8920-8f161f91a713
+    taskid: 3b201387-c29d-4131-970a-13d98c00e0ca
     type: title
     task:
       id: 3b201387-c29d-4131-970a-13d98c00e0ca
@@ -129,7 +131,7 @@ tasks:
       - '4'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 925\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 930\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -139,14 +141,15 @@ tasks:
     isautoswitchedtoquietmode: false
   '4':
     id: '4'
-    taskid: 39905918-8fcf-4790-9e76-261caf5ac2ee
+    taskid: 79222ee9-74e8-4fb9-8ef1-93f9e7fc7287
     type: playbook
     task:
       id: 79222ee9-74e8-4fb9-8ef1-93f9e7fc7287
       version: -1
       name: SOC Email Signal Characterization_V3
-      description: 'Characterize the email threat signal type and derive a source-level verdict from DBot indicator scoring.
-        Outputs: Analysis.Email.signal_type, Analysis.Email.source_verdict.'
+      description: 'Characterize the email threat signal type and derive a source-level
+        verdict from DBot indicator scoring. Outputs: Analysis.Email.signal_type,
+        Analysis.Email.source_verdict.'
       playbookName: SOC Email Signal Characterization_V3
       type: playbook
       iscommand: false
@@ -157,24 +160,20 @@ tasks:
       '#none#':
       - '5'
     scriptarguments:
+      SenderDomain:
+        simple: ${SOCFramework.Artifacts.Email.From}
+      SenderIP:
+        simple: ${alert.localip}
+      ThreatIndicator:
+        simple: ${SOCFramework.Email.threat_id}
       ThreatType:
         simple: ${SOCFramework.Artifacts.Email.ThreatType}
-      ThreatURL: &id001
+      ThreatURL:
         complex:
           root: SOCFramework.Artifacts.Email
           accessor: ThreatURL
           transformers:
           - operator: FirstArrayElement
-      ThreatIndicator:
-        complex:
-          root: alert.proofpointtapthreatinfomap
-          accessor: threatID
-          transformers:
-          - operator: FirstArrayElement
-      SenderDomain:
-        simple: ${SOCFramework.Artifacts.Email.From}
-      SenderIP:
-        simple: ${alert.localip}
     separatecontext: true
     continueonerrortype: ''
     loop:
@@ -182,7 +181,7 @@ tasks:
       exitCondition: ''
       wait: 1
       max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1095\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1100\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -192,7 +191,7 @@ tasks:
     isautoswitchedtoquietmode: false
   '5':
     id: '5'
-    taskid: 4ece4a96-77fd-4b86-a1ad-2705b31640f3
+    taskid: 5b3a9f09-8b54-4ffe-9f24-44df9aec36cf
     type: title
     task:
       id: 5b3a9f09-8b54-4ffe-9f24-44df9aec36cf
@@ -208,7 +207,7 @@ tasks:
       - '6'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1290\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1285\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -218,13 +217,14 @@ tasks:
     isautoswitchedtoquietmode: false
   '6':
     id: '6'
-    taskid: db088c0a-9ab9-4a3b-a315-9821fc1714d3
+    taskid: 924efb48-b875-453c-84a0-4479c863ba54
     type: playbook
     task:
       id: 924efb48-b875-453c-84a0-4479c863ba54
       version: -1
       name: SOC Email Exposure Evaluation_V3
-      description: Determine exposure level, recipient scope, VIP involvement, and extract MessageID.
+      description: Determine exposure level, recipient scope, VIP involvement, and
+        extract MessageID.
       playbookName: SOC Email Exposure Evaluation_V3
       type: playbook
       iscommand: false
@@ -235,9 +235,12 @@ tasks:
       '#none#':
       - '7'
     scriptarguments:
-      ThreatURL: *id001
-      ThreatID:
-        simple: ${SOCFramework.Email.TAP.ThreatID}
+      ThreatURL:
+        complex:
+          root: SOCFramework.Artifacts.Email
+          accessor: ThreatURL
+          transformers:
+          - operator: FirstArrayElement
     separatecontext: true
     continueonerrortype: ''
     loop:
@@ -245,7 +248,7 @@ tasks:
       exitCondition: ''
       wait: 1
       max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1460\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1455\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -255,7 +258,7 @@ tasks:
     isautoswitchedtoquietmode: false
   '7':
     id: '7'
-    taskid: a787e322-a922-4405-a3ea-d50a1c824cf1
+    taskid: 470ecc5b-2146-46ff-b663-942e4244a43f
     type: title
     task:
       id: 470ecc5b-2146-46ff-b663-942e4244a43f
@@ -271,7 +274,7 @@ tasks:
       - '8'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1655\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1640\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -281,14 +284,14 @@ tasks:
     isautoswitchedtoquietmode: false
   '8':
     id: '8'
-    taskid: f6933980-342d-4b66-ace2-e71ab1f2c6be
+    taskid: 70d7a938-e8af-405b-9657-ee8775d015fe
     type: playbook
     task:
       id: 70d7a938-e8af-405b-9657-ee8775d015fe
       version: -1
       name: SOC Email Verdict Resolution_V3
-      description: Determine final verdict, confidence, category, and advisory recommendation. ClickCount and DeliveredCount
-        now populated by prior Exposure Evaluation.
+      description: Determine final verdict, confidence, category, and advisory recommendation.
+        ClickCount and DeliveredCount now populated by prior Exposure Evaluation.
       playbookName: SOC Email Verdict Resolution_V3
       type: playbook
       iscommand: false
@@ -299,21 +302,16 @@ tasks:
       '#none#':
       - '9'
     scriptarguments:
-      ThreatStatus:
-        complex:
-          root: alert.proofpointtapthreatinfomap
-          accessor: threatStatus
-          transformers:
-          - operator: FirstArrayElement
-          - operator: toLowerCase
       Classification:
-        simple: ${SOCFramework.Email.TAP.Classification}
+        simple: ${Email.Classification}
+      ClickCount:
+        simple: ${Email.Exposure.click_count}
+      DeliveredCount:
+        simple: ${Email.Exposure.delivered_count}
       HighValueUserInvolved:
         simple: ${SOCFramework.Email.HighValueUserInvolved}
-      ClickCount:
-        simple: ${SOCFramework.Email.TAP.ClickCount}
-      DeliveredCount:
-        simple: ${SOCFramework.Email.TAP.DeliveredCount}
+      ThreatStatus:
+        simple: ${SOCFramework.Email.threat_status}
     separatecontext: true
     continueonerrortype: ''
     loop:
@@ -321,7 +319,7 @@ tasks:
       exitCondition: ''
       wait: 1
       max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1825\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1810\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -331,7 +329,7 @@ tasks:
     isautoswitchedtoquietmode: false
   '9':
     id: '9'
-    taskid: 3b9da79c-1121-428f-a8f5-61eaaec87207
+    taskid: 6e2e674d-648a-4ef7-b978-61c6b5ee52c4
     type: title
     task:
       id: 6e2e674d-648a-4ef7-b978-61c6b5ee52c4
@@ -347,7 +345,7 @@ tasks:
       - '10'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2020\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1995\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -357,13 +355,14 @@ tasks:
     isautoswitchedtoquietmode: false
   '10':
     id: '10'
-    taskid: da929afe-06e7-4dcf-a5c2-40fb81823362
+    taskid: 4eeaaf71-e891-42d5-b62e-e31b970d3804
     type: playbook
     task:
       id: 4eeaaf71-e891-42d5-b62e-e31b970d3804
       version: -1
       name: SOC Email Forensics Evaluation_V3
-      description: Retrieve campaign and threat forensics. Sets CampaignID, ThreatID, forensics_available.
+      description: Retrieve campaign and threat forensics. Sets CampaignID, ThreatID,
+        forensics_available.
       playbookName: SOC Email Forensics Evaluation_V3
       type: playbook
       iscommand: false
@@ -373,7 +372,6 @@ tasks:
     nexttasks:
       '#none#':
       - '14'
-    scriptarguments: {}
     separatecontext: true
     continueonerrortype: ''
     loop:
@@ -381,7 +379,155 @@ tasks:
       exitCondition: ''
       wait: 1
       max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2190\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2165\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+    scriptarguments:
+      GetOriginalEmail:
+        simple: 'false'
+  '11':
+    id: '11'
+    taskid: 655ebc87-9b92-4eda-bbaf-4396f45a14de
+    type: title
+    task:
+      id: 655ebc87-9b92-4eda-bbaf-4396f45a14de
+      version: -1
+      name: Analysis Evaluation
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '12'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2705\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '12':
+    id: '12'
+    taskid: da0ded1a-c3fb-449f-922c-860f37dba782
+    type: playbook
+    task:
+      id: da0ded1a-c3fb-449f-922c-860f37dba782
+      version: -1
+      name: SOC Analysis Evaluation_V3
+      description: 'Evaluate final analysis outputs and write case-level fields. Email-specific:
+        primary_entity_id/name=From, primary_entity_user=To, spread_level=RecipientScope.
+        Compromise fields not applicable for Email.'
+      playbookName: SOC Analysis Evaluation_V3
+      type: playbook
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '23'
+    scriptarguments:
+      case_category:
+        simple: ${Analysis.Email.category}
+      case_host_count:
+        simple: ${Analysis.Endpoint.host_count}
+      case_issue_count:
+        simple: ${Analysis.Endpoint.issue_count}
+      case_score:
+        simple: ${parentIncidentFields.predicted_score}
+      case_user_count:
+        simple: ${Analysis.Endpoint.user_count}
+      confidence:
+        simple: ${Analysis.Email.confidence}
+      mitre_tactic:
+        simple: ${SOCFramework.Mitre.Tactic}
+      mitre_tactic_id:
+        simple: ${SOCFramework.Mitre.Tactic.ID}
+      mitre_technique:
+        simple: ${SOCFramework.Mitre.Technique}
+      mitre_technique_id:
+        simple: ${SOCFramework.Mitre.Technique.ID}
+      primary_entity_id:
+        simple: ${SOCFramework.Artifacts.Email.From}
+      primary_entity_name:
+        simple: ${SOCFramework.Artifacts.Email.From}
+      primary_entity_type:
+        simple: ${SOCFramework.Product.category}
+      primary_entity_user:
+        simple: ${SOCFramework.Artifacts.Email.To}
+      response_recommended:
+        simple: ${Analysis.Email.response_recommended}
+      spread_level:
+        simple: ${Analysis.Email.spread_level}
+      story:
+        simple: 'Email Analysis Summary
+
+
+          A ${SOCFramework.Artifacts.Email.ThreatType} threat was detected via ${SOCFramework.Product.key}
+          for recipient ${SOCFramework.Artifacts.Email.To}.
+
+
+          Signal: ${Analysis.Email.signal_type}
+
+          Verdict: ${Analysis.Email.verdict} (${Analysis.Email.confidence} confidence)
+
+          Category: ${Analysis.Email.category}
+
+
+          Sender: ${SOCFramework.Artifacts.Email.From}
+
+          Subject: ${SOCFramework.Artifacts.Email.Subject}
+
+          Threat URL: ${SOCFramework.Artifacts.Email.ThreatURL}
+
+
+          Recipient scope: ${Analysis.Email.RecipientScope}
+
+
+          Response recommendation: ${Analysis.Email.response_recommended}.'
+      verdict:
+        simple: ${Analysis.Email.verdict}
+    separatecontext: true
+    continueonerrortype: ''
+    loop:
+      iscommand: false
+      exitCondition: ''
+      wait: 1
+      max: 100
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2875\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '13':
+    id: '13'
+    taskid: e2d94592-b6ba-4726-bc56-78b69fa16952
+    type: title
+    task:
+      id: e2d94592-b6ba-4726-bc56-78b69fa16952
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 3415\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -407,7 +553,7 @@ tasks:
       - '15'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2385\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2350\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -423,8 +569,9 @@ tasks:
       id: c125bb93-7ce0-5b63-bfcb-48c6c5a37642
       version: -1
       name: SOC Email Spread Evaluation_V3
-      description: Maps RecipientScope to canonical spread_level (single_entity / limited_entity / multi_entity) and audits
-        ms_o365_audit_raw for New-InboxRule persistence events tied to the primary recipient. Sets Analysis.Email.spread_level
+      description: Maps RecipientScope to canonical spread_level (single_entity /
+        limited_entity / multi_entity) and audits ms_o365_audit_raw for New-InboxRule
+        persistence events tied to the primary recipient. Sets Analysis.Email.spread_level
         and Analysis.Email.persistence_type.
       playbookName: SOC Email Spread Evaluation_V3
       type: playbook
@@ -436,12 +583,12 @@ tasks:
       '#none#':
       - '11'
     scriptarguments:
-      RecipientScope:
-        simple: ${Analysis.Email.RecipientScope}
       MailboxCount:
-        simple: ${SOCFramework.Email.TAP.MailboxCount}
+        simple: ${Email.Exposure.mailbox_count}
       Recipient:
         simple: ${SOCFramework.Artifacts.Email.To}
+      RecipientScope:
+        simple: ${Analysis.Email.RecipientScope}
     separatecontext: true
     continueonerrortype: ''
     loop:
@@ -449,159 +596,7 @@ tasks:
       exitCondition: ''
       wait: 1
       max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2555\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '11':
-    id: '11'
-    taskid: 821b924d-b669-4f1b-bac1-1b185cc8e47b
-    type: title
-    task:
-      id: 655ebc87-9b92-4eda-bbaf-4396f45a14de
-      version: -1
-      name: Analysis Evaluation
-      type: title
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '12'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2750\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '12':
-    id: '12'
-    taskid: ba305539-e94f-4faf-aac9-368f9d84290d
-    type: playbook
-    task:
-      id: da0ded1a-c3fb-449f-922c-860f37dba782
-      version: -1
-      name: SOC Analysis Evaluation_V3
-      description: 'Evaluate final analysis outputs and write case-level fields. Email-specific: primary_entity_id/name=From,
-        primary_entity_user=To, spread_level=RecipientScope. Compromise fields not applicable for Email.'
-      playbookName: SOC Analysis Evaluation_V3
-      type: playbook
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '13'
-    scriptarguments:
-      verdict:
-        simple: ${Analysis.Email.verdict}
-      confidence:
-        simple: ${Analysis.Email.confidence}
-      response_recommended:
-        simple: ${Analysis.Email.response_recommended}
-      case_category:
-        simple: ${Analysis.Email.category}
-      primary_entity_type:
-        simple: ${SOCFramework.Product.category}
-      primary_entity_id:
-        simple: ${SOCFramework.Artifacts.Email.From}
-      primary_entity_name:
-        simple: ${SOCFramework.Artifacts.Email.From}
-      primary_entity_user:
-        simple: ${SOCFramework.Artifacts.Email.To}
-      spread_level:
-        simple: ${Analysis.Email.spread_level}
-      case_score:
-        simple: ${parentIncidentFields.predicted_score}
-      case_host_count:
-        simple: ${Analysis.Endpoint.host_count}
-      case_issue_count:
-        simple: ${Analysis.Endpoint.issue_count}
-      case_user_count:
-        simple: ${Analysis.Endpoint.user_count}
-      mitre_tactic_id:
-        simple: ${SOCFramework.Mitre.Tactic.ID}
-      mitre_technique_id:
-        simple: ${SOCFramework.Mitre.Technique.ID}
-      mitre_tactic:
-        simple: ${SOCFramework.Mitre.Tactic}
-      mitre_technique:
-        simple: ${SOCFramework.Mitre.Technique}
-      compromise_level:
-        simple: ''
-      compromise_decision:
-        simple: ''
-      persistence_type:
-        simple: ''
-      global_hash_prevalence_count:
-        simple: ''
-      story:
-        simple: 'Email Analysis Summary
-
-
-          A ${SOCFramework.Artifacts.Email.ThreatType} threat was detected via ${SOCFramework.Product.key} for recipient ${SOCFramework.Artifacts.Email.To}.
-
-
-          Signal: ${Analysis.Email.signal_type}
-
-          Verdict: ${Analysis.Email.verdict} (${Analysis.Email.confidence} confidence)
-
-          Category: ${Analysis.Email.category}
-
-
-          Sender: ${SOCFramework.Artifacts.Email.From}
-
-          Subject: ${SOCFramework.Artifacts.Email.Subject}
-
-          Threat URL: ${SOCFramework.Artifacts.Email.ThreatURL}
-
-
-          Recipient scope: ${Analysis.Email.RecipientScope}
-
-
-          Response recommendation: ${Analysis.Email.response_recommended}.'
-    separatecontext: true
-    continueonerrortype: ''
-    loop:
-      iscommand: false
-      exitCondition: ''
-      wait: 1
-      max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 2920\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '13':
-    id: '13'
-    taskid: cae6154f-dcc5-4112-a22c-5d7955fb2b7f
-    type: title
-    task:
-      id: e2d94592-b6ba-4726-bc56-78b69fa16952
-      version: -1
-      name: Done
-      type: title
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks: {}
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 3115\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2520\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -611,7 +606,7 @@ tasks:
     isautoswitchedtoquietmode: false
   '21':
     id: '21'
-    taskid: 075053a8-2ebc-40a1-9e54-58d27ad381d5
+    taskid: 214371ea-c471-4eaa-af10-c7238f13b893
     type: title
     task:
       id: 214371ea-c471-4eaa-af10-c7238f13b893
@@ -627,7 +622,7 @@ tasks:
       - '22'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 560\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 575\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -637,13 +632,14 @@ tasks:
     isautoswitchedtoquietmode: false
   '22':
     id: '22'
-    taskid: 94de74b1-f497-4870-b31f-347a278eb802
+    taskid: 20fbe298-6ec4-40ba-b137-8b024ce6a7f8
     type: playbook
     task:
       id: 20fbe298-6ec4-40ba-b137-8b024ce6a7f8
       version: -1
       name: SOC Email IOC Enrichment_V3
-      description: Create indicators, assign DBot scores, check sender prevalence. Must run before Signal Characterization.
+      description: Create indicators, assign DBot scores, check sender prevalence.
+        Must run before Signal Characterization.
       playbookName: SOC Email IOC Enrichment_V3
       type: playbook
       iscommand: false
@@ -663,7 +659,78 @@ tasks:
       exitCondition: ''
       wait: 1
       max: 100
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 730\n  }\n}"
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 745\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '23':
+    id: '23'
+    taskid: bf77c88f-a6d8-45c0-8ee8-550dd220f4f9
+    type: title
+    task:
+      id: bf77c88f-a6d8-45c0-8ee8-550dd220f4f9
+      version: -1
+      name: Comms
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '24'
+    separatecontext: false
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 3060\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '24':
+    id: '24'
+    taskid: d547e397-9634-4d31-8be4-c4c5ce0a56ef
+    type: playbook
+    task:
+      id: d547e397-9634-4d31-8be4-c4c5ce0a56ef
+      version: -1
+      name: SOC Comms Email_V3
+      description: Notify affected recipient of verdict. Routes to safe, malicious,
+        or campaign branch.
+      playbookName: SOC Comms Email_V3
+      type: playbook
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '13'
+    scriptarguments:
+      Verdict:
+        simple: ${Analysis.Email.verdict}
+      ReporterEmail:
+        simple: ${SOCFramework.Email.reported_by}
+      PartOfCampaign:
+        simple: ${Analysis.Email.CampaignID}
+      UserEngagement:
+        simple: 'true'
+      AlertName:
+        simple: ${alert.name}
+    separatecontext: true
+    continueonerrortype: ''
+    loop:
+      iscommand: false
+      exitCondition: ''
+      wait: 1
+      max: 100
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 3230\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -672,7 +739,6 @@ tasks:
     isoversize: false
     isautoswitchedtoquietmode: false
 inputs: []
-inputSections: []
 outputs:
 - contextPath: Analysis.Email.verdict
   description: malicious / benign
@@ -693,10 +759,12 @@ outputs:
   description: escalate_IR / search_and_purge / retract_message / quarantine / no_action
   type: string
 - contextPath: Analysis.Email.spread_level
-  description: single_entity / limited_entity / multi_entity — canonical spread level for Containment scope
+  description: single_entity / limited_entity / multi_entity — canonical spread level
+    for Containment scope
   type: string
 - contextPath: Analysis.Email.persistence_type
-  description: inbox_rule_persistence / no_persistence_detected — drives Eradication inbox rule removal
+  description: inbox_rule_persistence / no_persistence_detected — drives Eradication
+    inbox rule removal
   type: string
 outputSections:
 - outputs:
@@ -710,17 +778,17 @@ outputSections:
   - Analysis.Email.persistence_type
   name: Analysis Contract
   description: Passed to Containment phase via SOCExecutionList context
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 3175,\n      \"width\":\
-  \ 700,\n      \"x\": 300,\n      \"y\": 50\n    }\n  }\n}"
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
+  \     \"height\": 3425,\n      \"width\": 380,\n      \"x\": 50,\n      \"y\": 50\n\
+  \    }\n  }\n}"
 contentitemexportablefields:
   contentitemfields:
-    definitionid: ''
-    fromServerVersion: 6.10.0
-    isoverridable: false
-    itemVersion: 3.0.0
     packID: soc-framework-nist-ir
-    packName: SOC Framework NIST IR
-    prevname: ''
-    supportedModules: []
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.2.0
+    fromServerVersion: 6.10.0
     toServerVersion: ''
-dirtyInputs: false
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
