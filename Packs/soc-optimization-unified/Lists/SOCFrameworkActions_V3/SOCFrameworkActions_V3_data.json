@@ -9,12 +9,6 @@
           "endpoint_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       },
-      "CrowdstrikeFalcon": {
-        "command": "cs-falcon-contain-host",
-        "inline_args": {
-          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
-        }
-      },
       "Trend Micro Vision One V3": {
         "command": "trendmicro-visionone-isolate-endpoint",
         "inline_args": {
@@ -28,6 +22,12 @@
           "comment": "SOCFramework isolate endpoint",
           "isolation_type": "Full"
         }
+      },
+      "CrowdStrike Falcon": {
+        "command": "cs-falcon-contain-host",
+        "inline_args": {
+          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
+        }
       }
     },
     "shadow_mode": true
@@ -40,16 +40,16 @@
           "endpoint_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       },
-      "CrowdstrikeFalcon": {
-        "command": "cs-falcon-lift-host-containment",
-        "inline_args": {
-          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
-        }
-      },
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-unisolate-machine",
         "inline_args": {
           "machine_id": "${SOCFramework.Artifacts.EndPointID}"
+        }
+      },
+      "CrowdStrike Falcon": {
+        "command": "cs-falcon-lift-host-containment",
+        "inline_args": {
+          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       }
     },
@@ -64,17 +64,17 @@
           "process_names": "${SOCFramework.Artifacts.ProcessName}"
         }
       },
-      "CrowdstrikeFalcon": {
-        "command": "cs-falcon-run-script",
-        "inline_args": {
-          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "raw": "Stop-Process -Id ${SOCFramework.Artifacts.PID} -Force -ErrorAction SilentlyContinue"
-        }
-      },
       "Trend Micro Vision One V3": {
         "command": "trendmicro-visionone-terminate-process",
         "inline_args": {
           "process_identifiers": "${SOCFramework.Artifacts.PID}"
+        }
+      },
+      "CrowdStrike Falcon": {
+        "command": "cs-falcon-run-script",
+        "inline_args": {
+          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "raw": "Stop-Process -Id ${SOCFramework.Artifacts.PID} -Force -ErrorAction SilentlyContinue"
         }
       }
     },
@@ -89,18 +89,18 @@
           "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
-      "CrowdstrikeFalcon": {
-        "command": "cs-falcon-run-script",
-        "inline_args": {
-          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "raw": "Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue"
-        }
-      },
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
           "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
           "file_hashes": "${SOCFramework.Artifacts.File}"
+        }
+      },
+      "CrowdStrike Falcon": {
+        "command": "cs-falcon-run-script",
+        "inline_args": {
+          "host_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "raw": "Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue"
         }
       }
     },
@@ -116,7 +116,7 @@
           "parameters": "${SOCFramework.Artifacts.FilePath}"
         }
       },
-      "CrowdstrikeFalcon": {
+      "CrowdStrike Falcon": {
         "command": "cs-falcon-run-script",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
@@ -135,7 +135,7 @@
           "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
-      "CrowdstrikeFalcon": {
+      "CrowdStrike Falcon": {
         "command": "cs-falcon-run-script",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
@@ -154,7 +154,7 @@
           "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
-      "CrowdstrikeFalcon": {
+      "CrowdStrike Falcon": {
         "command": "cs-falcon-run-script",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
@@ -210,7 +210,7 @@
           "user_id": "${SOCFramework.Artifacts.UserID}"
         }
       },
-      "Okta V2": {
+      "Okta v2": {
         "command": "disable-user",
         "inline_args": {
           "user_email": "${SOCFramework.Artifacts.UserEmail}",
@@ -339,12 +339,6 @@
           "endpoint_id_list": "${SOCFramework.Primary.Endpoint}"
         }
       },
-      "CrowdstrikeFalcon": {
-        "command": "cs-falcon-search-device",
-        "inline_args": {
-          "filter": "${SOCFramework.Primary.Endpoint}"
-        }
-      },
       "Carbon Black EDR": {
         "command": "cb-edr-sensors-list",
         "inline_args": {
@@ -361,6 +355,12 @@
         "command": "extrahop-devices-search",
         "inline_args": {
           "name": "${SOCFramework.Primary.Endpoint}"
+        }
+      },
+      "CrowdStrike Falcon": {
+        "command": "cs-falcon-search-device",
+        "inline_args": {
+          "filter": "${SOCFramework.Primary.Endpoint}"
         }
       }
     },
@@ -690,21 +690,6 @@
     },
     "shadow_mode": true
   },
-  "soc-remove-inbox-rule": {
-    "responses": {
-      "Microsoft Graph Mail": {
-        "command": "msgraph-mail-delete-rule",
-        "inline_args": {
-          "user_id": "${SOCFramework.Email.recipient}",
-          "rule_id": "${SOCFramework.Email.InboxRules}"
-        },
-        "output_map": {
-          "UC.Email.RemoveInboxRule.status": "MicrosoftGraph.Mail.Rule.Delete.status"
-        }
-      }
-    },
-    "shadow_mode": true
-  },
   "soc-audit-inbox-rules": {
     "responses": {
       "Microsoft Graph": {
@@ -717,7 +702,7 @@
         }
       }
     },
-    "shadow_mode": true
+    "shadow_mode": false
   },
   "soc-notify-user": {
     "responses": {
@@ -788,6 +773,49 @@
         "inline_args": {
           "sha256": "${SOCFramework.Artifacts.Hash}",
           "environment_id": "160"
+        }
+      }
+    }
+  },
+  "soc-remove-inbox-rules": {
+    "responses": {
+      "Microsoft Graph Mail": {
+        "command": "msgraph-mail-delete-rule",
+        "inline_args": {
+          "user_id": "${SOCFramework.Email.recipient}",
+          "rule_id": "${SOCFramework.Email.InboxRules}"
+        },
+        "output_map": {
+          "UC.Email.RemoveInboxRule.status": "MicrosoftGraph.Mail.Rule.Delete.status"
+        }
+      }
+    },
+    "shadow_mode": true
+  },
+  "soc-search-and-delete-email": {
+    "shadow_mode": true,
+    "responses": {
+      "O365 Compliance": {
+        "command": "o365-sc-compliance-search-purge",
+        "inline_args": {
+          "search_name": "${SOCFramework.Email.ComplianceSearch.Name}"
+        },
+        "output_map": {
+          "UC.Email.SearchDelete.status": "O365.ComplianceSearch.Purge.status"
+        }
+      }
+    }
+  },
+  "soc-block-indicators": {
+    "shadow_mode": true,
+    "responses": {
+      "Cortex Core - IR": {
+        "command": "core-blocklist-files",
+        "inline_args": {
+          "hash_list": "${SOCFramework.Artifacts.Email.SHA256}"
+        },
+        "output_map": {
+          "UC.Email.BlockIndicator.status": "Core.BlockList.status"
         }
       }
     }

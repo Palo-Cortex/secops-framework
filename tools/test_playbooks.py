@@ -235,8 +235,14 @@ def _assertion_from_dict(d: dict) -> Assertion:
 def load_fixtures(fixture_path: str) -> list[TestCase]:
     with open(fixture_path) as f:
         raw = json.load(f)
+    # Support both flat list [ {...}, ... ] and scenario-dict { "scenarios": [...] }
+    if isinstance(raw, dict):
+        raw = raw.get('scenarios', [])
     cases = []
     for tc in raw:
+        # Skip smoke-test scenarios that don't define a playbook to simulate
+        if 'playbook' not in tc:
+            continue
         cases.append(TestCase(
             name=tc['name'],
             playbook=tc['playbook'],

@@ -220,6 +220,7 @@ def test_main_shadow_mode_success():
             return [{
                 "Contents": json.dumps({
                     "isolate-endpoint": {
+                        "shadow_mode": True,
                         "responses": {
                             "CrowdStrikeFalcon": {
                                 "command": "cs-falcon-contain-host",

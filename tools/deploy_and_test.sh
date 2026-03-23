@@ -165,20 +165,18 @@ if [[ "$SKIP_UPLOAD" == "false" ]]; then
     for pack in "${PACKS[@]}"; do
         pack_name="$(basename "$pack")"
         run_step "pack_prep: $pack_name" \
-            python3 tools/pack_prep.py --pack "$pack" || true
+            python3 tools/pack_prep.py "$pack" || true
     done
 fi
 
 # ── Step 5: Fix errors ────────────────────────────────────────────────────────
+# fix_errors.py takes the SDK output FILE produced by pack_prep, not a pack dir.
+# pack_prep writes SDK errors to output/sdk_errors.txt before each upload.
 if [[ "$SKIP_UPLOAD" == "false" ]]; then
-    for pack in "${PACKS[@]}"; do
-        pack_name="$(basename "$pack")"
-        # Only run if fix_errors.py exists — not always present
-        if [[ -f "tools/fix_errors.py" ]]; then
-            run_step "fix_errors: $pack_name" \
-                python3 tools/fix_errors.py --pack "$pack" || true
-        fi
-    done
+    if [[ -f "tools/fix_errors.py" && -f "output/sdk_errors.txt" ]]; then
+        run_step "fix_errors: all packs" \
+            python3 tools/fix_errors.py output/sdk_errors.txt || true
+    fi
 fi
 
 # ── Step 6: Upload ────────────────────────────────────────────────────────────
@@ -199,7 +197,7 @@ fi
 
 # ── Step 7: Smoke tests ───────────────────────────────────────────────────────
 if [[ "$SKIP_SMOKE" == "false" ]]; then
-    smoke_args=(python3 tools/socfw_smoke.py --timeout "$SMOKE_TIMEOUT")
+    smoke_args=(python3 tools/socfw_smoke.py --wait "$SMOKE_TIMEOUT")
     if [[ -n "$SMOKE_SCENARIO" ]]; then
         smoke_args+=(--scenario "$SMOKE_SCENARIO")
     fi
