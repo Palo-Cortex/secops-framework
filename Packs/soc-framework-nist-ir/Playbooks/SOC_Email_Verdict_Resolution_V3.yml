@@ -3,14 +3,17 @@ id: SOC Email Verdict Resolution_V3
 name: SOC Email Verdict Resolution_V3
 version: -1
 fromversion: 6.10.0
-description: "Purpose\nDetermine the verdict, confidence, and category for an email threat.\n\nThis playbook answers: is this\
-  \ malicious, how confident are we, and what type of threat is it?\nIt does NOT answer: who was impacted or what action to\
-  \ take at scale — that is SOC Email Exposure Evaluation_V3.\n\nPrimary signal: Proofpoint TAP ThreatStatus (inputs.ThreatStatus)\n\
-  \  malicious  → verdict=malicious, confidence=high\n  suspicious → verdict=malicious, confidence=medium\n  default    →\
-  \ verdict=benign,    confidence=low\n\nSecondary signal: Analysis.Email.source_verdict from DBot (set by Signal Characterization)\n\
-  \  If DBot=malicious AND ThreatStatus returned benign → elevate to suspicious/medium\n\nAdvisory recommendation is set here\
-  \ as a non-executing signal to guide Containment.\nPriority order: escalate_IR > search_and_purge > retract_message > quarantine\
-  \ > no_action"
+description: "Purpose\nDetermine the verdict, confidence, and category for an email\
+  \ threat.\n\nThis playbook answers: is this malicious, how confident are we, and\
+  \ what type of threat is it?\nIt does NOT answer: who was impacted or what action\
+  \ to take at scale — that is SOC Email Exposure Evaluation_V3.\n\nPrimary signal:\
+  \ Email source ThreatStatus (inputs.ThreatStatus)\n  malicious  → verdict=malicious,\
+  \ confidence=high\n  suspicious → verdict=malicious, confidence=medium\n  default\
+  \    → verdict=benign,    confidence=low\n\nSecondary signal: Analysis.Email.source_verdict\
+  \ from DBot (set by Signal Characterization)\n  If DBot=malicious AND ThreatStatus\
+  \ returned benign → elevate to suspicious/medium\n\nAdvisory recommendation is set\
+  \ here as a non-executing signal to guide Containment.\nPriority order: escalate_IR\
+  \ > search_and_purge > retract_message > quarantine > no_action"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -140,8 +143,9 @@ tasks:
       version: -1
       name: ThreatStatus?
       type: condition
-      description: Routes on Proofpoint TAP ThreatStatus. Malicious → high confidence. Suspicious → medium confidence. Default
-        → benign, low confidence (defaults already set).
+      description: Routes on Email source ThreatStatus. Malicious → high confidence.
+        Suspicious → medium confidence. Default → benign, low confidence (defaults
+        already set).
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
@@ -338,8 +342,9 @@ tasks:
       version: -1
       name: DBot Confirms Malicious?
       type: condition
-      description: If DBot independently rates the indicator as malicious but ThreatStatus returned benign, elevate to suspicious/medium
-        as a secondary signal. Prevents missed verdicts on stale TAP status.
+      description: If DBot independently rates the indicator as malicious but ThreatStatus
+        returned benign, elevate to suspicious/medium as a secondary signal. Prevents
+        missed verdicts on stale TAP status.
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
@@ -449,8 +454,8 @@ tasks:
       id: 6f78dfb0-6b45-4e74-988f-227df2edc1cb
       version: -1
       name: Set Email Category
-      description: Maps Proofpoint TAP Classification to Analysis.Email.category. Appends unknown as fallback so FirstArrayElement
-        always resolves.
+      description: Maps email source Classification to Analysis.Email.category.
+        Appends unknown as fallback so FirstArrayElement always resolves.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -522,8 +527,9 @@ tasks:
       version: -1
       name: Recommend Action?
       type: condition
-      description: 'Advisory recommendation only — no execution. Consumed by Containment phase. Priority: escalate_IR (VIP)
-        > search_and_purge (clicked) > retract_message (delivered) > quarantine (blocked/at-rest) > no_action (benign/low).'
+      description: 'Advisory recommendation only — no execution. Consumed by Containment
+        phase. Priority: escalate_IR (VIP) > search_and_purge (clicked) > retract_message
+        (delivered) > quarantine (blocked/at-rest) > no_action (benign/low).'
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
@@ -847,10 +853,12 @@ tasks:
       id: 2c16dc04-8d9a-4d6e-8166-5653efc1f7fc
       version: -1
       name: Internal Lateral Risk?
-      description: "Flags internal lateral spread risk.\n\nTrue when ALL of:\n  verdict = malicious\n  category = phish or\
-        \ malware\n  ExposureLevel = clicked\n  RecipientScope = multi_user OR tenant_wide\n\nTwo label branches both route\
-        \ to true — OR logic across scope values.\ntenant_wide is the worst case and must not be excluded.\nMatches original\
-        \ SOC_Proofpoint_Analysis task 34 logic."
+      description: "Flags internal lateral spread risk.\n\nTrue when ALL of:\n  verdict\
+        \ = malicious\n  category = phish or malware\n  ExposureLevel = clicked\n\
+        \  RecipientScope = multi_user OR tenant_wide\n\nTwo label branches both route\
+        \ to true — OR logic across scope values.\ntenant_wide is the worst case and\
+        \ must not be excluded.\nMatches original SOC_Proofpoint_Analysis task 34\
+        \ logic."
       type: condition
       iscommand: false
       brand: ''
@@ -1027,39 +1035,37 @@ tasks:
 inputs:
 - key: ThreatStatus
   value:
-    complex:
-      root: alert.proofpointtapthreatinfomap
-      accessor: threatStatus
-      transformers:
-      - operator: FirstArrayElement
-      - operator: toLowerCase
+    simple: ${SOCFramework.Email.threat_status}
   required: false
-  description: 'Proofpoint TAP threat verdict: malicious / suspicious / cleared / falsePositive. Primary verdict driver. Source:
-    alert.proofpointtapthreatinfomap.threatStatus'
+  description: Threat status from source SEG — active/falsepositive/cleared. Set by
+    Foundation - Normalize Email_V3.
   playbookInputQuery: null
 - key: Classification
   value:
-    simple: ${SOCFramework.Email.TAP.Classification}
+    simple: ${Email.Classification}
   required: false
-  description: 'Proofpoint TAP threat classification: phish / malware / spam / impostor. Set by Enrichment. Maps to Analysis.Email.category.'
+  description: Email threat classification — phish/malware/spam/bec. Set by SOC Email
+    Exposure Evaluation_V3.
   playbookInputQuery: null
 - key: HighValueUserInvolved
   value:
     simple: ${SOCFramework.Email.HighValueUserInvolved}
   required: false
-  description: True/False — set by Enrichment VIP check. Escalates recommendation to escalate_IR.
+  description: True/False — set by Enrichment VIP check. Escalates recommendation
+    to escalate_IR.
   playbookInputQuery: null
 - key: ClickCount
   value:
-    simple: ${SOCFramework.Email.TAP.ClickCount}
+    simple: ${Email.Exposure.click_count}
   required: false
-  description: Number of URL clicks from Proofpoint TAP event query. Used in recommendation routing.
+  description: Number of recipients who clicked the threat URL. Set by SOC Email Exposure
+    Evaluation_V3.
   playbookInputQuery: null
 - key: DeliveredCount
   value:
-    simple: ${SOCFramework.Email.TAP.DeliveredCount}
+    simple: ${Email.Exposure.delivered_count}
   required: false
-  description: Number of delivered messages from Proofpoint TAP event query. Used in recommendation routing.
+  description: Number of inboxes the email reached. Set by SOC Email Exposure Evaluation_V3.
   playbookInputQuery: null
 inputSections:
 - inputs:
@@ -1087,8 +1093,8 @@ outputs:
   description: escalate_IR / search_and_purge / retract_message / quarantine / no_action
   type: string
 - contextPath: Analysis.Email.internal_lateral_risk
-  description: true if verdict=malicious, category=phish/malware, ExposureLevel=clicked, and RecipientScope=multi_user or
-    tenant_wide
+  description: true if verdict=malicious, category=phish/malware, ExposureLevel=clicked,
+    and RecipientScope=multi_user or tenant_wide
   type: boolean
 outputSections:
 - outputs:
@@ -1097,8 +1103,10 @@ outputSections:
   - Analysis.Email.category
   - Analysis.Email.response_recommended
   name: Verdict Contract
-  description: Consumed by SOC Email Analysis_V3 orchestrator and passed to Containment phase
-view: '{"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 2900, "width": 1300, "x": 50, "y": 50}}}'
+  description: Consumed by SOC Email Analysis_V3 orchestrator and passed to Containment
+    phase
+view: '{"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 2900, "width":
+  1300, "x": 50, "y": 50}}}'
 contentitemexportablefields:
   contentitemfields:
     definitionid: ''

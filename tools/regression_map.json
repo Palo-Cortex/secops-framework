@@ -1,0 +1,218 @@
+{
+  "_meta": {
+    "description": "SOC Framework regression map. Maps changed components to the tests that must pass. Used by socfw_test_runner.py to select minimum viable test set for a given change.",
+    "usage": "python3 tools/socfw_test_runner.py --changed-only",
+    "last_updated": "2026-03-22"
+  },
+
+  "change_patterns": {
+
+    "SOCCommandWrapper": {
+      "matches": ["Scripts/SOCCommandWrapper/SOCCommandWrapper.py"],
+      "reason": "Core execution engine — all smoke tests must pass",
+      "run": {
+        "unit": [
+          "Scripts/SOCCommandWrapper/SOCCommandWrapper_test.py",
+          "tools/SOCCommandWrapper_test_soc_detonate_file.py"
+        ],
+        "static": ["--pack Packs/soc-optimization-unified"],
+        "smoke": ["SC-01", "SC-02", "SC-03"],
+        "note": "SOCCommandWrapper is the execution core. Any change here requires all three email scenarios plus the full unit suite."
+      }
+    },
+
+    "SOCFrameworkActions": {
+      "matches": ["Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json"],
+      "reason": "Action routing table — any change affects all Universal Command calls",
+      "run": {
+        "unit": ["tools/SOCCommandWrapper_test_soc_detonate_file.py::TestActionsListContracts"],
+        "static": ["--file Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json"],
+        "smoke": ["SC-01", "SC-02"],
+        "note": "Run Actions contract tests + smoke tests for affected product categories."
+      }
+    },
+
+    "SOCFWFeatureFlags": {
+      "matches": ["Lists/SOCFWFeatureFlags/SOCFWFeatureFlags_data.json"],
+      "reason": "Feature flag list — controls optional capability gates",
+      "run": {
+        "unit": ["tools/SOCCommandWrapper_test_soc_detonate_file.py::TestFeatureFlagsContracts"],
+        "static": ["--file Packs/soc-optimization-unified/Lists/SOCFWFeatureFlags/SOCFWFeatureFlags_data.json"],
+        "smoke": [],
+        "note": "Static contract check only — verify all flags default false and descriptions present."
+      }
+    },
+
+    "Foundation_Normalize_Email": {
+      "matches": ["Playbooks/Foundation_-_Normalize_Email_V3.yml"],
+      "reason": "Email context normalization — sets SOCFramework.Email.* for all email playbooks",
+      "run": {
+        "unit": [],
+        "static": ["--file Packs/soc-optimization-unified/Playbooks/Foundation_-_Normalize_Email_V3.yml"],
+        "smoke": ["SC-01", "SC-02", "SC-03"],
+        "note": "Any change to Normalize Email affects the entire email chain. Run all three email scenarios."
+      }
+    },
+
+    "Foundation_Product_Classification": {
+      "matches": ["Playbooks/Foundation_-_Product_Classification_V3.yml"],
+      "reason": "Product category routing — classifies every alert",
+      "run": {
+        "unit": [],
+        "static": ["--file Packs/soc-optimization-unified/Playbooks/Foundation_-_Product_Classification_V3.yml"],
+        "smoke": ["SC-01"],
+        "note": "Classification affects all product categories. Run SC-01 to verify Email routing still works."
+      }
+    },
+
+    "SOCProductCategoryMap": {
+      "matches": ["Lists/SOCProductCategoryMap_V3/SOCProductCategoryMap_V3_data.json"],
+      "reason": "Dataset-to-category mapping — controls product classification routing",
+      "run": {
+        "unit": [],
+        "static": ["--file Packs/soc-optimization-unified/Lists/SOCProductCategoryMap_V3/SOCProductCategoryMap_V3_data.json"],
+        "smoke": [],
+        "note": "Static check only — verify all entries have required keys and valid category values."
+      }
+    },
+
+    "Email_Analysis_Chain": {
+      "matches": [
+        "Playbooks/SOC_Email_Analysis_V3.yml",
+        "Playbooks/SOC_Email_Signal_Characterization_V3.yml",
+        "Playbooks/SOC_Email_IOC_Enrichment_V3.yml",
+        "Playbooks/SOC_Email_Forensics_Evaluation_V3.yml",
+        "Playbooks/SOC_Email_Exposure_Evaluation_V3.yml",
+        "Playbooks/SOC_Email_Verdict_Resolution_V3.yml",
+        "Playbooks/SOC_Email_Spread_Evaluation_V3.yml"
+      ],
+      "reason": "Email analysis workflow — verdict and response recommendation chain",
+      "run": {
+        "unit": [],
+        "static": ["--file <changed_file>"],
+        "smoke": ["SC-01", "SC-02", "SC-03"],
+        "note": "Run all three email scenarios. SC-01 exercises URL path. SC-02 exercises attachment path. SC-03 exercises benign/FP path."
+      }
+    },
+
+    "Email_CEF_Chain": {
+      "matches": [
+        "Playbooks/SOC_Email_Containment_V3.yml",
+        "Playbooks/SOC_Email_Eradication_V3.yml",
+        "Playbooks/SOC_Email_Recovery_V3.yml"
+      ],
+      "reason": "Email C/E/R chain — Shadow Mode execution path",
+      "run": {
+        "unit": [],
+        "static": ["--file <changed_file>"],
+        "smoke": ["SC-01"],
+        "note": "SC-01 exercises the full malicious path through Containment → Eradication → Recovery. Verify Shadow Mode warroom entries appear correctly."
+      }
+    },
+
+    "Endpoint_Analysis_Chain": {
+      "matches": [
+        "Playbooks/SOC_Endpoint_Verdict_Resolution_V3.yml",
+        "Playbooks/SOC_Endpoint_Signal_Characterization_V3.yml",
+        "Playbooks/SOC_Endpoint_Compromise_Evaluation_V3.yml",
+        "Playbooks/SOC_EndPoint_Analysis_V3.yml",
+        "Playbooks/SOC_EndPoint_Spread_Evaluation_V3.yml"
+      ],
+      "reason": "Endpoint analysis chain — verdict and detonation path",
+      "run": {
+        "unit": ["tools/SOCCommandWrapper_test_soc_detonate_file.py::TestSocDetonateFileShadowFalse"],
+        "static": ["--file <changed_file>"],
+        "smoke": [],
+        "note": "SOC_Endpoint_Verdict_Resolution_V3 now calls soc-detonate-file via UC. Run detonation unit tests. Add endpoint smoke fixture in next cycle."
+      }
+    },
+
+    "Identity_Chain": {
+      "matches": [
+        "Playbooks/SOC_Identity_Analysis_V3.yml",
+        "Playbooks/SOC_Identity_Containment_V3.yml",
+        "Playbooks/SOC_Identity_Eradication_V3.yml",
+        "Playbooks/SOC_Identity_Recovery_V3.yml"
+      ],
+      "reason": "Identity chain — most complete non-email chain in production",
+      "run": {
+        "unit": [],
+        "static": ["--file <changed_file>"],
+        "smoke": ["IDENTITY-SC-01"],
+        "note": "Identity smoke fixture not yet built — manual tenant test required. See TOOLING.md backlog BL-005."
+      }
+    },
+
+    "NIST_Lifecycle_Orchestrators": {
+      "matches": [
+        "Playbooks/SOC_Analysis_V3.yml",
+        "Playbooks/SOC_Containment_V3.yml",
+        "Playbooks/SOC_Eradication_V3.yml",
+        "Playbooks/SOC_Recovery_V3.yml",
+        "Playbooks/SOC_NIST_IR_(800-61)_V3.yml",
+        "Playbooks/EP_IR_NIST_(800-61).yml"
+      ],
+      "reason": "Top-level lifecycle orchestrators — changes affect ALL product categories",
+      "run": {
+        "unit": [],
+        "static": ["--pack Packs/soc-framework-nist-ir"],
+        "smoke": ["SC-01", "SC-02", "SC-03"],
+        "note": "HIGHEST IMPACT change. Run full static validation on entire NIST IR pack + all three email scenarios. Also run Identity chain manually."
+      }
+    },
+
+    "value_tags": {
+      "matches": ["Lookup/value_tags.json"],
+      "reason": "Value Metrics Dashboard source — affects all metric calculations",
+      "run": {
+        "unit": [],
+        "static": ["--file Packs/soc-optimization-unified/Lookup/value_tags.json"],
+        "smoke": [],
+        "note": "Static validation only. Verify NDJSON parses, no duplicate tags, new action tags map to valid Value Driver categories."
+      }
+    }
+  },
+
+  "smoke_scenarios": {
+    "SC-01": {
+      "fixture": "email_chain_test_fixture.json",
+      "scenario_id": "SC-01",
+      "description": "Phishing URL — delivered and clicked",
+      "validates": ["URL threat path", "campaign ID forensics gate", "search_and_purge response", "malicious Comms notification"],
+      "inject_method": "context_seed",
+      "playbook_to_run": "SOC Email Analysis_V3"
+    },
+    "SC-02": {
+      "fixture": "email_chain_test_fixture.json",
+      "scenario_id": "SC-02",
+      "description": "Malware attachment — delivered not clicked, no campaign",
+      "validates": ["Attachment threat path", "Forensics gate skips (no campaign ID)", "retract_message response"],
+      "inject_method": "context_seed",
+      "playbook_to_run": "SOC Email Analysis_V3"
+    },
+    "SC-03": {
+      "fixture": "email_chain_test_fixture.json",
+      "scenario_id": "SC-03",
+      "description": "False positive — blocked, status cleared",
+      "validates": ["benign verdict path", "FP Recovery unblock-sender", "reporter Comms notification"],
+      "inject_method": "context_seed",
+      "playbook_to_run": "SOC Email Analysis_V3"
+    },
+    "IDENTITY-SC-01": {
+      "fixture": null,
+      "scenario_id": "IDENTITY-SC-01",
+      "description": "Identity credential access — Okta anomaly",
+      "validates": ["Identity signal type routing", "MITRE tactic classification", "Identity C/E/R shadow mode"],
+      "inject_method": "manual",
+      "playbook_to_run": "SOC Identity Analysis_V3",
+      "note": "Fixture not yet built. Run manually in dev tenant."
+    }
+  },
+
+  "always_run": {
+    "description": "These checks run on every commit regardless of what changed.",
+    "static": ["--changed-only"],
+    "unit": ["Scripts/SOCCommandWrapper/SOCCommandWrapper_test.py"],
+    "note": "SOCCommandWrapper unit tests are fast (<1s) and catch regressions in the execution core."
+  }
+}

@@ -3,15 +3,20 @@ id: SOC Email Spread Evaluation_V3
 name: SOC Email Spread Evaluation_V3
 version: -1
 fromversion: 6.10.0
-description: "NIST IR 800-61 — Analysis Phase — Email Spread & Persistence Evaluation\n\nEvaluates the blast radius and post-delivery\
-  \ persistence footprint of an email\nthreat. Two concerns are addressed:\n\n1. Spread Level — maps Analysis.Email.RecipientScope\
-  \ (produced by Exposure\n   Evaluation) to the canonical spread_level vocabulary (single_entity /\n   limited_entity / multi_entity)\
-  \ so downstream phases consume the same\n   contract as Endpoint.\n\n2. Inbox Rule Audit — queries ms_o365_audit_raw for\
-  \ New-InboxRule events\n   tied to the primary recipient within 24 hours of the alert. A forwarding\n   or auto-delete rule\
-  \ created after delivery is a known persistence indicator\n   (see Turla / Carbon playbook). Sets Analysis.Email.persistence_type.\n\
-  \nInputs consumed (produced by Exposure Evaluation):\n  Analysis.Email.RecipientScope  — single_user / multi_user / tenant_wide\n\
-  \  SOCFramework.Email.TAP.MailboxCount — numeric recipient count\n\nContext key contract produced:\n  Analysis.Email.spread_level\
-  \     — single_entity / limited_entity / multi_entity\n  Analysis.Email.persistence_type — inbox_rule_persistence / no_persistence_detected"
+description: "NIST IR 800-61 — Analysis Phase — Email Spread & Persistence Evaluation\n\
+  \nEvaluates the blast radius and post-delivery persistence footprint of an email\n\
+  threat. Two concerns are addressed:\n\n1. Spread Level — maps Analysis.Email.RecipientScope\
+  \ (produced by Exposure\n   Evaluation) to the canonical spread_level vocabulary\
+  \ (single_entity /\n   limited_entity / multi_entity) so downstream phases consume\
+  \ the same\n   contract as Endpoint.\n\n2. Inbox Rule Audit — queries ms_o365_audit_raw\
+  \ for New-InboxRule events\n   tied to the primary recipient within 24 hours of\
+  \ the alert. A forwarding\n   or auto-delete rule created after delivery is a known\
+  \ persistence indicator\n   (see Turla / Carbon playbook). Sets Analysis.Email.persistence_type.\n\
+  \nInputs consumed (produced by Exposure Evaluation):\n  Analysis.Email.RecipientScope\
+  \  — single_user / multi_user / tenant_wide\n  SOCFramework.Email.TAP.MailboxCount\
+  \ — numeric recipient count\n\nContext key contract produced:\n  Analysis.Email.spread_level\
+  \     — single_entity / limited_entity / multi_entity\n  Analysis.Email.persistence_type\
+  \ — inbox_rule_persistence / no_persistence_detected"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -24,26 +29,27 @@ inputs:
   value:
     simple: ${Analysis.Email.RecipientScope}
   required: false
-  description: 'Recipient scope produced by SOC Email Exposure Evaluation_V3. Values: single_user / multi_user / tenant_wide'
+  description: 'Recipient scope produced by SOC Email Exposure Evaluation_V3. Values:
+    single_user / multi_user / tenant_wide'
   playbookInputQuery: null
 - key: MailboxCount
   value:
-    simple: ${SOCFramework.Email.TAP.MailboxCount}
+    simple: ${Email.Exposure.mailbox_count}
   required: false
-  description: Unique recipient mailbox count from TAP delivery query.
+  description: Number of unique mailboxes affected. Set by SOC Email Exposure Evaluation_V3.
   playbookInputQuery: null
 - key: Recipient
   value:
-    simple: ${SOCFramework.Artifacts.Email.To}
+    simple: ${SOCFramework.Email.recipient}
   required: false
-  description: Primary recipient UPN — used as the UserId filter in the O365 inbox rule audit XQL query.
+  description: Recipient email address from SOCFramework.Email.recipient
   playbookInputQuery: null
 - key: multi_user_threshold
   value:
     simple: '3'
   required: false
-  description: MailboxCount at or above this value promotes spread_level to multi_entity. Default 3 — aligns with Endpoint
-    high_host_count_per_case default.
+  description: MailboxCount at or above this value promotes spread_level to multi_entity.
+    Default 3 — aligns with Endpoint high_host_count_per_case default.
   playbookInputQuery: null
 inputSections:
 - inputs:
@@ -113,9 +119,11 @@ tasks:
       id: c3d4e5f6-a7b8-9012-cdef-123456789012
       version: -1
       name: Map Recipient Scope to Spread Level
-      description: Maps the email-specific RecipientScope vocabulary to the canonical spread_level values used across all
-        product categories. tenant_wide always becomes multi_entity. multi_user is promoted to multi_entity when MailboxCount
-        >= multi_user_threshold, otherwise limited_entity. single_user defaults to single_entity.
+      description: Maps the email-specific RecipientScope vocabulary to the canonical
+        spread_level values used across all product categories. tenant_wide always
+        becomes multi_entity. multi_user is promoted to multi_entity when MailboxCount
+        >= multi_user_threshold, otherwise limited_entity. single_user defaults to
+        single_entity.
       type: condition
       iscommand: false
       brand: ''
@@ -176,7 +184,8 @@ tasks:
       id: d4e5f6a7-b8c9-0123-defa-234567890123
       version: -1
       name: Set Spread Level — multi_entity
-      description: Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.
+      description: Set a value in context under the key you entered. If no value is
+        entered, the script doesn't do anything.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -205,6 +214,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '4':
     id: '4'
     taskid: e5f6a7b8-c9d0-1234-efab-345678901234
@@ -213,7 +223,8 @@ tasks:
       id: e5f6a7b8-c9d0-1234-efab-345678901234
       version: -1
       name: Set Spread Level — limited_entity
-      description: Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.
+      description: Set a value in context under the key you entered. If no value is
+        entered, the script doesn't do anything.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -242,6 +253,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '5':
     id: '5'
     taskid: f6a7b8c9-d0e1-2345-fabc-456789012345
@@ -250,7 +262,8 @@ tasks:
       id: f6a7b8c9-d0e1-2345-fabc-456789012345
       version: -1
       name: Set Spread Level — single_entity
-      description: Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.
+      description: Set a value in context under the key you entered. If no value is
+        entered, the script doesn't do anything.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -279,6 +292,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '6':
     id: '6'
     taskid: a7b8c9d0-e1f2-3456-abcd-567890123456
@@ -307,63 +321,37 @@ tasks:
     isautoswitchedtoquietmode: false
   '7':
     id: '7'
-    taskid: b8c9d0e1-f2a3-4567-bcde-678901234567
-    type: condition
-    message:
-      bcc: null
-      body:
-        simple: '## Inbox Rule Audit — Manual Check Required
-
-
-          Check the recipient mailbox **${inputs.Recipient}** for inbox rules created within the last 24 hours.
-
-
-          **Steps:**
-
-          1. Open Exchange Admin Center or M365 Defender → Mailbox
-
-          2. Review Rules for forwarding, auto-delete, or move-to-folder rules
-
-          3. Cross-reference creation time against alert delivery time
-
-
-          **Turla Carbon indicator:** Rules that forward to external addresses or auto-delete replies are a known C2 persistence
-          technique.
-
-
-          Was a suspicious inbox rule detected?'
-      cc: null
-      format: ''
-      methods: []
-      replyOptions:
-      - 'Yes'
-      - 'No'
-      subject: null
-      timings:
-        completeafterreplies: 1
-        completeaftersla: false
-        completeafterv2: true
-        retriescount: 2
-        retriesinterval: 360
-      to: null
+    taskid: 9e372b36-bd55-48df-abc0-0d9ca706339d
+    type: regular
     task:
-      id: b8c9d0e1-f2a3-4567-bcde-678901234567
+      id: f99b75d2-6640-49ce-a3e0-433417b7b934
       version: -1
-      name: Inbox Rule Detected?
-      description: Manual analyst check — no MS Graph integration required. Analyst reviews recipient mailbox for suspicious
-        inbox rules created post-delivery. Yes routes to inbox_rule_persistence, No routes to no_persistence_detected.
-      type: condition
+      name: soc-audit-inbox-rules
+      description: 'Universal Command — audit recipient mailbox for suspicious inbox
+        rules created post-delivery. Looks for forwarding, auto-delete, or move-to-folder
+        rules as Turla Carbon C2 persistence indicators. In Shadow Mode: logs to warroom
+        and dataset, does not execute vendor command.'
+      scriptName: SOCCommandWrapper
+      type: regular
       iscommand: false
       brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
-      'Yes':
-      - '9'
-      'No':
-      - '10'
+      '#none#':
+      - '8'
+    scriptarguments:
+      command:
+        simple: soc-audit-inbox-rules
+      args:
+        complex:
+          root: inputs
+          transformers:
+          - operator: StringifyJSON
+            args: {}
     separatecontext: false
-    continueonerrortype: ''
+    continueonerror: true
+    continueonerrortype: errorPath
     view: '{"position": {"x": 480, "y": 930}}'
     note: false
     timertriggers: []
@@ -380,10 +368,12 @@ tasks:
       id: d0e1f2a3-b4c5-6789-defa-890123456789
       version: -1
       name: Set Persistence — inbox_rule_persistence
-      description: 'Set a value in context under the key you entered. If no value is entered, the script doesn''t do anything.
+      description: 'Set a value in context under the key you entered. If no value
+        is entered, the script doesn''t do anything.
 
-        Inbox rule creation detected post-delivery. This maps to the persistence_type contract parallel to Analysis.Endpoint.persistence_type,
-        and should be evaluated by Eradication for inbox rule removal via soc-remove-inbox-rule (SOCFrameworkActions_V3).'
+        Inbox rule creation detected post-delivery. This maps to the persistence_type
+        contract parallel to Analysis.Endpoint.persistence_type, and should be evaluated
+        by Eradication for inbox rule removal via soc-remove-inbox-rule (SOCFrameworkActions_V3).'
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -404,7 +394,7 @@ tasks:
         simple: inbox_rule_persistence
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 760,\n    \"y\": 1310\n  }\n}"
+    view: '{"position": {"x": 700, "y": 1280}}'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -412,6 +402,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '10':
     id: '10'
     taskid: e1f2a3b4-c5d6-7890-efab-901234567890
@@ -420,7 +411,8 @@ tasks:
       id: e1f2a3b4-c5d6-7890-efab-901234567890
       version: -1
       name: Set Persistence — no_persistence_detected
-      description: Set a value in context under the key you entered. If no value is entered, the script doesn't do anything.
+      description: Set a value in context under the key you entered. If no value is
+        entered, the script doesn't do anything.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -441,7 +433,7 @@ tasks:
         simple: no_persistence_detected
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 1310\n  }\n}"
+    view: '{"position": {"x": 260, "y": 1280}}'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -449,6 +441,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '11':
     id: '11'
     taskid: f2a3b4c5-d6e7-8901-fabc-012345678901
@@ -465,7 +458,47 @@ tasks:
     nexttasks: {}
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 480,\n    \"y\": 1510\n  }\n}"
+    view: '{"position": {"x": 480, "y": 1455}}'
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '8':
+    id: '8'
+    taskid: bbf0d33e-997e-4277-8fb7-24e6a2bef3e3
+    type: condition
+    task:
+      id: bcd60001-3e19-4540-886b-ec7477715486
+      version: -1
+      name: Suspicious inbox rule found?
+      description: Evaluates the output of soc-audit-inbox-rules. If the UC returned
+        a result indicating a rule was found, routes to persistence. If the UC failed
+        (integration not installed), defaults to no_persistence_detected and the failure
+        is logged in xsiam_socfw_ir_execution_raw.
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '10'
+      'yes':
+      - '9'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: SOCFramework.Email.InboxRules
+            iscontext: true
+    continueonerrortype: ''
+    view: '{"position": {"x": 480, "y": 1105}}'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -475,23 +508,26 @@ tasks:
     isautoswitchedtoquietmode: false
 outputs:
 - contextPath: Analysis.Email.spread_level
-  description: 'Canonical spread level for the email threat. Values: single_entity / limited_entity / multi_entity. Maps from
-    Analysis.Email.RecipientScope — parallel to Analysis.Endpoint.spread_level so downstream phases share the same contract.'
+  description: 'Canonical spread level for the email threat. Values: single_entity
+    / limited_entity / multi_entity. Maps from Analysis.Email.RecipientScope — parallel
+    to Analysis.Endpoint.spread_level so downstream phases share the same contract.'
   type: string
 - contextPath: Analysis.Email.persistence_type
-  description: Post-delivery persistence indicator. inbox_rule_persistence — New-InboxRule detected in ms_o365_audit_raw for
-    the primary recipient within 24h of delivery. Requires Eradication via soc-remove-inbox-rule. no_persistence_detected
-    — no inbox rule evidence found.
+  description: Post-delivery persistence indicator. inbox_rule_persistence — New-InboxRule
+    detected in ms_o365_audit_raw for the primary recipient within 24h of delivery.
+    Requires Eradication via soc-remove-inbox-rule. no_persistence_detected — no inbox
+    rule evidence found.
   type: string
 outputSections:
 - outputs:
   - Analysis.Email.spread_level
   - Analysis.Email.persistence_type
   name: Spread Evaluation Contract
-  description: Passed to Analysis Evaluation and Containment phase. spread_level drives Containment scope (single mailbox
-    vs. tenant-wide purge). persistence_type gates Eradication inbox rule removal task.
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1520,\n      \"width\":\
-  \ 1240,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
+  description: Passed to Analysis Evaluation and Containment phase. spread_level drives
+    Containment scope (single mailbox vs. tenant-wide purge). persistence_type gates
+    Eradication inbox rule removal task.
+view: '{"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 1520, "width":
+  380, "x": 50, "y": 50}}}'
 contentitemexportablefields:
   contentitemfields:
     definitionid: ''

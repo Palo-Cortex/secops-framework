@@ -25,7 +25,7 @@ description: "NIST IR 800-61 — Detection & Analysis — Email Forensics Evalua
   \ flag\n\nNOTE — Option B build: reads Proofpoint.Report.* vendor paths directly.\noutput_map is defined in soc-get-email-forensics\
   \ (SOCFrameworkActions_V3) documenting the future UC.Email.Forensics.* contract.\nWhen SOCCommandWrapper.py output_map support\
   \ is implemented, swap read paths in this playbook from Proofpoint.Report.* to UC.Email.Forensics.*.\n\nContext keys produced:\n\
-  \  SOCFramework.Email.TAP.CampaignID\n  SOCFramework.Email.TAP.ThreatID\n  Analysis.Email.forensics_available\n  Proofpoint.Report.*\
+  \  Analysis.Email.CampaignID\n  Analysis.Email.ThreatID\n  Analysis.Email.forensics_available\n  Proofpoint.Report.*\
   \ (Behavior, DNS, Network, File, Attachment) — war room only"
 tags:
 - SOC
@@ -95,7 +95,7 @@ tasks:
       version: -1
       name: Set Campaign ID
       description: 'Extract Proofpoint campaign ID from alert field. Used for campaign-level forensics retrieval. Source:
-        alert.proofpointtapcampaignid.'
+        SOCFramework.Email.campaign_id (set by Foundation - Normalize Email_V3).'
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -109,13 +109,11 @@ tasks:
       append:
         simple: 'false'
       key:
-        simple: SOCFramework.Email.TAP.CampaignID
+        simple: Analysis.Email.CampaignID
       value:
-        complex:
-          root: alert
-          accessor: proofpointtapcampaignid
-          transformers:
-          - operator: uniq
+        simple: ${SOCFramework.Email.campaign_id}
+      force:
+        simple: 'true'
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -136,7 +134,7 @@ tasks:
       version: -1
       name: Set Threat ID
       description: 'Extract Proofpoint threat ID from alert field. Used as primary forensics retrieval key when CampaignID
-        is absent. Source: alert.proofpointtapthreatid.'
+        is absent. Source: SOCFramework.Email.threat_id (set by Foundation - Normalize Email_V3).'
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -150,13 +148,11 @@ tasks:
       append:
         simple: 'false'
       key:
-        simple: SOCFramework.Email.TAP.ThreatID
+        simple: Analysis.Email.ThreatID
       value:
-        complex:
-          root: alert
-          accessor: proofpointtapthreatid
-          transformers:
-          - operator: uniq
+        simple: ${SOCFramework.Email.threat_id}
+      force:
+        simple: 'true'
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -232,12 +228,12 @@ tasks:
       - - operator: isExists
           left:
             value:
-              simple: SOCFramework.Email.TAP.CampaignID
+              simple: Analysis.Email.CampaignID
             iscontext: true
         - operator: isNotEqualString
           left:
             value:
-              simple: SOCFramework.Email.TAP.CampaignID
+              simple: Analysis.Email.CampaignID
             iscontext: true
           right:
             value:
@@ -245,19 +241,19 @@ tasks:
       - - operator: isExists
           left:
             value:
-              simple: SOCFramework.Email.TAP.ThreatID
+              simple: Analysis.Email.ThreatID
             iscontext: true
     - label: Campaign Only
       condition:
       - - operator: isExists
           left:
             value:
-              simple: SOCFramework.Email.TAP.CampaignID
+              simple: Analysis.Email.CampaignID
             iscontext: true
         - operator: isNotEqualString
           left:
             value:
-              simple: SOCFramework.Email.TAP.CampaignID
+              simple: Analysis.Email.CampaignID
             iscontext: true
           right:
             value:
@@ -267,7 +263,7 @@ tasks:
       - - operator: isExists
           left:
             value:
-              simple: SOCFramework.Email.TAP.ThreatID
+              simple: Analysis.Email.ThreatID
             iscontext: true
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 80,\n    \"y\": 930\n  }\n}"
@@ -563,19 +559,18 @@ view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n
 inputs: []
 outputSections:
 - outputs:
-  - SOCFramework.Email.TAP.CampaignID
-  - SOCFramework.Email.TAP.ThreatID
+  - Analysis.Email.CampaignID
+  - Analysis.Email.ThreatID
   - Analysis.Email.forensics_available
   name: Forensics Contract
   description: CampaignID and ThreatID consumed by Exposure Evaluation XQL filter. forensics_available consumed by Analysis
     Evaluation narrative.
 outputs:
-- contextPath: SOCFramework.Email.TAP.CampaignID
-  description: Proofpoint TAP campaign ID — extracted from alert.proofpointtapcampaignid
+- contextPath: Analysis.Email.CampaignID
+  description: Email source campaign ID — set by Foundation - Normalize Email_V3
   type: string
-- contextPath: SOCFramework.Email.TAP.ThreatID
-  description: Proofpoint TAP threat ID — extracted from alert.proofpointtapthreatid. Also consumed by Exposure Evaluation
-    XQL query as secondary filter.
+- contextPath: Analysis.Email.ThreatID
+  description: Email source threat ID — set by Foundation - Normalize Email_V3
   type: string
 - contextPath: Analysis.Email.forensics_available
   description: True if Proofpoint.Report.Behavior was populated by forensics retrieval

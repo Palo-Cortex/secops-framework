@@ -1,32 +1,26 @@
-fromversion: 5.0.0
+adopted: true
 id: SOC Email IOC Enrichment_V3
-version: 41
-contentitemexportablefields:
-  contentitemfields:
-    packID: soc-framework-nist-ir
-    packName: SOC Framework NIST IR (800-61)
-    itemVersion: 1.1.0
-    fromServerVersion: 6.10.0
-    toServerVersion: ''
-    definitionid: ''
-    prevname: ''
-    isoverridable: false
-    supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email IOC Enrichment_V3
-description: "NIST IR 800-61 — Detection & Analysis — Email IOC Enrichment\n\nCreates indicators in XSIAM TIM, assigns Proofpoint\
-  \ DBot scores, and checks sender prevalence before Signal Characterization runs.\n\nMUST run before SOC Email Signal Characterization_V3\
-  \ — Signal Characterization reads DBotScore.Score via GetIndicatorDBotScoreFromCache. If no indicator exists with a score,\
-  \ source_verdict defaults to benign.\n\nValue Driver: VD1 (Reduce Risk) — accurate DBot scoring feeds Signal Characterization\
-  \ source_verdict, which cross-checks ThreatStatus in Verdict Resolution.\nValue Driver: VD3 (Efficiency) — automated IOC\
-  \ creation and prevalence tagging replaces manual analyst TIM lookups.\n\nExecution:\n  1. Fan-out: URL threat? / Attachment\
-  \ threat? (parallel)\n     URL path:        createNewIndicator(URL) → AddDBotScoreToContext(score=2, vendor=Proofpoint TAP)\n\
-  \     Attachment path: createNewIndicator(File) → AddDBotScoreToContext(score=2, vendor=Proofpoint TAP)\n  2. Tag all threat\
-  \ indicators: ProofpointTAPThreat\n  3. Sender prevalence: domain + IP parallel checks\n     Non-prevalent → tag Uncommon\n\
-  \  4. Set Analysis.Email.ioc_enriched = true\n\nDBot score 2 = suspicious baseline per original SOC_Proofpoint_Preparation\
-  \ logic.\nVerdict Resolution cross-checks this against ThreatStatus for final confidence.\n\nNote: rasterize URL (screenshot)\
-  \ intentionally excluded — operationally low priority, adds latency with minimal SOC value.\n\nContext keys produced:\n\
-  \  Analysis.Email.ioc_enriched\n  DBotScore.* (via AddDBotScoreToContext — consumed by Signal Characterization)"
+version: -1
+fromversion: 6.10.0
+description: "NIST IR 800-61 — Detection & Analysis — Email IOC Enrichment\n\nCreates\
+  \ indicators in XSIAM TIM, assigns Proofpoint DBot scores, and checks sender prevalence\
+  \ before Signal Characterization runs.\n\nMUST run before SOC Email Signal Characterization_V3\
+  \ — Signal Characterization reads DBotScore.Score via GetIndicatorDBotScoreFromCache.\
+  \ If no indicator exists with a score, source_verdict defaults to benign.\n\nValue\
+  \ Driver: VD1 (Reduce Risk) — accurate DBot scoring feeds Signal Characterization\
+  \ source_verdict, which cross-checks ThreatStatus in Verdict Resolution.\nValue\
+  \ Driver: VD3 (Efficiency) — automated IOC creation and prevalence tagging replaces\
+  \ manual analyst TIM lookups.\n\nExecution:\n  1. Fan-out: URL threat? / Attachment\
+  \ threat? (parallel)\n     URL path:        createNewIndicator(URL) → AddDBotScoreToContext(score=2,\
+  \ vendor=Email SEG)\n     Attachment path: createNewIndicator(File) → AddDBotScoreToContext(score=2,\
+  \ vendor=Email SEG)\n  2. Tag all threat indicators: EmailThreat\n  3. Sender prevalence:\
+  \ domain + IP parallel checks\n     Non-prevalent → tag Uncommon\n  4. Set Analysis.Email.ioc_enriched\
+  \ = true\n\nDBot score 2 = suspicious baseline per original SOC_Proofpoint_Preparation\
+  \ logic.\nVerdict Resolution cross-checks this against ThreatStatus for final confidence.\n\
+  \nNote: rasterize URL (screenshot) intentionally excluded — operationally low priority,\
+  \ adds latency with minimal SOC value.\n\nContext keys produced:\n  Analysis.Email.ioc_enriched\n\
+  \  DBotScore.* (via AddDBotScoreToContext — consumed by Signal Characterization)"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -71,7 +65,7 @@ tasks:
       name: Is URL Threat?
       description: 'Routes to URL IOC creation if threatType contains "url".
 
-        Source: alert.proofpointtapthreatinfomap.threatType'
+        Source: SOCFramework.Email.threat_type'
       type: condition
       iscommand: false
       brand: ''
@@ -89,7 +83,7 @@ tasks:
       - - operator: containsGeneral
           left:
             value:
-              simple: alert.proofpointtapthreatinfomap.threatType
+              simple: SOCFramework.Email.threat_type
             iscontext: true
           right:
             value:
@@ -114,7 +108,7 @@ tasks:
       name: Is Attachment Threat?
       description: 'Routes to File IOC creation if threatType contains "attachment".
 
-        Source: alert.proofpointtapthreatinfomap.threatType'
+        Source: SOCFramework.Email.threat_type'
       type: condition
       iscommand: false
       brand: ''
@@ -132,7 +126,7 @@ tasks:
       - - operator: containsGeneral
           left:
             value:
-              simple: alert.proofpointtapthreatinfomap.threatType
+              simple: SOCFramework.Email.threat_type
             iscontext: true
           right:
             value:
@@ -192,7 +186,7 @@ tasks:
       '#none#':
       - '5'
     scriptarguments:
-      proofpointtaplink:
+      emailsourcethreatlink:
         simple: ${inputs.ThreatURL}
       type:
         simple: URL
@@ -219,7 +213,8 @@ tasks:
       name: Assign DBot Score — URL
       description: 'Assigns DBot score 2 (suspicious) to the URL indicator.
 
-        Score 2 = suspicious baseline — Verdict Resolution cross-checks this against ThreatStatus for final verdict confidence.
+        Score 2 = suspicious baseline — Verdict Resolution cross-checks this against
+        ThreatStatus for final verdict confidence.
 
         Matches original Preparation task 9 logic.'
       scriptName: AddDBotScoreToContext
@@ -233,19 +228,7 @@ tasks:
       - '10'
     scriptarguments:
       indicator:
-        complex:
-          root: alert.proofpointtapthreatinfomap
-          filters:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: alert.proofpointtapthreatinfomap.threatType
-                iscontext: true
-              right:
-                value:
-                  simple: url
-              ignorecase: true
-          accessor: threat
+        simple: ${SOCFramework.Email.threat_url}
       indicatorType:
         simple: URL
       reliability:
@@ -253,7 +236,7 @@ tasks:
       score:
         simple: '2'
       vendor:
-        simple: Proofpoint TAP
+        simple: Email SEG
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -310,23 +293,10 @@ tasks:
       '#none#':
       - '8'
     scriptarguments:
-      proofpointtaplink:
-        simple: ${inputs.ThreatURL}
       type:
         simple: File
       value:
-        complex:
-          root: alert.proofpointtapthreatinfomap
-          filters:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: alert.proofpointtapthreatinfomap.threattype
-                iscontext: true
-              right:
-                value:
-                  simple: attachment
-          accessor: threat
+        simple: ${SOCFramework.Email.attachment_sha256}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -360,19 +330,7 @@ tasks:
       - '10'
     scriptarguments:
       indicator:
-        complex:
-          root: alert.proofpointtapthreatinfomap
-          filters:
-          - - operator: isEqualString
-              left:
-                value:
-                  simple: alert.proofpointtapthreatinfomap.threatType
-                iscontext: true
-              right:
-                value:
-                  simple: attachment
-              ignorecase: true
-          accessor: threat
+        simple: ${SOCFramework.Email.attachment_sha256}
       indicatorType:
         simple: File
       reliability:
@@ -380,7 +338,7 @@ tasks:
       score:
         simple: '2'
       vendor:
-        simple: Proofpoint TAP
+        simple: Email SEG
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -425,7 +383,7 @@ tasks:
     task:
       id: 909e7a45-863f-4386-9512-f2b74b6e3394
       version: -1
-      name: Tag Indicators — ProofpointTAPThreat
+      name: Tag Threat Indicators
       description: commands.local.cmd.set.indicators
       script: Builtin|||setIndicators
       type: regular
@@ -438,17 +396,9 @@ tasks:
       - '12'
     scriptarguments:
       indicatorsValues:
-        complex:
-          root: alert.proofpointtapthreatinfomap
-          accessor: threat
-          transformers:
-          - operator: join
-            args:
-              separator:
-                value:
-                  simple: ','
+        simple: ${SOCFramework.Email.threat_url}
       tags:
-        simple: ProofpointTAPThreat
+        simple: EmailThreat
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -510,8 +460,7 @@ tasks:
     scriptarguments:
       domain_name:
         complex:
-          root: alert
-          accessor: proofpointtapsmtpsender
+          root: SOCFramework.Email.sender
           transformers:
           - operator: ExtractEmailAddresses
           - operator: getField
@@ -576,7 +525,8 @@ tasks:
       id: 3d5dfa1e-914d-4a49-8646-35a649e78e59
       version: -1
       name: Non-Prevalent Domain?
-      description: isFalse = prevalence returned 0 or false — domain is uncommon in environment.
+      description: isFalse = prevalence returned 0 or false — domain is uncommon in
+        environment.
       type: condition
       iscommand: false
       brand: ''
@@ -740,7 +690,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '20'
+      - '25'
     scriptarguments:
       append:
         simple: 'false'
@@ -776,11 +726,201 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 162.5,\n    \"y\": 3290\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '25':
+    id: '25'
+    taskid: 08cae8e3-610f-4fb3-ae30-9ace2fb9dd44
+    type: title
+    task:
+      id: 08cae8e3-610f-4fb3-ae30-9ace2fb9dd44
+      version: -1
+      name: Entity Enrichment
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '26'
+    separatecontext: false
+    continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 162.5,\n    \"y\": 2565\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
     skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '26':
+    id: '26'
+    taskid: 4f7203c8-f518-4413-9e66-01e24e00b7c8
+    type: playbook
+    task:
+      id: 4f7203c8-f518-4413-9e66-01e24e00b7c8
+      version: -1
+      name: Entity Enrichment - Phishing v2
+      playbookName: Entity Enrichment - Phishing v2
+      type: playbook
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '27'
+    scriptarguments:
+      Domain:
+        complex:
+          root: Domain
+          accessor: Name
+          transformers:
+          - operator: uniq
+      Email:
+        complex:
+          root: Account.Email.Address
+          transformers:
+          - operator: uniq
+      IP:
+        complex:
+          root: IP
+          accessor: Address
+          transformers:
+          - operator: uniq
+      MD5:
+        complex:
+          root: File
+          accessor: MD5
+          transformers:
+          - operator: uniq
+      ResolveIP:
+        simple: 'False'
+      SHA256:
+        complex:
+          root: File
+          accessor: SHA256
+          transformers:
+          - operator: uniq
+      URL:
+        complex:
+          root: URL
+          accessor: Data
+          transformers:
+          - operator: uniq
+    separatecontext: true
+    continueonerror: true
+    continueonerrortype: ''
+    loop:
+      iscommand: false
+      exitCondition: ''
+      wait: 1
+      max: 100
+    view: "{\n  \"position\": {\n    \"x\": 162.5,\n    \"y\": 2735\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '27':
+    id: '27'
+    taskid: 69b55b49-4617-4e6b-8208-476ee412f720
+    type: condition
+    task:
+      id: 69b55b49-4617-4e6b-8208-476ee412f720
+      version: -1
+      name: Hunt Email Indicators?
+      description: 'Gate: run Phishing - Indicators Hunting if HuntEmailIndicators
+        = true. Queries Defender 365 etc. for alert IOCs. Expensive — disabled by
+        default. Source: Phishing - Generic v3 task 211.'
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '20'
+      'yes':
+      - '28'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.HuntEmailIndicators
+            iscontext: true
+          right:
+            value:
+              simple: 'true'
+          ignorecase: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 162.5,\n    \"y\": 2920\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '28':
+    id: '28'
+    taskid: 46d290d4-d8f4-4d07-9007-fb5f6ed83584
+    type: playbook
+    task:
+      id: 46d290d4-d8f4-4d07-9007-fb5f6ed83584
+      version: -1
+      name: Phishing - Indicators Hunting
+      playbookName: Phishing - Indicators Hunting
+      type: playbook
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '20'
+    scriptarguments:
+      DBotScore:
+        complex:
+          root: DBotScore
+          filters:
+          - - operator: greaterThanOrEqual
+              left:
+                value:
+                  simple: DBotScore.Score
+                iscontext: true
+              right:
+                value:
+                  simple: '2'
+      EmailHuntingCreateNewIncidents:
+        simple: 'false'
+      ListenerMailbox:
+        simple: ${inputs.ListenerMailbox}
+    separatecontext: true
+    continueonerror: true
+    continueonerrortype: ''
+    loop:
+      iscommand: false
+      exitCondition: ''
+      wait: 1
+      max: 100
+    view: "{\n  \"position\": {\n    \"x\": 377.5,\n    \"y\": 3105\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: true
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
@@ -792,7 +932,8 @@ tasks:
       id: 058bc382-11ec-5a21-8a2f-69ad191b87d7
       version: -1
       name: Sender Domain Available?
-      description: Skip Sender Domain prevalence check if value is empty — continueonerror fallback.
+      description: Skip Sender Domain prevalence check if value is empty — continueonerror
+        fallback.
       type: condition
       iscommand: false
       brand: ''
@@ -810,7 +951,7 @@ tasks:
       - - operator: isNotEmpty
           left:
             value:
-              simple: alert.proofpointtapsmtpsender
+              simple: SOCFramework.Email.sender
             iscontext: true
           right:
             value: {}
@@ -831,7 +972,8 @@ tasks:
       id: e83f74d6-846e-5f27-a381-27a791b2b82c
       version: -1
       name: Sender IP Available?
-      description: Skip Sender IP prevalence check if value is empty — continueonerror fallback.
+      description: Skip Sender IP prevalence check if value is empty — continueonerror
+        fallback.
       type: condition
       iscommand: false
       brand: ''
@@ -862,9 +1004,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-system: true
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 2575,\n      \"width\":\
-  \ 942.5,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
 inputs:
 - key: ThreatURL
   value:
@@ -872,19 +1011,52 @@ inputs:
   required: false
   description: Threat URL from parent context — used for URL indicator creation.
   playbookInputQuery: null
+- key: HuntEmailIndicators
+  value:
+    simple: 'false'
+  required: false
+  description: 'Set true to run Phishing - Indicators Hunting. Queries Defender 365
+    and other connected sources for the IOCs from this alert. Expensive operation
+    — leave false unless hunting explicitly enabled. Source: Phishing - Generic v3
+    task 211.'
+  playbookInputQuery: null
+- key: ListenerMailbox
+  value: {}
+  required: false
+  description: Mailbox address used as the listener for Phishing - Indicators Hunting.
+    Required when HuntEmailIndicators = true.
+  playbookInputQuery: null
 inputSections:
 - inputs:
   - ThreatURL
   name: IOC Enrichment Inputs
   description: Inputs passed from SOC Email Analysis_V3.
-outputSections:
-- outputs:
-  - Analysis.Email.ioc_enriched
-  name: Enrichment Contract
-  description: Flag consumed by Analysis Evaluation story. DBotScore.* written to context and consumed by Signal Characterization
-    GetIndicatorDBotScoreFromCache.
+- inputs:
+  - HuntEmailIndicators
+  - ListenerMailbox
+  name: Indicator Hunting
+  description: Phishing - Indicators Hunting — gated, expensive, disabled by default
 outputs:
 - contextPath: Analysis.Email.ioc_enriched
   description: true when IOC creation and DBot score assignment completed
   type: boolean
-adopted: true
+outputSections:
+- outputs:
+  - Analysis.Email.ioc_enriched
+  name: Enrichment Contract
+  description: Flag consumed by Analysis Evaluation story. DBotScore.* written to
+    context and consumed by Signal Characterization GetIndicatorDBotScoreFromCache.
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
+  \     \"height\": 3300,\n      \"width\": 942.5,\n      \"x\": 50,\n      \"y\"\
+  : 50\n    }\n  }\n}"
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.2.0
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []

@@ -1,4 +1,6 @@
-fromversion: 6.10.0
+ruleid: SOC Proofpoint TAP - Threat Detected
+id: SOC Proofpoint TAP - Threat Detected
+fromversion: 8.0.0
 action: ALERTS
 alert_category: User Defined
 alert_description: $alert_description
@@ -26,33 +28,20 @@ alert_fields:
   fw_email_sender: sender
   fw_email_subject: subject
 
-  # ── Proofpoint TAP extended fields ────────────────────────────────────────
-  proofpointtapcampaignid: campaignId
-  proofpointtapclassification: classification_all
-  proofpointtapclickip: clickIP
-  proofpointtapclicktime: clickTime
-  proofpointtapguid: GUID
-  proofpointtapheadersfrom: headerFrom
-  proofpointtapheadersreplyto: headerReplyTo
-  proofpointtapid: id
-  proofpointtapimposterscore: impostorScore
-  proofpointtapmalwarescore: malwareScore
-  proofpointtapmessageid: messageID
-  proofpointtapmessageparts: messageParts
-  proofpointtapmessagesize: messageSize
-  proofpointtapphishingscore: phishScore
-  proofpointtapreplytoaddress: replyToAddress
-  proofpointtapsenderip: senderIP
-  proofpointtapsmtpsender: sender
-  proofpointtapspamscore: spamScore
-  proofpointtapsubject: subject
-  proofpointtapsuspiciousurl: threat_urls
-  proofpointtapthreatid: threat_ids
-  proofpointtapthreatinfomap: threatsInfoMap_str
-  proofpointtapthreatstatus: threat_statuses
-  proofpointtapthreattime: threatTime
-  proofpointtapthreaturl: threat_urls
-  proofpointtaptype: type
+  # ── SOC Framework generic email fields ─────────────────────────────────────────────────────────
+  # Replaces proofpointtap* fields. Read by Foundation_-_Normalize_Email_V3.
+  socfwemaildeliveryaction: delivery_action
+  socfwemaildirection: direction
+  socfwemailthreaturl: threat_urls
+  socfwemailthreattype: threat_types
+  socfwemailthreatstatus: threat_statuses
+  socfwemailthreatid: threat_ids
+  socfwemailclassification: classification_all
+  socfwemailphishscore: phishScore
+  socfwemailmalwarescore: malwareScore
+  socfwemailcampaignid: campaignId
+  socfwemailclickip: clickIP
+  socfwemailclicktime: clickTime
 alert_name: $alert_name
 alert_type:
 crontab:
@@ -71,7 +60,6 @@ mitre_defs:
   TA0009 - Collection:
   - T1114 - Email Collection
 name: SOC Proofpoint TAP - Threat Detected
-rule_id: 0
 search_window:
 severity: User Defined
 simple_schedule:
@@ -108,6 +96,18 @@ xql_query: |
           "Proofpoint TAP - Click Permitted",
           "Proofpoint TAP - Message Delivered"
       )
+
+  // Step 5b: derive delivery_action for socfwemaildeliveryaction
+  | alter delivery_action = if(
+      type = "messages delivered", "delivered",
+      type = "clicks permitted",   "click_permitted",
+      type = "messages blocked",   "blocked",
+      type = "clicks blocked",     "click_blocked",
+      type
+  )
+
+  // Step 5c: direction always inbound for TAP
+  | alter direction = "inbound"
 
   // Step 6: severity and category from _alert_data
   //   _alert_data -> severity returns XSIAM internal codes (e.g. SEV_030_MEDIUM).

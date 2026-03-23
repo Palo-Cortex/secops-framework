@@ -14,14 +14,18 @@ contentitemexportablefields:
     supportedModules: []
 vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Signal Characterization_V3
-description: "Purpose\nDetermine what kind of email threat this is and build the indicator intelligence needed for verdict\
-  \ resolution.\n\nThis is not verdict determination — that belongs in SOC Email Verdict Resolution_V3.\nThis playbook answers:\
-  \ what is the nature of the threat object?\n\nSignal Types Produced:\n  url_phish    — threat type is URL (phishing link,\
-  \ credential harvest, malicious redirect)\n  file_malware — threat type is attachment (malicious file, hash-based detection)\n\
-  \  unknown      — threat type not identified from available artifacts\n\nCurrent Tasks:\n  Characterize Threat Type\n  Create\
-  \ IOC (URL or File)\n  Assign DBot Score from Proofpoint TAP signal\n  Extract domains from threat URL\n  Rasterize URL\
-  \ (best-effort)\n  Sender Domain Prevalence Check\n  Sender IP Prevalence Check\n  Tag Uncommon indicators\n  Tag threat\
-  \ indicators with detection source\n  Set Analysis.Email.signal_type\n  Set Analysis.Email.source_verdict from DBot"
+description: "Purpose\nDetermine what kind of email threat this is and build the indicator\
+  \ intelligence needed for verdict resolution.\n\nThis is not verdict determination\
+  \ — that belongs in SOC Email Verdict Resolution_V3.\nThis playbook answers: what\
+  \ is the nature of the threat object?\n\nSignal Types Produced:\n  url_phish   \
+  \ — threat type is URL (phishing link, credential harvest, malicious redirect)\n\
+  \  file_malware — threat type is attachment (malicious file, hash-based detection)\n\
+  \  unknown      — threat type not identified from available artifacts\n\nCurrent\
+  \ Tasks:\n  Characterize Threat Type\n  Create IOC (URL or File)\n  Assign DBot\
+  \ Score from Proofpoint TAP signal\n  Extract domains from threat URL\n  Rasterize\
+  \ URL (best-effort)\n  Sender Domain Prevalence Check\n  Sender IP Prevalence Check\n\
+  \  Tag Uncommon indicators\n  Tag threat indicators with detection source\n  Set\
+  \ Analysis.Email.signal_type\n  Set Analysis.Email.source_verdict from DBot"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -89,7 +93,8 @@ tasks:
       id: c2893eed-6d85-4b5a-9564-19e8cec61f2e
       version: -1
       name: What is the Threat Type?
-      description: Routes on SOCFramework.Artifacts.Email.ThreatType to determine IOC creation and enrichment path.
+      description: Routes on SOCFramework.Artifacts.Email.ThreatType to determine
+        IOC creation and enrichment path.
       type: condition
       iscommand: false
       brand: ''
@@ -143,7 +148,8 @@ tasks:
       id: 88bbf74f-0a0a-4fa3-b8fc-ad62b38a7eeb
       version: -1
       name: Create URL Indicator
-      description: Creates a URL indicator from the threat URL extracted at entry point.
+      description: Creates a URL indicator from the threat URL extracted at entry
+        point.
       script: Builtin|||createNewIndicator
       type: regular
       iscommand: true
@@ -249,7 +255,8 @@ tasks:
       id: b4161365-b353-4eba-9886-5051c8909f3d
       version: -1
       name: Rasterize URL
-      description: Captures a screenshot of the threat URL for analyst review. Best-effort — continues on error.
+      description: Captures a screenshot of the threat URL for analyst review. Best-effort
+        — continues on error.
       script: '|||rasterize'
       type: regular
       iscommand: true
@@ -281,7 +288,8 @@ tasks:
       id: 0b69ca12-08ef-4b3e-afaf-3862617168dd
       version: -1
       name: Create File Indicator
-      description: Creates a File indicator from the attachment hash extracted at entry point.
+      description: Creates a File indicator from the attachment hash extracted at
+        entry point.
       script: Builtin|||createNewIndicator
       type: regular
       iscommand: true
@@ -407,8 +415,8 @@ tasks:
       id: 7d6781b0-a2be-4d00-8d74-6911e25d1c04
       version: -1
       name: Sender Domain Prevalence Check
-      description: Checks whether the sender domain has been seen before in the environment. Low prevalence is an indicator
-        of a first-seen phishing domain.
+      description: Checks whether the sender domain has been seen before in the environment.
+        Low prevalence is an indicator of a first-seen phishing domain.
       script: '|||core-get-domain-analytics-prevalence'
       type: regular
       iscommand: true
@@ -493,7 +501,8 @@ tasks:
       id: a0e1cb99-bb2f-4beb-b72d-8a1ac9a371b2
       version: -1
       name: Sender IP Prevalence Check
-      description: Checks sender IP prevalence. Low prevalence may indicate a new sending infrastructure.
+      description: Checks sender IP prevalence. Low prevalence may indicate a new
+        sending infrastructure.
       script: '|||core-get-IP-analytics-prevalence'
       type: regular
       iscommand: true
@@ -697,7 +706,8 @@ tasks:
       id: d63ac3d3-a6ca-41dc-88f8-ea9309fe1450
       version: -1
       name: Tag Threat Indicators
-      description: Tags all threat indicators with the detection source for downstream filtering and reporting.
+      description: Tags all threat indicators with the detection source for downstream
+        filtering and reporting.
       script: Builtin|||setIndicators
       type: regular
       iscommand: true
@@ -773,7 +783,8 @@ tasks:
       id: 160fc4ae-0779-4852-89e5-9c6b80fd678a
       version: -1
       name: Get Indicator DBot Score
-      description: Retrieves the cached DBot score for the threat indicator to use in verdict resolution.
+      description: Retrieves the cached DBot score for the threat indicator to use
+        in verdict resolution.
       scriptName: GetIndicatorDBotScoreFromCache
       type: regular
       iscommand: false
@@ -805,8 +816,9 @@ tasks:
       id: 97d2885d-b15b-4b36-b1c0-40e01db2fbbe
       version: -1
       name: Set Email Source Verdict from DBot
-      description: Maps the numeric DBot score to the standard source_verdict string used in Analysis. Used as a secondary
-        signal — primary verdict comes from Proofpoint ThreatStatus.
+      description: Maps the numeric DBot score to the standard source_verdict string
+        used in Analysis. Used as a secondary signal — primary verdict comes from
+        Proofpoint ThreatStatus.
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -853,6 +865,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '23':
     id: '23'
     taskid: 779d977b-7cd8-4322-8045-cbab913210e0
@@ -968,6 +981,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '26':
     id: '26'
     taskid: ace0321d-e7e3-4fea-a901-583b475a9687
@@ -1004,6 +1018,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '27':
     id: '27'
     taskid: 733d359e-2a41-4ce2-bb62-e9bbcebc0234
@@ -1040,6 +1055,7 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    continueonerror: true
   '28':
     id: '28'
     taskid: dfd77dbc-f8ca-44c3-b95d-63f4f3bb028f
@@ -1071,7 +1087,8 @@ tasks:
       id: 3f7e2d1c-4b5a-4987-b8c9-d0e1f2a3b4c5
       version: -1
       name: Sender Domain Available?
-      description: Skip Sender Domain prevalence check if value is empty — continueonerror fallback.
+      description: Skip Sender Domain prevalence check if value is empty — continueonerror
+        fallback.
       type: condition
       iscommand: false
       brand: ''
@@ -1110,7 +1127,8 @@ tasks:
       id: 4e8f3d2c-5c6b-4098-c9da-e1f2a3b4c5d6
       version: -1
       name: Sender IP Available?
-      description: Skip Sender IP prevalence check if value is empty — continueonerror fallback.
+      description: Skip Sender IP prevalence check if value is empty — continueonerror
+        fallback.
       type: condition
       iscommand: false
       brand: ''
@@ -1142,14 +1160,16 @@ tasks:
     isoversize: false
     isautoswitchedtoquietmode: false
 system: true
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 4240,\n      \"width\":\
-  \ 1670,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
+  \     \"height\": 4240,\n      \"width\": 1670,\n      \"x\": 50,\n      \"y\":\
+  \ 50\n    }\n  }\n}"
 inputs:
 - key: ThreatType
   value:
     simple: ${SOCFramework.Artifacts.Email.ThreatType}
   required: false
-  description: url / attachment — from SOCFramework.Artifacts.Email.ThreatType set by Foundation Normalize Artifacts
+  description: url / attachment — from SOCFramework.Artifacts.Email.ThreatType set
+    by Foundation Normalize Artifacts
   playbookInputQuery: null
 - key: ThreatURL
   value:
@@ -1171,7 +1191,8 @@ inputs:
   value:
     simple: ${SOCFramework.Artifacts.Email.From}
   required: false
-  description: Sender email address — domain extracted via @ substring for prevalence check
+  description: Sender email address — domain extracted via @ substring for prevalence
+    check
   playbookInputQuery: null
 - key: SenderIP
   value:
@@ -1185,7 +1206,8 @@ inputSections:
   - ThreatURL
   - ThreatIndicator
   name: Threat Artifact
-  description: Threat object inputs — populated from SOCFramework.Artifacts.Email.* set by Foundation Normalize Artifacts
+  description: Threat object inputs — populated from SOCFramework.Artifacts.Email.*
+    set by Foundation Normalize Artifacts
 - inputs:
   - SenderDomain
   - SenderIP
@@ -1199,10 +1221,11 @@ outputSections:
   description: ''
 outputs:
 - contextPath: Analysis.Email.signal_type
-  description: 'Behavioral classification of the email threat: url_phish / file_malware / unknown'
+  description: 'Behavioral classification of the email threat: url_phish / file_malware
+    / unknown'
   type: string
 - contextPath: Analysis.Email.source_verdict
-  description: 'DBot-derived indicator verdict: malicious / suspicious / benign. Secondary signal — primary verdict comes
-    from ThreatStatus in SOC Email Verdict Resolution_V3.'
+  description: 'DBot-derived indicator verdict: malicious / suspicious / benign. Secondary
+    signal — primary verdict comes from ThreatStatus in SOC Email Verdict Resolution_V3.'
   type: string
 adopted: true
