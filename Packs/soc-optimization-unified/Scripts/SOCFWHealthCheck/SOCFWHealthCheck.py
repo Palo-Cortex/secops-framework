@@ -41,7 +41,7 @@ import traceback
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-SCRIPT_VERSION = "1.5.4"
+SCRIPT_VERSION = "1.5.5"
 SCRIPT_NAME    = "SOCFWHealthCheck"
 
 STATUS_OK   = "OK"
@@ -533,7 +533,16 @@ def check_correlation_rules(using: Optional[str], name_prefix: str = "SOC") -> D
 
     rules: List[Dict] = []
     if isinstance(response, dict):
-        rules = response.get("objects", response.get("rules", response.get("data", [])))
+        # XSIAM wraps correlation results in {"reply": {"data": [...]}} or {"reply": [...]}
+        # Handle both the wrapped and unwrapped forms.
+        if "reply" in response:
+            reply = response["reply"]
+            if isinstance(reply, list):
+                rules = reply
+            elif isinstance(reply, dict):
+                rules = reply.get("data", reply.get("objects", reply.get("rules", [])))
+        else:
+            rules = response.get("objects", response.get("rules", response.get("data", [])))
     elif isinstance(response, list):
         rules = response
 
@@ -562,15 +571,65 @@ def check_correlation_rules(using: Optional[str], name_prefix: str = "SOC") -> D
 
 def check_dashboards(using: Optional[str], name_prefix: str = "SOC") -> Dict[str, Any]:
     """
-    XSIAM dashboards cannot be queried via the Core REST API.
-    Return a static WARN listing the known expected dashboards for manual verification.
+    Verify SOC Framework dashboards are installed.
+    XSIAM has no public dashboard-listing API, so we infer presence from the
+    installed pack that ships them (soc-optimization-unified).  If that pack
+    is confirmed installed we return OK; otherwise we fall back to WARN with
+    a manual-verify instruction.
     """
+    check_name = "Dashboards"
+    expected = [
+        "XSIAM SOC Value Driver Metrics",
+        "XSIAM SOC Value Metrics V3",
+    ]
+    expected_str = ", ".join(f"'{d}'" for d in expected)
+
+    # Try to confirm the containing pack is installed
+    response = None
+    for uri in ["/contentpacks/metadata/installed",
+                "/xsoar/public/v1/contentpacks/metadata/installed"]:
+        ok, resp = _call_core_api("get", uri, using=using)
+        if ok:
+            response = resp
+            break
+
+    if response is not None:
+        packs = response if isinstance(response, list) else []
+        dashboard_pack = next(
+            (p for p in packs
+             if any(kw in str(p.get("id", "")).lower()
+                    for kw in ["soc-optim", "soc_optim", "soc-optimization-unified"])),
+            None,
+        )
+        if dashboard_pack:
+            ver = dashboard_pack.get("currentVersion", "?")
+            return {
+                "check": check_name,
+                "status": STATUS_OK,
+                "detail": (
+                    f"soc-optimization-unified v{ver} installed — "
+                    f"dashboards present: {expected_str} "
+                    "(SOC Framework Unified | Public)."
+                ),
+            }
+        # Pack query succeeded but the pack wasn't found
+        return {
+            "check": check_name,
+            "status": STATUS_WARN,
+            "detail": (
+                "soc-optimization-unified not found in installed packs. "
+                f"Expected dashboards: {expected_str}. "
+                "Verify manually in XSIAM \u2192 Dashboards."
+            ),
+        }
+
+    # Couldn't reach the pack API at all — fall back to manual verify
     return {
-        "check": "Dashboards",
+        "check": check_name,
         "status": STATUS_WARN,
         "detail": (
-            "Verify manually in XSIAM → Dashboards. "
-            "Expected: 'XSIAM SOC Value Driver Metrics', 'XSIAM SOC Value Metrics V3' "
+            f"Verify manually in XSIAM \u2192 Dashboards. "
+            f"Expected: {expected_str} "
             "(SOC Framework Unified | Public)."
         ),
     }
@@ -871,7 +930,14 @@ def main():
                 ok, corr_resp = _call_core_api("post", "/public_api/v1/correlations/get",
                                                body={"request_data": {}}, using=using)
                 if ok and isinstance(corr_resp, dict):
-                    all_rules = corr_resp.get("objects", corr_resp.get("rules", []))
+                    # Unwrap XSIAM reply wrapper before extracting rule list
+                    if "reply" in corr_resp:
+                        _r = corr_resp["reply"]
+                        all_rules = (_r if isinstance(_r, list)
+                                     else _r.get("data", _r.get("objects", _r.get("rules", []))))
+                    else:
+                        all_rules = corr_resp.get("objects", corr_resp.get("rules",
+                                                                           corr_resp.get("data", [])))
                     found_names = {r.get("name", "") for r in all_rules}
                     missing = sorted(config_corr_names - found_names)
                     present = sorted(config_corr_names & found_names)
