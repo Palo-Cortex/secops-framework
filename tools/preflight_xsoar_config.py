@@ -5,15 +5,17 @@ preflight_xsoar_config.py
 Validates xsoar_config.json for one or more packs before deployment.
 
 Checks:
-  1. custom_packs[*].url  — Format validation only (release doesn't exist
-                             yet pre-merge). Each entry's pack name and version
-                             are derived from its own 'id' field, so dependency
-                             entries (e.g. soc-framework-nist-ir inside
-                             soc-optimization-unified) are validated correctly.
-                             If the entry matches the primary pack, its version
-                             is also cross-checked against pack_metadata.json.
-  2. pre_config_docs[*].url  — HTTP check (file must exist on main)
-  3. post_config_docs[*].url — HTTP check (file must exist on main)
+  1. custom_packs[*].id   — Must be {PackName}.zip — no version segment.
+                             The id is XSIAM's stable upgrade-in-place key.
+                             A versioned id causes a new pack to be installed alongside
+                             the old one on every release instead of upgrading it.
+                             Version belongs only in the url field.
+  2. custom_packs[*].url  — Format validation only (release zip doesn't exist yet
+                             pre-merge).  Version is sourced from pack_metadata.json,
+                             not from the id field.  Dependency pack entries are
+                             matched by pack name prefix in the url.
+  3. pre_config_docs[*].url  — HTTP check (file must exist on main)
+  4. post_config_docs[*].url — HTTP check (file must exist on main)
 
 Usage:
   python3 tools/preflight_xsoar_config.py Packs/SocFrameworkProofPointTap
@@ -30,9 +32,16 @@ import sys
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 GITHUB_REPO = "Palo-Cortex/secops-framework"
+
+# Matches a versioned id — must NOT appear in custom_packs[*].id
+_VERSIONED_ID_RE = re.compile(r"-v\d+\.\d+", re.IGNORECASE)
+
+# Matches semver e.g. "1.2.3"
+_SEMVER_RE = re.compile(r"^\d+\.\d+(\.\d+)*$")
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,68 +80,54 @@ def check_url(url: str, label: str) -> Tuple[bool, str]:
     return False, f"  ✗ {label}: Unreachable — {url}"
 
 
-def parse_entry_id(entry_id: str) -> Optional[Tuple[str, str]]:
+def pack_name_from_id(entry_id: str) -> str:
+    """Return the bare pack name from a custom_packs id.
+
+    'SocFrameworkCrowdstrikeFalcon.zip' → 'SocFrameworkCrowdstrikeFalcon'
+    'SocFrameworkCrowdstrikeFalcon'     → 'SocFrameworkCrowdstrikeFalcon'  (unchanged)
     """
-    Derive pack name and version from a custom_packs entry 'id' field.
+    return entry_id.removesuffix(".zip")
 
-    Expected format: {pack_name}-v{version}.zip
-    e.g. 'soc-framework-nist-ir-v1.1.0.zip' → ('soc-framework-nist-ir', '1.1.0')
 
-    Uses rfind('-v') so hyphenated pack names (soc-framework-nist-ir) are
-    handled correctly regardless of depth.
+def expected_zip_url(pack_id: str, version: str) -> str:
+    """Build the canonical GitHub release zip URL for a pack at a given version.
 
-    Returns None if the format is unrecognisable.
+    pack_id must be the bare directory name — no .zip suffix.
     """
-    stem = entry_id.removesuffix(".zip")   # soc-framework-nist-ir-v1.1.0
-    idx = stem.rfind("-v")
-    if idx == -1:
-        return None
-    pack_name = stem[:idx]                 # soc-framework-nist-ir
-    version = stem[idx + 2:]              # 1.1.0
-    # Version must look like semver (digits and dots only, e.g. 1.1.0)
-    if not pack_name or not re.fullmatch(r"\d+\.\d+[\.\d]*", version):
-        return None
-    return pack_name, version
+    pack_id = pack_name_from_id(pack_id)  # guard: strip .zip if caller passed it
+    tag = f"{pack_id}-v{version}"
+    return f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{tag}.zip"
 
 
 def validate_zip_url_format(
-        url: str, pack_id: str, version: str, label: str
+    url: str, pack_id: str, version: str, label: str
 ) -> Tuple[bool, str]:
     """
     Format-only validation for custom_packs zip URLs.
 
-    The release zip doesn't exist yet at PR time — we can't HTTP check it.
-    Instead verify the URL is structurally correct:
-      - References the right repo
-      - Pack name in URL matches pack_id
-      - Version in URL matches version
-
-    Expected format:
+    The release zip doesn't exist yet at PR time — we can't HTTP-check it.
+    Instead verify the URL is structurally correct against the expected pattern:
       https://github.com/{repo}/releases/download/{pack_id}-v{version}/{pack_id}-v{version}.zip
     """
-    expected = (
-        f"https://github.com/{GITHUB_REPO}/releases/download/"
-        f"{pack_id}-v{version}/{pack_id}-v{version}.zip"
-    )
+    want = expected_zip_url(pack_id, version)
 
-    if url == expected:
-        return True, f"  ✓ {label} format: {url}"
+    if url == want:
+        return True, f"  ✓ {label} url: {url}"
 
-    # Diagnose what's wrong
     if GITHUB_REPO not in url:
         detail = f"wrong repo (expected {GITHUB_REPO})"
     elif f"{pack_id}-v{version}" not in url:
         if pack_id not in url:
-            detail = f"pack name mismatch (expected '{pack_id}', got something else)"
+            detail = f"pack name mismatch (expected '{pack_id}')"
         else:
             detail = f"version mismatch (expected v{version})"
     else:
-        detail = f"expected:\n      {expected}"
+        detail = f"unexpected format"
 
     return False, (
-        f"  ✗ {label} format error — {detail}\n"
+        f"  ✗ {label} url format error — {detail}\n"
         f"    was:  {url}\n"
-        f"    want: {expected}"
+        f"    want: {want}"
     )
 
 
@@ -141,7 +136,7 @@ def validate_zip_url_format(
 def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
     """
     Validate xsoar_config.json for a single pack.
-    Returns a list of error strings. Empty = all checks passed.
+    Returns a list of error strings.  Empty = all checks passed.
     """
     config_path = pack_dir / "xsoar_config.json"
     errors = []
@@ -152,7 +147,7 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
 
     cfg = load_json(config_path)
 
-    # Read version from pack_metadata.json — source of truth for the primary pack
+    # Version source-of-truth: pack_metadata.json
     meta_path = pack_dir / "pack_metadata.json"
     if not meta_path.exists():
         errors.append(f"  ✗ pack_metadata.json not found in {pack_dir}")
@@ -166,48 +161,68 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
 
     pack_id = pack_dir.name
 
-    # ── 1. custom_packs zip URLs — format check only ──────────────────────────
-    # Each entry validates against its OWN pack name + version derived from
-    # its 'id' field. Dependency packs (e.g. soc-framework-nist-ir listed
-    # inside soc-optimization-unified) are therefore checked correctly.
-    # If the entry is the primary pack, its version is also cross-checked
-    # against pack_metadata.json.
+    # ── 1 + 2. custom_packs — id and url ─────────────────────────────────────
     custom_packs = cfg.get("custom_packs", [])
     if custom_packs:
-        print(f"  Checking custom_packs zip URL format (pack={pack_id}, version={primary_version})...")
+        print(f"  Checking custom_packs (pack={pack_id}, version={primary_version})...")
 
-    for entry in custom_packs:
+    for i, entry in enumerate(custom_packs):
+        if not isinstance(entry, dict):
+            errors.append(f"  ✗ custom_packs[{i}] is not an object")
+            continue
+
         entry_id = entry.get("id", "")
         url = entry.get("url", "")
 
-        if not url:
-            errors.append(f"  ✗ custom_packs entry missing 'url': {entry_id or '?'}")
-            continue
-
-        # Derive the expected pack name + version from the entry's own id.
-        parsed = parse_entry_id(entry_id) if entry_id else None
-
-        if parsed:
-            entry_pack, entry_version = parsed
-
-            # If this entry is the primary pack, version must match pack_metadata.json
-            if entry_pack == pack_id and entry_version != primary_version:
-                errors.append(
-                    f"  ✗ zip [{entry_id}] version mismatch — "
-                    f"id says v{entry_version} but pack_metadata.json says v{primary_version}"
-                )
-                continue
+        # Rule 1: id must be {PackName}.zip — no version segment
+        if not entry_id:
+            errors.append(f"  ✗ custom_packs[{i}] missing 'id'")
+        elif _VERSIONED_ID_RE.search(entry_id):
+            errors.append(
+                f"  ✗ custom_packs[{i}].id '{entry_id}' must be '{entry_id.split('-v')[0]}.zip' "
+                f"— version segment must be removed from the id. "
+                f"Version belongs only in the url field."
+            )
         else:
-            # Unrecognisable id — fall back to primary pack context and warn
-            print(f"  ! zip [{entry_id or '?'}] id format unrecognisable — falling back to primary pack context")
-            entry_pack, entry_version = pack_id, primary_version
+            print(f"  ✓ custom_packs[{i}].id '{entry_id}' (bare name)")
 
-        ok, msg = validate_zip_url_format(url, entry_pack, entry_version, f"zip [{entry_id or '?'}]")
-        print(msg)
-        if not ok:
-            errors.append(msg)
+        # Rule 2: url must match expected format
+        # Version is always sourced from pack_metadata.json.
+        # For dependency entries (id != primary pack), derive the pack name from
+        # the id (strip .zip) and extract version from the url since we don't
+        # have that pack's metadata here.
+        if not url:
+            errors.append(f"  ✗ custom_packs[{i}] missing 'url'")
+        else:
+            entry_pack_name = pack_name_from_id(entry_id)  # strip .zip for comparisons + URL building
 
-    # ── 2. pre_config_docs URLs — HTTP check ──────────────────────────────────
+            # Determine which pack+version to validate against
+            if entry_pack_name == pack_id:
+                # Primary pack — version must match pack_metadata.json
+                ok, msg = validate_zip_url_format(url, entry_pack_name, primary_version, f"custom_packs[{i}]")
+            elif entry_id and not _VERSIONED_ID_RE.search(entry_id):
+                # Dependency pack — extract version from the url (we trust the url
+                # for version since we don't have that pack's metadata here)
+                m = re.search(r"-v(\d+\.\d+(?:\.\d+)*)\.zip$", url)
+                if m:
+                    dep_version = m.group(1)
+                    ok, msg = validate_zip_url_format(url, entry_pack_name, dep_version, f"custom_packs[{i}]")
+                else:
+                    ok, msg = False, (
+                        f"  ✗ custom_packs[{i}] url '{url}' does not match the expected "
+                        f"GitHub release zip format: "
+                        f"https://github.com/ORG/REPO/releases/download/PACK-vVER/PACK-vVER.zip"
+                    )
+            else:
+                # id is versioned/bad — skip url check, id error already recorded
+                ok, msg = True, ""
+
+            if msg:
+                print(msg)
+            if not ok:
+                errors.append(msg)
+
+    # ── 3. pre_config_docs URLs — HTTP check ─────────────────────────────────
     pre_docs = cfg.get("pre_config_docs", [])
     if pre_docs:
         if no_http:
@@ -224,7 +239,7 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
             if not ok:
                 errors.append(msg)
 
-    # ── 3. post_config_docs URLs — HTTP check ─────────────────────────────────
+    # ── 4. post_config_docs URLs — HTTP check ────────────────────────────────
     post_docs = cfg.get("post_config_docs", [])
     if post_docs:
         if no_http:
@@ -267,17 +282,13 @@ def main():
     parser.add_argument(
         "--no-http",
         action="store_true",
-        help="Skip live HTTP checks for doc URLs. Only zip URL format is validated. "
+        help="Skip live HTTP checks for doc URLs.  Only zip URL format is validated. "
              "Use locally to avoid network latency; CI always runs full checks.",
     )
 
     args = parser.parse_args()
 
-    # Collect pack directories
-    pack_dirs: List[Path] = []
-
-    for p in args.pack_paths:
-        pack_dirs.append(Path(p))
+    pack_dirs: List[Path] = [Path(p) for p in args.pack_paths]
 
     if args.packs:
         packs_root = Path(args.packs_dir)

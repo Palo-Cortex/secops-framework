@@ -26,15 +26,39 @@ from pathlib import Path
 PACKS_DIR = Path(os.environ.get("PACKS_DIR", "Packs"))
 
 
+import re
+
+_VERSIONED_ID_RE = re.compile(r"-v\d+\.\d+", re.IGNORECASE)
+
+
 def validate_file(path: Path) -> str | None:
-    """Return an error string, or None if the file is valid JSON."""
+    """
+    Return an error string, or None if the file is valid JSON and structurally
+    correct.
+
+    Structural rules enforced:
+      • custom_packs[*].id must be a bare pack name — no version suffix, no .zip.
+        The id is XSIAM's upgrade-in-place key.  A versioned id causes a new pack
+        to be installed on every release instead of upgrading the existing one.
+    """
     try:
-        json.loads(path.read_text(encoding="utf-8"))
-        return None
+        data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         return str(exc)
     except OSError as exc:
         return f"cannot read file — {exc}"
+
+    # Structural: custom_packs id must be bare pack name
+    for i, entry in enumerate(data.get("custom_packs", [])):
+        pack_id = entry.get("id", "")
+        if _VERSIONED_ID_RE.search(pack_id):
+            return (
+                f"custom_packs[{i}].id '{pack_id}' contains a version suffix. "
+                f"The id must be the bare pack name with .zip (e.g. 'SocFrameworkCrowdstrikeFalcon.zip'). "
+                f"Version belongs only in the url field."
+            )
+
+    return None
 
 
 def collect_pack_dirs(packs_filter: list[str] | None) -> list[Path]:
