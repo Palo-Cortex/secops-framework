@@ -198,6 +198,18 @@ def normalize_events(events: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[
                 if domain:
                     ev["user_name"] = f"{user_name}@{domain.upper()}"
 
+        # Microsoft Defender for Endpoint (via Graph API):
+        # Randomize providerAlertId and id to bypass suppression on repeated
+        # replays. The rule suppresses on providerAlertId for 1 hour — appending
+        # a run-unique suffix ensures each replay run fires fresh alerts.
+        # incidentId is deliberately preserved: all events in the same replay
+        # run share the same incidentId so XSIAM groups them into one incident.
+        if "defender" in source_name or "microsoft" in source_name or "mde" in source_name:
+            for id_field in ("providerAlertId", "id"):
+                val = ev.get(id_field, "")
+                if val:
+                    ev[id_field] = f"{val}-{_run_id}"
+
     return events
 
 

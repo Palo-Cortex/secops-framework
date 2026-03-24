@@ -76,6 +76,14 @@
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
           "raw": "Stop-Process -Id ${SOCFramework.Artifacts.PID} -Force -ErrorAction SilentlyContinue"
         }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-live-response-run-script",
+        "inline_args": {
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}",
+          "script_name": "StopProcess.ps1",
+          "args": "${SOCFramework.Artifacts.PID}"
+        }
       }
     },
     "shadow_mode": true
@@ -122,6 +130,13 @@
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
           "raw": "Remove-ItemProperty -Path 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name '${SOCFramework.Artifacts.ProcessName}' -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName '${SOCFramework.Artifacts.ProcessName}' -Confirm:$false -ErrorAction SilentlyContinue"
         }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-stop-and-quarantine-file",
+        "inline_args": {
+          "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
+          "file_hashes": "${SOCFramework.Artifacts.File}"
+        }
       }
     },
     "shadow_mode": true
@@ -159,6 +174,13 @@
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
           "raw": "Test-Path -Path '${SOCFramework.Artifacts.FilePath}'"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-live-response-get-file",
+        "inline_args": {
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}",
+          "path": "${SOCFramework.Artifacts.FilePath}"
         }
       }
     },
@@ -361,6 +383,12 @@
         "command": "cs-falcon-search-device",
         "inline_args": {
           "filter": "${SOCFramework.Primary.Endpoint}"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-get-machine-by-id",
+        "inline_args": {
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}"
         }
       }
     },
@@ -830,6 +858,16 @@
         },
         "output_map": {
           "UC.Endpoint.BlockIndicator.status": "CrowdStrike.IOC.State"
+        }
+      },
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-add-tiindicator",
+        "inline_args": {
+          "indicator_value": "${SOCFramework.Artifacts.File}",
+          "indicator_type": "FileSha256",
+          "action": "AlertAndBlock",
+          "title": "SOCFramework Block",
+          "description": "Blocked by SOC Framework eradication"
         }
       }
     }

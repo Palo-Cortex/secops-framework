@@ -1,0 +1,27 @@
+# H9: Full kill chain — Proofpoint + Microsoft Defender for Endpoint
+# Tests: Cross-source grouping (Email → Endpoint), full NIST IR lifecycle E2E
+#        Validates product_map routing in SOCProductCategoryMap_V3
+#        Validates vendor/product fields on SOC Microsoft Graph Defender EndPoint rule
+#
+# Shared grouping keys across sources:
+#   - agent_hostname: hobgoblin / bannik
+#   - actor_effective_username: Gunter@SKT.LOCAL
+#   - action_remote_ip: 91.52.62.137
+#   - actor_process_image_sha256: c089768e... (msedge.exe / Carbon)
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/h9_defender_proofpoint.yml
+#   python3 tools/replay_scenario.py --manifest scenarios/h9_defender_proofpoint.yml --compress-window 30m
+#   python3 tools/replay_scenario.py --manifest scenarios/h9_defender_proofpoint.yml --dry-run
+
+scenario: Turla Carbon — Full Kill Chain (H9) Proofpoint + Defender
+compress_window: 30m
+
+sources:
+  - name: ProofPoint TAP
+    file: input_tsv/ProofPoint-MITRE-Turla-Carbon-in-XSIAM.tsv
+    env: .env-brumxdr-proofpoint
+
+  - name: Microsoft Defender
+    file: input_tsv/MS-Defender-Turla-Carbon.tsv
+    env: .env-brumxdr-defender
