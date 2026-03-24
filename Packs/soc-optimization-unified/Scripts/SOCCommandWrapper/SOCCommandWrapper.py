@@ -530,15 +530,72 @@ def main():
 
     responses = action_entry.get("responses", {})
 
-    vendor = demisto.get(ctx, "SOCFramework.Product.response")
-    vendor_data = responses.get(vendor) if vendor else None
+    # ── Multi-vendor response routing ─────────────────────────────────────────
+    # Resolution order:
+    # 1. Look up the action's class (endpoint/identity/email/indicator/network)
+    #    from SOCActionClassMap_V3.
+    # 2. Look up responses.{class} in the alert's SOCProductCategoryMap entry.
+    #    This is the correct integration for this action type on this source.
+    # 3. Fall back to SOCFramework.Product.response (legacy single-vendor field).
+    # 4. Fall back to first available vendor in the action's responses dict.
+    #
+    # This allows a CrowdStrike Endpoint alert to use CrowdStrike for endpoint
+    # actions but Active Directory for identity actions — configured in one place
+    # (SOCProductCategoryMap_V3) without touching playbooks.
+    # ─────────────────────────────────────────────────────────────────────────
 
+    vendor = None
+    vendor_data = None
+
+    # Step 1: get action class from SOCActionClassMap_V3
+    action_class_map = demisto.executeCommand(
+        "getList", {"listName": "SOCActionClassMap_V3"}
+    )
+    action_class = None
+    if action_class_map and isinstance(action_class_map, list):
+        acm_raw = action_class_map[0].get("Contents", "")
+        if acm_raw and acm_raw != "Item not found":
+            import json as _json
+            try:
+                acm = _json.loads(acm_raw)
+                action_class = acm.get(action)
+            except Exception:
+                pass
+
+    # Step 2: look up responses.{action_class} from the category map entry
+    if action_class:
+        category_responses = demisto.get(ctx, "SOCFramework.Product.responses") or {}
+        if isinstance(category_responses, str):
+            try:
+                category_responses = _json.loads(category_responses)
+            except Exception:
+                category_responses = {}
+        class_vendor = category_responses.get(action_class)
+        if class_vendor:
+            vendor_data = responses.get(class_vendor)
+            if vendor_data:
+                vendor = class_vendor
+                demisto.debug(
+                    f"SOCCommandWrapper: multi-vendor routing — action={action} "
+                    f"class={action_class} vendor={vendor}"
+                )
+
+    # Step 3: fall back to legacy SOCFramework.Product.response
+    if not vendor_data:
+        vendor = demisto.get(ctx, "SOCFramework.Product.response")
+        vendor_data = responses.get(vendor) if vendor else None
+        if vendor_data:
+            demisto.debug(
+                f"SOCCommandWrapper: legacy response routing — vendor={vendor}"
+            )
+
+    # Step 4: fall back to first available vendor
     if not vendor_data:
         demisto.debug(
-            "SOCCommandWrapper: SOCFramework.Product.response missing or not found in action responses. "
-            f"response={vendor}, available={list(responses.keys())}"
+            "SOCCommandWrapper: no vendor resolved from category map or legacy response. "
+            f"action={action}, action_class={action_class}, "
+            f"available={list(responses.keys())}"
         )
-
         for k, v in responses.items():
             vendor = k
             vendor_data = v

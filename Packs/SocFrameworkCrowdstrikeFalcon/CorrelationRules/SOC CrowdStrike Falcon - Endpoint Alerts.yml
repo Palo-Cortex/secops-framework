@@ -86,16 +86,45 @@ investigation_query_link: '// All (stitched) activity from host - assuming raw t
 is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-mitre_defs: {}
+mitre_defs:
+  TA0001 - Initial Access:
+  - T1566 - Phishing
+  - T1204 - User Execution
+  TA0002 - Execution:
+  - T1059 - Command and Scripting Interpreter
+  - T1129 - Shared Modules
+  - T1204 - User Execution
+  TA0003 - Persistence:
+  - T1547 - Boot or Logon Autostart Execution
+  - T1574 - Hijack Execution Flow
+  TA0004 - Privilege Escalation:
+  - T1547 - Boot or Logon Autostart Execution
+  - T1574 - Hijack Execution Flow
+  TA0005 - Defense Evasion:
+  - T1036 - Masquerading
+  - T1055 - Process Injection
+  - T1574 - Hijack Execution Flow
+  TA0006 - Credential Access:
+  - T1003 - OS Credential Dumping
+  - T1558 - Steal or Forge Kerberos Tickets
+  TA0007 - Discovery:
+  - T1033 - System Owner/User Discovery
+  TA0008 - Lateral Movement:
+  - T1021 - Remote Services
+  - T1550 - Use Alternate Authentication Material
+  TA0011 - Command and Control:
+  - T1071 - Application Layer Protocol
+  - T1105 - Ingress Tool Transfer
 name: SOC CrowdStrike Falcon - Endpoint Alerts
 rule_id: 0
 search_window: null
 severity: User Defined
 simple_schedule: null
-suppression_duration: null
-suppression_enabled: false
-suppression_fields: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- composite_id
 timezone: null
 user_defined_category: tactic
 user_defined_severity: severity_name
-xql_query: "/*\nTitle: SOC CrowdStrike Falcon - Endpoint Alerts\nDescription:  Single rule handler for any Detection Summary alert fetched from the CrowdStrike Falcon Integration\nDatasets: crowdstrike_falcon_event_raw (note, this may be different depending on how the initial integration is configured)\nDependencies:  CrowdStrike Falcon automation integration\nVersion: 1.1\n// Changes v1.1: un-nulled network_accesses+dns_requests, added user_principal,\n//   pattern_disposition_details, files_written to fields output\n*/\nconfig case_sensitive = false\n| dataset = crowdstrike_falcon_event_raw \n\n// XSIAM MITRE Normalization\n| alter\n        tactic                 = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic           = tactic,\n                mitre_tactic_id        = tactic_id,\n        mitre_technique        = technique,\n                mitre_technique_id     = technique_id\n\n| filter product = \"epp\"\n\n// Extract fields from nested objects\n| alter \n        hostname = device->hostname,\n                domain = device->machine_domain,\n        local_ip = device->local_ip,\n                external_ip = device->external_ip,\n        mac_address = device->mac_address,\n                device_id = device->device_id,\n        device_ou = device->ou[],\n                parent_process_name = parent_details->filename,\n        parent_process_cmd = parent_details->cmdline,\n                parent_process_path = parent_details->filepath,\n        parent_process_sha256 = parent_details->sha256,\n                parent_local_process_id = parent_details->local_process_id,\n        grandparent_process_name = grandparent_details->filename,\n                grandparent_process_cmd = grandparent_details->cmdline,\n        grandparent_process_path = grandparent_details->filepath,\n                grandparent_process_sha256 = grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\n// CGO Normalization\n| alter cgo_name = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"), grandparent_process_name, coalesce(parent_process_name, filename)),\n cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"), grandparent_process_path, coalesce(parent_process_path, filepath)),\n cgo_cmd = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"), grandparent_process_cmd, coalesce(parent_process_cmd, cmdline))\n\n// Keep optional enrichments disabled for performance\n| alter dns_queries = dns_requests\n| alter remote_ips = network_accesses\n\n| alter alert_name = _name\n| alter alert_description = description\n\n// Final field ordering\n| fields device_id,local_ip,user_name,user_principal,cmdline,sha256,domain,hostname,agent_id,pattern_disposition_description,cgo_cmd,cgo_name,cgo_path,template_instance_id,external_ip,falcon_host_link,mac_address,tactic_id,tactic,technique_id,technique,objective,composite_id,parent_process_cmd,parent_process_name,parent_local_process_id,parent_process_path,parent_process_sha256,process_start_time,local_process_id,md5,scenario,severity_name,aggregate_id,indicator_id,user_name,user_id,alert_name,alert_description,network_accesses,dns_requests,files_written,pattern_disposition_details,*"
+xql_query: "/*\nTitle: SOC CrowdStrike Falcon - Endpoint Alerts\nDescription:  Single rule handler for any Detection Summary alert fetched from the CrowdStrike Falcon Integration\nDatasets: crowdstrike_falcon_event_raw (note, this may be different depending on how the initial integration is configured)\nDependencies:  CrowdStrike Falcon automation integration\nVersion: 1.1\n// Changes v1.1: un-nulled network_accesses+dns_requests, added user_principal,\n//   pattern_disposition_details, files_written to fields output\n*/\nconfig case_sensitive = false\n| dataset = crowdstrike_falcon_event_raw \n\n// XSIAM MITRE Normalization\n| alter\n        tactic                 = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic           = tactic,\n                mitre_tactic_id        = tactic_id,\n        mitre_technique        = technique,\n                mitre_technique_id     = technique_id\n\n| filter product = \"epp\"\n\n// Extract fields from nested objects\n| alter \n        hostname = device->hostname,\n                domain = device->machine_domain,\n        local_ip = device->local_ip,\n                external_ip = device->external_ip,\n        mac_address = device->mac_address,\n                device_id = device->device_id,\n        device_ou = device->ou[],\n                parent_process_name = parent_details->filename,\n        parent_process_cmd = parent_details->cmdline,\n                parent_process_path = parent_details->filepath,\n        parent_process_sha256 = parent_details->sha256,\n                parent_local_process_id = parent_details->local_process_id,\n        grandparent_process_name = grandparent_details->filename,\n                grandparent_process_cmd = grandparent_details->cmdline,\n        grandparent_process_path = grandparent_details->filepath,\n                grandparent_process_sha256 = grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\n// CGO Normalization\n| alter cgo_name = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"), grandparent_process_name, coalesce(parent_process_name, filename)),\n cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"), grandparent_process_path, coalesce(parent_process_path, filepath)),\n cgo_cmd = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"), grandparent_process_cmd, coalesce(parent_process_cmd, cmdline))\n\n// Keep optional enrichments disabled for performance\n| alter dns_queries = dns_requests\n| alter remote_ips = network_accesses\n\n| alter alert_name = concat(\"[Endpoint] \", coalesce(user_name, hostname, \"Unknown\"), \" - \", coalesce(tactic, \"Detection\"), \": \", coalesce(technique, _name))\n| alter alert_description = concat(coalesce(description, _name), \" | Host: \", coalesce(hostname, \"Unknown\"), \" | User: \", coalesce(user_name, \"Unknown\"), \" | Severity: \", coalesce(severity_name, \"Unknown\"))\n\n// Final field ordering\n| fields device_id,local_ip,user_name,user_principal,cmdline,sha256,domain,hostname,agent_id,pattern_disposition_description,cgo_cmd,cgo_name,cgo_path,template_instance_id,external_ip,falcon_host_link,mac_address,tactic_id,tactic,technique_id,technique,objective,composite_id,parent_process_cmd,parent_process_name,parent_local_process_id,parent_process_path,parent_process_sha256,process_start_time,local_process_id,md5,scenario,severity_name,aggregate_id,indicator_id,user_name,user_id,alert_name,alert_description,network_accesses,dns_requests,files_written,pattern_disposition_details,*"
