@@ -28,7 +28,7 @@ PACKS_DIR = Path(os.environ.get("PACKS_DIR", "Packs"))
 
 import re
 
-_VERSIONED_ID_RE = re.compile(r"-v\d+\.\d+|\.zip$", re.IGNORECASE)
+_VERSIONED_ID_RE = re.compile(r"-v\d+\.\d+", re.IGNORECASE)
 
 
 def validate_file(path: Path) -> str | None:
@@ -53,8 +53,8 @@ def validate_file(path: Path) -> str | None:
         pack_id = entry.get("id", "")
         if _VERSIONED_ID_RE.search(pack_id):
             return (
-                f"custom_packs[{i}].id '{pack_id}' contains a version or .zip suffix. "
-                f"The id must be the bare pack name (e.g. 'SocFrameworkCrowdstrikeFalcon'). "
+                f"custom_packs[{i}].id '{pack_id}' contains a version suffix. "
+                f"The id must be the bare pack name with .zip (e.g. 'SocFrameworkCrowdstrikeFalcon.zip'). "
                 f"Version belongs only in the url field."
             )
 

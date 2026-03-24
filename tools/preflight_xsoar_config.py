@@ -5,7 +5,7 @@ preflight_xsoar_config.py
 Validates xsoar_config.json for one or more packs before deployment.
 
 Checks:
-  1. custom_packs[*].id   — Must be the BARE pack name (no version suffix, no .zip).
+  1. custom_packs[*].id   — Must be {PackName}.zip — no version segment.
                              The id is XSIAM's stable upgrade-in-place key.
                              A versioned id causes a new pack to be installed alongside
                              the old one on every release instead of upgrading it.
@@ -37,7 +37,7 @@ from typing import List, Tuple
 GITHUB_REPO = "Palo-Cortex/secops-framework"
 
 # Matches a versioned id — must NOT appear in custom_packs[*].id
-_VERSIONED_ID_RE = re.compile(r"-v\d+\.\d+|\.zip$", re.IGNORECASE)
+_VERSIONED_ID_RE = re.compile(r"-v\d+\.\d+", re.IGNORECASE)
 
 # Matches semver e.g. "1.2.3"
 _SEMVER_RE = re.compile(r"^\d+\.\d+(\.\d+)*$")
@@ -80,8 +80,21 @@ def check_url(url: str, label: str) -> Tuple[bool, str]:
     return False, f"  ✗ {label}: Unreachable — {url}"
 
 
+def pack_name_from_id(entry_id: str) -> str:
+    """Return the bare pack name from a custom_packs id.
+
+    'SocFrameworkCrowdstrikeFalcon.zip' → 'SocFrameworkCrowdstrikeFalcon'
+    'SocFrameworkCrowdstrikeFalcon'     → 'SocFrameworkCrowdstrikeFalcon'  (unchanged)
+    """
+    return entry_id.removesuffix(".zip")
+
+
 def expected_zip_url(pack_id: str, version: str) -> str:
-    """Build the canonical GitHub release zip URL for a pack at a given version."""
+    """Build the canonical GitHub release zip URL for a pack at a given version.
+
+    pack_id must be the bare directory name — no .zip suffix.
+    """
+    pack_id = pack_name_from_id(pack_id)  # guard: strip .zip if caller passed it
     tag = f"{pack_id}-v{version}"
     return f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{tag}.zip"
 
@@ -161,14 +174,14 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
         entry_id = entry.get("id", "")
         url = entry.get("url", "")
 
-        # Rule 1: id must be the bare pack name
+        # Rule 1: id must be {PackName}.zip — no version segment
         if not entry_id:
             errors.append(f"  ✗ custom_packs[{i}] missing 'id'")
         elif _VERSIONED_ID_RE.search(entry_id):
             errors.append(
-                f"  ✗ custom_packs[{i}].id '{entry_id}' must be the bare pack name "
-                f"(no version suffix, no .zip). "
-                f"Run bump_pack_version.py to fix — it will set id='{entry_id.split('-v')[0].removesuffix('.zip')}'."
+                f"  ✗ custom_packs[{i}].id '{entry_id}' must be '{entry_id.split('-v')[0]}.zip' "
+                f"— version segment must be removed from the id. "
+                f"Version belongs only in the url field."
             )
         else:
             print(f"  ✓ custom_packs[{i}].id '{entry_id}' (bare name)")
@@ -176,23 +189,24 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
         # Rule 2: url must match expected format
         # Version is always sourced from pack_metadata.json.
         # For dependency entries (id != primary pack), derive the pack name from
-        # the id (which is now bare) and look up its version from the url itself
-        # since we don't have its pack_metadata here.  We validate that the url
-        # at minimum references the right repo and pack name.
+        # the id (strip .zip) and extract version from the url since we don't
+        # have that pack's metadata here.
         if not url:
             errors.append(f"  ✗ custom_packs[{i}] missing 'url'")
         else:
+            entry_pack_name = pack_name_from_id(entry_id)  # strip .zip for comparisons + URL building
+
             # Determine which pack+version to validate against
-            if entry_id and entry_id == pack_id:
+            if entry_pack_name == pack_id:
                 # Primary pack — version must match pack_metadata.json
-                ok, msg = validate_zip_url_format(url, pack_id, primary_version, f"custom_packs[{i}]")
+                ok, msg = validate_zip_url_format(url, entry_pack_name, primary_version, f"custom_packs[{i}]")
             elif entry_id and not _VERSIONED_ID_RE.search(entry_id):
                 # Dependency pack — extract version from the url (we trust the url
                 # for version since we don't have that pack's metadata here)
                 m = re.search(r"-v(\d+\.\d+(?:\.\d+)*)\.zip$", url)
                 if m:
                     dep_version = m.group(1)
-                    ok, msg = validate_zip_url_format(url, entry_id, dep_version, f"custom_packs[{i}]")
+                    ok, msg = validate_zip_url_format(url, entry_pack_name, dep_version, f"custom_packs[{i}]")
                 else:
                     ok, msg = False, (
                         f"  ✗ custom_packs[{i}] url '{url}' does not match the expected "

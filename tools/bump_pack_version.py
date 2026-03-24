@@ -194,7 +194,7 @@ def fix_custom_pack_url(config_path: Path, pack_id: str, new_version: str) -> No
     # The id is the stable platform identity key — it must NEVER include a version
     # or .zip suffix.  Versioning belongs only in the url.  Using a versioned id
     # causes XSIAM to install a parallel copy instead of upgrading in place.
-    correct_id  = pack_id
+    correct_id  = f"{pack_id}.zip"
     changed = False
 
     for entry in custom_packs:
@@ -219,7 +219,7 @@ def fix_custom_pack_url(config_path: Path, pack_id: str, new_version: str) -> No
         if current_id != correct_id:
             print(f"custom_packs id:")
             print(f"  was: {current_id}")
-            print(f"  now: {correct_id}  (bare pack name — version removed)")
+            print(f"  now: {correct_id}  (bare pack name with .zip — version removed)")
             entry["id"] = correct_id
             changed = True
 
