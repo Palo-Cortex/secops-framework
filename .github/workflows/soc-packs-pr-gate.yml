@@ -6,6 +6,8 @@ name: SOC Packs — PR Gate
 # Job 1 · scan           — no customer data in the diff
 # Job 2 · detect         — find packs with version bumps
 # Job 3 · json-integrity — pack_catalog.json schema + xsoar_config.json validity
+#                          + cross-pack dependency version check (--strict)
+#                          + cross-pack dependency version check (strict)
 # Job 4 · validate       — demisto-sdk normalize + validate
 # Job 5 · preflight      — xsoar_config.json format + doc URL checks
 # Job 6 · prerelease     — build zip + upload as PR prerelease tag
@@ -170,6 +172,13 @@ jobs:
           else
             python tools/validate_xsoar_configs.py
           fi
+
+      - name: Check cross-pack dependency versions
+        # Scans ALL packs regardless of what changed. When pack A bumps its version,
+        # any consuming pack whose xsoar_config.json still references the old A version
+        # fails here — even if that consuming pack has no other changes in this PR.
+        run: |
+          python tools/check_dependency_versions.py --strict
 
   # ── JOB 4: VALIDATE ─────────────────────────────────────────────
   validate:
