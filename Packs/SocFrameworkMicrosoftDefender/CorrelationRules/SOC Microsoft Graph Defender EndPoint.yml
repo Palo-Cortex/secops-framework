@@ -43,7 +43,11 @@ alert_fields:
   processid: evidence_process_pid
   samaccountname: evidence_user_upn
   usersid: evidence_user_userSid
-alert_name: M365 Graph Alert - $alert_name
+  vendor: vendor_name
+  product: product_name
+  alert_name: alert_name
+  alert_description: description
+alert_name: $alert_name
 alert_type: null
 crontab: null
 dataset: alerts
@@ -64,17 +68,58 @@ investigation_query_link: '// All (stitched) activity from host - assuming raw t
 is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-mitre_defs: {}
+mitre_defs:
+  TA0001 - Initial Access:
+  - T1566 - Phishing
+  - T1190 - Exploit Public-Facing Application
+  TA0002 - Execution:
+  - T1059 - Command and Scripting Interpreter
+  - T1204 - User Execution
+  - T1047 - Windows Management Instrumentation
+  TA0003 - Persistence:
+  - T1547 - Boot or Logon Autostart Execution
+  - T1053 - Scheduled Task/Job
+  - T1574 - Hijack Execution Flow
+  TA0004 - Privilege Escalation:
+  - T1547 - Boot or Logon Autostart Execution
+  - T1134 - Access Token Manipulation
+  - T1055 - Process Injection
+  TA0005 - Defense Evasion:
+  - T1036 - Masquerading
+  - T1055 - Process Injection
+  - T1562 - Impair Defenses
+  - T1027 - Obfuscated Files or Information
+  TA0006 - Credential Access:
+  - T1003 - OS Credential Dumping
+  - T1558 - Steal or Forge Kerberos Tickets
+  - T1110 - Brute Force
+  TA0007 - Discovery:
+  - T1033 - System Owner/User Discovery
+  - T1082 - System Information Discovery
+  TA0008 - Lateral Movement:
+  - T1021 - Remote Services
+  - T1550 - Use Alternate Authentication Material
+  TA0009 - Collection:
+  - T1005 - Data from Local System
+  TA0011 - Command and Control:
+  - T1071 - Application Layer Protocol
+  - T1105 - Ingress Tool Transfer
+  TA0010 - Exfiltration:
+  - T1041 - Exfiltration Over C2 Channel
+  TA0040 - Impact:
+  - T1486 - Data Encrypted for Impact
+  - T1490 - Inhibit System Recovery
 name: SOC Microsoft Graph Defender EndPoint
 rule_id: 0
 search_window: null
 severity: User Defined
 simple_schedule: null
-suppression_duration: null
-suppression_enabled: false
-suppression_fields: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- providerAlertId
 timezone: null
-user_defined_category: category
+user_defined_category: tactic
 user_defined_severity: severity
 xql_query: "/*\nTitle: Microsoft Graph Security Alerts - Focus on Defender for Endpoint\
   \ (Lean)\nDescription: Creates a Cortex alert for each new event collected from\
@@ -83,7 +128,7 @@ xql_query: "/*\nTitle: Microsoft Graph Security Alerts - Focus on Defender for E
   \ = false\n| dataset = msft_graph_security_alerts_raw\n\n// Focus on Defender endpoint\
   \ / XDR alerts\n| filter productName in (\"Microsoft Defender for Endpoint\", \"\
   Microsoft Defender XDR\")\n\n// Exclude resolved alerts\n| filter status != \"resolved\"\
-  \n\n// --- MITRE helpers ---\n| alter\n    cat_norm  = replace(replace(replace(replace(lowercase(category),\"\
+  \n\n// --- Vendor / Product ---\n| alter\n    vendor_name  = \"Microsoft\",\n    product_name = productName\n\n// --- Tactic alias ---\n| alter tactic = category\n\n// --- MITRE helpers ---\n| alter\n    cat_norm  = replace(replace(replace(replace(lowercase(category),\"\
   \ \",\"\"),\"-\",\"\"),\"_\",\"\"),\".\",\"\"),\n    mitre_str = lowercase(coalesce(mitreTechniques,\
   \ \"\"))\n\n// XSIAM MITRE Normalization (contract for split_mitre_rules.py)\n|\
   \ alter\n    mitre_tactic       = category,\n    mitre_tactic_id    = \"\",\n  \
@@ -136,8 +181,8 @@ xql_query: "/*\nTitle: Microsoft Graph Security Alerts - Focus on Defender for E
   \    remote_ip             = evidence_remote_ipv4\n\n// -------------------------------------------------------------------\n\
   // Final description & output fields\n// -------------------------------------------------------------------\n\
   | alter\n    description = coalesce(description,\n                           concat(\"\
-  Microsoft Defender for Endpoint alert: \", title))\n\n| fields\n    _time,\n   \
-  \ incidentId,\n    productName,\n    title,\n    description,\n    severity,\n \
+  Microsoft Defender for Endpoint alert: \", title)),\n    alert_name  = concat(\n        \"[Endpoint] \",\n        coalesce(source_user, evidence_device_hostname, \"Unknown\"),\n        \" - \",\n        coalesce(category, \"Detection\"),\n        \": \",\n        coalesce(mitreTechniques, title)\n    )\n\n| fields\n    _time,\n   \
+  \ incidentId,\n    productName,\n    vendor_name,\n    product_name,\n    title,\n    description,\n    severity,\n    tactic,\n    alert_name,\n \
   \   category,\n    alertWebUrl,\n    providerAlertId,\n    detectorId,\n    // MITRE-related\n\
   \    mitreTechniques,\n    mitre_str,\n    cat_norm,\n    mitre_tactic,\n    mitre_tactic_id,\n\
   \    mitre_technique,\n    mitre_technique_id,\n    // Grouping keys\n    cid,\n\
