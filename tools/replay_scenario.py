@@ -7,6 +7,7 @@ Supports single-vendor replays and multi-vendor grouping demos.
 
 Usage:
     python3 tools/replay_scenario.py --manifest scenarios/turla_carbon_full_chain.yml
+    python3 tools/replay_scenario.py --manifest scenarios/turla_carbon_full_chain.yml --compress-window 30m
     python3 tools/replay_scenario.py --manifest scenarios/turla_carbon_cs_only.yml --dry-run
 
 Manifest format (YAML):
@@ -126,6 +127,80 @@ def detect_time_field(events: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
+
+# ── Source-specific normalization ─────────────────────────────────────────────
+
+def normalize_events(events: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Normalize shared grouping fields across sources so XSIAM's grouping engine
+    can correlate alerts from different vendors into a single case.
+
+    Proofpoint TAP:
+      recipient arrives as a list (TSV JSON-parsed). Extract first element.
+      ["Gunter@SKT.LOCAL"] → "Gunter@SKT.LOCAL"
+
+    CrowdStrike Falcon:
+      user_name has no domain ("Gunter"). Reconstruct UPN using
+      device.machine_domain → "Gunter@SKT.LOCAL".
+      Machine accounts ending in $ are left unchanged.
+    """
+    import uuid as _uuid
+    source_name = cfg.get("name", "").lower()
+    _run_id = _uuid.uuid4().hex[:8]  # unique per normalize_events call = per source per run
+
+    for ev in events:
+
+        # Proofpoint: normalize recipient list → scalar
+        # Also randomize GUID/id so suppression never blocks replay runs.
+        # In production, Proofpoint generates a unique GUID per message event.
+        # The TSV has fixed GUIDs — append a run-unique suffix to match real behavior.
+        if "proofpoint" in source_name or "tap" in source_name:
+            recipient = ev.get("recipient")
+            if isinstance(recipient, list):
+                ev["recipient"] = recipient[0] if recipient else ""
+            elif isinstance(recipient, str):
+                stripped = recipient.strip()
+                if stripped.startswith("["):
+                    try:
+                        parsed = json.loads(stripped)
+                        ev["recipient"] = parsed[0] if parsed else ""
+                    except Exception:
+                        pass
+            # Randomize GUID and id to bypass 24h suppression on repeated replays
+            for guid_field in ("GUID", "id"):
+                val = ev.get(guid_field, "")
+                if val:
+                    ev[guid_field] = f"{val}-{_run_id}"
+
+        # CrowdStrike: reconstruct full UPN for human accounts only.
+        # user_principal is unreliable (empty on many events, wrong for SYSTEM).
+        # Rule: skip machine accounts ($) and SYSTEM; reconstruct from
+        # user_name + device.machine_domain for all other accounts.
+        if "crowdstrike" in source_name or "falcon" in source_name:
+            user_name = ev.get("user_name", "")
+            if (isinstance(user_name, str)
+                    and user_name
+                    and "@" not in user_name
+                    and not user_name.endswith("$")
+                    and user_name.upper() != "SYSTEM"):
+                device = ev.get("device", {})
+                domain = ""
+                if isinstance(device, dict):
+                    domain = (device.get("machine_domain", "")
+                              or device.get("domain", ""))
+                if not domain:
+                    domain = ev.get("domain", "")
+                # Fallback: extract domain from user_principal if available
+                if not domain:
+                    up = ev.get("user_principal", "")
+                    if up and "@" in up:
+                        domain = up.split("@")[1]
+                if domain:
+                    ev["user_name"] = f"{user_name}@{domain.upper()}"
+
+    return events
+
+
 # ── File loading ──────────────────────────────────────────────────────────────
 
 def load_tsv(path: str) -> List[Dict[str, Any]]:
@@ -193,12 +268,12 @@ def time_range(events: List[Dict[str, Any]], field: str) -> Tuple[Optional[datet
 
 
 def rebase(
-    events: List[Dict[str, Any]],
-    field: str,
-    anchor: datetime,
-    compress_window: Optional[timedelta],
-    global_min: Optional[datetime] = None,
-    global_max: Optional[datetime] = None,
+        events: List[Dict[str, Any]],
+        field: str,
+        anchor: datetime,
+        compress_window: Optional[timedelta],
+        global_min: Optional[datetime] = None,
+        global_max: Optional[datetime] = None,
 ) -> int:
     """
     Rebase all timestamps in events.
@@ -317,6 +392,16 @@ def main():
         "--compress-window", default=None,
         help="Override compress window from manifest (e.g. '2h', '30m')"
     )
+    parser.add_argument(
+        "--tenant-tz", default=None,
+        metavar="HOURS",
+        type=float,
+        help=(
+            "Tenant UTC offset in hours (e.g. -5 for EST, 1 for CET). "
+            "Defaults to UTC (0). Events are anchored to tenant local time "
+            "so the correlation rule sees them as 'now' regardless of timezone."
+        )
+    )
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -337,7 +422,11 @@ def main():
     print(f"  Mode     : {'DRY RUN' if args.dry_run else 'LIVE SEND'}")
     print(f"{'='*60}\n")
 
-    anchor = datetime.now(timezone.utc)
+    tenant_tz_offset = args.tenant_tz if args.tenant_tz is not None else 0.0
+    tenant_tz = timezone(timedelta(hours=tenant_tz_offset))
+    anchor = datetime.now(tenant_tz)
+    if tenant_tz_offset != 0:
+        print(f"[*] Tenant timezone: UTC{tenant_tz_offset:+.1f}")
     print(f"[*] Anchor (latest event → now): {anchor.isoformat()}\n")
 
     # ── Load all sources ──
@@ -361,6 +450,7 @@ def main():
 
         events = load_events(file_path)
         print(f"    Events loaded: {len(events)}")
+        events = normalize_events(events, cfg)
 
         time_field = cfg.get("time_field") or detect_time_field(events)
         if not time_field:

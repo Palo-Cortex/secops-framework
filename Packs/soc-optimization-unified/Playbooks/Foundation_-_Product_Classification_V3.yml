@@ -374,7 +374,7 @@ tasks:
       '#error#':
       - '26'
       '#none#':
-      - '8'
+      - '250'
     scriptarguments:
       key:
         simple: SOCFramework.Product.response
@@ -491,6 +491,60 @@ tasks:
     continueonerror: true
     continueonerrortype: errorPath
     view: "{\n  \"position\": {\n    \"x\": 1625,\n    \"y\": 945\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '250':
+    id: '250'
+    taskid: a283fd19-6e0c-4ff6-8f54-10616dbdc400
+    type: regular
+    task:
+      id: a283fd19-6e0c-4ff6-8f54-10616dbdc400
+      version: -1
+      name: Set SOCFramework.Product.responses (multi-vendor map)
+      description: Reads the responses map from SOCProductCategoryMap_V3 for this
+        product key and stores it as SOCFramework.Product.responses. SOCCommandWrapper
+        uses this to route actions to the correct integration by action class (endpoint/identity/email/indicator).
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '8'
+    scriptarguments:
+      key:
+        simple: SOCFramework.Product.responses
+      value:
+        complex:
+          root: lists
+          accessor: SOCProductCategoryMap_V3
+          transformers:
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: SOCFramework.Product.key
+                iscontext: true
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: responses
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: '{"position": {"x": 1335, "y": 945}}'
     note: false
     timertriggers: []
     ignoreworker: false

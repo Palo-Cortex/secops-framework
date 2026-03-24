@@ -1,26 +1,25 @@
-ruleid: SOC Proofpoint TAP - Threat Detected
-id: SOC Proofpoint TAP - Threat Detected
-fromversion: 8.0.0
+rule_id: 0
+fromversion: 6.10.0
 action: ALERTS
 alert_category: User Defined
 alert_description: $alert_description
 alert_domain: DOMAIN_SECURITY
 alert_fields:
-  # ── Core identity / actor ──────────────────────────────────────────────────
+  # -- Core identity / actor --------------------------------------------------
   actor_effective_username: recipient          # user who received the email
   agent_device_domain: domain                  # registered domain from threat URL
 
-  # ── File indicators ────────────────────────────────────────────────────────
+  # -- File indicators --------------------------------------------------------
   action_file_sha256: proofpointsha256          # attachment SHA256 (WildFire grouping)
   action_file_md5: proofpointmd5                # attachment MD5
   action_file_name: proofpointfilename          # attachment filename
 
-  # ── Network indicators ─────────────────────────────────────────────────────
+  # -- Network indicators -----------------------------------------------------
   action_remote_ip: senderIP                   # sender IP (grouping + analytics)
   dns_query_name: dns_name                     # threat domain (DNS grouping)
   fw_url_domain: domain                        # URL domain
 
-  # ── Email-specific fields ──────────────────────────────────────────────────
+  # -- Email-specific fields --------------------------------------------------
   emailmessageid: messageID
   emailsenderip: senderIP
   emailsource: sender
@@ -28,7 +27,7 @@ alert_fields:
   fw_email_sender: sender
   fw_email_subject: subject
 
-  # ── SOC Framework generic email fields ─────────────────────────────────────────────────────────
+  # -- SOC Framework generic email fields ---------------------------------------------------------
   # Replaces proofpointtap* fields. Read by Foundation_-_Normalize_Email_V3.
   socfwemaildeliveryaction: delivery_action
   socfwemaildirection: direction
@@ -74,7 +73,7 @@ xql_query: |
   dataset = proofpoint_tap_v2_generic_alert_raw
   // Step 1: type gate
   | filter type in ("messages delivered", "clicks permitted")
-  | alter threatsInfoMap_str = to_json_string(threatsInfoMap)
+  | alter threatsInfoMap_str = threatsInfoMap
   | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
   | filter (
       first_threat_status in ("active", "malicious")
@@ -85,11 +84,11 @@ xql_query: |
   | alter
       alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
       alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
-      alert_description = coalesce(_alert_data -> alert_description, concat("Proofpoint TAP threat detected: ", type, " — GUID: ", GUID)),
+      alert_description = coalesce(_alert_data -> alert_description, concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", GUID)),
       alert_name = if(
           type = "clicks permitted",
-          concat("Proofpoint TAP - Click Permitted - ", GUID),
-          concat("Proofpoint TAP - Message Delivered - ", GUID)
+          concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Malicious Link Clicked"),
+          concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Threat Email Delivered")
       ),
       alert_type = if(
           type = "clicks permitted",
@@ -120,9 +119,9 @@ xql_query: |
       threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), coalesce(json_extract_scalar("@element", "$.threatUrl"), json_extract_scalar("@element", "$.threatURL"))), ", "),
       threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
   | alter
-      proofpointsha256   = arraystring(arraymap(json_extract_array(to_json_string(messageParts), "$."), json_extract_scalar("@element", "$.sha256")), ", "),
-      proofpointmd5      = arraystring(arraymap(json_extract_array(to_json_string(messageParts), "$."), json_extract_scalar("@element", "$.md5")), ", "),
-      proofpointfilename = arraystring(arraymap(json_extract_array(to_json_string(messageParts), "$."), json_extract_scalar("@element", "$.filename")), ", ")
+      proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
+      proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
+      proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
   | alter
       domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
       dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")

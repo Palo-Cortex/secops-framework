@@ -620,7 +620,7 @@
         "command": "mimecast-create-blocked-sender-policy",
         "inline_args": {
           "sender": "${SOCFramework.Email.sender}",
-          "description": "Blocked by SOC Framework \u2014 threat sender"
+          "description": "Blocked by SOC Framework -- threat sender"
         },
         "output_map": {
           "UC.Email.BlockSender.status": "Mimecast.BlockedSender.status",
@@ -735,7 +735,7 @@
   },
   "soc-detonate-file": {
     "shadow_mode": false,
-    "description": "Submit file for sandbox analysis and return verdict. Cortex Core hash prevalence is the built-in baseline \u2014 no integration required. Add WildFire, VirusTotal, or another sandbox for full dynamic detonation.",
+    "description": "Submit file for sandbox analysis and return verdict. Cortex Core hash prevalence is the built-in baseline -- no integration required. Add WildFire, VirusTotal, or another sandbox for full dynamic detonation.",
     "responses": {
       "Cortex Core - IR": {
         "command": "core-get-hash-analytics-prevalence",
@@ -816,6 +816,20 @@
         },
         "output_map": {
           "UC.Email.BlockIndicator.status": "Core.BlockList.status"
+        }
+      },
+      "CrowdStrike Falcon": {
+        "command": "cs-falcon-upload-custom-ioc",
+        "inline_args": {
+          "ioc_type": "sha256",
+          "value": "${SOCFramework.Artifacts.File}",
+          "action": "prevent",
+          "platforms": "windows",
+          "severity": "high",
+          "description": "SOC Framework -- Behavioral containment block"
+        },
+        "output_map": {
+          "UC.Endpoint.BlockIndicator.status": "CrowdStrike.IOC.State"
         }
       }
     }
