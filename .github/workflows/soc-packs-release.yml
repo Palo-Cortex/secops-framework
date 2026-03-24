@@ -4,13 +4,10 @@ name: SOC Packs — Release
 # push → main
 #
 # Job 1 · release     — build zip + create immutable GitHub release
-# Job 2 · deploy      — deploy released zip to tenant
-# Job 3 · catalog     — update pack_catalog.json [manual gate]
-#                       Requires approval in pack-catalog-gate
-#                       environment before running. Approve only
-#                       after verifying the tenant deploy succeeded.
 #
-# Pre-merge tenant deploy lives in soc-packs-pr-gate.yml.
+# Tenant deploy is intentionally NOT here. It runs once, pre-merge,
+# in soc-packs-pr-gate.yml (Job 7 · deploy-dev). Running it again
+# post-merge would deploy twice on every merged PR.
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -179,40 +176,3 @@ jobs:
       - name: No packs changed
         if: steps.changed.outputs.has_changes != 'true'
         run: echo "No version bumps detected — nothing to release."
-
-  # ── JOB 2: DEPLOY TO TENANT ─────────────────────────────────────
-  deploy:
-    name: Deploy — tenant (post-merge)
-    needs: release
-    if: needs.release.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Checkout xsiam-pov-automation
-        uses: actions/checkout@v4
-        with:
-          repository: annabarone/xsiam-pov-automation
-          path: xsiam-pov-automation
-
-      - name: Install POV requirements
-        working-directory: xsiam-pov-automation
-        run: pip install -r requirements.txt
-
-      - name: Deploy to tenant
-        working-directory: xsiam-pov-automation
-        env:
-          DEMISTO_BASE_URL: ${{ secrets.XSIAM_API_URL }}
-          DEMISTO_API_KEY:  ${{ secrets.XSIAM_API_KEY }}
-          XSIAM_AUTH_ID:    ${{ secrets.XSIAM_API_ID }}
-          CONTENT_REPO_RAW_LINK: >-
-            https://raw.githubusercontent.com/${{ github.repository }}/main/Packs/${{ needs.release.outputs.packs }}/xsoar_config.json
-          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
-        run: |
-          echo "Deploying: $CONTENT_REPO_RAW_LINK"
-          printf 'yes\n' | python setup.py
