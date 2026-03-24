@@ -42,7 +42,20 @@ def main():
     else:
         print(f"\n--- No xsoar_config.json in {pack_path} — skipping config check ---")
 
-    # ── Step 3: Preflight xsoar_config.json — URL format check (no HTTP) ─────
+    # ── Step 3: Check cross-pack dependency versions ──────────────────────────
+    # Non-blocking warning: flags any dependency custom_packs entry that is
+    # behind the current version of the referenced pack.  Interactive TTY
+    # prompts to fix in-place; run with --fix to apply silently.
+    if config_path.exists():
+        print(f"\n=== Checking cross-pack dependency versions: {pack_name} ===\n")
+        subprocess.run(
+            [sys.executable, "tools/check_dependency_versions.py",
+             "--packs", pack_name]
+        )
+        # Non-blocking — stale versions warn but do not block upload.
+        # Auto-fix:  python3 tools/check_dependency_versions.py --fix
+
+    # ── Step 4: Preflight xsoar_config.json — URL format check (no HTTP) ─────
     # Runs format validation only (--no-http skips doc URL live checks).
     # Full HTTP checks run in CI via the preflight job.
     if config_path.exists() and not failed:
@@ -55,7 +68,7 @@ def main():
             print("xsoar_config.json preflight failed — fix zip URL format before uploading.")
             failed = True
 
-    # ── Step 4: demisto-sdk validate ─────────────────────────────────────────
+    # ── Step 5: demisto-sdk validate ─────────────────────────────────────────
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
     error_log = output_dir / "sdk_errors.txt"
