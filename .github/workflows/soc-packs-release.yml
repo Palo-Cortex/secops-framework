@@ -53,9 +53,6 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install demisto-sdk
-        run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
-
       - name: Find packs with version bumps
         id: changed
         run: |
@@ -104,7 +101,6 @@ jobs:
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
           python - << 'PY'
           import json, os, subprocess
@@ -113,7 +109,6 @@ jobs:
           packs_dir = Path(os.environ["PACKS_DIR"])
           changed   = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
           repo      = os.environ["GITHUB_REPOSITORY"]
-          repo_root = Path.cwd()
           dist      = Path("dist")
           dist.mkdir(exist_ok=True)
 
@@ -147,31 +142,18 @@ jobs:
                       f"Bump pack_metadata.json version to publish a new release."
                   )
 
-              sentinel = dist / ".sentinel"
-              sentinel.touch()
-              sentinel_mtime = sentinel.stat().st_mtime
-
-              run([
-                  "demisto-sdk", "prepare-content",
-                  "-i", str(pack_path),
-                  "-o", str(dist),
-                  "--marketplace", "marketplacev2",
-              ], cwd=str(repo_root))
-
-              sentinel.unlink(missing_ok=True)
-
-              created = sorted(
-                  (z for z in dist.rglob("*.zip") if z.stat().st_mtime >= sentinel_mtime),
-                  key=lambda p: p.stat().st_mtime
-              )
-
-              if not created:
-                  raise RuntimeError(f"{pack}: prepare-content produced no zip")
-
               final = dist / asset
               if final.exists():
                   final.unlink()
-              created[-1].rename(final)
+
+              # Plain zip of the pack directory — preserves all XSIAM content types
+              # (CorrelationRules, ModelingRules, etc.) without SDK transformation.
+              run(["zip", "-r", str(final.resolve()), pack],
+                  cwd=str(packs_dir.resolve()))
+
+              if not final.exists():
+                  raise RuntimeError(f"{pack}: zip produced no output at {final}")
+
               print(f"Built: {final}")
 
               gh("release", "create", tag, str(final),
