@@ -22,14 +22,14 @@ rule_id: 0
 # ============================================================
 #
 # CHANGELOG vs 1.0.14:
-#   BREAKING: Consolidated 15 per-tactic rules → single rule
+#   BREAKING: Consolidated 15 per-tactic rules -> single rule
 #             (XSIAM GUI multi-tactic filter now supported)
-#   FIXED:    Schema — id/ruleid fields required by SDK + platform
-#   FIXED:    fromversion 6.10.0 → 8.0.0 (correlation rule minimum)
+#   FIXED:    Schema -- id/ruleid fields required by SDK + platform
+#   FIXED:    fromversion 6.10.0 -> 8.0.0 (correlation rule minimum)
 #   FIXED:    Removed rule_id: 0 (caused SDK to resolve id as null)
-#   FIXED:    userid: user_name → user_principal (restored 1.0.14 BC)
+#   FIXED:    userid: user_name -> user_principal (restored 1.0.14 BC)
 #   ADDED:    alert_category: User Defined + user_defined_category: tactic
-#             (replaces 15 hardcoded categories — dynamically maps tactic)
+#             (replaces 15 hardcoded categories -- dynamically maps tactic)
 #   ADDED:    Suppression on composite_id / 1hr (prevents duplicate ingestion)
 #   ADDED:    Rich alert_name and alert_description (computed in XQL)
 #   ADDED:    MITRE defs covering all 12 tactics (was one per rule)
@@ -116,7 +116,7 @@ alert_fields:
   sourceid: aggregate_id
   tim_main_indicator: ioc_value
   user_principal: user_principal
-  userid: user_principal                                # restored from 1.0.14 (UPN → userid; use user_principal field for new consumers)
+  userid: user_principal                                # restored from 1.0.14 (UPN -> userid; use user_principal field for new consumers)
   usersid: user_id
 alert_name: SOC CrowdStrike Falcon - $alert_name
 alert_type: null
@@ -136,7 +136,7 @@ investigation_query_link: |-
   dataset = xdr_data
   | filter agent_hostname = $hostname
   | fields *
-is_enabled: false    # Deploy dark — flip to true when ready to cut over from 1.0.14 rules
+is_enabled: false    # Deploy dark -- flip to true when ready to cut over from 1.0.14 rules
 lookup_mapping: []
 mapping_strategy: CUSTOM
 mitre_defs:
@@ -195,7 +195,7 @@ xql_query: |
                alert_category is dynamically set from the MITRE tactic field via
                user_defined_category: tactic.
   Dataset:     crowdstrike_falcon_event_raw
-               (may differ depending on integration config — CrowdStrike Falcon vs
+               (may differ depending on integration config -- CrowdStrike Falcon vs
                 CrowdStrike Platform/Event Stream API)
   Dependencies: CrowdStrike Falcon automation integration
   Note:         Will NOT fire for alerts ingested via the "CrowdStrike Platform"
@@ -204,7 +204,7 @@ xql_query: |
   Changes v2.0.0:
     - Consolidated 15 per-tactic rules into one
     - Restored device_ou_arr alter (required for deviceou field mapping)
-    - MITRE field aliasing: tactic→mitre_tactic, tactic_id→mitre_tactic_id, etc.
+    - MITRE field aliasing: tactic->mitre_tactic, tactic_id->mitre_tactic_id, etc.
     - Un-nulled network_accesses, dns_requests (available in most deployments)
     - Rich alert_name and alert_description computed inline
     - Added files_written, pattern_disposition_details, user_principal fields
@@ -219,7 +219,7 @@ xql_query: |
   | filter product = "epp"
 
   // XSIAM MITRE Normalization
-  // Map "Malware" (CrowdStrike internal) → "Execution" for MITRE alignment
+  // Map "Malware" (CrowdStrike internal) -> "Execution" for MITRE alignment
   | alter
           tactic                 = if(tactic = "Malware", "Execution", tactic),
           mitre_tactic           = if(tactic = "Malware", "Execution", tactic),
@@ -247,7 +247,7 @@ xql_query: |
           grandparent_process_sha256  = grandparent_details->sha256,
           grandparent_local_process_id = grandparent_details->local_process_id
 
-  // Clean OU array formatting (strip embedded quotes) — required for deviceou mapping
+  // Clean OU array formatting (strip embedded quotes) -- required for deviceou mapping
   | alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
 
   // CGO Normalization
@@ -285,7 +285,7 @@ xql_query: |
       " | Severity: ", coalesce(severity_name, "Unknown")
     )
 
-  // Final field ordering — leading fields drive alert table and grouping
+  // Final field ordering -- leading fields drive alert table and grouping
   | fields
       device_id, local_ip, user_name, user_principal, cmdline,
       sha256, domain, hostname, agent_id,
