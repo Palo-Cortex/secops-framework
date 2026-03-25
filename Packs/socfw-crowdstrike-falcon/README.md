@@ -19,7 +19,7 @@ the NIST IR lifecycle.
 ## What Changed from 1.0.14
 
 > **Important — Pack ID Change**
-> This pack has a new ID (`socfw-crowdstrike-falcon`). The previous pack (`soc-crowdstrike-falcon`)
+> This pack has a new ID (`soc-crowdstrike-falcon`). The previous pack (`soc-crowdstrike-falcon`)
 > will remain installed alongside it. This is intentional — it prevents the new pack from
 > overwriting layouts, scripts, and correlation rules from the old pack that may still be active.
 >
@@ -51,7 +51,7 @@ Version 1.1.0 consolidates the original 15-rule architecture into a single rule:
 ## Installation
 
 ```bash
-demisto-sdk upload -i Packs/socfw-crowdstrike-falcon
+demisto-sdk upload -i Packs/soc-crowdstrike-falcon
 ```
 
 See `POST_CONFIG_README.md` for required manual steps after installation, including

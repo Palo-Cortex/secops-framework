@@ -1,7 +1,7 @@
 # SOC CrowdStrike Falcon - Post-Installation Steps
 
 > **Warning — Duplicate Alerts**
-> This pack (`socfw-crowdstrike-falcon`) installs alongside the previous pack
+> This pack (`soc-crowdstrike-falcon`) installs alongside the previous pack
 > (`soc-crowdstrike-falcon`) — it does not replace it. If any old CrowdStrike correlation
 > rules are still enabled when the new consolidated rule is enabled, every CrowdStrike
 > detection will generate two alerts. Complete Step 2 (disable old rules) before Step 3
