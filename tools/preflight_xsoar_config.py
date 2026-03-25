@@ -17,6 +17,25 @@ Checks:
   3. pre_config_docs[*].url  — HTTP check (file must exist on main)
   4. post_config_docs[*].url — HTTP check (file must exist on main)
 
+Bypass:
+  Create a preflight_overrides.json in the pack directory to skip specific
+  checks with a documented reason. This is a deliberate escape hatch — use it
+  only when you understand exactly why the check is failing and why it is safe
+  to skip. Each override requires a non-empty reason string.
+
+  Example preflight_overrides.json:
+  {
+    "skip_url_checks": [
+      {
+        "url": "https://github.com/.../POST_CONFIG_README.md",
+        "reason": "Directory rename in progress — URL will resolve after merge."
+      }
+    ]
+  }
+
+  Overridden checks are printed as warnings, not errors. The bypass is visible
+  in CI output so it cannot be silently abused.
+
 Usage:
   python3 tools/preflight_xsoar_config.py Packs/SocFrameworkProofPointTap
   python3 tools/preflight_xsoar_config.py Packs/SocFrameworkProofPointTap Packs/SocFrameworkCrowdstrikeFalcon
@@ -32,7 +51,7 @@ import sys
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 GITHUB_REPO = "Palo-Cortex/secops-framework"
 
@@ -41,6 +60,54 @@ _VERSIONED_ID_RE = re.compile(r"-v\d+\.\d+", re.IGNORECASE)
 
 # Matches semver e.g. "1.2.3"
 _SEMVER_RE = re.compile(r"^\d+\.\d+(\.\d+)*$")
+
+
+# ── Overrides ─────────────────────────────────────────────────────────────────
+
+def load_overrides(pack_dir: Path) -> Set[str]:
+    """
+    Load preflight_overrides.json from the pack directory.
+
+    Returns a set of URLs whose HTTP checks should be skipped (demoted to warning).
+    Prints a visible warning for each active override so bypasses are never silent.
+
+    Raises SystemExit if the file exists but is malformed, or if any entry is
+    missing a non-empty reason (reason is required — no silent bypasses).
+    """
+    overrides_path = pack_dir / "preflight_overrides.json"
+    if not overrides_path.exists():
+        return set()
+
+    try:
+        data = json.loads(overrides_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"ERROR: Failed to parse preflight_overrides.json: {e}")
+
+    if not isinstance(data, dict):
+        raise SystemExit("ERROR: preflight_overrides.json must be a JSON object.")
+
+    skipped_urls: Set[str] = set()
+
+    for entry in data.get("skip_url_checks", []):
+        if not isinstance(entry, dict):
+            raise SystemExit("ERROR: preflight_overrides.json skip_url_checks entries must be objects.")
+
+        url = entry.get("url", "").strip()
+        reason = entry.get("reason", "").strip()
+
+        if not url:
+            raise SystemExit("ERROR: preflight_overrides.json entry missing 'url'.")
+        if not reason:
+            raise SystemExit(
+                f"ERROR: preflight_overrides.json entry for '{url}' is missing a 'reason'. "
+                f"All bypasses require a documented reason."
+            )
+
+        skipped_urls.add(url)
+        print(f"  ⚠  PREFLIGHT BYPASS ACTIVE: {url}")
+        print(f"     Reason: {reason}")
+
+    return skipped_urls
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -54,11 +121,17 @@ def load_json(path: Path) -> dict:
         raise SystemExit(f"ERROR: Failed to parse JSON {path}: {e}")
 
 
-def check_url(url: str, label: str) -> Tuple[bool, str]:
+def check_url(url: str, label: str, skipped_urls: Set[str]) -> Tuple[bool, str, bool]:
     """
     HTTP check — HEAD first, falls back to GET.
     Used for doc URLs which must already exist on main.
+
+    Returns (ok, message, was_bypassed).
+    If the URL is in skipped_urls, returns (True, warning_message, True).
     """
+    if url in skipped_urls:
+        return True, f"  ⚠  {label}: bypassed via preflight_overrides.json — {url}", True
+
     for method in ("HEAD", "GET"):
         try:
             req = urllib.request.Request(
@@ -67,17 +140,17 @@ def check_url(url: str, label: str) -> Tuple[bool, str]:
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 if resp.status == 200:
-                    return True, f"  ✓ {label}: {url}"
-                return False, f"  ✗ {label}: HTTP {resp.status} — {url}"
+                    return True, f"  ✓ {label}: {url}", False
+                return False, f"  ✗ {label}: HTTP {resp.status} — {url}", False
         except urllib.error.HTTPError as e:
             if method == "HEAD" and e.code in (405, 403):
                 continue
-            return False, f"  ✗ {label}: HTTP {e.code} — {url}"
+            return False, f"  ✗ {label}: HTTP {e.code} — {url}", False
         except urllib.error.URLError as e:
-            return False, f"  ✗ {label}: Connection error — {url} ({e.reason})"
+            return False, f"  ✗ {label}: Connection error — {url} ({e.reason})", False
         except Exception as e:
-            return False, f"  ✗ {label}: {e} — {url}"
-    return False, f"  ✗ {label}: Unreachable — {url}"
+            return False, f"  ✗ {label}: {e} — {url}", False
+    return False, f"  ✗ {label}: Unreachable — {url}", False
 
 
 def pack_name_from_id(entry_id: str) -> str:
@@ -147,6 +220,9 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
 
     cfg = load_json(config_path)
 
+    # Load any active bypasses for this pack
+    skipped_urls = load_overrides(pack_dir)
+
     # Version source-of-truth: pack_metadata.json
     meta_path = pack_dir / "pack_metadata.json"
     if not meta_path.exists():
@@ -187,22 +263,14 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
             print(f"  ✓ custom_packs[{i}].id '{entry_id}' (bare name)")
 
         # Rule 2: url must match expected format
-        # Version is always sourced from pack_metadata.json.
-        # For dependency entries (id != primary pack), derive the pack name from
-        # the id (strip .zip) and extract version from the url since we don't
-        # have that pack's metadata here.
         if not url:
             errors.append(f"  ✗ custom_packs[{i}] missing 'url'")
         else:
-            entry_pack_name = pack_name_from_id(entry_id)  # strip .zip for comparisons + URL building
+            entry_pack_name = pack_name_from_id(entry_id)
 
-            # Determine which pack+version to validate against
             if entry_pack_name == pack_id:
-                # Primary pack — version must match pack_metadata.json
                 ok, msg = validate_zip_url_format(url, entry_pack_name, primary_version, f"custom_packs[{i}]")
             elif entry_id and not _VERSIONED_ID_RE.search(entry_id):
-                # Dependency pack — extract version from the url (we trust the url
-                # for version since we don't have that pack's metadata here)
                 m = re.search(r"-v(\d+\.\d+(?:\.\d+)*)\.zip$", url)
                 if m:
                     dep_version = m.group(1)
@@ -214,7 +282,6 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
                         f"https://github.com/ORG/REPO/releases/download/PACK-vVER/PACK-vVER.zip"
                     )
             else:
-                # id is versioned/bad — skip url check, id error already recorded
                 ok, msg = True, ""
 
             if msg:
@@ -234,7 +301,7 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
             url = entry.get("url", "")
             if not url:
                 continue
-            ok, msg = check_url(url, f"pre_doc [{entry.get('name', '?')}]")
+            ok, msg, bypassed = check_url(url, f"pre_doc [{entry.get('name', '?')}]", skipped_urls)
             print(msg)
             if not ok:
                 errors.append(msg)
@@ -251,7 +318,7 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
             url = entry.get("url", "")
             if not url:
                 continue
-            ok, msg = check_url(url, f"post_doc [{entry.get('name', '?')}]")
+            ok, msg, bypassed = check_url(url, f"post_doc [{entry.get('name', '?')}]", skipped_urls)
             print(msg)
             if not ok:
                 errors.append(msg)

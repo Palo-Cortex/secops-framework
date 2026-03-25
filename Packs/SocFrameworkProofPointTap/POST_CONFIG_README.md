@@ -1,5 +1,12 @@
 # SOC Proofpoint TAP - Post-Installation Steps
 
+> **Warning — Duplicate Alerts**
+> This pack (`socfw-proofpoint-tap`) installs alongside the previous pack
+> (`soc-proofpoint-tap`) — it does not replace it. If any old Proofpoint correlation
+> rules are still enabled when the new consolidated rule is enabled, every TAP detection
+> will generate two alerts. Complete Step 2 (disable old rules) before Step 3
+> (enable new rule).
+
 This pack deploys the SOC Framework correlation and modeling rules for Proofpoint TAP v2.
 The steps below must be completed after installation before alerts will flow correctly.
 
@@ -78,18 +85,6 @@ If rows return with populated fields, the modeling rule is working correctly.
 
 ---
 
-## Step 5 — (Recommended) Configure Starred Alerts
-
-Incidents not marked with a star are auto-triaged by `JOB_-_Triage_Incidents`. Configure
-a starring rule so high-fidelity click events reach analysts for manual review.
-
-1. Navigate to **Incident Response → Automation → Incident Configuration → Starred Alerts**
-2. Create a new rule:
-   - **Configuration Name:** `Proofpoint Clicks Permitted`
-   - **Alert Filter:** `alert domain = Security AND alert name contains Click Permitted AND tags = DS:Proofpoint TAP v2`
-
----
-
 ## What Is Not Required
 
 The following items from older versions of this pack are **no longer needed** and should
@@ -100,5 +95,4 @@ not be configured:
 | Two separate integration instances (Clicks / Messages) | Removed | Single instance with `Events to fetch: All` replaces both |
 | Classifier (`Proofpoint TAP Classifier`) | Removed | Field mapping handled natively in correlation rule via `alert_fields` |
 | Mapper (incoming) | Removed | No incident field mapping required; `socfw*` fields populated directly |
-| Layout rules | Removed | Not included in this pack version |
 | Custom incident fields (`proofpointtap*`) | Removed | Replaced by `socfw*` fields read by Foundation playbooks |

@@ -124,7 +124,7 @@ alter
     // Null for messages delivered events -- safe, maps to null.
     xdm.email.observation_timestamp = clickTime,
 
-    // ── Email Attachments ─────────────────────────────────────────────────────
+    // Email attachments -- all parts joined
     xdm.email.attachment.filename = arraystring(
         arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", "
     ),
@@ -135,10 +135,8 @@ alter
         arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "
     ),
 
-    // ── Network / URL ─────────────────────────────────────────────────────────
-    // senderIP is the mail server (an intermediate hop), not the attacker.
-    // Mapped to email.server, not source, to avoid contaminating network stories.
+    // Network -- senderIP is the mail server (intermediate hop), clickIP is the endpoint
     xdm.email.server.ipv4_addresses = arraycreate(senderIP),
 
-    // Target URL: clicked URL for clicks permitted, threat URL for delivered
+    // URL -- clicked URL (clicks permitted) or threat URL
     xdm.target.url = coalesce(url, threat_urls_string, threatURL);

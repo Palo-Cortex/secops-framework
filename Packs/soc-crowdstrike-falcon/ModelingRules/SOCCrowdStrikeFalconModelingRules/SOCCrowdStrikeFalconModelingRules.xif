@@ -1,0 +1,78 @@
+// SOC CrowdStrike Falcon Modeling Rules
+// Dataset: crowdstrike_falcon_event_raw
+// Version: 1.2
+//
+// Changes from v1.1:
+//   FIXED:  fromversion corrected to 6.10.0 (was incorrectly set to 8.3.1 -- caused 101704 upload rejection)
+//   FIXED:  local_process_id declared in schema.json (was used in XIF but missing from schema)
+//   ADDED:  xdm.event.id              = composite_id        (confirmed valid per XDM docs example)
+//   ADDED:  xdm.source.host.device_id = device->device_id  (confirmed valid per XDM field structure docs)
+//   ADDED:  xdm.source.agent.identifier     = agent_id      (deferred -- verify with XQL probe before deploy)
+//   ADDED:  xdm.observer.unique_identifier  = agent_id      (deferred -- verify with XQL probe before deploy)
+//   DEFERRED: xdm.target.ipv4/port via arrayindex -- needs XQL probe to confirm arrayindex works in XIF context
+//
+// Changes from v1.0 (shipped in 1.0.14):
+//   xdm.event.original_event_type = scenario (was incident_type)
+//   scenario is the CrowdStrike classification string (known_malware, credential_theft, etc.)
+//
+// XDM fields requested but NOT available in crowdstrike_falcon_event_raw EPP events:
+//   xdm.target.ipv6, xdm.source.ipv6     -- no IPv6 in CrowdStrike EPP device object
+//   xdm.source.port                       -- local port not emitted in EPP detections
+//   xdm.source.asn.*                      -- requires network telemetry
+//   xdm.source.location.*                 -- requires external geo enrichment
+//   xdm.intermediate.is_nat/is_proxy      -- network flow concept; not in EPP events
+//   xdm.event.is_completed/duration       -- not emitted by EPP
+//   xdm.target/source.sent_bytes/packets  -- flow data; not in EPP detections
+//   xdm.source.user_agent                 -- HTTP context; not in EPP events
+//   xdm.source.process.container_id       -- not in EPP detections
+//   xdm.source.host.device_category/model/manufacturer -- not in CS device object
+//   xdm.target.*                          -- EPP events are source-centric; no target host/agent
+//   xdm.source.interface                  -- not in EPP events
+
+[MODEL:dataset="crowdstrike_falcon_event_raw"]
+filter product = "epp"
+| alter
+    // -- Alert / Event Identity --------------------------------------------
+    xdm.alert.severity              = concat(to_string(severity), " - ", severity_name),
+    xdm.event.id                    = composite_id,
+    xdm.event.original_event_type   = scenario,
+    xdm.event.description           = description,
+    xdm.event.type                  = incident_type,
+
+    // -- Source Host -------------------------------------------------------
+    xdm.source.host.hostname        = device -> hostname,
+    xdm.source.host.fqdn            = device -> machine_domain,
+    xdm.source.host.os_family       = device -> os_version,
+    xdm.source.host.device_id       = device -> device_id,
+    xdm.source.ipv4                 = device -> local_ip,
+
+    // -- Source Agent -----------------------------------------------------
+    xdm.source.agent.identifier     = agent_id,
+
+    // -- Source User -------------------------------------------------------
+    xdm.source.user.username        = user_name,
+    xdm.source.user.domain          = device -> machine_domain,
+    xdm.source.user.groups          = device -> groups[],
+
+    // -- Source Process ----------------------------------------------------
+    xdm.source.process.pid          = to_integer(local_process_id),
+    xdm.source.process.name         = parent_details -> filename,
+    xdm.source.process.command_line = parent_details -> cmdline,
+    xdm.source.process.executable.path   = parent_details -> filepath,
+    xdm.source.process.executable.sha256 = parent_details -> sha256;
+
+// ===========================================================================
+// DEFERRED -- verify with XQL probe before promoting to alter block
+//
+// xdm.observer.unique_identifier = agent_id
+//   dataset = crowdstrike_falcon_event_raw | filter product = "epp"
+//   | alter xdm.observer.unique_identifier = agent_id | fields xdm.observer.unique_identifier | limit 5
+//
+// xdm.target.ipv4 = arrayindex(network_accesses,0)->remote_address
+//   dataset = crowdstrike_falcon_event_raw | filter product = "epp"
+//   | alter t = arrayindex(network_accesses,0)->remote_address | fields t | limit 5
+//   Note: if arrayindex fails in XIF context, try: network_accesses[0]->remote_address
+//
+// xdm.target.port = to_integer(arrayindex(network_accesses,0)->remote_port)
+//   Only run after target.ipv4 probe succeeds.
+// ===========================================================================

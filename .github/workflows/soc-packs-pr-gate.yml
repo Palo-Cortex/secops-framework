@@ -88,6 +88,7 @@ jobs:
     outputs:
       packs: ${{ steps.changed.outputs.packs }}
       has_changes: ${{ steps.changed.outputs.has_changes }}
+      has_content: ${{ steps.changed.outputs.has_content }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -96,7 +97,7 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin main --depth=50
 
-      - name: Find packs with version bumps
+      - name: Find changed packs (content + version)
         id: changed
         run: |
           python - << 'PY'
@@ -113,7 +114,11 @@ jobs:
               ["git", "diff", "--name-only", base, "HEAD"], text=True
           ).splitlines()
 
-          changed = set()
+          # has_content: any file changed under Packs/<pack>/
+          # has_changes: pack_metadata.json version bumped (controls production release)
+          content_packs = set()
+          version_packs = set()
+
           for f in changed_files:
               p = Path(f)
               if p.parts and p.parts[0] == str(packs_dir):
@@ -123,6 +128,7 @@ jobs:
                   meta = packs_dir / pack / "pack_metadata.json"
                   if not meta.exists():
                       continue
+                  content_packs.add(pack)
                   try:
                       old = subprocess.check_output(
                           ["git", "show", f"{base}:{packs_dir}/{pack}/pack_metadata.json"],
@@ -132,15 +138,21 @@ jobs:
                       old_ver = json.loads(old).get("version") or json.loads(old).get("currentVersion")
                       new_ver = json.loads(new_text).get("version") or json.loads(new_text).get("currentVersion")
                       if old_ver != new_ver:
-                          changed.add(pack)
+                          version_packs.add(pack)
                   except subprocess.CalledProcessError:
-                      changed.add(pack)
+                      version_packs.add(pack)
 
-          out = ",".join(sorted(changed))
-          print("Changed packs:", out or "(none)")
+          # For prerelease/deploy: use all content-changed packs
+          # For validate/preflight: also use content-changed packs (run on any change)
+          # has_changes (version bump) is passed through for release workflow compatibility
+          all_packs = content_packs
+          out = ",".join(sorted(all_packs))
+          print("Content-changed packs:", out or "(none)")
+          print("Version-bumped packs:", ",".join(sorted(version_packs)) or "(none)")
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"packs={out}\n")
-              fh.write(f"has_changes={'true' if changed else 'false'}\n")
+              fh.write(f"has_content={'true' if content_packs else 'false'}\n")
+              fh.write(f"has_changes={'true' if version_packs else 'false'}\n")
           PY
 
   # ── JOB 3: JSON INTEGRITY ───────────────────────────────────────
@@ -184,7 +196,7 @@ jobs:
   validate:
     name: Validate — demisto-sdk
     needs: [detect, json-integrity]
-    if: needs.detect.outputs.has_changes == 'true'
+    if: needs.detect.outputs.has_content == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -232,7 +244,7 @@ jobs:
   preflight:
     name: Preflight — xsoar_config.json
     needs: [detect, json-integrity, validate]
-    if: needs.detect.outputs.has_changes == 'true'
+    if: needs.detect.outputs.has_content == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -251,7 +263,7 @@ jobs:
   prerelease:
     name: Build prerelease zip
     needs: [detect, preflight]
-    if: needs.detect.outputs.has_changes == 'true'
+    if: needs.detect.outputs.has_content == 'true'
     runs-on: ubuntu-latest
     outputs:
       config_url: ${{ steps.upload.outputs.config_url }}
@@ -379,7 +391,7 @@ jobs:
   deploy-dev:
     name: Deploy — dev tenant (pre-merge)
     needs: [detect, prerelease]
-    if: needs.detect.outputs.has_changes == 'true'
+    if: needs.detect.outputs.has_content == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -409,4 +421,4 @@ jobs:
           DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
           echo "Deploying using prerelease config: $CONTENT_REPO_RAW_LINK"
-          printf 'yes\n' | python setup.py
+          echo "yes" | python setup.py
