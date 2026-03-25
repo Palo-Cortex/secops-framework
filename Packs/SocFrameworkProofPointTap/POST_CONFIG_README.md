@@ -17,7 +17,7 @@ The steps below must be completed after installation before alerts will flow cor
 The pack installs a pre-configured `Proofpoint TAP v2` integration instance with the
 correct settings. You only need to supply credentials and enable it.
 
-1. Navigate to **Settings → Configurations → Data Collection → Automation & Feed Integrations**
+1. Navigate to **Settings → Configurations → Data Collection → Data Sources & Integrations**
 2. Find the `Proofpoint TAP v2` instance and open its configuration
 3. Fill in the following fields:
    - **Server URL** — defaults to `https://tap-api-v2.proofpoint.com` (change only if required)
