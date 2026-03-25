@@ -51,7 +51,7 @@ Version 1.1.0 consolidates the original 15-rule architecture into a single rule:
 ## Installation
 
 ```bash
-demisto-sdk upload -i Packs/SocFrameworkCrowdstrikeFalcon
+demisto-sdk upload -i Packs/socfw-crowdstrike-falcon
 ```
 
 See `POST_CONFIG_README.md` for required manual steps after installation, including
