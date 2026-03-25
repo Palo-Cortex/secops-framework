@@ -6,20 +6,21 @@ alert_description: $alert_description
 alert_domain: DOMAIN_SECURITY
 alert_fields:
   # -- Core identity / actor --------------------------------------------------
-  actor_effective_username: recipient          # user who received the email
-  agent_device_domain: domain                  # registered domain from threat URL
+  actor_effective_username: recipient
+  agent_device_domain: domain
 
   # -- File indicators --------------------------------------------------------
-  action_file_sha256: proofpointsha256          # attachment SHA256 (WildFire grouping)
-  action_file_md5: proofpointmd5                # attachment MD5
-  action_file_name: proofpointfilename          # attachment filename
+  action_file_sha256: proofpointsha256
+  action_file_md5: proofpointmd5
+  action_file_name: proofpointfilename
+  filehash: proofpointsha256            # restored from 1.0.4 -- generic hash field for WildFire
 
   # -- Network indicators -----------------------------------------------------
-  action_remote_ip: senderIP                   # sender IP (grouping + analytics)
-  dns_query_name: dns_name                     # threat domain (DNS grouping)
-  fw_url_domain: domain                        # URL domain
+  action_remote_ip: senderIP
+  dns_query_name: dns_name
+  fw_url_domain: domain
 
-  # -- Email-specific fields --------------------------------------------------
+  # -- Email fields -----------------------------------------------------------
   emailmessageid: messageID
   emailsenderip: senderIP
   emailsource: sender
@@ -27,8 +28,8 @@ alert_fields:
   fw_email_sender: sender
   fw_email_subject: subject
 
-  # -- SOC Framework generic email fields ---------------------------------------------------------
-  # Replaces proofpointtap* fields. Read by Foundation_-_Normalize_Email_V3.
+  # -- SOC Framework email fields -- read by Foundation_-_Normalize_Email_V3 --
+  # Replaces proofpointtap* custom fields (classifier/mapper pattern).
   socfwemaildeliveryaction: delivery_action
   socfwemaildirection: direction
   socfwemailthreaturl: threat_urls
@@ -42,15 +43,20 @@ alert_fields:
   socfwemailclickip: clickIP
   socfwemailclicktime: clickTime
 alert_name: $alert_name
-alert_type:
-crontab:
+alert_type: null
+crontab: null
 dataset: alerts
-description: Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection.
+description: >-
+  Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted.
+  Fires on active or malicious threat status only. Suppression is per GUID to preserve
+  full blast-radius visibility for lateral risk detection.
+  Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter,
+  not rule splitting. Classifier and mapper pattern replaced by socfw* alert_fields.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC Proofpoint TAP - Threat Detected
 investigation_query_link: ''
-is_enabled: true
+is_enabled: false    # Deploy dark alongside 1.0.4 rules -- flip to true when ready to cut over
 lookup_mapping: []
 mapping_strategy: CUSTOM
 mitre_defs:
@@ -59,20 +65,43 @@ mitre_defs:
   TA0009 - Collection:
   - T1114 - Email Collection
 name: SOC Proofpoint TAP - Threat Detected
-search_window:
+search_window: null
 severity: User Defined
-simple_schedule:
+simple_schedule: null
 suppression_duration: 24 hours
 suppression_enabled: true
 suppression_fields:
 - GUID
-timezone:
+timezone: null
 user_defined_category: alert_category
 user_defined_severity: alert_severity
 xql_query: |
+  /*
+  Title:   SOC Proofpoint TAP - Threat Detected
+  Dataset: proofpoint_tap_v2_generic_alert_raw
+  Version: 1.3.0
+  Changes v1.3.0:
+    - Added id/ruleid, fixed fromversion 6.10.0->8.0.0, removed rule_id: 0
+    - Set is_enabled: false for side-by-side testing with 1.0.4 rules
+    - Restored filehash->proofpointsha256 (BC from 1.0.4)
+  Changes v1.2.1:
+    - Removed to_json_string() double-encoding bug (was nulling all threat fields)
+    - compress_window reduced 2h->30m (TAP batch delivery latency fix)
+    - Alert naming updated to [Email] prefix pattern
+    - Suppression changed from sender/header fields to GUID/24hr
+  Changes v1.0.10 (initial):
+    - Consolidated 1.0.4 two-rule split (messages delivered + clicks permitted)
+      into single rule with threat status filter. One integration instance required.
+    - Replaced proofpointtap* custom incident fields (classifier pattern) with
+      socfw* fields read natively by Foundation_-_Normalize_Email_V3
+  */
   dataset = proofpoint_tap_v2_generic_alert_raw
-  // Step 1: type gate
+
+  // Gate 1: event type
   | filter type in ("messages delivered", "clicks permitted")
+
+  // Gate 2: actionable threats only -- this is the primary volume control.
+  // Filters out benign/unresolved deliveries before alert generation.
   | alter threatsInfoMap_str = threatsInfoMap
   | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
   | filter (
@@ -80,7 +109,7 @@ xql_query: |
       or threatStatus in ("active", "malicious")
   )
 
-  // Step 5: alert name and type derivation
+  // Alert identity and naming
   | alter
       alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
       alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
@@ -96,7 +125,7 @@ xql_query: |
           "Proofpoint TAP - Message Delivered"
       )
 
-  // Step 5b: derive delivery_action for socfwemaildeliveryaction
+  // SOC Framework delivery action and direction
   | alter delivery_action = if(
       type = "messages delivered", "delivered",
       type = "clicks permitted",   "click_permitted",
@@ -104,13 +133,9 @@ xql_query: |
       type = "clicks blocked",     "click_blocked",
       type
   )
-
-  // Step 5c: direction always inbound for TAP
   | alter direction = "inbound"
 
-  // Step 6: severity and category from _alert_data
-  //   _alert_data -> severity returns XSIAM internal codes (e.g. SEV_030_MEDIUM).
-  //   Coalesce to "medium" as safe default if field is absent or null.
+  // Extract all threat attributes across multi-threat messages
   | alter
       threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
       classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
@@ -118,10 +143,14 @@ xql_query: |
       threat_statuses    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatStatus")), ", "),
       threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), coalesce(json_extract_scalar("@element", "$.threatUrl"), json_extract_scalar("@element", "$.threatURL"))), ", "),
       threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+
+  // Extract attachment fields
   | alter
       proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
       proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
       proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
+
+  // Domain extraction for DNS/URL grouping
   | alter
       domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
       dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")

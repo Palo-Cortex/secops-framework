@@ -1,3 +1,50 @@
+// SOC ProofPoint TAP Modeling Rules
+// Dataset: proofpoint_tap_v2_generic_alert_raw
+// Version: 1.5.0
+//
+// Changes from v1.4:
+//   ADDED:  xdm.email.observation_timestamp = clickTime
+//           Records when the recipient clicked the malicious link. Distinct from
+//           delivery_timestamp. Null for messages delivered events.
+//   ADDED:  Schema expanded: headerFrom, headerReplyTo, replyToAddress, toAddresses,
+//           xmailer, phishScore, malwareScore, spamScore, impostorScore,
+//           messageSize, threatTime, id -- all real TAP API fields, previously missing.
+//
+// Changes from v1.3:
+//   ADDED:  xdm.source.ipv4          = clickIP
+//           Scalar IP of the clicking endpoint. Populates the network 5-tuple
+//           alongside xdm.source.host.ipv4_addresses for network story stitching.
+//   ADDED:  xdm.source.user.username = recipient
+//           Identity of the user who received/clicked. Feeds identity analytics
+//           and authentication story stitching across sources.
+//
+// Changes from v1.2 (initial SOC Framework consolidation):
+//   - Unified messages delivered + clicks permitted into single rule
+//   - Replaced xdm.intermediate.host.ipv4_addresses (1.0.4) with
+//     xdm.email.server.ipv4_addresses for senderIP (semantically correct)
+//   - Added full threat multi-value extraction from threatsInfoMap
+//   - Added xdm.alert.* fields for threat classification
+//
+// XDM fields requested but NOT available in proofpoint_tap_v2_generic_alert_raw:
+//   xdm.target.port/ipv4/ipv6            -- no target host in TAP events; target is URL
+//   xdm.source.asn.*                     -- no ASN data in TAP events
+//   xdm.source.host.fqdn/os/device_*    -- no endpoint telemetry in email events
+//   xdm.source.ipv6                      -- not emitted by TAP
+//   xdm.source.port                      -- not emitted by TAP
+//   xdm.source.location.*               -- no geo data; requires external enrichment
+//   xdm.intermediate.is_nat/is_proxy     -- network flow concept; not in email events
+//   xdm.event.is_completed/duration      -- not emitted by TAP
+//   xdm.target/source.sent_bytes/packets -- flow data; not in email events
+//   xdm.source.process.*                 -- endpoint concept; not in email events
+//   xdm.target.host.*                    -- no target host identity in TAP events
+//   xdm.target.user.username             -- no target user in TAP events
+//   xdm.source.agent.identifier          -- TAP has no sensor agent
+//   xdm.source.host.hostname             -- not in TAP events
+//   xdm.source.host.device_id           -- not in TAP events
+//   xdm.observer.unique_identifier       -- no observer/sensor concept in TAP
+//   xdm.source.interface                 -- not in TAP events
+//   xdm.target.host.hostname             -- not in TAP events
+
 [MODEL: dataset=proofpoint_tap_v2_generic_alert_raw]
 // Intermediate alters -- normalize fields that need cleanup before XDM mapping
 alter
@@ -29,7 +76,7 @@ alter
     threat_urls_string = arraystring(
         arraymap(threatsInfoMap -> [], "@element" -> threatUrl), ", "
     ),
-    // Human-readable alert description for the alert UI
+    // Human-readable alert description
     alert_description_clean = if(
         type = "clicks permitted",
         concat("Proofpoint TAP - Click Permitted | ", coalesce(subject, "No Subject"),
@@ -40,12 +87,12 @@ alter
                " | Threat: ", coalesce(classification, threat_classifications_string, "unknown"))
     )
 | alter
-    // Event identity
-    xdm.event.type             = concat(_vendor, " - ", type),
-    xdm.event.id               = GUID,
+    // ── Event Identity ────────────────────────────────────────────────────────
+    xdm.event.type              = concat(_vendor, " - ", type),
+    xdm.event.id                = GUID,
     xdm.alert.original_alert_id = GUID,
 
-    // Alert threat classification
+    // ── Alert Threat Classification ───────────────────────────────────────────
     xdm.alert.original_threat_id   = coalesce(threatID, threat_ids_string),
     xdm.alert.original_threat_name = coalesce(
         classification,
@@ -54,19 +101,28 @@ alter
     ),
     xdm.alert.subcategory = coalesce(threat_types_string, classification),
     xdm.alert.description = alert_description_clean,
-    xdm.alert.severity    = coalesce(
-        threat_statuses_string,
-        threatStatus
-    ),
+    xdm.alert.severity    = coalesce(threat_statuses_string, threatStatus),
 
-    // Email fields
-    xdm.email.sender      = coalesce(fromAddress_clean, sender),
-    xdm.email.return_path = sender,
-    xdm.email.message_id  = messageID,
-    xdm.email.subject     = subject,
-    xdm.email.recipients  = recipient_array,
-    xdm.email.cc          = arraymap(json_extract_array(ccAddresses, "$."), trim("@element", "\"")),
+    // ── Source (clicking user / endpoint) ─────────────────────────────────────
+    // clickIP is the endpoint that clicked the malicious link. For delivered
+    // messages without a click, this field is null -- safe, will map to null.
+    xdm.source.ipv4                 = clickIP,
+    xdm.source.host.ipv4_addresses  = arraycreate(clickIP),
+    xdm.source.user_agent           = userAgent,
+    xdm.source.user.username        = recipient,
+
+    // ── Email Fields ──────────────────────────────────────────────────────────
+    xdm.email.sender             = coalesce(fromAddress_clean, sender),
+    xdm.email.return_path        = sender,
+    xdm.email.message_id         = messageID,
+    xdm.email.subject            = subject,
+    xdm.email.recipients         = recipient_array,
+    xdm.email.cc                 = arraymap(json_extract_array(ccAddresses, "$."), trim("@element", "\"")),
     xdm.email.delivery_timestamp = messageTime,
+    // clickTime: timestamp when recipient clicked the link (clicks permitted events only).
+    // Distinct from delivery_timestamp which records when the message was received.
+    // Null for messages delivered events -- safe, maps to null.
+    xdm.email.observation_timestamp = clickTime,
 
     // Email attachments -- all parts joined
     xdm.email.attachment.filename = arraystring(
@@ -81,8 +137,6 @@ alter
 
     // Network -- senderIP is the mail server (intermediate hop), clickIP is the endpoint
     xdm.email.server.ipv4_addresses = arraycreate(senderIP),
-    xdm.source.host.ipv4_addresses  = arraycreate(clickIP),
-    xdm.source.user_agent           = userAgent,
 
     // URL -- clicked URL (clicks permitted) or threat URL
     xdm.target.url = coalesce(url, threat_urls_string, threatURL);
