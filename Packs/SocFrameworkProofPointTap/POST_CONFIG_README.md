@@ -1,73 +1,98 @@
-# SOC-Proofpoint-TAP Content Pack for Cortex XSIAM
+# SOC Proofpoint TAP - Post-Installation Steps
 
-This repository contains the **SOC-Proofpoint-TAP** content pack for Palo Alto Networks Cortex XSIAM. It enables effective incident handling and visibility for Proofpoint TAP v2 alerts by providing layout customizations and detection rule guidance.
+> **Warning — Duplicate Alerts**
+> This pack (`socfw-proofpoint-tap`) installs alongside the previous pack
+> (`soc-proofpoint-tap`) — it does not replace it. If any old Proofpoint correlation
+> rules are still enabled when the new consolidated rule is enabled, every TAP detection
+> will generate two alerts. Complete Step 2 (disable old rules) before Step 3
+> (enable new rule).
 
----
-
-## 📦 What's Included
-
-- Incident Layouts:
-  - `Proofpoint - Message Delivered`
-  - `Proofpoint - Click Permitted`
-- Layout Rules to dynamically assign layouts based on alert metadata
-- Sample Data Model Rules syntax for use in XSIAM
-- Supporting configurations to route and visualize Proofpoint TAP v2 alerts
+This pack deploys the SOC Framework correlation and modeling rules for Proofpoint TAP v2.
+The steps below must be completed after installation before alerts will flow correctly.
 
 ---
 
-## ✅ Prerequisites
+## Step 1 — Configure the Proofpoint TAP Integration Instance
 
-- Cortex XSIAM tenant
-- Ingested and parsed data from **Proofpoint TAP v2** (via Broker VM, API, or other integrations)
-- `SOC Proofpoint TAP` content pack installed
+The pack installs a pre-configured `Proofpoint TAP v2` integration instance with the
+correct settings. You only need to supply credentials and enable it.
+
+1. Navigate to **Settings → Configurations → Data Collection → Automation & Feed Integrations**
+2. Find the `Proofpoint TAP v2` instance and open its configuration
+3. Fill in the following fields:
+   - **Server URL** — defaults to `https://tap-api-v2.proofpoint.com` (change only if required)
+   - **Service Principal** — your TAP API service principal
+   - **Password** — your TAP API service secret
+4. Leave **Classifier** and **Mapper (incoming)** empty — field normalization is handled
+   by the correlation rule and modeling rule, not a mapper
+5. Click **Test** to verify connectivity
+6. Click **Save & Exit**
+7. **Enable** the instance
+
+> **One instance is sufficient.** The integration is configured to fetch all event types
+> (messages delivered and clicks permitted) from a single instance. Do not create separate
+> instances per event type.
 
 ---
 
-## 🛠️ Additional Manual Steps Post-Installation
+## Step 2 — Disable the System Proofpoint Correlation Rule
 
-
-### 1. Configure the Proofpoint TAP Integration Instances
-1. Navigate to **Settings → Configurations → Data Collection → Automation & Feed Integration**
-2. Expand the Proofpoint TAP instance dropdown 
-3. Click on the gear next to the _Proofpoint TAP v2_Clicks_Permitted_ and _Proofpoint TAP v2_Messages_Delivered_
-4. Update the integration instances' configurations for the following form fields: 
-   1. Server URL
-   2. Service Principal
-   3. Password
-   
-5. Test and save the integration instance configurations
-6. **Enable** the instances
-
-
-### 2. Disable System Proofpoint Correlation Rules
-1. Navigate to **Detection & Threat Intel → Correlations**
-2. Filter the Correlation Rules _Name_ column for “Proofpoint”
-3. Right Click on **Proofpoint TAP v2 Alerts (automatically generated)**
-4. Choose _Disable_
-
-
-### 3. Verify the Proofpoint Correlation Rules 
-Once traffic starts flowing to the proofpoint_tap_v2_generic_alert_raw dataset, you will need to verify the correlation rule as the following: 
+The Proofpoint TAP marketplace pack installs a system-generated correlation rule that will
+conflict with the SOC Framework rule and produce duplicate alerts.
 
 1. Navigate to **Detection & Threat Intel → Correlations**
-2. Filter the Correlation Rules Name column for “Proofpoint”
-3. Right-click the following rules that apply to your tenant:
-   1. Production Proofpoint TAP + CrowdStrike - Messages Delivered
-   2. Production Proofpoint TAP - Clicks Permitted
-   3. Production Proofpoint TAP + CrowdStrike - Clicks Permitted
-   4. Production Proofpoint TAP - Messages Delivered
-4. Click Preview Rule
-5. Verify the Alert Suppression > Fields keys are not throwing errors
+2. Filter the **Name** column for `Proofpoint`
+3. Locate **Proofpoint TAP v2 Alerts (automatically generated)**
+4. Right-click → **Disable**
 
-### 4. (Recommended) Configure Starred Alerts - ProofPoint Clicks Permitted
-Incidents that are not marked with a star are automatically triaged using `JOB_-_Triage_Incidents.yml`.
-This ensures that high-volume, low-risk alerts are handled without manual intervention. These are the recommended starred
-alerts for this pack.
+> Disable any other pre-existing Proofpoint correlation rules that are currently enabled.
+> The SOC Framework rule replaces all of them.
 
-1. Go to **Incident Response → Automation → Incident Configuration → Starred Alerts**
-2. Config The Proofpoint Clicks Permitted as below
+---
 
-   1. Configuration Name: _Proofpoint Clicks Permitted_
-   2. Alert Filter: _**alert domain** = Security **AND alert name** contains Click Permitted **AND tags =** DS:Proofpoint TAP v2_
+## Step 3 — Enable the SOC Framework Correlation Rule
 
+The SOC Framework rule ships disabled to allow side-by-side validation before cutover.
 
+1. Navigate to **Detection & Threat Intel → Correlations**
+2. Filter the **Name** column for `SOC Proofpoint`
+3. Locate **SOC Proofpoint TAP - Threat Detected**
+4. Right-click → **Enable**
+
+> **What this rule does:** fires on `messages delivered` and `clicks permitted` events where
+> the threat status is `active` or `malicious`. Benign deliveries are filtered out before
+> alert generation. Suppression is per `GUID` with a 24-hour window.
+
+---
+
+## Step 4 — Verify the Modeling Rule
+
+The modeling rule normalizes raw TAP events into XDM fields used by XSIAM analytics,
+network stories, and identity stories.
+
+1. Navigate to **Settings → Configurations → Data Management → Data Model Rules**
+2. Confirm **SOC ProofpointTAP Modeling Rule** is listed and active
+3. Run a quick validation query in XQL Search:
+
+```xql
+datamodel dataset in("proofpoint_tap_v2_generic_alert_raw")
+| fields xdm.event.id, xdm.email.sender, xdm.email.recipients, xdm.source.user.username,
+         xdm.alert.original_threat_name, xdm.email.delivery_timestamp
+| limit 5
+```
+
+If rows return with populated fields, the modeling rule is working correctly.
+
+---
+
+## What Is Not Required
+
+The following items from older versions of this pack are **no longer needed** and should
+not be configured:
+
+| Old Requirement | Status | Reason |
+|---|---|---|
+| Two separate integration instances (Clicks / Messages) | Removed | Single instance with `Events to fetch: All` replaces both |
+| Classifier (`Proofpoint TAP Classifier`) | Removed | Field mapping handled natively in correlation rule via `alert_fields` |
+| Mapper (incoming) | Removed | No incident field mapping required; `socfw*` fields populated directly |
+| Custom incident fields (`proofpointtap*`) | Removed | Replaced by `socfw*` fields read by Foundation playbooks |

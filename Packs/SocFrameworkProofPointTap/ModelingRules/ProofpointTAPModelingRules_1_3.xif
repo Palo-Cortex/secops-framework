@@ -1,5 +1,5 @@
 [MODEL: dataset=proofpoint_tap_v2_generic_alert_raw]
-// Intermediate alters — normalize fields that need cleanup before XDM mapping
+// Intermediate alters -- normalize fields that need cleanup before XDM mapping
 alter
     // fromAddress arrives as either a JSON array string ["addr"] or a scalar
     fromAddress_clean = if(
@@ -68,7 +68,7 @@ alter
     xdm.email.cc          = arraymap(json_extract_array(ccAddresses, "$."), trim("@element", "\"")),
     xdm.email.delivery_timestamp = messageTime,
 
-    // Email attachments — all parts joined
+    // Email attachments -- all parts joined
     xdm.email.attachment.filename = arraystring(
         arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", "
     ),
@@ -79,10 +79,10 @@ alter
         arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "
     ),
 
-    // Network — senderIP is the mail server (intermediate hop), clickIP is the endpoint
+    // Network -- senderIP is the mail server (intermediate hop), clickIP is the endpoint
     xdm.email.server.ipv4_addresses = arraycreate(senderIP),
     xdm.source.host.ipv4_addresses  = arraycreate(clickIP),
     xdm.source.user_agent           = userAgent,
 
-    // URL — clicked URL (clicks permitted) or threat URL
+    // URL -- clicked URL (clicks permitted) or threat URL
     xdm.target.url = coalesce(url, threat_urls_string, threatURL);
