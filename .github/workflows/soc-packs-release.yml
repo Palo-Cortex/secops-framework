@@ -4,10 +4,18 @@ name: SOC Packs — Release
 # push → main
 #
 # Job 1 · release     — build zip + create immutable GitHub release
+#                       + upload modified xsoar_config.json as asset
+#                         (url points at production zip — repo file
+#                          is never modified by CI)
 #
 # Tenant deploy is intentionally NOT here. It runs once, pre-merge,
 # in soc-packs-pr-gate.yml (Job 7 · deploy-dev). Running it again
 # post-merge would deploy twice on every merged PR.
+#
+# Deploy sources by environment:
+#   Dev tenant  → PR Gate prerelease asset  (-pr<N>/xsoar_config.json)
+#   PoV tenant  → Production release asset  (<tag>/xsoar_config.json)
+#   Repo file   → Baseline template only    (never used directly by CI)
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -117,8 +125,9 @@ jobs:
               return subprocess.run(["gh", *args], check=check)
 
           for pack in changed:
-              pack_path = packs_dir / pack
-              meta_path = pack_path / "pack_metadata.json"
+              pack_path   = packs_dir / pack
+              meta_path   = pack_path / "pack_metadata.json"
+              config_path = pack_path / "xsoar_config.json"
               if not meta_path.exists():
                   print(f"{pack}: no pack_metadata.json, skipping")
                   continue
@@ -171,6 +180,23 @@ jobs:
 
               url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
               print(f"Published: {url}")
+
+              # Upload modified xsoar_config.json as a release asset.
+              # The repo file is never touched — this asset is the deploy source
+              # for the Starter playbook. Pattern mirrors the PR Gate prerelease job.
+              if config_path.exists():
+                  cfg = json.loads(config_path.read_text())
+                  for entry in cfg.get("custom_packs", []):
+                      if entry.get("id") == pack:
+                          entry["url"] = url
+                          break
+                  prod_config = dist / "xsoar_config.json"
+                  prod_config.write_text(json.dumps(cfg, indent=2) + "\n")
+                  gh("release", "upload", tag, str(prod_config), "--clobber")
+                  config_asset_url = f"https://github.com/{repo}/releases/download/{tag}/xsoar_config.json"
+                  print(f"Config asset: {config_asset_url}")
+              else:
+                  print(f"{pack}: no xsoar_config.json — skipping config asset upload")
           PY
 
       - name: No packs changed
