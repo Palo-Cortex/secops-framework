@@ -1,134 +1,74 @@
-# 🛡️ SOC CrowdStrike Falcon Integration Enhancement for Cortex XSIAM
+# SOC CrowdStrike Falcon Integration Enhancement for Cortex XSIAM
 
-This repository enhances the native CrowdStrike Falcon integration within Palo Alto Networks Cortex XSIAM. It provides layouts, correlation rules, mappers, and data model extensions to optimize threat visibility and automate response actions within a SOC workflow.
-
----
-
-## ⚙️ Prerequisites
-
-- Configure **CrowdStrike Falcon** integration via **Marketplace**
-- If using **CrowdStrike Platform** integration, **disable Alert Fetch**
+This pack supplements the native CrowdStrike Falcon integration within Palo Alto Networks
+Cortex XSIAM. It provides SOC Framework-aligned detection rules and data normalization that
+replace the default per-tactic correlation rules and feed enriched endpoint telemetry into
+the NIST IR lifecycle.
 
 ---
 
-## 🚀 Purpose
+## What's Included
 
-This pack enables Cortex XSIAM to more effectively operationalize CrowdStrike Falcon telemetry by:
-
-- 📊 Centralizing endpoint threat and detection data.
-- ⚙️ Automating detection, triage, and response for endpoint-related incidents.
-- 🔁 Enriching alerts with actionable context and reducing the need to pivot tools.
-- 🧩 Enabling correlation with identity, email, and network telemetry.
+| Component | Description |
+|---|---|
+| **Correlation Rule** | `SOC CrowdStrike Falcon - Endpoint Alerts` — unified rule replacing 15 per-tactic rules. Fires on all EPP detections. Alert category set dynamically from MITRE tactic via `user_defined_category: tactic`. Suppression per `composite_id` / 1hr. |
+| **Modeling Rule** | `SOC CrowdStrike Falcon Modeling Rule` — maps raw EPP events to XDM fields including `xdm.source.*`, `xdm.event.*`, `xdm.alert.*`, and `xdm.source.process.*`. Feeds XSIAM analytics and identity stories. |
 
 ---
 
-## 📦 What's Included
+## What Changed from 1.0.14
 
-| Component        | Description                                                                 |
-|------------------|-----------------------------------------------------------------------------|
-| **Layouts**       | Analyst-centric views showing CrowdStrike event details, detections, and host context. |
-| **Correlation Rules** | Rules for identifying lateral movement, hands-on-keyboard activity, and malware execution. |
-| **Data Models**   | XDM schema extensions aligned to Falcon detection and event fields. |
-| **Automation Scripts** |  
-| `displayCrowdStrikeEvidence_xsiam` | Displays raw alert record cleanly in layout tab/dynamic sections. |
-| `displayCrowdStrikeHostRecord_xsiam` | Renders full host record in layout tab/dynamic sections. |
-| `displayCrowdStrikeHostStatus_xsiam` | Shows host status in a structured format inside layout sections. |
+> **Important — Pack ID Change**
+> This pack has a new ID (`socfw-crowdstrike-falcon`). The previous pack (`soc-crowdstrike-falcon`)
+> will remain installed alongside it. This is intentional — it prevents the new pack from
+> overwriting layouts, scripts, and correlation rules from the old pack that may still be active.
+>
+> **Duplicate alert risk:** if old per-tactic rules and the new consolidated rule are both enabled
+> at the same time, every CrowdStrike detection will generate two alerts. Before enabling the new
+> rule, disable all old rules. See `POST_CONFIG_README.md` Step 2 for the full list.
 
----
+Version 1.1.0 consolidates the original 15-rule architecture into a single rule:
 
-## 🧠 Analyst Benefits
-
-- Improved endpoint visibility within Cortex XSIAM.
-- Context-aware enrichment across SOC alerts.
-- Faster threat detection and reduced MTTR.
-- Direct action capability via Falcon integration.
-
-> 🔄 **Compatible with the [SOC Optimization Framework](https://github.com/Palo-Cortex/soc-optimization-framework)** for standardized detection and response across data sources.
+- **Single correlation rule** replaces 15 per-tactic rules plus a catch-all. XSIAM's `user_defined_category: tactic` feature (not available at the time of 1.0.14) allows dynamic alert categorization from the MITRE tactic field, making per-tactic rules unnecessary
+- **No classifier or mapper** — field normalization is handled directly in the correlation rule XQL via `alert_fields`. The `CrowdStrike Falcon` classifier, incoming mapper, and outgoing mapper are not needed and should not be configured on the integration instance
+- **Backwards compatible alert_fields** — all alert field mappings from the 1.0.14 per-tactic rules are preserved in the consolidated rule, including CGO fields (`causality_actor_process_*`) and `deviceou`
 
 ---
 
-## 🔗 Use Case Compatibility
+## Prerequisites
 
-- **Malware Investigation**
-- **Lateral Movement Detection**
-- **Privilege Escalation Monitoring**
-- **Automated Host Containment**
+- Cortex XSIAM tenant with CrowdStrike Falcon data flowing into `crowdstrike_falcon_event_raw`
+- CrowdStrike Falcon marketplace pack installed and integration instance active
+- SOC Optimization Framework pack (`soc-optimization-unified`) installed
 
----
-
-## ⚙️ Integration Requirements
-
-- Cortex XSIAM tenant
-- **CrowdStrike Falcon** data ingested via XDR integration or broker
-- This pack handles all normalization via mappers and model extensions
+> **Note:** If using the **CrowdStrike Platform** (Event Stream API) integration instead of
+> the standard CrowdStrike Falcon integration, disable Alert Fetch on that instance.
+> The correlation rule operates on `crowdstrike_falcon_event_raw` which is populated by the
+> standard Falcon integration, not the Platform integration.
 
 ---
 
-## 🛠️ How to Use
+## Installation
 
-1. Clone this repository.
-2. Use the [Demisto “XSOAR” SDK](https://github.com/demisto/demisto-sdk) to upload content to Cortex XSIAM.
-3. Choose and enable correlation rules based on your detection objectives.
-4. Deploy and validate layouts, and models.
-5. Tune as needed for your threat model and operational needs.
+```bash
+demisto-sdk upload -i Packs/SocFrameworkCrowdstrikeFalcon
+```
 
----
-
-## 🛠 Installation & Configuration
-
-### 📦 Installing the Pack into Cortex XSIAM
-
-To install this content pack using the [Demisto SDK](https://github.com/demisto/demisto-sdk), run the following command:
-
-demisto-sdk upload -x -z -i ./Packs/soc-crowdstrike-falcon
-
-> **Note:**  
-> - `-x` ensures the pack is zipped before upload.  
-> - `-z` uploads the zipped pack.  
-> - Adjust the path (`-i`) as needed to match your local directory structure.
-
-Make sure your environment is properly configured with the XSIAM host and API key by using either:
-
-- A `.env` file, **or**
-- Setting the following environment variables:
-  - `DEMISTO_BASE_URL`
-  - `DEMISTO_API_KEY`
-  - `XSIAM_AUTH_ID`
+See `POST_CONFIG_README.md` for required manual steps after installation, including
+disabling old per-tactic rules and enabling the consolidated rule.
 
 ---
 
-### 🧩 Post-Installation Configuration
+## Analyst Benefits
 
-After uploading the pack, complete the following steps to ensure alerts are displayed properly:
-
-1. Navigate to **Settings > Alert Layout Rules** in XSIAM.
-2. Click **Add Layout Rule**.
-3. Configure the rule with the following values:
-   - **Rule Name**: `CrowdStrike`
-   - **Layout to Display**: `CrowdStrike Endpoint Alert Layout`
-   - **Alert Type**: `CrowdStrikeFalcon_XSIAM`
-
-> ⚠️ **Important:** The `Alert Type` must exactly match the dataset name created by the integration:  
-> `CrowdStrikeFalcon_XSIAM`
+- **Dynamic MITRE categorization** — alert category set from the actual tactic value; no hardcoded per-tactic rule maintenance
+- **Cross-source case grouping** — `actor_effective_username`, `action_file_sha256`, `dns_query_name`, and `action_remote_ip` enable XSIAM to group related endpoint and email alerts into the same case automatically
+- **NIST IR lifecycle integration** — endpoint alerts route through `Foundation_-_Product_Classification_V3` into the full Analysis → Containment → Eradication → Recovery chain
 
 ---
 
-## 🤝 Contributing
+## Related Resources
 
-Contributions are welcome via pull requests or issues.
-
----
-
-## 📚 Related Resources
-
-- [CrowdStrike Falcon API Docs](https://falcon.crowdstrike.com/support/documentation)
-- [Cortex XSIAM Docs](https://docs.paloaltonetworks.com/cortex/cortex-xsiam)
-- [SOC Optimization Framework](https://github.com/Palo-Cortex/soc-optimization-framework)
-
----
-
-## 🏷️ Tags
-
-`CrowdStrike` `Falcon` `Endpoint` `Malware` `XSIAM` `SOC` `Automation`
-
-Once configured, alerts ingested from CrowdStrike Falcon will automatically use the custom layout defined in this pack.
+- [SOC Optimization Framework](https://github.com/Palo-Cortex/secops-framework)
+- [CrowdStrike Falcon API Documentation](https://falcon.crowdstrike.com/support/documentation)
+- [Cortex XSIAM Documentation](https://docs.paloaltonetworks.com/cortex/cortex-xsiam)
