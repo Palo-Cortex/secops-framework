@@ -1,94 +1,64 @@
-# 🛡️ SOC Microsoft Defender Integration Enhancement for Cortex XSIAM
+# SOC Microsoft Defender for Endpoint Integration Enhancement
 
-This repository delivers enhanced integration for Microsoft Defender within Cortex XSIAM. It includes layouts, correlation rules, mappers, and data model updates to support deep visibility and automated response to Windows-based threats.
-
----
-
-## 🚀 Purpose
-
-This pack enables SOC teams to leverage Defender for Endpoint telemetry in Cortex XSIAM by:
-
-- 🖥️ Aggregating endpoint alerts, indicators, and actions in one place.
-- 🧠 Enabling enriched detection and alert correlation across the SOC toolset.
-- 🔄 Automating response workflows for common Windows threats.
-- 📈 Supporting detection of ransomware, persistence, and post-exploitation behavior.
+This pack supplements the native Microsoft Graph Security Alerts integration within
+Cortex XSIAM for Microsoft Defender for Endpoint telemetry. It provides a SOC Framework-aligned
+correlation rule and XDM modeling rule feeding enriched endpoint alerts into the NIST IR lifecycle.
 
 ---
 
-## ⚙️ Prerequisites
+## What's Included
 
-- Configure **two Microsoft integrations**:
-  - **O365 Data Source**
-    - Ensure **alert fetch** is enabled via **Microsoft Graph Alerts v2**
-![AlertsIntegration.png](images/AlertsIntegration.png)
-  - **Microsoft Defender for Endpoint** (from Marketplace)
-    - Used for **automation commands only**
-![ActionsIntegration.png](images/ActionsIntegration.png)
----
-
-## 📦 What's Included
-
-| Component        | Description                                                                 |
-|------------------|-----------------------------------------------------------------------------|
-| **Layouts**       | Analyst-focused dashboards showing Defender alerts, evidence, and response history. |
-| **Correlation Rules** | Patterns identifying malware behavior, credential theft, and suspicious process chains. |
-| **Automation Scripts** |  
-| `displayDefenderEvidence_xsiam` | Displays raw alert record cleanly in layout tab/dynamic sections. |
-| `displayDefenderHostRecord_xsiam` | Renders full host record in layout tab/dynamic sections. |
-| `displayDefenderHostStatus_xsiam` | Shows host status in a structured format inside layout sections. |
-
-## 🧠 Analyst Benefits
-
-- Centralized Defender telemetry in XSIAM for faster triage.
-- Fewer context switches with integrated enrichment and automation.
-- Improved detection accuracy via cross-source correlation.
-- Streamlined playbook-driven containment and investigation.
-
-> 🔄 **Compatible with the [SOC Optimization Framework](https://github.com/Palo-Cortex/soc-optimization-framework)** to drive repeatable and measurable SOC operations.
+| Component | Description |
+|---|---|
+| **Correlation Rule** | `SOC Microsoft Graph Defender EndPoint` — unified rule for MDE alerts from `msft_graph_security_alerts_raw`. Fires on `microsoftDefenderForEndpoint` serviceSource, excludes resolved alerts. Evidence extracted inline via XQL. Suppression per `providerAlertId` / 1hr. |
+| **Modeling Rule** | `MSGraphMDE_ModelingRule` — maps raw MDE alert fields to XDM fields including `xdm.event.*`, `xdm.alert.*`, and `xdm.observer.*`. Scoped to `serviceSource = "microsoftDefenderForEndpoint"`. |
 
 ---
 
-## 🔗 Use Case Compatibility
+## Prerequisites
 
-- **Windows Endpoint Threat Detection**
-- **Credential Dumping and Abuse**
-- **Suspicious Process Monitoring**
-- **Automated Host Isolation**
-
----
-
-## ⚙️ Integration Requirements
-
-- Cortex XSIAM tenant
-- **Microsoft Defender for Endpoint** telemetry ingested (via native or broker integration)
+- Cortex XSIAM tenant with Microsoft Graph Security Alerts data flowing into `msft_graph_security_alerts_raw`
+- Microsoft Graph (O365 Data Source) integration instance configured with **Microsoft Graph Alerts v2** alert fetch enabled
+- Microsoft Defender Advanced Threat Protection marketplace pack installed (for automation commands)
+- SOC Optimization Framework pack (`soc-optimization-unified`) installed
+- `ds_msft_graph_security_alerts` entry in `SOCProductCategoryMap_V3` with `"Microsoft Defender for Endpoint": "Endpoint"` in `product_map`
 
 ---
 
-## 🛠️ How to Use
+## Installation
 
-1. Clone this repository.
-2. Use the [Demisto “XSOAR” SDK](https://github.com/demisto/demisto-sdk) to upload the content into XSIAM.
-3. Select and deploy correlation rules relevant to your use case.
-4. Load supporting mappers, and layouts.
-5. Refine detection logic and response pathways as needed.
+```bash
+demisto-sdk upload -i Packs/soc-microsoft-defender
+```
 
----
-
-## 🤝 Contributing
-
-We welcome contributions via pull requests or GitHub issues.
+See `POST_CONFIG_README.md` for required manual steps after installation.
 
 ---
 
-## 📚 Related Resources
+## Cross-Source Grouping
 
-- [Microsoft Defender API Docs](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/)
-- [Cortex XSIAM Docs](https://docs.paloaltonetworks.com/cortex/cortex-xsiam)
-- [SOC Optimization Framework](https://github.com/Palo-Cortex/soc-optimization-framework)
+MDE alerts group with Proofpoint TAP and other email sources via shared alert fields:
+
+- `agent_hostname` — device hostname from deviceEvidence
+- `actor_effective_username` — UPN from processEvidence or userEvidence
+- `action_remote_ip` — remote IP from ipEvidence (C2 / lateral movement)
+- `actor_process_image_sha256` — SHA256 of initiating process
+
+MDE alerts group with other MDE alerts from the same Microsoft Security Graph incident via
+`incidentId` mapped to the `cid` grouping key.
 
 ---
 
-## 🏷️ Tags
+## NIST IR Lifecycle
 
-`Microsoft Defender` `Windows Security` `Endpoint` `XSIAM` `SOC` `Automation` `Detection Engineering`
+Endpoint alerts route through `Foundation_-_Product_Classification_V3` into the full
+Analysis → Containment → Eradication → Recovery chain. All C/E/R actions execute in
+Shadow Mode by default. See `SOCExecutionList_V3` for shadow mode configuration.
 
+---
+
+## Related Resources
+
+- [SOC Optimization Framework](https://github.com/Palo-Cortex/secops-framework)
+- [Microsoft Graph Security Alerts API](https://learn.microsoft.com/en-us/graph/api/resources/security-api-overview)
+- [Cortex XSIAM Documentation](https://docs.paloaltonetworks.com/cortex/cortex-xsiam)
