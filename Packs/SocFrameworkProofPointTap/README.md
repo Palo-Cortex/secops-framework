@@ -1,95 +1,60 @@
-# 🛡️ SOC Proofpoint TAP Integration Enhancement for Cortex XSIAM
+# SOC Proofpoint TAP Integration Enhancement for Cortex XSIAM
 
-This repository supplements the native Proofpoint Threat Protection (TAP) integration within Palo Alto Networks Cortex XSIAM. It provides a comprehensive set of enhancements designed to streamline the analyst experience, enrich email threat context, and reduce investigation time by consolidating relevant Proofpoint data into a single workspace.
-
----
-
-## 🚀 Purpose
-
-The goal of this repository is to extend the value of the out-of-the-box Proofpoint TAP integration by offering an end-to-end solution that enables:
-
-- 📊 Unified visibility of email threat data.
-- 🔁 Seamless interaction between Cortex XSIAM and Proofpoint.
-- ⚙️ Automation of common SOC workflows for email-based threats.
-- 👨‍💻 Analyst-friendly layouts that eliminate the need to pivot between tools.
+This pack supplements the native Proofpoint TAP v2 integration within Palo Alto Networks
+Cortex XSIAM. It provides SOC Framework-aligned detection rules and data normalization that
+replace the default Proofpoint correlation rule, reduce alert volume to actionable signals
+only, and feed enriched email threat data into the NIST IR lifecycle.
 
 ---
 
-## 📦 What's Included
+## What's Included
 
-This repository contains packaged content that accelerates Proofpoint TAP integration within a SOC workflow, including:
-
-| Component           | Description                                                                 |
-|---------------------|-----------------------------------------------------------------------------|
-| **Layouts**         | Custom incident and alert views that display all relevant Proofpoint threat context. |
-| **Correlation Rules** | Two correlation rules: one based solely on Proofpoint data, and another that enriches Proofpoint alerts with CrowdStrike endpoint telemetry. |
-| **Mappers**         | Field mapping templates that normalize Proofpoint TAP events into Cortex XSIAM’s schema. |
-| **Data Models**     | XDM schema extensions tailored to Proofpoint's alert and message data structures. |
+| Component | Description |
+|---|---|
+| **Correlation Rule** | `SOC Proofpoint TAP - Threat Detected` — unified rule covering messages delivered and clicks permitted. Fires on active/malicious threat status only. Suppression per GUID/24hr. Populates `socfw*` fields for Foundation playbook consumption. |
+| **Modeling Rule** | `SOC ProofpointTAP Modeling Rule` — maps raw TAP events to XDM fields including `xdm.email.*`, `xdm.alert.*`, `xdm.source.*`, and `xdm.target.url`. Feeds XSIAM network stories and identity analytics. |
 
 ---
 
-## 🧠 Analyst Benefits
+## What Changed from 1.0.x
 
-By deploying this content pack, SOC teams can:
+Version 1.3.0 consolidates and simplifies the original two-rule, two-instance architecture:
 
-- Reduce investigation friction by centralizing Proofpoint alert data in Cortex XSIAM.
-- Minimize tool-switching fatigue by leveraging automated lookups and response actions directly within incidents.
-- Accelerate triage and response with actionable context on threats, users, recipients, URLs, attachments, and more.
-- Enable faster Mean Time to Detect (MTTD) and Mean Time to Respond (MTTR) by correlating TAP alerts with endpoint, identity, and network data in XSIAM.
-
-> 🔄 **Compatible with the [SOC Optimization Framework](https://github.com/Palo-Cortex/soc-optimization-framework)** to drive scalable, repeatable, and measurable detection and response patterns.
+- **Single integration instance** — one `Proofpoint TAP v2` instance with `Events to fetch: All` replaces the separate Clicks Permitted and Messages Delivered instances
+- **No classifier or mapper** — field normalization is handled directly in the correlation rule XQL via `alert_fields` mappings. The `Proofpoint TAP Classifier` and incoming mapper are not needed and should not be configured
+- **No custom incident fields** — `proofpointtap*` custom fields replaced by `socfw*` fields read natively by `Foundation_-_Normalize_Email_V3`
+- **No layouts** — not included in this pack version
 
 ---
 
-## 🔗 Use Case Compatibility
+## Analyst Benefits
 
-This pack is intended for the following SOC use cases:
-
-- **Email Threat Investigation and Response**
-- **Phishing Detection and Triage**
-- **User-Centric Threat Hunting**
-- **SOC Workflow Automation**
+- **Reduced alert volume** — threat status filter eliminates benign deliveries before alert creation; only `active` or `malicious` threats generate alerts
+- **Cross-source case grouping** — `actor_effective_username` (recipient), `action_file_sha256` (attachment hash), `dns_query_name`, and `action_remote_ip` enable XSIAM to group related email and endpoint alerts into the same case automatically
+- **NIST IR lifecycle integration** — `socfw*` fields feed `Foundation_-_Normalize_Email_V3` directly, enabling the full Analysis → Containment → Eradication → Recovery chain without manual triage
+- **XDM story stitching** — `xdm.source.ipv4 = clickIP` and `xdm.source.user.username = recipient` feed XSIAM network and identity story engines across sources
 
 ---
 
-## ⚙️ Integration Requirements
+## Requirements
 
-Before using this pack, ensure the following:
-
-- Cortex XSIAM tenant is active and has:
-  - **Proofpoint TAP integration** configured and operational
-
-> ✅ **Note**: Data from Proofpoint TAP is automatically normalized into the XDM schema through the mappers included in this pack. No additional normalization setup is required.
+- Cortex XSIAM tenant with Proofpoint TAP v2 data flowing into `proofpoint_tap_v2_generic_alert_raw`
+- SOC Optimization Framework pack (`soc-optimization-unified`) installed
 
 ---
 
-## 🛠️ How to Use
+## Installation
 
-1. Clone this repository to your local environment.
-2. Use the [Demisto “XSOAR” SDK](https://github.com/demisto/demisto-sdk) to upload the content into your Cortex XSIAM tenant. Ex: `demisto-sdk upload -x -z -i ../Packs/soc-proofpoint-tap`
-3. Choose the correlation rule(s) most applicable to your environment:
-   - **Proofpoint Only**: Detects threats based solely on TAP telemetry.
-   - **Proofpoint + CrowdStrike**: Enriches TAP alerts with endpoint context for higher fidelity detection.
-4. Deploy layouts, mappers, and data models using the Content Management interface.
-5. Tune correlation rules as needed to fit your threat model and data sources.
+```bash
+demisto-sdk upload -i Packs/SocFrameworkProofPointTap
+```
+
+See `POST_CONFIG_README.md` for required manual steps after installation.
 
 ---
 
-## 🤝 Contributing
+## Related Resources
 
-Contributions to improve or extend this pack are welcome. Please submit a pull request or open an issue with suggestions, bugs, or feature requests.
-
----
-
-## 📚 Related Resources
-
+- [SOC Optimization Framework](https://github.com/Palo-Cortex/secops-framework)
 - [Proofpoint TAP API Documentation](https://threatinsight.proofpoint.com)
 - [Cortex XSIAM Documentation](https://docs.paloaltonetworks.com/cortex/cortex-xsiam)
-- [SOC Optimization Framework](https://github.com/Palo-Cortex/soc-optimization-framework)
-- [Email Threat Playbooks (SOC Phishing)](https://github.com/Palo-Cortex/soc-phishing)
-
----
-
-## 🏷️ Tags
-
-`Proofpoint` `TAP` `Email Security` `Phishing` `XSIAM` `SOC` `Automation` `Threat Detection`
