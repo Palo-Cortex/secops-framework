@@ -30,8 +30,7 @@ correct settings. You only need to supply credentials and enable it.
 7. **Enable** the instance
 
 > **One instance is sufficient.** The integration is configured to fetch all event types
-> (messages delivered and clicks permitted) from a single instance. Do not create separate
-> instances per event type.
+> (messages delivered and clicks permitted) from a single instance.
 
 ---
 
