@@ -1,0 +1,126 @@
+rule_id: 0
+name: SOC MDO365 - Email Threat Detected
+fromversion: 6.10.0
+description: >
+  Detects high-confidence email threats from Microsoft Defender for Office 365
+  (Graph Security Alerts). Fires on high/medium-severity alerts in the
+  InitialAccess and LateralMovement categories with actionable statuses (new,
+  inProgress, queued, running, partiallyRemediated). Maps raw Graph Security
+  Alert fields to fw_email_* and socfwemailthreat* alert fields consumed by
+  Foundation_-_Normalize_Email_V3. Groups with SOC Proofpoint TAP - Threat
+  Detected via shared fw_email_* namespace. Groups with SOC Microsoft Graph
+  Defender EndPoint via shared incidentId on the Microsoft Security Graph.
+  Suppressed 24h per emailmessageid (providerAlertId) to prevent duplicate
+  alerts from Microsoft auto-remediation sequences.
+
+  Value Drivers: VD1 (Reduce Risk) — MTTD via Analysis.verdict timestamp.
+                 VD3 (Operational Efficiency) — automation % via value_tags.
+
+  SOC Challenges: Repetitive Workflows (auto-triage of MDO365 email alert bursts).
+                  Lack of Visibility (normalizes MDO365 into Email category
+                  alongside Proofpoint for unified case view).
+
+type: SCHEDULED
+tags:
+  - Email
+  - InitialAccess
+  - LateralMovement
+  - T1566
+  - T1566.001
+  - T1566.002
+  - T1534
+  - MicrosoftDefenderForOffice365
+  - SOCFramework
+
+xql_query: |
+  config case_sensitive = false
+  | dataset = msft_graph_security_alerts_raw
+  | filter serviceSource = "microsoftDefenderForOffice365"
+      and severity in ("high", "medium")
+      and status in ("new", "inProgress", "queued", "running", "partiallyRemediated")
+      and category in ("InitialAccess", "LateralMovement")
+  | alter
+      vendor_name                = "Microsoft",
+      product_name               = productName,
+      fw_email_alert_id          = id,
+      fw_email_incident_id       = to_string(incidentId),
+      fw_email_subject           = title,
+      fw_email_threat_severity   = severity,
+      fw_email_category          = category,
+      fw_email_mitre_techniques  = arraystring(mitreTechniques -> [], ","),
+      fw_email_detection_source  = detectionSource,
+      fw_email_service_source    = serviceSource,
+      fw_email_tenant_id         = tenantId,
+      fw_email_alert_url         = alertWebUrl,
+      fw_email_description       = description,
+      fw_email_first_activity    = firstActivityDateTime,
+      fw_email_last_activity     = lastActivityDateTime,
+      emailmessageid             = providerAlertId,
+      socfwemailthreat_type      = category,
+      socfwemailthreat_status    = status,
+      socfwemailthreat_source    = serviceSource,
+      socfwemailthreat_detection = detectionSource
+  | fields
+      _time,
+      vendor_name,
+      product_name,
+      fw_email_alert_id,
+      fw_email_incident_id,
+      fw_email_subject,
+      fw_email_threat_severity,
+      fw_email_category,
+      fw_email_mitre_techniques,
+      fw_email_detection_source,
+      fw_email_service_source,
+      fw_email_tenant_id,
+      fw_email_alert_url,
+      fw_email_description,
+      fw_email_first_activity,
+      fw_email_last_activity,
+      emailmessageid,
+      socfwemailthreat_type,
+      socfwemailthreat_status,
+      socfwemailthreat_source,
+      socfwemailthreat_detection
+
+action: ALERTS
+alert_name: >
+  [Email] $fw_email_service_source | $fw_email_category | $fw_email_subject
+alert_description: $fw_email_description
+alert_domain: DOMAIN_SECURITY
+alert_category: User Defined
+user_defined_category: fw_email_category
+user_defined_severity: fw_email_threat_severity
+severity: User Defined
+dataset: alerts
+execution_mode: REAL_TIME
+is_enabled: false
+suppression_enabled: true
+suppression_duration: 86400
+suppression_fields:
+  - emailmessageid
+alert_fields:
+  fw_email_alert_id: fw_email_alert_id
+  fw_email_incident_id: fw_email_incident_id
+  fw_email_subject: fw_email_subject
+  fw_email_threat_severity: fw_email_threat_severity
+  fw_email_category: fw_email_category
+  fw_email_mitre_techniques: fw_email_mitre_techniques
+  fw_email_detection_source: fw_email_detection_source
+  fw_email_service_source: fw_email_service_source
+  fw_email_tenant_id: fw_email_tenant_id
+  fw_email_alert_url: fw_email_alert_url
+  fw_email_description: fw_email_description
+  fw_email_first_activity: fw_email_first_activity
+  fw_email_last_activity: fw_email_last_activity
+  emailmessageid: emailmessageid
+  socfwemailthreat_type: socfwemailthreat_type
+  socfwemailthreat_status: socfwemailthreat_status
+  socfwemailthreat_source: socfwemailthreat_source
+  socfwemailthreat_detection: socfwemailthreat_detection
+  vendor: vendor_name
+  product: product_name
+  externallink: fw_email_alert_url
+global_rule_id: SOC MDO365 - Email Threat Detected
+mapping_strategy: CUSTOM
+lookup_mapping: []
