@@ -276,9 +276,6 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install demisto-sdk
-        run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
-
       - name: Build zip + create prerelease + upload modified xsoar_config.json
         id: upload
         env:
@@ -286,7 +283,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
         run: |
           python - << 'PY'
           import json, os, subprocess, tempfile
@@ -296,7 +292,6 @@ jobs:
           changed     = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
           repo        = os.environ["REPO"]
           pr_number   = os.environ["PR_NUMBER"]
-          repo_root   = Path.cwd()
           dist        = Path("dist")
           dist.mkdir(exist_ok=True)
 
@@ -329,31 +324,18 @@ jobs:
               pr_asset = f"{pack}-v{version}-pr{pr_number}.zip"
               pr_zip_url = f"https://github.com/{repo}/releases/download/{pr_tag}/{pr_asset}"
 
-              # Build the zip
-              sentinel = dist / ".sentinel"
-              sentinel.touch()
-              sentinel_mtime = sentinel.stat().st_mtime
-
-              run([
-                  "demisto-sdk", "prepare-content",
-                  "-i", str(pack_path),
-                  "-o", str(dist),
-                  "--marketplace", "marketplacev2",
-              ], cwd=str(repo_root))
-
-              sentinel.unlink(missing_ok=True)
-
-              created = sorted(
-                  (z for z in dist.rglob("*.zip") if z.stat().st_mtime >= sentinel_mtime),
-                  key=lambda p: p.stat().st_mtime
-              )
-              if not created:
-                  raise RuntimeError(f"{pack}: prepare-content produced no zip")
-
               final = dist / pr_asset
               if final.exists():
                   final.unlink()
-              created[-1].rename(final)
+
+              # Plain zip of the pack directory — preserves all XSIAM content types
+              # (CorrelationRules, ModelingRules, etc.) without SDK transformation.
+              run(["zip", "-r", str(final.resolve()), pack],
+                  cwd=str(packs_dir.resolve()))
+
+              if not final.exists():
+                  raise RuntimeError(f"{pack}: zip produced no output at {final}")
+
               print(f"Built: {final}")
 
               # Delete existing prerelease if present, then create fresh

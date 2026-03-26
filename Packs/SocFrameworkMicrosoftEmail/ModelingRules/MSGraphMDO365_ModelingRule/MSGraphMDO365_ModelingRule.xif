@@ -1,0 +1,13 @@
+[MODEL:dataset="msft_graph_security_alerts_raw"]
+filter serviceSource = "microsoftDefenderForOffice365"
+| alter
+    xdm.event.id                  = id,
+    xdm.event.description         = coalesce(description, title),
+    xdm.event.original_event_type = serviceSource,
+    xdm.alert.name                = title,
+    xdm.alert.category            = category,
+    xdm.alert.original_alert_id   = providerAlertId,
+    xdm.alert.severity            = severity,
+    xdm.observer.product          = productName,
+    xdm.observer.vendor           = "Microsoft",
+    xdm.network.http.url          = alertWebUrl;
