@@ -4,12 +4,9 @@
 
 ## Step 1 — Configure the Microsoft Graph Integration Instance
 
-1. Navigate to **Settings → Configurations → Data Collection → Automation & Feed Integrations**
-2. Find the Microsoft Graph (O365 Data Source) instance and open its configuration
+1. Navigate to **Settings → Data Sources & Integrations**
+2. Office 365 Data Source
 3. Enable **Fetch events using Microsoft Graph Alerts v2**
-4. Leave **Classifier** and **Mapper (incoming)** empty
-5. Click **Test**, then **Save & Exit**
-6. Confirm the instance is **enabled**
 
 ---
 
