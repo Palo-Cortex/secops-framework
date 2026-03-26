@@ -1,67 +1,72 @@
-# SOC Trend Micro Vision One – Product Enhancement Configuration
+# SOC Trend Micro Vision One — Post-Installation Configuration
 
-This repository contains configuration assets and playbooks that enhance the **Trend Micro Vision One** integration within Cortex XSIAM.  
-These enhancements improve visibility, triage workflows, and automation by aligning Vision One alerts to the SOC Framework and MITRE ATT&CK tactics.
-
----
-
-## 📌 Overview
-
-Trend Micro Vision One provides advanced XDR telemetry across endpoint, email, network, and identity sources.  
-However, its alerts often require normalization, field mapping, and correlation to fully align with XSIAM workflows.
-
-This enhancement package enables:
-
-- A custom layout rule for Vision One alerts
-- MITRE tactic–aligned correlation rules for early incident grouping
-- A fallback correlation rule for unmapped or generic alerts
+Complete these steps after uploading the pack to your XSIAM tenant.
 
 ---
 
-## 🚀 Getting Started
+## Step 1 — Configure the Layout Rule
 
-### Step 1: Create a Layout Rule for Vision One Alerts
+Create a layout rule so Vision One alerts display the enriched analyst layout.
 
-To improve analyst efficiency and ensure consistent presentation of Vision One data:
+**Go to:** Settings → Configurations → Object Setup → Issues → Layout Rules
 
-Go To: **Settings → Configurations → Object Setup → Issues → Layout Rules**
-
-- **Rule Name:** `Trend Micro Vision One Alert Layout`
-- **Filter Criteria:**
-  - Alert Source: Equals `Tags: DS:Trend Micro Vision One V3`
-- **Layout To Display:**
-  - Layout: Equals `SOC Trend Micro Vision One IR`
-
-#### 🖼️ Layout Rule Visualization
-
-![Vision One Layout Rules](images/TrendVisionOneLayout.png)
-
-> This rule ensures that analysts immediately see the most relevant Vision One alert data in context.
+| Field | Value |
+|---|---|
+| Rule Name | `Trend Micro Vision One Alert Layout` |
+| Filter Criteria | Alert Source — Tags: `DS:Trend Micro Vision One V3` |
+| Layout to Display | `SOC Trend Micro Vision One IR` |
 
 ---
 
-### Step 2: Enable MITRE Tactic–Based Correlation Rules
+## Step 2 — Enable the Correlation Rule
 
-Enable correlation rules that group Vision One alerts into incidents based on their mapped MITRE ATT&CK tactic.
+**Go to:** Detection & Correlation → Correlation Rules
 
-Go To: **Detection & Correlation → Correlation Rules**
+Enable `SOC Trend Micro Vision One V3`.
 
-Enable the following rules (Disable any default rules from Integration Install):
-
-![Vision One Layout Rules](images/TrendVisionCorrelations.png)
+> **Important:** Disable any default correlation rules installed by the native Trend Micro Vision One marketplace integration. Running both simultaneously will produce duplicate alerts.
 
 ---
 
-## 🧠 Why This Matters
+## Step 3 — Verify SOC Framework Routing
 
-These configurations align directly with the **XSIAM FieldOps Model** and **SOC Optimization Framework**, delivering:
+Vision One alerts are classified as **Endpoint** category by the SOC Framework's product classification. Confirm the following in `SOCProductCategoryMap_V3`:
 
-| Value Driver          | Capability Delivered                                              |
-|------------------------|-------------------------------------------------------------------|
-| Transformation         | Consistent, enriched layouts for all Vision One alerts            |
-| Risk & Resiliency      | MITRE mapping improves visibility and detection coverage          |
-| Automation & Efficacy  | Correlation reduces alert fatigue and improves investigation speed |
+- Dataset key: `trend_micro_vision_one_v3_generic_alert` → Category: `Endpoint`
+
+If the key is missing, add it. The framework will fall through to a default category otherwise.
 
 ---
 
-For questions or help extending this pack, contact your **Palo Alto Networks Field Team** or the **SOC Framework maintainers**.
+## Step 4 — Confirm Shadow Mode is Active
+
+All Containment, Eradication, and Recovery actions for the Endpoint category run in Shadow Mode by default. Verify in `SOCFrameworkActions_V3` that endpoint actions have `shadow_mode: true`.
+
+In Shadow Mode, every action is logged to the warroom and written to `xsiam_socfw_ir_execution_raw` with `execution_mode: shadow` — but no vendor command is sent to Vision One. This lets you validate the full NIST IR lifecycle and measure MTTD/MTTC/MTTR during a PoV without touching production endpoints.
+
+**To go live:** Set `shadow_mode: false` per action in `SOCFrameworkActions_V3`. This is the 1-flip production path.
+
+---
+
+## Step 5 — Validate End-to-End
+
+1. Generate or replay a Vision One workbench alert
+2. Confirm it appears in XSIAM with the correct layout
+3. Confirm the SOC Framework playbook triggered (check war room)
+4. Confirm MITRE tactic and technique are populated on the alert
+5. Confirm `xsiam_socfw_ir_execution_raw` has a record for the alert with `execution_mode: shadow`
+
+---
+
+## Value Driver Alignment
+
+| What This Enables | Value Driver |
+|---|---|
+| Automated triage with MITRE routing — analyst sees verdict without manual investigation | VD3 — Operational Efficiency |
+| Full lifecycle timestamps in Shadow Mode — MTTD/MTTC/MTTR demonstrable during PoV | VD1 — Reduce Risk |
+| Single correlation rule replaces per-tactic rule sprawl | VD2 — Simplify Operations |
+| 1-flip production path — zero changes to playbooks or rules to go live | VD2 — Simplify Operations |
+
+---
+
+For questions or support, contact your Palo Alto Networks Field Team or the SOC Framework maintainers at [github.com/Palo-Cortex/secops-framework](https://github.com/Palo-Cortex/secops-framework).
