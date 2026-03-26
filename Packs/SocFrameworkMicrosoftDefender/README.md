@@ -18,7 +18,7 @@ correlation rule and XDM modeling rule feeding enriched endpoint alerts into the
 ## Prerequisites
 
 - Cortex XSIAM tenant with Microsoft Graph Security Alerts data flowing into `msft_graph_security_alerts_raw`
-- Microsoft Graph (O365 Data Source) integration instance configured with **Microsoft Graph Alerts v2** alert fetch enabled
+- Office 365 Data Source configured with **Microsoft Graph Alerts v2** alert fetch enabled
 - Microsoft Defender Advanced Threat Protection marketplace pack installed (for automation commands)
 - SOC Optimization Framework pack (`soc-optimization-unified`) installed
 - `ds_msft_graph_security_alerts` entry in `SOCProductCategoryMap_V3` with `"Microsoft Defender for Endpoint": "Endpoint"` in `product_map`
