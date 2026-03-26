@@ -520,6 +520,83 @@ TESTS = {
         ],
     },
 
+    "PM1": {
+        "name": "Pack Manager — list returns catalog rows",
+        "category": "happy",
+        "replay": None,
+        "wait_seconds": 0,
+        "manual_test": True,
+        "steps": [
+            "Run: !SOCFWPackManager action=list",
+            "Expected: table with >= 1 pack row, showing: X-Y of Z",
+            "Verify: soc-optimization-unified present in output",
+        ],
+    },
+
+    "PM2": {
+        "name": "Pack Manager — sync-tags first run writes version",
+        "category": "happy",
+        "replay": None,
+        "wait_seconds": 30,
+        "checks": [
+            {
+                "id": "PM2-1",
+                "desc": "value_tags dataset has >= 50 rows after sync",
+                "query": "dataset = value_tags | comp count() as cnt | limit 1",
+                "assert": lambda r: assert_count_gte(r, "cnt", 50),
+            },
+        ],
+        "manual_prereq": "Run !SOCFWPackManager action=sync-tags before running this check.",
+    },
+
+    "PM3": {
+        "name": "Pack Manager — sync-tags second run detects up-to-date",
+        "category": "happy",
+        "replay": None,
+        "wait_seconds": 0,
+        "manual_test": True,
+        "steps": [
+            "1. Run: !SOCFWPackManager action=sync-tags",
+            "   Expected: 'value_tags is already up to date'",
+            "   Verify: version hash in output matches previous run",
+            "2. Run: !SOCFWPackManager action=sync-tags force=True",
+            "   Expected: 'value_tags force-refreshed' — rows uploaded again",
+        ],
+    },
+
+    "PM4": {
+        "name": "Pack Manager — configure re-runs integration instances",
+        "category": "happy",
+        "replay": None,
+        "wait_seconds": 0,
+        "manual_test": True,
+        "steps": [
+            "Run: !SOCFWPackManager action=configure pack_id=soc-optimization-unified",
+            "Expected war room output:",
+            "  - xsoar_config loaded",
+            "  - Integration instances summary: attempted >= 1",
+            "  - configure.done",
+            "No pack install steps should appear (no 'packs.custom' stage)",
+        ],
+    },
+
+    "PM5": {
+        "name": "Pack Manager — apply installs and configures a pack",
+        "category": "happy",
+        "replay": None,
+        "wait_seconds": 0,
+        "manual_test": True,
+        "steps": [
+            "Run: !SOCFWPackManager action=apply pack_id=SocFrameworkTrendMicroVisionOne",
+            "Expected war room stages in order:",
+            "  1. manifest.summary — custom ZIP URLs: 1",
+            "  2. packs.custom.result — Pack *-v*.*.*.zip installed",
+            "  3. configure.integrations.summary — attempted: 1",
+            "  4. docs.post — POST-INSTALL / POST-CONFIG MANUAL STEPS",
+            "Verify: Settings > Custom Content shows SocFrameworkTrendMicroVisionOne",
+        ],
+    },
+
     "N10": {
         "name": "Non-ASCII in correlation rule YAML — upload fails with error 101704",
         "category": "unhappy",
