@@ -1,170 +1,119 @@
-# SOCFWPackManager — Command Reference
+# SOCFWPackManager — Full Command Reference
 
-This document provides a complete reference for all supported **SOCFWPackManager** commands and arguments.
-
-All commands are executed from the **Playground**.
+All commands run from the XSIAM **Playground**.
 
 ---
 
-## Command Syntax
+## Syntax
 
-`!SOCFWPackManager <arguments>`
-
-All behavior is controlled via arguments.
-
----
-
-## Core Arguments
-
-### `action` (required)
-Specifies the operation to perform.
-
-**Supported values:**
-- `list`
-- `apply`
+```
+!SOCFWPackManager action=<action> [arguments]
+```
 
 ---
 
-### `pack_id`
-Specifies the SOC Framework pack to operate on.
+## `action` (required)
 
-- Required for `action=apply`
-- Optional for `action=list` when filtering
-
-**Example:**
-`pack_id=soc-framework-unified`
-
----
-
-### `pre_config_done`
-Confirms that required pre-install configuration has been completed.
-
-- Type: `true | false`
-- Default: `false`
-- Required when applying the SOC Framework Manager pack itself
-
-**Example:**
-`pre_config_done=true`
+| Value | Description |
+|---|---|
+| `list` | Browse the SOC Framework pack catalog |
+| `apply` | Install or update a pack and apply its configuration |
+| `configure` | Re-run configuration only (no pack install) |
+| `sync-tags` | Update the `value_tags` lookup dataset |
 
 ---
 
-## Actions
+## `action=list` arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `filter` | — | Case-insensitive text filter on id, display_name, path |
+| `limit` | `50` | Rows per page |
+| `offset` | `0` | Row offset for paging |
+| `sort_by` | `id` | Column to sort: `id`, `display_name`, `version`, `visible`, `path` |
+| `sort_dir` | `asc` | `asc` or `desc` |
+| `fields` | `id,display_name,version,visible,path` | Columns to display (comma-separated) |
+| `show_total` | `true` | Show "X-Y of Z" paging info |
+| `include_hidden` | `false` | Show packs marked `visible=false` in the catalog |
+| `catalog_url` | GitHub main branch | Override the `pack_catalog.json` URL |
 
 ---
 
-## `action=list`
+## `action=apply` arguments
 
-Lists SOC Framework packs available from the configured catalog.
-
-### Basic Usage
-`!SOCFWPackManager action=list`
-
----
-
-### Filtered Listing (Development & Testing)
-
-You can narrow the list using optional filters.
-
-#### Filter by Pack ID (partial match)
-`!SOCFWPackManager action=list pack_id=soc-framework`
-
-#### Filter by Environment (if supported by catalog)
-`!SOCFWPackManager action=list environment=main`
-
-`!SOCFWPackManager action=list environment=develop`
-
-#### Filter by Category / Type (if supported)
-`!SOCFWPackManager action=list category=enhancement`
-
-> Useful during development when validating which packs are exposed in a given environment.
+| Argument | Default | Description |
+|---|---|---|
+| `pack_id` | **required** | Pack ID from the catalog (e.g. `soc-optimization-unified`) |
+| `pre_config_done` | `false` | Set to `true` to proceed past the pre-config documentation gate |
+| `pre_config_gate` | `true` | Set to `false` to skip the pre-config stop entirely |
+| `install_marketplace` | `true` | Install Marketplace dependencies listed in `xsoar_config.json` |
+| `apply_configure` | `true` | Apply integration/job/lookup config from `xsoar_config.json` |
+| `configure_integrations` | `true` | Create or update integration instances |
+| `configure_jobs` | `true` | Create scheduled jobs |
+| `configure_lookups` | `true` | Create and populate lookup datasets |
+| `overwrite_lookup` | `false` | Overwrite existing lookup data (default: skip if data present) |
+| `dry_run` | `false` | Resolve manifest and print plan without installing anything |
+| `include_hidden` | `false` | Include packs marked `visible=false` |
+| `include_doc_content` | `false` | Embed pre/post-config doc preview in war room output |
+| `retry_sleep_seconds` | `15` | Seconds between retry attempts |
+| `debug` | `false` | Enable verbose war room output |
+| `catalog_url` | GitHub main branch | Override the `pack_catalog.json` URL |
 
 ---
 
-## `action=apply`
+## `action=configure` arguments
 
-Installs or updates a SOC Framework pack by ID.
+Shares all configuration arguments with `action=apply`. `pack_id` is required. No pack install is performed.
 
-### Basic Usage
-`!SOCFWPackManager action=apply pack_id=<pack_id>`
-
-**Example:**
-`!SOCFWPackManager action=apply pack_id=soc-framework-unified`
-
----
-
-### Apply with Pre-Config Confirmation
-
-Required when installing **SOC Framework Manager** itself.
-
-`!SOCFWPackManager action=apply pack_id=soc-framework-manager pre_config_done=true`
+| Argument | Default | Description |
+|---|---|---|
+| `pack_id` | **required** | Pack to fetch `xsoar_config.json` for |
+| `configure_integrations` | `true` | Create or update integration instances |
+| `configure_jobs` | `true` | Create scheduled jobs |
+| `configure_lookups` | `true` | Create and populate lookup datasets |
+| `overwrite_lookup` | `false` | Overwrite existing lookup data |
+| `debug` | `false` | Enable verbose war room output |
 
 ---
 
-### Development & Testing Options
+## `action=sync-tags` arguments
 
-#### Dry Run (no changes applied)
-Runs validation and planning logic without installing anything.
+| Argument | Default | Description |
+|---|---|---|
+| `force` | `false` | Upload even if the content hash matches the stored version |
+| `tags_url` | SOC Framework main branch | Override the `value_tags.json` source URL |
+| `debug` | `false` | Enable verbose war room output |
 
-`!SOCFWPackManager action=apply pack_id=soc-framework-unified dry_run=true`
+### How versioning works
 
----
+On each sync, the content hash of `value_tags.json` is computed and compared against the version stored in the `SOCFWTagsVersion` XSIAM List (Settings → Advanced → Lists). If the hashes match, the upload is skipped and the current version is reported. On update, the new hash and timestamp are stored.
 
-#### Include Hidden / Dev Packs
-Lists or applies packs marked as hidden or development-only.
-
-`!SOCFWPackManager action=list include_hidden=true`
-
-`!SOCFWPackManager action=apply pack_id=soc-framework-unified include_hidden=true`
-
----
-
-#### Skip Validation (Advanced / Testing)
-Skips certain validation steps during development.
-
-`!SOCFWPackManager action=apply pack_id=soc-framework-unified skip_validation=true`
-
-> Intended for development and testing only.
+```
+!SOCFWPackManager action=sync-tags              # check and update if changed
+!SOCFWPackManager action=sync-tags force=true   # always upload
+```
 
 ---
 
-#### Retry Behavior (Large Packs / Network Issues)
+## Integration Instance Setup
 
-`retry_count` – Number of retries  
-`retry_sleep_seconds` – Delay between retries
+`action=apply` requires the **SOC Framework Pack Manager** integration instance to be configured. This stores credentials used to POST packs directly to the XSIAM content bundle endpoint — no `core-api-*` commands required.
 
-**Example:**
-`!SOCFWPackManager action=apply pack_id=soc-framework-unified retry_count=5 retry_sleep_seconds=15`
+**Setup steps:**
 
----
+1. Go to **Settings → API Keys** → **New Key** → Standard
+2. Copy the generated key
+3. Note the **Key ID** from the ID column
+4. Click **Copy API URL** — this is your Server URL
+5. Configure the **SOC Framework Pack Manager** integration instance with these three values
 
-## Common Installation Flow
-
-### 1. List available packs
-`!SOCFWPackManager action=list`
-
----
-
-### 2. Install the base framework
-`!SOCFWPackManager action=apply pack_id=soc-framework-unified`
+The integration instance name must be **SOCFWPackManager** (default) for the script to locate it automatically.
 
 ---
 
-### 3. Install product enhancement packs
-`!SOCFWPackManager action=apply pack_id=soc-crowdstrike-falcon`
+## Notes
 
-> Product enhancement packs require the corresponding **Marketplace integration**
-> to be installed and configured separately.
-
----
-
-## Notes & Best Practices
-
-- `apply` is designed to be **safe to re-run**
-- Marketplace integrations are **not installed automatically**
-- Behavior varies by pack depending on what automation it provides
-- Development flags should not be used in production unless explicitly required
-
----
-
-This document is intended as a **quick reference**.  
-For installation prerequisites, see **README_PRE.md**.
+- `apply` and `configure` are **idempotent** — integration instances that already exist are detected and skipped rather than duplicated
+- Lookup datasets with existing data are not overwritten unless `overwrite_lookup=true`
+- `dry_run=true` prints the full install plan without executing anything — useful for validating pack IDs and manifest resolution before committing
+- Hidden packs (`visible=false` in the catalog) are internal or deprecated packs; use `include_hidden=true` only when explicitly working with them
