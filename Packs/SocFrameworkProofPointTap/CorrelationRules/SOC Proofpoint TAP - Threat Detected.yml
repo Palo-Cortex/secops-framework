@@ -13,7 +13,7 @@ alert_fields:
   action_file_sha256: proofpointsha256
   action_file_md5: proofpointmd5
   action_file_name: proofpointfilename
-  filehash: proofpointsha256            # restored from 1.0.4 -- generic hash field for WildFire
+  filehash: proofpointsha256
 
   # -- Network indicators -----------------------------------------------------
   action_remote_ip: senderIP
@@ -29,7 +29,6 @@ alert_fields:
   fw_email_subject: subject
 
   # -- SOC Framework email fields -- read by Foundation_-_Normalize_Email_V3 --
-  # Replaces proofpointtap* custom fields (classifier/mapper pattern).
   socfwemaildeliveryaction: delivery_action
   socfwemaildirection: direction
   socfwemailthreaturl: threat_urls
@@ -42,6 +41,42 @@ alert_fields:
   socfwemailcampaignid: campaignId
   socfwemailclickip: clickIP
   socfwemailclicktime: clickTime
+
+  # -- Legacy proofpointtap* fields -------------------------------------------
+  # Supports soc-phishing-investigation-1.0.5 playbooks and Proofpoint TAP layouts.
+  # Remove when old phishing pack is decommissioned from all tenants.
+  #
+  # Sourced from raw dataset fields:
+  proofpointtapcampaignid:     campaignId
+  proofpointtapclickip:        clickIP
+  proofpointtapclicktime:      clickTime
+  proofpointtapguid:           GUID
+  proofpointtapheadersfrom:    headerFrom
+  proofpointtapheadersreplyto: headerReplyTo
+  proofpointtapid:             id
+  proofpointtapimposterscore:  impostorScore
+  proofpointtapmalwarescore:   malwareScore
+  proofpointtapmessageid:      messageID
+  proofpointtapmessageparts:   messageParts
+  proofpointtapmessagesize:    messageSize
+  proofpointtapphishingscore:  phishScore
+  proofpointtapreplytoaddress: replyToAddress
+  proofpointtapsenderip:       senderIP
+  proofpointtapsmtpsender:     sender
+  proofpointtapspamscore:      spamScore
+  proofpointtapsubject:        subject
+  proofpointtapthreatstatus:   threatStatus
+  proofpointtapthreattime:     threatTime
+  proofpointtaptype:           type
+  proofpointtapxmailer:        xmailer
+  #
+  # Sourced from bc_* XQL alters (first-element extractions):
+  proofpointtapthreatid:       bc_threatid
+  proofpointtapclassification: bc_classification
+  proofpointtapsuspiciousurl:  bc_threaturl
+  proofpointtapthreaturl:      bc_threaturl
+  proofpointtapthreatinfomap:  bc_threatinfomap
+
 alert_name: $alert_name
 alert_type: null
 crontab: null
@@ -50,13 +85,15 @@ description: >-
   Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted.
   Fires on active or malicious threat status only. Suppression is per GUID to preserve
   full blast-radius visibility for lateral risk detection.
-  Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter,
-  not rule splitting. Classifier and mapper pattern replaced by socfw* alert_fields.
+  Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter.
+  Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy
+  soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields).
+  Legacy fields marked for removal when old phishing pack is decommissioned.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC Proofpoint TAP - Threat Detected
 investigation_query_link: ''
-is_enabled: false    # Deploy dark alongside 1.0.4 rules -- flip to true when ready to cut over
+is_enabled: false
 lookup_mapping: []
 mapping_strategy: CUSTOM
 mitre_defs:
@@ -68,6 +105,31 @@ name: SOC Proofpoint TAP - Threat Detected
 search_window: null
 severity: User Defined
 simple_schedule: null
+# Suppression design: GUID / 24 hours
+# GUID is assigned per individual email delivery event in Proofpoint TAP.
+# A mass email to N recipients generates N distinct GUIDs. Suppressing on GUID
+# scopes deduplication to a single delivery event only -- it has zero effect on
+# any other recipient's alert. This solves the prior problem where suppression
+# on sender/recipient fields caused one bulk email to silence threat alerts for
+# all other recipients from the same sender for 1 hour.
+# 24-hour window: TAP delivers events in batches and can replay the same event
+# across multiple batch cycles. 24 hours covers the full TAP replay window and
+# prevents duplicate alerts from the same delivery event being re-ingested.
+# Old suppression (1.0.4): fromAddress + headerFrom + toAddresses + sender +
+# ccAddresses / 1 hour -- caused mass email blast-radius suppression.
+# -- Suppression: GUID / 24 hours -------------------------------------------
+# GUID is assigned per individual email delivery event in Proofpoint TAP.
+# A mass email to N recipients generates N distinct GUIDs. Suppressing on GUID
+# scopes deduplication to a single delivery event only -- zero effect on any
+# other recipient's alert. This solves the prior problem where suppressing on
+# sender/recipient fields caused one bulk marketing email to silence threat
+# alerts for every other recipient from the same sender for the full 1-hour
+# window. The rule was disabled because of this behavior.
+# 24-hour window: TAP delivers events in batches and can replay the same
+# event across multiple batch cycles. 24 hours covers the full TAP replay
+# window and prevents duplicate alerts from the same delivery event.
+# Prior suppression (1.0.4): fromAddress + headerFrom + toAddresses + sender
+# + ccAddresses / 1 hour -- caused mass-email blast-radius suppression.
 suppression_duration: 24 hours
 suppression_enabled: true
 suppression_fields:
@@ -79,29 +141,32 @@ xql_query: |
   /*
   Title:   SOC Proofpoint TAP - Threat Detected
   Dataset: proofpoint_tap_v2_generic_alert_raw
-  Version: 1.3.0
+  Version: 1.4.0
+  Changes v1.4.0:
+    - Added bc_* XQL alters: first-element extractions from threatsInfoMap matching
+      old 1.0.4 rule behavior (threatsInfoMap -> [0].field syntax)
+    - Added full proofpointtap* alert_fields block (27 fields) to support legacy
+      soc-phishing-investigation-1.0.5 playbooks and Proofpoint TAP layouts
+    - bc_threatinfomap uses json_extract (not scalar) to return parsed object,
+      enabling .threat and .threatType sub-key access from old playbooks
+    - All additions purely additive; no existing mappings changed
+    - Decommission path: remove bc_* alter block + proofpointtap* alert_fields
+      when soc-phishing-investigation-1.0.5 retired from all tenants
   Changes v1.3.0:
-    - Added id/ruleid, fixed fromversion 6.10.0->8.0.0, removed rule_id: 0
-    - Set is_enabled: false for side-by-side testing with 1.0.4 rules
-    - Restored filehash->proofpointsha256 (BC from 1.0.4)
+    - Set is_enabled: false for side-by-side testing
   Changes v1.2.1:
-    - Removed to_json_string() double-encoding bug (was nulling all threat fields)
-    - compress_window reduced 2h->30m (TAP batch delivery latency fix)
-    - Alert naming updated to [Email] prefix pattern
-    - Suppression changed from sender/header fields to GUID/24hr
+    - Removed to_json_string() double-encoding bug
+    - Suppression changed to GUID/24hr
   Changes v1.0.10 (initial):
-    - Consolidated 1.0.4 two-rule split (messages delivered + clicks permitted)
-      into single rule with threat status filter. One integration instance required.
-    - Replaced proofpointtap* custom incident fields (classifier pattern) with
-      socfw* fields read natively by Foundation_-_Normalize_Email_V3
+    - Consolidated 1.0.4 two-rule split into single rule
+    - Replaced proofpointtap* classifier/mapper with socfw* alert_fields
   */
   dataset = proofpoint_tap_v2_generic_alert_raw
 
   // Gate 1: event type
   | filter type in ("messages delivered", "clicks permitted")
 
-  // Gate 2: actionable threats only -- this is the primary volume control.
-  // Filters out benign/unresolved deliveries before alert generation.
+  // Gate 2: actionable threats only
   | alter threatsInfoMap_str = threatsInfoMap
   | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
   | filter (
@@ -125,7 +190,7 @@ xql_query: |
           "Proofpoint TAP - Message Delivered"
       )
 
-  // SOC Framework delivery action and direction
+  // SOC Framework: delivery action and direction
   | alter delivery_action = if(
       type = "messages delivered", "delivered",
       type = "clicks permitted",   "click_permitted",
@@ -135,7 +200,7 @@ xql_query: |
   )
   | alter direction = "inbound"
 
-  // Extract all threat attributes across multi-threat messages
+  // SOC Framework: all threats as multi-value comma-separated strings
   | alter
       threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
       classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
@@ -144,13 +209,27 @@ xql_query: |
       threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), coalesce(json_extract_scalar("@element", "$.threatUrl"), json_extract_scalar("@element", "$.threatURL"))), ", "),
       threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
 
-  // Extract attachment fields
+  // Attachment fields (all parts)
   | alter
       proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
       proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
       proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
 
-  // Domain extraction for DNS/URL grouping
+  // Domain extraction
   | alter
       domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
       dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")
+
+  // Legacy BC: first-element extractions matching old 1.0.4 rule behavior.
+  // Old rules used threatsInfoMap -> [0].field to get scalars and the first element object.
+  // bc_threatinfomap uses json_extract (not json_extract_scalar) to return a parsed object
+  // so old playbooks can access .threat and .threatType as sub-keys, exactly as before.
+  // Remove this block when soc-phishing-investigation-1.0.5 is decommissioned.
+  | alter
+      bc_threatid       = json_extract_scalar(threatsInfoMap_str, "$[0].threatID"),
+      bc_classification = json_extract_scalar(threatsInfoMap_str, "$[0].classification"),
+      bc_threaturl      = coalesce(
+          json_extract_scalar(threatsInfoMap_str, "$[0].threatUrl"),
+          json_extract_scalar(threatsInfoMap_str, "$[0].threatURL")
+      ),
+      bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
