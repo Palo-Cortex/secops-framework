@@ -1,0 +1,419 @@
+# ============================================================
+# SOC Framework Replay Scenario Manifest
+# Scenario: Turla Carbon — ProofPoint TAP + SentinelOne
+# ============================================================
+# Usage: python3 tools/replay_scenario.py \
+#          --manifest scenarios/turla_carbon_proofpoint_sentinelone.yml
+#
+# Shadow Mode: All C/E/R actions write to xsiam_socfw_ir_execution_raw
+#              with execution_mode: "shadow". No vendor commands fire
+#              until SOCFrameworkActions_V3 shadow_mode is flipped to false.
+#
+# Products activated: Email (ProofPoint TAP), Endpoint (SentinelOne)
+# Value Drivers: VD1 (MTTD/MTTC/MTTR), VD2 (Universal Command), VD3 (automation %)
+# ============================================================
+
+scenario_id: turla_carbon_proofpoint_sentinelone
+scenario_name: "Turla Carbon - ProofPoint TAP + SentinelOne"
+scenario_version: "1.0.0"
+author: "SOC Framework"
+description: >
+  Simulates the Turla Carbon APT kill chain with SentinelOne as the endpoint
+  detection platform. Demonstrates the Universal Command abstraction — same
+  SOC Framework Endpoint playbook path executes soc-isolate-endpoint against
+  SentinelOne with no playbook changes required vs. CrowdStrike variant.
+
+mitre_chain:
+  - tactic: "Initial Access"
+    tactic_id: "TA0001"
+    technique: "Phishing: Spearphishing Link"
+    technique_id: "T1566.002"
+  - tactic: "Execution"
+    tactic_id: "TA0002"
+    technique: "User Execution: Malicious Link"
+    technique_id: "T1204.001"
+  - tactic: "Persistence"
+    tactic_id: "TA0003"
+    technique: "Create or Modify System Process: Windows Service"
+    technique_id: "T1543.003"
+  - tactic: "Command and Control"
+    tactic_id: "TA0011"
+    technique: "Application Layer Protocol: Web Protocols"
+    technique_id: "T1071.001"
+  - tactic: "Lateral Movement"
+    tactic_id: "TA0008"
+    technique: "Remote Services: SMB/Windows Admin Shares"
+    technique_id: "T1021.002"
+  - tactic: "Collection"
+    tactic_id: "TA0009"
+    technique: "Archive Collected Data: Archive via Utility"
+    technique_id: "T1560.001"
+
+products_covered:
+  - product: ProofPoint TAP
+    soc_framework_category: Email
+    dataset: proofpoint_tap_raw
+
+  - product: SentinelOne
+    soc_framework_category: Endpoint
+    dataset: sentinelone_edr_raw
+
+value_drivers:
+  - VD1  # Reduce Risk — MTTD/MTTC/MTTR timestamp deltas in xsiam_socfw_ir_execution_raw
+  - VD2  # Simplify Ops — Universal Command handles S1 isolate/remediate + PP block uniformly
+  - VD3  # Efficiency — automation % across Email + Endpoint categories
+
+victim:
+  user: "gunter.weiss@skt.local"
+  display_name: "Gunter Weiss"
+  host: "WKSTN-GUNTER-01"
+  ip: "10.20.20.102"
+  domain: "SKT.LOCAL"
+  department: "Finance"
+
+iocs:
+  sender_ip: "198.51.100.45"
+  sender_email: "noreply@sktlocal.it"
+  c2_ip: "203.0.113.45"
+  c2_domain: "update.sktlocal.it"
+  c2_url_beacon: "http://203.0.113.45/update/check"
+  dropper_name: "NTFVersion.exe"
+  dropper_sha256: "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a"
+  dropper_md5: "d41d8cd98f00b204e9800998ecf8427e"
+  orchestrator_name: "mswmpeng.exe"
+  transport_dll: "msnethlp.dll"
+  staging_dir: "C:\\Windows\\Temp\\~DF4A"
+  lateral_target_host: "SRV-FILE-01"
+  lateral_target_ip: "10.20.20.50"
+
+events:
+
+  # ── EVENT 1 ── ProofPoint: Email Delivered ────────────────
+  - label: "ProofPoint TAP — Spearphish Delivered"
+    offset_seconds: 0
+    dataset: proofpoint_tap_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Email
+    mitre_technique_id: "T1566.002"
+    data:
+      type: "messages delivered"
+      GUID: "TAP-GUID-TURLA-DELIVERY-001"
+      id: "TAP-GUID-TURLA-DELIVERY-001"
+      messageID: "<turla-ntfversion-20251202-001@sktlocal.it>"
+      sender: "noreply@sktlocal.it"
+      senderIP: "198.51.100.45"
+      recipient: ["gunter.weiss@skt.local"]
+      toAddresses: ["gunter.weiss@skt.local"]
+      ccAddresses: []
+      subject: "Windows Security Update — Action Required"
+      headerFrom: "noreply@sktlocal.it"
+      headerReplyTo: "noreply@sktlocal.it"
+      replyToAddress: ["noreply@sktlocal.it"]
+      campaignId: "turla-carbon-spearphish-skt-2025"
+      threatStatus: "active"
+      threatTime: "T0-120s"
+      phishScore: 98
+      spamScore: 100
+      malwareScore: 0
+      impostorScore: 0
+      messageSize: 14825
+      completelyRewritten: true
+      policyRoutes: ["default_inbound"]
+      modulesRun: ["spam", "phish", "urldefense"]
+      QID: "TAP-2025120213000001"
+      threatsInfoMap:
+        - threatID: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+          threatStatus: "active"
+          classification: "phish"
+          threatType: "url"
+          threatUrl: "http://brieftragerin.skt.local/update/NTFVersion.exe"
+          threat: "http://brieftragerin.skt.local/update/NTFVersion.exe"
+      messageParts:
+        - contentType: "text/html"
+          disposition: "inline"
+          filename: ""
+          sandboxStatus: null
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 2 ── ProofPoint: User Clicks ────────────────────
+  - label: "ProofPoint TAP — User Click Permitted"
+    offset_seconds: 1200
+    dataset: proofpoint_tap_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Email
+    mitre_technique_id: "T1204.001"
+    data:
+      type: "clicks permitted"
+      GUID: "TAP-GUID-TURLA-CLICK-002"
+      id: "TAP-GUID-TURLA-CLICK-002"
+      messageID: "<turla-ntfversion-20251202-001@sktlocal.it>"
+      sender: "noreply@sktlocal.it"
+      senderIP: "198.51.100.45"
+      recipient: "gunter.weiss@skt.local"
+      toAddresses: ["gunter.weiss@skt.local"]
+      ccAddresses: []
+      subject: "Windows Security Update — Action Required"
+      headerFrom: "noreply@sktlocal.it"
+      clickIP: "10.20.20.102"
+      campaignId: "turla-carbon-spearphish-skt-2025"
+      threatStatus: "active"
+      phishScore: 98
+      spamScore: 100
+      malwareScore: 95
+      impostorScore: 0
+      messageSize: 14825
+      policyRoutes: ["default_inbound"]
+      modulesRun: ["spam", "phish", "urldefense", "sandbox"]
+      QID: "TAP-2025120213200002"
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      threatsInfoMap:
+        - threatID: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+          threatStatus: "active"
+          classification: "phish"
+          threatType: "url"
+          threatUrl: "http://brieftragerin.skt.local/update/NTFVersion.exe"
+      messageParts:
+        - contentType: "application/octet-stream"
+          disposition: "attached"
+          filename: "NTFVersion.exe"
+          md5: "d41d8cd98f00b204e9800998ecf8427e"
+          sha256: "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a"
+          sandboxStatus: "threat"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 3 ── SentinelOne: Threat Detection — Dropper ────
+  - label: "SentinelOne — NTFVersion.exe Threat Detected"
+    offset_seconds: 1500
+    dataset: sentinelone_edr_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1204.001"
+    data:
+      alertId: "S1-ALERT-001-TURLA-EXEC"
+      threatId: "S1-THREAT-001-WKSTN-GUNTER"
+      threatName: "Turla.Carbon.Dropper"
+      threatType: "Static AI — Malicious PE"
+      classification: "Malware"
+      classificationSource: "Engine"
+      mitigationStatus: "mitigated_partly"
+      mitigationStatusDescription: "Quarantine failed — process already running"
+      agentComputerName: "WKSTN-GUNTER-01"
+      agentOsName: "Windows 10 Enterprise"
+      agentOsRevision: "19045"
+      agentVersion: "23.2.2.437"
+      agentUuid: "S1-AGENT-UUID-WKSTN-GUNTER-01"
+      agentDomain: "SKT.LOCAL"
+      agentNetworkInterfaces:
+        - name: "Ethernet"
+          ipv4: "10.20.20.102"
+          mac: "00-50-56-AA-BB-CC"
+      siteName: "SKT-Finance-Site"
+      accountName: "SKT Corporation"
+      groupName: "Finance-Workstations"
+      userName: "gunter.weiss"
+      fileAbsolutePath: "C:\\Users\\gunter.weiss\\Downloads\\NTFVersion.exe"
+      fileName: "NTFVersion.exe"
+      sha256: "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a"
+      md5: "d41d8cd98f00b204e9800998ecf8427e"
+      fileType: "PE"
+      fileSigned: false
+      publisherName: null
+      processImagePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+      processImageSha256: null
+      processUserName: "gunter.weiss"
+      processIsRedirectedCommandProcessor: false
+      indicators:
+        - category: "Execution"
+          description: "Downloaded executable run from user downloads directory"
+          ids: [74]
+          tactics:
+            - name: "Execution"
+              source: "MITRE"
+              techniques:
+                - link: "https://attack.mitre.org/techniques/T1204/"
+                  name: "User Execution"
+      severity: "high"
+      confidenceLevel: "malicious"
+      createdAt: "offset+1500s"
+      updatedAt: "offset+1500s"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 4 ── SentinelOne: Carbon Orchestrator Installed ─
+  - label: "SentinelOne — Carbon Orchestrator (mswmpeng.exe) Installed"
+    offset_seconds: 1800
+    dataset: sentinelone_edr_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1543.003"
+    data:
+      alertId: "S1-ALERT-002-TURLA-PERSIST"
+      threatId: "S1-THREAT-002-WKSTN-GUNTER"
+      threatName: "Turla.Carbon.Orchestrator"
+      threatType: "Static AI — Malicious PE"
+      classification: "Trojan"
+      classificationSource: "Engine"
+      mitigationStatus: "not_mitigated"
+      mitigationStatusDescription: "SYSTEM process — mitigation requires reboot"
+      agentComputerName: "WKSTN-GUNTER-01"
+      agentUuid: "S1-AGENT-UUID-WKSTN-GUNTER-01"
+      agentDomain: "SKT.LOCAL"
+      agentNetworkInterfaces:
+        - name: "Ethernet"
+          ipv4: "10.20.20.102"
+      siteName: "SKT-Finance-Site"
+      userName: "SYSTEM"
+      fileAbsolutePath: "C:\\Windows\\mswmpeng.exe"
+      fileName: "mswmpeng.exe"
+      sha256: "b4c9f3e05d2a8176e3bacd94f5062a7b8e1f3c5a7b9d2e4f6a8c0e2a4c6e8a0c"
+      md5: "e2c4a6b8d0f2a4c6e8b0d2f4a6c8e0b2"
+      fileType: "PE"
+      fileSigned: false
+      publisherName: null
+      processImagePath: "C:\\Users\\gunter.weiss\\Downloads\\NTFVersion.exe"
+      processUserName: "gunter.weiss"
+      indicators:
+        - category: "Persistence"
+          description: "Executable installed as Windows service for persistence"
+          ids: [130, 131]
+          tactics:
+            - name: "Persistence"
+              source: "MITRE"
+              techniques:
+                - link: "https://attack.mitre.org/techniques/T1543/003/"
+                  name: "Create or Modify System Process: Windows Service"
+      registryChanges:
+        - keyPath: "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WinSvc"
+          valueName: "ImagePath"
+          valueData: "C:\\Windows\\mswmpeng.exe"
+          changeType: "create"
+      severity: "critical"
+      confidenceLevel: "malicious"
+      createdAt: "offset+1800s"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 5 ── SentinelOne: C2 Network Activity ───────────
+  - label: "SentinelOne — Carbon C2 Network Activity"
+    offset_seconds: 2100
+    dataset: sentinelone_edr_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1071.001"
+    data:
+      alertId: "S1-ALERT-003-TURLA-C2"
+      threatId: "S1-THREAT-003-WKSTN-GUNTER"
+      threatName: "Turla.Carbon.C2"
+      threatType: "Network Anomaly"
+      classification: "Malware"
+      classificationSource: "STAR Rule"
+      mitigationStatus: "not_mitigated"
+      agentComputerName: "WKSTN-GUNTER-01"
+      agentUuid: "S1-AGENT-UUID-WKSTN-GUNTER-01"
+      agentDomain: "SKT.LOCAL"
+      agentNetworkInterfaces:
+        - name: "Ethernet"
+          ipv4: "10.20.20.102"
+      siteName: "SKT-Finance-Site"
+      userName: "SYSTEM"
+      fileAbsolutePath: "C:\\Windows\\mswmpeng.exe"
+      fileName: "mswmpeng.exe"
+      networkDetails:
+        remoteIp: "203.0.113.45"
+        remotePort: 80
+        localIp: "10.20.20.102"
+        localPort: 49527
+        direction: "OUTGOING"
+        protocol: "TCP"
+        domainName: "update.sktlocal.it"
+      indicators:
+        - category: "Command and Control"
+          description: "Outbound HTTP to known C2 infrastructure"
+          ids: [200, 201]
+          tactics:
+            - name: "Command and Control"
+              source: "MITRE"
+              techniques:
+                - link: "https://attack.mitre.org/techniques/T1071/001/"
+                  name: "Application Layer Protocol: Web Protocols"
+      severity: "critical"
+      confidenceLevel: "malicious"
+      createdAt: "offset+2100s"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 6 ── SentinelOne: Lateral Movement ──────────────
+  - label: "SentinelOne — Lateral Movement via SMB"
+    offset_seconds: 3600
+    dataset: sentinelone_edr_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1021.002"
+    data:
+      alertId: "S1-ALERT-004-TURLA-LATERAL"
+      threatId: "S1-THREAT-004-WKSTN-GUNTER"
+      threatName: "Turla.Carbon.LateralMove"
+      threatType: "Behavioral AI"
+      classification: "Lateral Movement"
+      classificationSource: "Behavioral AI"
+      mitigationStatus: "not_mitigated"
+      agentComputerName: "WKSTN-GUNTER-01"
+      agentUuid: "S1-AGENT-UUID-WKSTN-GUNTER-01"
+      agentDomain: "SKT.LOCAL"
+      userName: "gunter.weiss"
+      fileAbsolutePath: "C:\\Windows\\System32\\cmd.exe"
+      fileName: "cmd.exe"
+      processCommandLine: "cmd.exe /c net use \\\\SRV-FILE-01\\ADMIN$ /user:SKT\\administrator"
+      networkDetails:
+        remoteIp: "10.20.20.50"
+        remotePort: 445
+        localIp: "10.20.20.102"
+        direction: "OUTGOING"
+        protocol: "TCP"
+      indicators:
+        - category: "Lateral Movement"
+          description: "SMB admin share accessed for lateral movement"
+          ids: [310]
+          tactics:
+            - name: "Lateral Movement"
+              source: "MITRE"
+              techniques:
+                - link: "https://attack.mitre.org/techniques/T1021/002/"
+                  name: "Remote Services: SMB/Windows Admin Shares"
+      severity: "high"
+      confidenceLevel: "malicious"
+      createdAt: "offset+3600s"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 7 ── SentinelOne: Data Staging ──────────────────
+  - label: "SentinelOne — Data Staged for Exfiltration"
+    offset_seconds: 4500
+    dataset: sentinelone_edr_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1560.001"
+    data:
+      alertId: "S1-ALERT-005-TURLA-STAGE"
+      threatId: "S1-THREAT-005-WKSTN-GUNTER"
+      threatName: "Turla.Carbon.DataStaging"
+      threatType: "Behavioral AI"
+      classification: "Collection"
+      mitigationStatus: "not_mitigated"
+      agentComputerName: "WKSTN-GUNTER-01"
+      agentUuid: "S1-AGENT-UUID-WKSTN-GUNTER-01"
+      agentDomain: "SKT.LOCAL"
+      userName: "gunter.weiss"
+      fileAbsolutePath: "C:\\Windows\\Temp\\~DF4A\\rar.exe"
+      fileName: "rar.exe"
+      processCommandLine: "rar.exe a -hp C:\\Windows\\Temp\\~DF4A\\update.rar C:\\Users\\gunter.weiss\\Documents\\* -r"
+      indicators:
+        - category: "Collection"
+          description: "Archive utility used to stage sensitive documents"
+          ids: [410]
+          tactics:
+            - name: "Collection"
+              source: "MITRE"
+              techniques:
+                - link: "https://attack.mitre.org/techniques/T1560/001/"
+                  name: "Archive Collected Data: Archive via Utility"
+      severity: "high"
+      confidenceLevel: "malicious"
+      createdAt: "offset+4500s"
+      scenario_name: "Turla Carbon Replay"

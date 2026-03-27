@@ -44,7 +44,22 @@ jobs:
               fh.write(f"packs={packs_str}\n")
           PY
 
-      # 2) Detect packs with version changes vs HEAD^
+      # 2) Shadow mode check (mirrors PR Gate + release gate)
+      - name: Set up Python for shadow mode check
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate shadow mode
+        run: |
+          python tools/validate_shadow_mode.py --all \
+            --actions-list Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json \
+            --policy Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/shadow_mode_policy.json
+
+      # 3) Detect packs with version changes vs HEAD^
       - name: Compute changed packs (version bump)
         id: changed
         env:
@@ -86,7 +101,7 @@ jobs:
               fh.write(f"packs={changed_str}\n")
           PY
 
-      # 3) Build zips + show what would happen (NO gh release, NO git commit)
+      # 4) Build zips + show what would happen (NO gh release, NO git commit)
       - name: Dry-run build & config update
         if: ${{ steps.changed.outputs.packs != '' }}
         env:
