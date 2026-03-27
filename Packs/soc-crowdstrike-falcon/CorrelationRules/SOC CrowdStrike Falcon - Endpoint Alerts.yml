@@ -180,6 +180,17 @@ mitre_defs:
 search_window: null
 severity: User Defined
 simple_schedule: null
+# -- Suppression: composite_id / 1 hour -------------------------------------
+# composite_id is CrowdStrike Falcon's unique identifier per detection event.
+# Suppressing on composite_id scopes deduplication to a single detection only.
+# Two different detections on the same host have different composite_id values
+# and each fire an alert independently -- there is no blast-radius risk.
+# 1-hour window: the CrowdStrike integration polls for detections on a cycle.
+# The same detection can be returned across consecutive polling windows before
+# it is acknowledged. 1 hour prevents duplicate alerts from back-to-back polls
+# returning the same composite_id without suppressing any distinct detection.
+# Note: all 15 old 1.0.14 rules had suppression_enabled: false -- no
+# deduplication at all. This is a net improvement introduced in v2.0.0.
 suppression_duration: 1 hours
 suppression_enabled: true
 suppression_fields:
