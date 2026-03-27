@@ -1,0 +1,646 @@
+# ============================================================
+# SOC Framework Replay Scenario Manifest
+# Scenario: Turla Carbon — ProofPoint TAP + Trend Micro Vision One
+# ============================================================
+# Usage: python3 tools/replay_scenario.py \
+#          --manifest scenarios/turla_carbon_proofpoint_trend_vision_one.yml
+#
+# Shadow Mode: All C/E/R actions write to xsiam_socfw_ir_execution_raw
+#              with execution_mode: "shadow". No vendor commands fire
+#              until SOCFrameworkActions_V3 shadow_mode is flipped to false.
+#
+# Products activated: Email (ProofPoint TAP), Endpoint (Trend Micro Vision One)
+# Value Drivers: VD1 (MTTD/MTTC/MTTR), VD2 (Universal Command), VD3 (automation %)
+#
+# Key demo point: SOC Framework Endpoint path is vendor-agnostic.
+# soc-isolate-endpoint Universal Command targets Vision One with no
+# playbook changes vs. CrowdStrike, MDE, or SentinelOne variants.
+# ============================================================
+
+scenario_id: turla_carbon_proofpoint_trend_vision_one
+scenario_name: "Turla Carbon - ProofPoint TAP + Trend Micro Vision One"
+scenario_version: "1.0.0"
+author: "SOC Framework"
+description: >
+  Simulates the full Turla Carbon APT kill chain: spearphish delivery via
+  ProofPoint TAP triggers Email Analysis. Carbon dropper execution, persistence,
+  masquerading, C2 beacon, lateral movement, and data staging are surfaced as
+  Trend Micro Vision One Workbench alerts via trendmicro_vision_one_raw. Two-product
+  chain exercises Email + Endpoint playbook paths end-to-end. Demonstrates that
+  the SOC Framework Endpoint path is vendor-agnostic — the same Universal Command
+  targets Vision One with no playbook changes vs. Falcon or MDE variants.
+
+mitre_chain:
+  - tactic: "Initial Access"
+    tactic_id: "TA0001"
+    technique: "Phishing: Spearphishing Link"
+    technique_id: "T1566.002"
+  - tactic: "Execution"
+    tactic_id: "TA0002"
+    technique: "User Execution: Malicious File"
+    technique_id: "T1204.002"
+  - tactic: "Persistence"
+    tactic_id: "TA0003"
+    technique: "Boot or Logon Autostart Execution: Registry Run Keys"
+    technique_id: "T1547.001"
+  - tactic: "Defense Evasion"
+    tactic_id: "TA0005"
+    technique: "Masquerading: Match Legitimate Name or Location"
+    technique_id: "T1036.005"
+  - tactic: "Defense Evasion"
+    tactic_id: "TA0005"
+    technique: "Process Injection: Dynamic-link Library Injection"
+    technique_id: "T1055.001"
+  - tactic: "Command and Control"
+    tactic_id: "TA0011"
+    technique: "Application Layer Protocol: Web Protocols"
+    technique_id: "T1071.001"
+  - tactic: "Lateral Movement"
+    tactic_id: "TA0008"
+    technique: "Remote Services: SMB/Windows Admin Shares"
+    technique_id: "T1021.002"
+  - tactic: "Collection"
+    tactic_id: "TA0009"
+    technique: "Data from Local System"
+    technique_id: "T1005"
+
+products_covered:
+  - product: ProofPoint TAP
+    soc_framework_category: Email
+    dataset: proofpoint_tap_raw
+
+  - product: Trend Micro Vision One
+    soc_framework_category: Endpoint
+    dataset: trendmicro_vision_one_raw
+
+value_drivers:
+  - VD1  # Reduce Risk — MTTD/MTTC/MTTR timestamp deltas in xsiam_socfw_ir_execution_raw
+  - VD2  # Simplify Ops — Universal Command handles both TAP block + Vision One isolate
+  - VD3  # Efficiency — automation % across Email + Endpoint categories
+
+victim:
+  user: "gunter.weiss@skt.local"
+  display_name: "Gunter Weiss"
+  host: "WKSTN-GUNTER-01"
+  host_guid: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+  ip: "10.20.20.102"
+  domain: "SKT.LOCAL"
+  department: "Finance"
+  tmo_account: "WKSTN-GUNTER-01\\gunter.weiss"
+
+iocs:
+  sender_ip: "198.51.100.45"
+  sender_email: "noreply@sktlocal.it"
+  c2_ip: "203.0.113.45"             # TEST-NET-3 — safe for test data
+  c2_domain: "update.sktlocal.it"
+  c2_url_beacon: "http://203.0.113.45/update/check"
+  dropper_name: "NTFVersion.exe"
+  dropper_sha256: "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a"
+  dropper_md5: "d41d8cd98f00b204e9800998ecf8427e"
+  orchestrator_name: "mswmpeng.exe"
+  transport_dll: "msnethlp.dll"
+  staging_dir: "C:\\Windows\\Temp\\~DF4A"
+  registry_key: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce"
+  lateral_target_host: "SRV-FILE-01"
+  lateral_target_ip: "10.20.20.50"
+
+# -----------------------------------------------------------
+# EVENT SEQUENCE
+# All offsets are seconds from t0 (scenario base time).
+# replay_scenario.py stamps _time = t0 + offset_seconds.
+# -----------------------------------------------------------
+
+events:
+
+  # ── EVENT 1 ── ProofPoint: Email Delivered ────────────────
+  - label: "ProofPoint TAP — Spearphish Delivered"
+    offset_seconds: 0
+    dataset: proofpoint_tap_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Email
+    mitre_technique_id: "T1566.002"
+    data:
+      type: "messages delivered"
+      GUID: "TAP-GUID-TURLA-DELIVERY-001"
+      id: "TAP-GUID-TURLA-DELIVERY-001"
+      messageID: "<turla-ntfversion-20251202-001@sktlocal.it>"
+      sender: "noreply@sktlocal.it"
+      senderIP: "198.51.100.45"
+      recipient: ["gunter.weiss@skt.local"]
+      toAddresses: ["gunter.weiss@skt.local"]
+      ccAddresses: []
+      subject: "Windows Security Update — Action Required"
+      headerFrom: "noreply@sktlocal.it"
+      headerReplyTo: "noreply@sktlocal.it"
+      replyToAddress: ["noreply@sktlocal.it"]
+      campaignId: "turla-carbon-spearphish-skt-2025"
+      threatStatus: "active"
+      threatTime: "T0-120s"
+      phishScore: 98
+      spamScore: 100
+      malwareScore: 0
+      impostorScore: 0
+      messageSize: 14825
+      completelyRewritten: true
+      policyRoutes: ["default_inbound"]
+      modulesRun: ["spam", "phish", "urldefense"]
+      QID: "TAP-2025120213000001"
+      threatsInfoMap:
+        - threatID: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+          threatStatus: "active"
+          classification: "phish"
+          threatType: "url"
+          threatUrl: "http://brieftragerin.skt.local/update/NTFVersion.exe"
+          threat: "http://brieftragerin.skt.local/update/NTFVersion.exe"
+      messageParts:
+        - contentType: "text/html"
+          disposition: "inline"
+          filename: ""
+          sandboxStatus: null
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 2 ── ProofPoint: User Clicks Malicious Link ─────
+  - label: "ProofPoint TAP — User Click Permitted"
+    offset_seconds: 1200
+    dataset: proofpoint_tap_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Email
+    mitre_technique_id: "T1204.001"
+    data:
+      type: "clicks permitted"
+      GUID: "TAP-GUID-TURLA-CLICK-002"
+      id: "TAP-GUID-TURLA-CLICK-002"
+      messageID: "<turla-ntfversion-20251202-001@sktlocal.it>"
+      sender: "noreply@sktlocal.it"
+      senderIP: "198.51.100.45"
+      recipient: "gunter.weiss@skt.local"
+      toAddresses: ["gunter.weiss@skt.local"]
+      ccAddresses: []
+      subject: "Windows Security Update — Action Required"
+      headerFrom: "noreply@sktlocal.it"
+      clickIP: "10.20.20.102"
+      campaignId: "turla-carbon-spearphish-skt-2025"
+      threatStatus: "active"
+      phishScore: 98
+      spamScore: 100
+      malwareScore: 95
+      impostorScore: 0
+      messageSize: 14825
+      policyRoutes: ["default_inbound"]
+      modulesRun: ["spam", "phish", "urldefense", "sandbox"]
+      QID: "TAP-2025120213200002"
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      threatsInfoMap:
+        - threatID: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+          threatStatus: "active"
+          classification: "phish"
+          threatType: "url"
+          threatUrl: "http://brieftragerin.skt.local/update/NTFVersion.exe"
+          threat: "http://brieftragerin.skt.local/update/NTFVersion.exe"
+      messageParts:
+        - contentType: "application/octet-stream"
+          disposition: "attached"
+          filename: "NTFVersion.exe"
+          md5: "d41d8cd98f00b204e9800998ecf8427e"
+          sha256: "a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a"
+          sandboxStatus: "threat"
+          threatType: "attachment"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 3 ── Vision One: Dropper Execution ──────────────
+  - label: "Vision One — Malicious File Execution via User Interaction"
+    offset_seconds: 1500
+    dataset: trendmicro_vision_one_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1204.002"
+    data:
+      id: "WB-TURLA-TMVO-001"
+      alert_provider: "SAE"
+      model: "Malicious File Execution via User Interaction"
+      model_id: "8d4cd2d1-220a-533f-8bb3-3ace484d2622"
+      model_type: "preset"
+      schema_version: "1.20"
+      score: 74
+      severity: "medium"
+      status: "Open"
+      investigation_status: "New"
+      investigation_result: "No Findings"
+      description: "A file disguised as a legitimate installer was executed by the user. The process spawned a command interpreter and wrote files to the TEMP directory consistent with Turla Carbon dropper behavior."
+      created_date_time: "offset+1500s"
+      updated_date_time: "offset+1500s"
+      first_investigated_date_time: null
+      incident_id: null
+      case_id: null
+      owner_ids: []
+      impact_scope:
+        desktop_count: 1
+        server_count: 0
+        account_count: 1
+        email_address_count: 0
+        container_count: 0
+        cloud_identity_count: 0
+        entities:
+          - entity_id: "WKSTN-GUNTER-01\\gunter.weiss"
+            entity_type: "account"
+            entity_value: "WKSTN-GUNTER-01\\gunter.weiss"
+            provenance: ["Alert"]
+            related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+            related_indicator_ids: []
+          - entity_id: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+            entity_type: "host"
+            entity_value:
+              guid: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+              ips: ["10.20.20.102"]
+              name: "WKSTN-GUNTER-01"
+            provenance: ["Alert"]
+            related_entities: ["WKSTN-GUNTER-01\\gunter.weiss"]
+            related_indicator_ids: [1]
+      matched_rules:
+        - id: "2463b0df-d533-52c5-85ea-21fc78984510"
+          name: "Malicious File Execution via User Interaction"
+          matched_filters:
+            - id: "8444adf0-859c-5b4d-b3c7-f4ef747b8a35"
+              name: "Malicious File Execution via User Interaction"
+              matched_date_time: "offset+1500s"
+              mitre_technique_ids: ["T1204.002", "T1059.003"]
+              matched_events:
+                - uuid: "2fd63cc1-89fa-49b2-8d86-347d56d6b5a4"
+                  matched_date_time: "offset+1500s"
+                  type: "TELEMETRY_PROCESS"
+      indicators:
+        - id: 1
+          type: "command_line"
+          value: "NTFVersion.exe /silent /extract:C:\\Users\\gunter.weiss\\AppData\\Local\\Temp\\{17BA0CA4}"
+          field: "processCmd"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+        - id: 2
+          type: "file"
+          value: "C:\\Users\\gunter.weiss\\Downloads\\NTFVersion.exe"
+          field: "objectFilePath"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+      workbench_link: "https://portal.xdr.trendmicro.com/index.html#/workbench/alerts/WB-TURLA-TMVO-001"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 4 ── Vision One: Registry Persistence ───────────
+  - label: "Vision One — Registry Run Key Creation for Persistence"
+    offset_seconds: 1800
+    dataset: trendmicro_vision_one_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1547.001"
+    data:
+      id: "WB-TURLA-TMVO-002"
+      alert_provider: "SAE"
+      model: "Registry Run Key Creation Pointing to Files in Temp Location"
+      model_id: "18df263f-9ae4-5875-87b8-8eb375775e21"
+      model_type: "preset"
+      schema_version: "1.20"
+      score: 60
+      severity: "medium"
+      status: "Open"
+      investigation_status: "New"
+      investigation_result: "No Findings"
+      description: "Detects the creation of registry run keys that reference executable files located in temporary directories consistent with Turla Carbon persistence mechanisms."
+      created_date_time: "offset+1800s"
+      updated_date_time: "offset+1800s"
+      first_investigated_date_time: null
+      incident_id: null
+      case_id: null
+      owner_ids: []
+      impact_scope:
+        desktop_count: 1
+        server_count: 0
+        account_count: 1
+        entities:
+          - entity_id: "WKSTN-GUNTER-01\\gunter.weiss"
+            entity_type: "account"
+            entity_value: "WKSTN-GUNTER-01\\gunter.weiss"
+            provenance: ["Alert"]
+            related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          - entity_id: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+            entity_type: "host"
+            entity_value:
+              guid: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+              ips: ["10.20.20.102"]
+              name: "WKSTN-GUNTER-01"
+            provenance: ["Alert"]
+      matched_rules:
+        - id: "98a73b7e-9eb5-5497-a359-cab2ac6678af"
+          name: "Registry Run Key Creation Pointing to Files in Temp Location"
+          matched_filters:
+            - id: "2144a370-2bd0-5daf-817f-b4fbf766e9ba"
+              name: "Registry Run Key Creation Pointing to Files in Temp Location"
+              matched_date_time: "offset+1800s"
+              mitre_technique_ids: ["T1547.001"]
+              matched_events:
+                - uuid: "b84c6867-61ce-4162-92b9-a4a1d5481814"
+                  matched_date_time: "offset+1800s"
+                  type: "TELEMETRY_REGISTRY"
+      indicators:
+        - id: 1
+          type: "registry_key"
+          value: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce"
+          field: "objectRegistryKeyHandle"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+        - id: 2
+          type: "registry_value_data"
+          value: "C:\\Windows\\mswmpeng.exe"
+          field: "objectRegistryData"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+      workbench_link: "https://portal.xdr.trendmicro.com/index.html#/workbench/alerts/WB-TURLA-TMVO-002"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 5 ── Vision One: Process Masquerading ───────────
+  - label: "Vision One — Process Masquerading as Legitimate Windows Metrics Service"
+    offset_seconds: 2100
+    dataset: trendmicro_vision_one_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1036.005"
+    data:
+      id: "WB-TURLA-TMVO-003"
+      alert_provider: "SAE"
+      model: "Process Masquerading as Legitimate Windows Metrics Service"
+      model_id: "a19fe5dd-d801-518e-badb-5dd7f0d02182"
+      model_type: "preset"
+      schema_version: "1.20"
+      score: 80
+      severity: "high"
+      status: "Open"
+      investigation_status: "New"
+      investigation_result: "No Findings"
+      description: "A process named mswmpeng.exe was observed impersonating the legitimate Windows WMI Performance Adapter. The process image was loaded from a user TEMP path rather than System32, consistent with Turla Carbon implant masquerading behavior."
+      created_date_time: "offset+2100s"
+      updated_date_time: "offset+2100s"
+      first_investigated_date_time: null
+      incident_id: null
+      case_id: null
+      owner_ids: []
+      impact_scope:
+        desktop_count: 1
+        server_count: 0
+        account_count: 1
+        entities:
+          - entity_id: "WKSTN-GUNTER-01\\gunter.weiss"
+            entity_type: "account"
+            entity_value: "WKSTN-GUNTER-01\\gunter.weiss"
+            provenance: ["Alert"]
+            related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          - entity_id: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+            entity_type: "host"
+            entity_value:
+              guid: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+              ips: ["10.20.20.102"]
+              name: "WKSTN-GUNTER-01"
+            provenance: ["Alert"]
+      matched_rules:
+        - id: "a912c112-68a5-5e09-bd4a-1a4e4ca15690"
+          name: "Process Masquerading as Legitimate Windows Metrics Service"
+          matched_filters:
+            - id: "dad67b7a-fe72-5c22-8e98-2fa4457b94b4"
+              name: "Process Masquerading as Legitimate Windows Metrics Service"
+              matched_date_time: "offset+2100s"
+              mitre_technique_ids: ["T1036.005"]
+              matched_events:
+                - uuid: "5c79c892-93e6-4ca4-81ed-cfa465637104"
+                  matched_date_time: "offset+2100s"
+                  type: "TELEMETRY_PROCESS"
+      indicators:
+        - id: 1
+          type: "file"
+          value: "C:\\Windows\\mswmpeng.exe"
+          field: "objectFilePath"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+        - id: 2
+          type: "command_line"
+          value: "C:\\Windows\\mswmpeng.exe -service"
+          field: "processCmd"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+      workbench_link: "https://portal.xdr.trendmicro.com/index.html#/workbench/alerts/WB-TURLA-TMVO-003"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 6 ── Vision One: C2 Communication ───────────────
+  - label: "Vision One — Suspicious Outbound HTTP Communication to Known Turla C2"
+    offset_seconds: 2700
+    dataset: trendmicro_vision_one_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1071.001"
+    data:
+      id: "WB-TURLA-TMVO-004"
+      alert_provider: "SAE"
+      model: "Suspicious Outbound HTTP Communication to Known Turla C2 Infrastructure"
+      model_id: "c4d5e6f7-a8b9-5c0d-1e2f-3a4b5c6d7e8f"
+      model_type: "preset"
+      schema_version: "1.20"
+      score: 95
+      severity: "critical"
+      status: "Open"
+      investigation_status: "New"
+      investigation_result: "No Findings"
+      description: "Outbound HTTP GET requests from mswmpeng.exe to 203.0.113.45 using a Carbon-characteristic IE6 user-agent string. Traffic consistent with Turla Carbon C2 check-in protocol."
+      created_date_time: "offset+2700s"
+      updated_date_time: "offset+2700s"
+      first_investigated_date_time: null
+      incident_id: null
+      case_id: null
+      owner_ids: []
+      impact_scope:
+        desktop_count: 1
+        server_count: 0
+        account_count: 1
+        entities:
+          - entity_id: "WKSTN-GUNTER-01\\gunter.weiss"
+            entity_type: "account"
+            entity_value: "WKSTN-GUNTER-01\\gunter.weiss"
+            provenance: ["Alert"]
+            related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          - entity_id: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+            entity_type: "host"
+            entity_value:
+              guid: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+              ips: ["10.20.20.102"]
+              name: "WKSTN-GUNTER-01"
+            provenance: ["Alert"]
+      matched_rules:
+        - id: "f9e8d7c6-b5a4-4f3e-2d1c-0b9a8f7e6d5c"
+          name: "Suspicious Outbound HTTP to Known Threat Infrastructure"
+          matched_filters:
+            - id: "e1d2c3b4-a5f6-4e7d-8c9b-0a1f2e3d4c5b"
+              name: "Outbound HTTP to Known Turla C2"
+              matched_date_time: "offset+2700s"
+              mitre_technique_ids: ["T1071.001", "T1573.001"]
+              matched_events:
+                - uuid: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+                  matched_date_time: "offset+2700s"
+                  type: "TELEMETRY_NETWORK"
+      indicators:
+        - id: 1
+          type: "ip"
+          value: "203.0.113.45"
+          field: "dstIp"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+        - id: 2
+          type: "url"
+          value: "http://203.0.113.45/update/check"
+          field: "url"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+        - id: 3
+          type: "file"
+          value: "C:\\Windows\\mswmpeng.exe"
+          field: "objectFilePath"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+      workbench_link: "https://portal.xdr.trendmicro.com/index.html#/workbench/alerts/WB-TURLA-TMVO-004"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 7 ── Vision One: Lateral Movement ───────────────
+  - label: "Vision One — Suspicious Lateral Movement via SMB File Copy"
+    offset_seconds: 3600
+    dataset: trendmicro_vision_one_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1021.002"
+    data:
+      id: "WB-TURLA-TMVO-005"
+      alert_provider: "SAE"
+      model: "Suspicious Lateral Movement via SMB File Copy"
+      model_id: "d5e6f7a8-b9c0-5d1e-2f3a-4b5c6d7e8f9a"
+      model_type: "preset"
+      schema_version: "1.20"
+      score: 85
+      severity: "high"
+      status: "Open"
+      investigation_status: "New"
+      investigation_result: "No Findings"
+      description: "Carbon backdoor copied payload to remote admin share SRV-FILE-01 via SMB. Administrative credential usage pattern consistent with Turla lateral movement tradecraft."
+      created_date_time: "offset+3600s"
+      updated_date_time: "offset+3600s"
+      first_investigated_date_time: null
+      incident_id: null
+      case_id: null
+      owner_ids: []
+      impact_scope:
+        desktop_count: 1
+        server_count: 1
+        account_count: 1
+        entities:
+          - entity_id: "WKSTN-GUNTER-01\\gunter.weiss"
+            entity_type: "account"
+            entity_value: "WKSTN-GUNTER-01\\gunter.weiss"
+            provenance: ["Alert"]
+            related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          - entity_id: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+            entity_type: "host"
+            entity_value:
+              guid: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+              ips: ["10.20.20.102"]
+              name: "WKSTN-GUNTER-01"
+            provenance: ["Alert"]
+      matched_rules:
+        - id: "b6c7d8e9-f0a1-5b2c-3d4e-5f6a7b8c9d0e"
+          name: "Suspicious Lateral Movement via SMB File Copy"
+          matched_filters:
+            - id: "c7d8e9f0-a1b2-4c3d-5e6f-7a8b9c0d1e2f"
+              name: "SMB Admin Share Access from Non-Standard Process"
+              matched_date_time: "offset+3600s"
+              mitre_technique_ids: ["T1021.002", "T1570"]
+              matched_events:
+                - uuid: "d8e9f0a1-b2c3-4d5e-6f7a-8b9c0d1e2f3a"
+                  matched_date_time: "offset+3600s"
+                  type: "TELEMETRY_NETWORK"
+      indicators:
+        - id: 1
+          type: "ip"
+          value: "10.20.20.50"
+          field: "dstIp"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+        - id: 2
+          type: "command_line"
+          value: "net use \\\\SRV-FILE-01\\ADMIN$ /user:SKT\\administrator"
+          field: "processCmd"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+      workbench_link: "https://portal.xdr.trendmicro.com/index.html#/workbench/alerts/WB-TURLA-TMVO-005"
+      scenario_name: "Turla Carbon Replay"
+
+  # ── EVENT 8 ── Vision One: Data Staging ───────────────────
+  - label: "Vision One — Sensitive Data Collection and Local Staging Detected"
+    offset_seconds: 4500
+    dataset: trendmicro_vision_one_raw
+    collector: SystemXQLHTTPCollector
+    soc_framework_category: Endpoint
+    mitre_technique_id: "T1005"
+    data:
+      id: "WB-TURLA-TMVO-006"
+      alert_provider: "SAE"
+      model: "Sensitive Data Collection and Local Staging Detected"
+      model_id: "e6f7a8b9-c0d1-5e2f-3a4b-5c6d7e8f9a0b"
+      model_type: "preset"
+      schema_version: "1.20"
+      score: 88
+      severity: "high"
+      status: "Open"
+      investigation_status: "New"
+      investigation_result: "No Findings"
+      description: "rar.exe invoked by Carbon backdoor (mswmpeng.exe) to archive user documents from multiple directories into a staging archive at C:\\Windows\\Temp\\~DF4A\\update.rar. File size and recursive flag consistent with pre-exfiltration staging activity."
+      created_date_time: "offset+4500s"
+      updated_date_time: "offset+4500s"
+      first_investigated_date_time: null
+      incident_id: null
+      case_id: null
+      owner_ids: []
+      impact_scope:
+        desktop_count: 1
+        server_count: 0
+        account_count: 1
+        entities:
+          - entity_id: "WKSTN-GUNTER-01\\gunter.weiss"
+            entity_type: "account"
+            entity_value: "WKSTN-GUNTER-01\\gunter.weiss"
+            provenance: ["Alert"]
+            related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          - entity_id: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+            entity_type: "host"
+            entity_value:
+              guid: "5088F315-47E1-4BFA-8AEE-C6ED2DC79834"
+              ips: ["10.20.20.102"]
+              name: "WKSTN-GUNTER-01"
+            provenance: ["Alert"]
+      matched_rules:
+        - id: "f7a8b9c0-d1e2-5f3a-4b5c-6d7e8f9a0b1c"
+          name: "Sensitive Data Collection and Local Staging"
+          matched_filters:
+            - id: "a8b9c0d1-e2f3-4a5b-6c7d-8e9f0a1b2c3d"
+              name: "Archive Tool Used by Non-Standard Parent Process"
+              matched_date_time: "offset+4500s"
+              mitre_technique_ids: ["T1005", "T1074.001"]
+              matched_events:
+                - uuid: "b9c0d1e2-f3a4-4b5c-6d7e-8f9a0b1c2d3e"
+                  matched_date_time: "offset+4500s"
+                  type: "TELEMETRY_PROCESS"
+      indicators:
+        - id: 1
+          type: "file"
+          value: "C:\\Windows\\Temp\\~DF4A\\update.rar"
+          field: "objectFilePath"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+        - id: 2
+          type: "command_line"
+          value: "rar.exe a -hp C:\\Windows\\Temp\\~DF4A\\update.rar C:\\Users\\gunter.weiss\\Documents\\* -r"
+          field: "processCmd"
+          related_entities: ["5088F315-47E1-4BFA-8AEE-C6ED2DC79834"]
+          provenance: ["Alert"]
+      workbench_link: "https://portal.xdr.trendmicro.com/index.html#/workbench/alerts/WB-TURLA-TMVO-006"
+      scenario_name: "Turla Carbon Replay"

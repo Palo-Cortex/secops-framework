@@ -7,14 +7,17 @@ name: SOC Packs — PR Gate
 # Job 2 · detect         — find packs with version bumps
 # Job 3 · json-integrity — pack_catalog.json schema + xsoar_config.json validity
 #                          + cross-pack dependency version check (--strict)
-#                          + cross-pack dependency version check (strict)
-# Job 4 · validate       — demisto-sdk normalize + validate
-# Job 5 · preflight      — xsoar_config.json format + doc URL checks
-# Job 6 · prerelease     — build zip + upload as PR prerelease tag
+# Job 4 · shadow-mode    — every SOCCommandWrapper action must have shadow_mode: true
+#                          in SOCFrameworkActions_V3, OR be listed with a documented
+#                          reason in shadow_mode_policy.json (read-only/enrichment only).
+#                          Blocks the entire downstream chain on any violation.
+# Job 5 · validate       — demisto-sdk normalize + validate
+# Job 6 · preflight      — xsoar_config.json format + doc URL checks
+# Job 7 · prerelease     — build zip + upload as PR prerelease tag
 #                          e.g. SocFrameworkProofPointTap-v1.1.1-pr647
 #                          Also uploads a modified xsoar_config.json
 #                          as a release asset with the prerelease zip URL.
-# Job 7 · deploy-dev     — deploy to test tenant using prerelease assets
+# Job 8 · deploy-dev     — deploy to test tenant using prerelease assets
 #
 # After merge, soc-packs-release.yml creates the real immutable tag
 # and the prerelease is superseded.
@@ -192,10 +195,36 @@ jobs:
         run: |
           python tools/check_dependency_versions.py --strict
 
-  # ── JOB 4: VALIDATE ─────────────────────────────────────────────
+  # ── JOB 4: SHADOW MODE GATE ─────────────────────────────────────
+  # Runs on every PR touching any content.
+  # Hard-blocks merge if any SOCCommandWrapper action has shadow_mode: false
+  # without a documented entry in shadow_mode_policy.json.
+  # Read-only/enrichment actions approved in the policy emit warnings only.
+  shadow-mode:
+    name: Shadow mode — UC action gate
+    needs: [detect, json-integrity]
+    if: needs.detect.outputs.has_content == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate shadow mode (all packs)
+        run: |
+          python tools/validate_shadow_mode.py --all \
+            --actions-list Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json \
+            --policy Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/shadow_mode_policy.json
+
+  # ── JOB 5: VALIDATE ─────────────────────────────────────────────
   validate:
     name: Validate — demisto-sdk
-    needs: [detect, json-integrity]
+    needs: [detect, json-integrity, shadow-mode]
     if: needs.detect.outputs.has_content == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -240,10 +269,10 @@ jobs:
           done
           exit $FAILED
 
-  # ── JOB 5: PREFLIGHT xsoar_config.json ──────────────────────────
+  # ── JOB 6: PREFLIGHT xsoar_config.json ──────────────────────────
   preflight:
     name: Preflight — xsoar_config.json
-    needs: [detect, json-integrity, validate]
+    needs: [detect, json-integrity, shadow-mode, validate]
     if: needs.detect.outputs.has_content == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -259,7 +288,7 @@ jobs:
         run: |
           python tools/preflight_xsoar_config.py --packs "$CHANGED_PACKS"
 
-  # ── JOB 6: BUILD PRERELEASE ZIP ─────────────────────────────────
+  # ── JOB 7: BUILD PRERELEASE ZIP ─────────────────────────────────
   prerelease:
     name: Build prerelease zip
     needs: [detect, preflight]
@@ -369,7 +398,7 @@ jobs:
               fh.write(f"config_url={config_url}\n")
           PY
 
-  # ── JOB 7: DEPLOY TO TEST TENANT ────────────────────────────────
+  # ── JOB 8: DEPLOY TO TEST TENANT ────────────────────────────────
   deploy-dev:
     name: Deploy — dev tenant (pre-merge)
     needs: [detect, prerelease]

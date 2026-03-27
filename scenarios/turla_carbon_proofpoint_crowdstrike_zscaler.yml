@@ -1,0 +1,661 @@
+# ============================================================
+# SOC Framework Replay Scenario Manifest
+# Scenario: Turla Carbon - ProofPoint TAP + CrowdStrike Falcon + Zscaler ZPA
+# ============================================================
+# Usage: python3 tools/replay_scenario.py \
+#          --manifest scenarios/turla_carbon_proofpoint_crowdstrike_zscaler.yml
+#
+# Shadow Mode: All C/E/R actions write to xsiam_socfw_ir_execution_raw
+#              with execution_mode: "shadow". No vendor commands fire
+#              until SOCFrameworkActions_V3 shadow_mode is flipped to false.
+#
+# Products activated:
+#   Email    — ProofPoint TAP   → proofpoint_tap_raw
+#   Endpoint — CrowdStrike Falcon   → external_edr_raw
+#   Network  — Zscaler ZPA       → zscaler_zpa_raw
+#
+# ZPA story: Carbon implant authenticates to ZPA from 185.220.101.47
+# (Tor exit node) concurrent with C2 beacon. Tunnels lateral movement
+# across LDAP recon → SMB file access → lateral target → mgmt RPC →
+# admin console → backup server → wmimetricsq-relay C2 relay endpoint.
+# soc-terminate-zpa-session kills all 7 connections simultaneously.
+# Dataset: zscaler_zpa_raw (NOT zscaler_zia_raw — ZPA is private app
+# access / lateral movement tunnel, not internet URL filtering).
+# ============================================================
+
+scenario_id: turla_carbon_proofpoint_crowdstrike_zscaler
+scenario_name: Turla Carbon - ProofPoint TAP + CrowdStrike Falcon + Zscaler ZPA
+scenario_version: 1.0.0
+author: SOC Framework
+description: 'Full three-product Turla Carbon kill chain. ProofPoint TAP fires the
+  Email Analysis path. CrowdStrike Falcon fires the Endpoint path (dropper, orchestrator,
+  C2 beacon, lateral movement, data staging). Zscaler ZPA fires the Network path:
+  the Carbon implant authenticates to ZPA from 185.220.101.47 (Tor exit node) and
+  tunnels lateral movement across LDAP, SMB, management, admin console, backup, and
+  a wmimetricsq-relay C2 relay endpoint — all inside session TurlaGunter-SessionCarbon25.
+  soc-terminate-zpa-session in Shadow Mode kills all tunneled access simultaneously,
+  in parallel with Falcon host isolation.'
+mitre_chain:
+- tactic: Initial Access
+  tactic_id: TA0001
+  technique: 'Phishing: Spearphishing Link'
+  technique_id: T1566.002
+- tactic: Execution
+  tactic_id: TA0002
+  technique: 'User Execution: Malicious File'
+  technique_id: T1204.002
+- tactic: Persistence
+  tactic_id: TA0003
+  technique: 'Create or Modify System Process: Windows Service'
+  technique_id: T1543.003
+- tactic: Command and Control
+  tactic_id: TA0011
+  technique: 'Application Layer Protocol: Web Protocols'
+  technique_id: T1071.001
+- tactic: Lateral Movement
+  tactic_id: TA0008
+  technique: 'Remote Services: SMB/Windows Admin Shares'
+  technique_id: T1021.002
+- tactic: Collection
+  tactic_id: TA0009
+  technique: 'Archive Collected Data: Archive via Utility'
+  technique_id: T1560.001
+- tactic: Valid Accounts
+  tactic_id: TA0001
+  technique: 'Valid Accounts: Domain Accounts'
+  technique_id: T1078.002
+products_covered:
+- product: ProofPoint TAP
+  soc_framework_category: Email
+  dataset: proofpoint_tap_raw
+- product: CrowdStrike Falcon
+  soc_framework_category: Endpoint
+  dataset: external_edr_raw
+- product: Zscaler ZPA
+  soc_framework_category: Network
+  dataset: zscaler_zpa_raw
+value_drivers:
+- 'VD1  # MTTD/MTTC/MTTR — Endpoint isolate + ZPA session terminate compress MTTC'
+- 'VD2  # Universal Command — EDR isolate + soc-terminate-zpa-session, one interface'
+- 'VD3  # Efficiency — Email + Endpoint + Network automation in parallel'
+- 'VD4  # Attack surface down — ZPA session terminate blocks all tunneled lateral
+  movement'
+victim:
+  user: gunter.weiss@skt.local
+  zpa_user: gunter@sktlocal.it
+  display_name: Gunter Weiss
+  host: WKSTN-GUNTER-01
+  ip: 10.20.20.102
+  domain: SKT.LOCAL
+  department: Finance
+iocs:
+  sender_ip: 198.51.100.45
+  sender_email: noreply@sktlocal.it
+  c2_ip: 203.0.113.45
+  attacker_src_ip: 185.220.101.47
+  zpa_session_id: TurlaGunter-SessionCarbon25
+  zpa_connector: skt-zpa-connector-east-01
+  zpa_connector_ip: 10.61.10.20
+  dropper_name: NTFVersion.exe
+  dropper_sha256: a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a
+  orchestrator_name: mswmpeng.exe
+  c2_relay_app: wmimetricsq-relay.sktlocal.it
+  staging_dir: C:\Windows\Temp\~DF4A
+  lateral_target_host: SRV-FILE-01
+  lateral_target_ip: 10.20.20.50
+events:
+- label: ProofPoint TAP — Spearphish Delivered
+  offset_seconds: 0
+  dataset: proofpoint_tap_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Email
+  mitre_technique_id: T1566.002
+  data:
+    type: messages delivered
+    GUID: TAP-GUID-TURLA-DELIVERY-001
+    id: TAP-GUID-TURLA-DELIVERY-001
+    messageID: <turla-ntfversion-20251202-001@sktlocal.it>
+    sender: noreply@sktlocal.it
+    senderIP: 198.51.100.45
+    recipient:
+    - gunter.weiss@skt.local
+    toAddresses:
+    - gunter.weiss@skt.local
+    ccAddresses: []
+    subject: Windows Security Update — Action Required
+    headerFrom: noreply@sktlocal.it
+    campaignId: turla-carbon-spearphish-skt-2025
+    threatStatus: active
+    phishScore: 98
+    spamScore: 100
+    malwareScore: 0
+    impostorScore: 0
+    messageSize: 14825
+    completelyRewritten: true
+    policyRoutes:
+    - default_inbound
+    modulesRun:
+    - spam
+    - phish
+    - urldefense
+    QID: TAP-2025120213000001
+    threatsInfoMap:
+    - threatID: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
+      threatStatus: active
+      classification: phish
+      threatType: url
+      threatUrl: http://brieftragerin.skt.local/update/NTFVersion.exe
+    messageParts:
+    - contentType: text/html
+      disposition: inline
+      filename: ''
+      sandboxStatus: null
+    scenario_name: Turla Carbon Replay
+- label: ProofPoint TAP — User Click Permitted
+  offset_seconds: 1200
+  dataset: proofpoint_tap_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Email
+  mitre_technique_id: T1204.001
+  data:
+    type: clicks permitted
+    GUID: TAP-GUID-TURLA-CLICK-002
+    id: TAP-GUID-TURLA-CLICK-002
+    messageID: <turla-ntfversion-20251202-001@sktlocal.it>
+    sender: noreply@sktlocal.it
+    senderIP: 198.51.100.45
+    recipient: gunter.weiss@skt.local
+    toAddresses:
+    - gunter.weiss@skt.local
+    ccAddresses: []
+    subject: Windows Security Update — Action Required
+    clickIP: 10.20.20.102
+    campaignId: turla-carbon-spearphish-skt-2025
+    threatStatus: active
+    phishScore: 98
+    spamScore: 100
+    malwareScore: 95
+    impostorScore: 0
+    policyRoutes:
+    - default_inbound
+    modulesRun:
+    - spam
+    - phish
+    - urldefense
+    - sandbox
+    QID: TAP-2025120213200002
+    userAgent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+    threatsInfoMap:
+    - threatID: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
+      threatStatus: active
+      classification: phish
+      threatType: url
+      threatUrl: http://brieftragerin.skt.local/update/NTFVersion.exe
+    messageParts:
+    - contentType: application/octet-stream
+      disposition: attached
+      filename: NTFVersion.exe
+      md5: d41d8cd98f00b204e9800998ecf8427e
+      sha256: a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a
+      sandboxStatus: threat
+      threatType: attachment
+    scenario_name: Turla Carbon Replay
+- label: CrowdStrike Falcon — NTFVersion.exe Execution Detected
+  offset_seconds: 1500
+  dataset: external_edr_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Endpoint
+  mitre_technique_id: T1204.001
+  data:
+    EventType: ProcessRollup2
+    ComputerName: WKSTN-GUNTER-01
+    UserName: gunter.weiss
+    UserSid: S-1-5-21-1234567890-123456789-1234567890-1001
+    SensorId: CS-SENSOR-WKSTN-GUNTER-01-001
+    AgentIdString: CS-AGENT-001-WKSTN-GUNTER
+    DetectId: CS-DETECT-001-WKSTN-GUNTER
+    DetectName: Turla Carbon Dropper Execution
+    DetectDescription: Suspicious executable downloaded from phishing link and executed
+      by user
+    Severity: 4
+    SeverityName: High
+    PatternDispositionValue: 256
+    PatternDispositionDescription: Prevention,Kill Process
+    FileName: NTFVersion.exe
+    FilePath: \Device\HarddiskVolume3\Users\gunter.weiss\Downloads\NTFVersion.exe
+    CommandLine: '"C:\Users\gunter.weiss\Downloads\NTFVersion.exe"'
+    SHA256HashData: a3f8e2d94c1b7065f2a9c8d3e4b51f6a7c0d2e9b8f4a1c3d5e7b9f2a4c6e8d0a
+    MD5HashData: d41d8cd98f00b204e9800998ecf8427e
+    ParentProcessId: '3044'
+    ParentImageFileName: \Device\HarddiskVolume3\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+    ParentCommandLine: '"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"'
+    Tactic: Execution
+    TacticId: TA0002
+    Technique: 'User Execution: Malicious File'
+    TechniqueId: T1204.002
+    Objective: Gain Access
+    LocalIP: 10.20.20.102
+    NetworkContainmentState: normal
+    MACAddress: 00-50-56-AA-BB-CC
+    scenario_name: Turla Carbon Replay
+- label: CrowdStrike Falcon — Carbon Orchestrator File Created
+  offset_seconds: 1800
+  dataset: external_edr_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Endpoint
+  mitre_technique_id: T1543.003
+  data:
+    EventType: DetectionSummaryEvent
+    ComputerName: WKSTN-GUNTER-01
+    UserName: SYSTEM
+    SensorId: CS-SENSOR-WKSTN-GUNTER-01-001
+    DetectId: CS-DETECT-002-WKSTN-GUNTER
+    DetectName: Turla Carbon Orchestrator Installation
+    DetectDescription: Carbon backdoor orchestrator component written to system directory
+      and registered as Windows service
+    Severity: 5
+    SeverityName: Critical
+    PatternDispositionValue: 16
+    PatternDispositionDescription: Detect,No Action Taken
+    FileName: mswmpeng.exe
+    FilePath: \Device\HarddiskVolume3\Windows\mswmpeng.exe
+    CommandLine: C:\Windows\NTFVersion.exe /install
+    SHA256HashData: b4c9f3e05d2a8176e3bacd94f5062a7b8e1f3c5a7b9d2e4f6a8c0e2a4c6e8a0c
+    MD5HashData: e2c4a6b8d0f2a4c6e8b0d2f4a6c8e0b2
+    ParentProcessId: '4821'
+    ParentImageFileName: \Device\HarddiskVolume3\Users\gunter.weiss\Downloads\NTFVersion.exe
+    AdditionalFiles:
+    - name: msnethlp.dll
+      path: \Device\HarddiskVolume3\Windows\System32\msnethlp.dll
+      sha256: c5d0e4f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9
+    Tactic: Persistence
+    TacticId: TA0003
+    Technique: 'Create or Modify System Process: Windows Service'
+    TechniqueId: T1543.003
+    Objective: Establish Foothold
+    RegistryKey: HKLM\SYSTEM\CurrentControlSet\Services\WinSvc
+    RegistryValueName: ImagePath
+    RegistryValueData: C:\Windows\mswmpeng.exe
+    LocalIP: 10.20.20.102
+    NetworkContainmentState: normal
+    scenario_name: Turla Carbon Replay
+- label: CrowdStrike Falcon — Carbon C2 Beacon Detected
+  offset_seconds: 2100
+  dataset: external_edr_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Endpoint
+  mitre_technique_id: T1071.001
+  data:
+    EventType: NetworkConnectIP4
+    ComputerName: WKSTN-GUNTER-01
+    UserName: SYSTEM
+    SensorId: CS-SENSOR-WKSTN-GUNTER-01-001
+    DetectId: CS-DETECT-003-WKSTN-GUNTER
+    DetectName: Turla Carbon C2 Communication
+    DetectDescription: Carbon backdoor establishing HTTP C2 channel to known Turla
+      infrastructure
+    Severity: 5
+    SeverityName: Critical
+    FileName: mswmpeng.exe
+    FilePath: \Device\HarddiskVolume3\Windows\mswmpeng.exe
+    LocalIP: 10.20.20.102
+    LocalPort: 49321
+    RemoteAddressIP4: 203.0.113.45
+    RemotePort: 80
+    Protocol: TCP
+    ConnectionDirection: outbound
+    HttpMethod: GET
+    HttpUrl: http://203.0.113.45/update/check
+    HttpUserAgent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
+    Tactic: Command and Control
+    TacticId: TA0011
+    Technique: 'Application Layer Protocol: Web Protocols'
+    TechniqueId: T1071.001
+    Objective: Establish Command Infrastructure
+    NetworkContainmentState: normal
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — Anomalous Authentication from Tor Exit Node
+  offset_seconds: 2100
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1078
+  note: src=185.220.101.47 is a Tor exit node. ZPA session authenticated for gunter@sktlocal.it
+    from an IP that should never originate a ZPA session. Key pivot for soc-terminate-zpa-session.
+  data:
+    leefEventID: ZPN_STATUS_AUTHENTICATED
+    cat: ZPA User Status
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorZEN: US-VA-4401
+    ClientZEN: US-VA-4402
+    ClientCountryCode: RU
+    ClientLatitude: '55.752200'
+    ClientLongitude: '37.615600'
+    Platform: windows
+    Version: 4.6.1.210.turla-implant
+    leefProduct: ZPA
+    leefProductVersion: '4.1'
+    leefDeviceVendor: Zscaler
+    SessionStatus: ZPN_STATUS_AUTHENTICATED
+    TimestampAuthentication_iso8601: offset+2100s
+    identHostName: WKSTN-GUNTER-01
+    SAMLAttributes:
+      firstname:
+      - Gunter
+      lastname:
+      - Weiss
+      email:
+      - gunter@sktlocal.it
+      departmentname:
+      - Finance
+      groupname:
+      - zpa-power-users
+      - vpn-legacy-access
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — LDAP Tunnel Open — Active Directory Recon
+  offset_seconds: 2280
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1018
+  data:
+    leefEventID: OPEN_OR_ACTIVE_CONNECTION
+    cat: ZPA User Activity
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    ConnectionID: TurlaGunter-SessionCarbon25,conn-AD-001
+    ApplicationName: corp-ad-ldap.sktlocal.it
+    ApplicationSegment: ad-corp-segment
+    dst: 10.61.10.50
+    dstPort: '389'
+    ConnectionStatus: open
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorPort: '40389'
+    policy: ad-auth-allow
+    proto: '6'
+    ClientCountryCode: RU
+    ZENBytesRxClient: '3840'
+    ZENBytesTxClient: '18920'
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    TimestampConnectionStart_iso8601: offset+2280s
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — SMB Tunnel Open — File Server Lateral Access
+  offset_seconds: 2460
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1021.002
+  data:
+    leefEventID: OPEN_OR_ACTIVE_CONNECTION
+    cat: ZPA User Activity
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    ConnectionID: TurlaGunter-SessionCarbon25,conn-FS-001
+    ApplicationName: corp-fileserver.sktlocal.it
+    ApplicationSegment: fileshare-segment
+    dst: 10.61.10.60
+    dstPort: '445'
+    ConnectionStatus: open
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorPort: '40445'
+    policy: corp-smb-allow
+    proto: '6'
+    ClientCountryCode: RU
+    ZENBytesRxClient: '7680'
+    ZENBytesTxClient: '512000'
+    ZENBytesRxConnector: '512000'
+    ZENBytesTxConnector: '7680'
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    TimestampConnectionStart_iso8601: offset+2460s
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — SMB Tunnel Open — Lateral Target Server
+  offset_seconds: 2760
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1021.002
+  note: Lateral movement to elnbsbsrv40 via ZPA from Russian src — suspicious cross-segment
+    access from Tor exit node.
+  data:
+    leefEventID: OPEN_OR_ACTIVE_CONNECTION
+    cat: ZPA User Activity
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    ConnectionID: TurlaGunter-SessionCarbon25,conn-LM-001
+    ApplicationName: elnbsbsrv40.eln.gov.br
+    ApplicationSegment: internal-servers-segment
+    dst: 10.61.116.40
+    dstPort: '445'
+    ConnectionStatus: open
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorPort: '40445'
+    policy: server-admin-allow
+    proto: '6'
+    ClientCountryCode: RU
+    ZENBytesRxClient: '2048'
+    ZENBytesTxClient: '4194304'
+    ZENBytesRxConnector: '4194304'
+    ZENBytesTxConnector: '2048'
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    TimestampConnectionStart_iso8601: offset+2760s
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — RPC Tunnel Open — Management Server
+  offset_seconds: 2940
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1021.003
+  data:
+    leefEventID: OPEN_OR_ACTIVE_CONNECTION
+    cat: ZPA User Activity
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    ConnectionID: TurlaGunter-SessionCarbon25,conn-MGMT-001
+    ApplicationName: corp-mgmt.sktlocal.it
+    ApplicationSegment: mgmt-segment
+    dst: 10.61.10.70
+    dstPort: '135'
+    ConnectionStatus: open
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorPort: '40135'
+    policy: mgmt-allow
+    proto: '6'
+    ClientCountryCode: RU
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    TimestampConnectionStart_iso8601: offset+2940s
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — HTTPS Tunnel Open — Admin Console
+  offset_seconds: 3060
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1078
+  data:
+    leefEventID: OPEN_OR_ACTIVE_CONNECTION
+    cat: ZPA User Activity
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    ConnectionID: TurlaGunter-SessionCarbon25,conn-ADMIN-001
+    ApplicationName: corp-admin-console.sktlocal.it
+    ApplicationSegment: admin-segment
+    dst: 10.61.10.80
+    dstPort: '443'
+    ConnectionStatus: open
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorPort: '40443'
+    policy: admin-restricted-allow
+    proto: '6'
+    ClientCountryCode: RU
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    TimestampConnectionStart_iso8601: offset+3060s
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — HTTPS Tunnel Open — Backup Server
+  offset_seconds: 3420
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1078
+  data:
+    leefEventID: OPEN_OR_ACTIVE_CONNECTION
+    cat: ZPA User Activity
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    ConnectionID: TurlaGunter-SessionCarbon25,conn-BKUP-001
+    ApplicationName: corp-backup.sktlocal.it
+    ApplicationSegment: backup-segment
+    dst: 10.61.10.90
+    dstPort: '8443'
+    ConnectionStatus: open
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorPort: '48443'
+    policy: backup-allow
+    proto: '6'
+    ClientCountryCode: RU
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    TimestampConnectionStart_iso8601: offset+3420s
+    scenario_name: Turla Carbon Replay
+- label: CrowdStrike Falcon — Lateral Movement via SMB
+  offset_seconds: 3600
+  dataset: external_edr_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Endpoint
+  mitre_technique_id: T1021.002
+  data:
+    EventType: DetectionSummaryEvent
+    ComputerName: WKSTN-GUNTER-01
+    UserName: gunter.weiss
+    SensorId: CS-SENSOR-WKSTN-GUNTER-01-001
+    DetectId: CS-DETECT-004-WKSTN-GUNTER
+    DetectName: Turla Lateral Movement — SMB Admin Share
+    DetectDescription: Carbon backdoor copying payload to remote admin share for lateral
+      movement
+    Severity: 4
+    SeverityName: High
+    FileName: svchost.exe
+    FilePath: \Device\HarddiskVolume3\Windows\System32\svchost.exe
+    CommandLine: net use \\SRV-FILE-01\ADMIN$ /user:SKT\administrator
+    LocalIP: 10.20.20.102
+    RemoteAddressIP4: 10.20.20.50
+    RemotePort: 445
+    Protocol: TCP
+    Tactic: Lateral Movement
+    TacticId: TA0008
+    Technique: 'Remote Services: SMB/Windows Admin Shares'
+    TechniqueId: T1021.002
+    Objective: Expand Access
+    NetworkContainmentState: normal
+    scenario_name: Turla Carbon Replay
+- label: CrowdStrike Falcon — Data Staged for Exfiltration
+  offset_seconds: 4500
+  dataset: external_edr_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Endpoint
+  mitre_technique_id: T1560.001
+  data:
+    EventType: DetectionSummaryEvent
+    ComputerName: WKSTN-GUNTER-01
+    UserName: gunter.weiss
+    SensorId: CS-SENSOR-WKSTN-GUNTER-01-001
+    DetectId: CS-DETECT-005-WKSTN-GUNTER
+    DetectName: Turla Data Staging — Archive Creation
+    DetectDescription: Rar.exe invoked by Carbon backdoor to archive collected documents
+      for exfiltration staging
+    Severity: 4
+    SeverityName: High
+    FileName: rar.exe
+    FilePath: \Device\HarddiskVolume3\Windows\Temp\~DF4A\rar.exe
+    CommandLine: rar.exe a -hp C:\Windows\Temp\~DF4A\update.rar C:\Users\gunter.weiss\Documents\*
+      -r
+    SHA256HashData: d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2
+    Tactic: Collection
+    TacticId: TA0009
+    Technique: 'Archive Collected Data: Archive via Utility'
+    TechniqueId: T1560.001
+    Objective: Escalate Impact
+    StagingPath: C:\Windows\Temp\~DF4A\
+    StagedFileSize: 4312064
+    LocalIP: 10.20.20.102
+    NetworkContainmentState: normal
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — C2 Relay Tunnel Open — wmimetricsq-relay App
+  offset_seconds: 5100
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1071.001
+  note: Carbon masqueraded process name (wmimetricsq) reused as ZPA application name
+    — implant routing C2 traffic through the zero-trust tunnel. Key detection pivot
+    and soc-terminate-zpa-session trigger.
+  data:
+    leefEventID: OPEN_OR_ACTIVE_CONNECTION
+    cat: ZPA User Activity
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    ConnectionID: TurlaGunter-SessionCarbon25,conn-C2RELAY-001
+    ApplicationName: wmimetricsq-relay.sktlocal.it
+    ApplicationSegment: infra-segment
+    dst: 10.61.10.100
+    dstPort: '8080'
+    ConnectionStatus: open
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ConnectorPort: '48080'
+    policy: infra-allow
+    proto: '6'
+    ClientCountryCode: RU
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    TimestampConnectionStart_iso8601: offset+5100s
+    scenario_name: Turla Carbon Replay
+- label: Zscaler ZPA — Session Disconnected
+  offset_seconds: 6000
+  dataset: zscaler_zpa_raw
+  collector: SystemXQLHTTPCollector
+  soc_framework_category: Network
+  mitre_technique_id: T1078
+  note: Session ends — attacker disconnects or soc-terminate-zpa-session fires in
+    Shadow Mode, killing all open connections in the session simultaneously.
+  data:
+    leefEventID: ZPN_STATUS_DISCONNECTED
+    cat: ZPA User Status
+    usrName: gunter@sktlocal.it
+    src: 185.220.101.47
+    srcPreNAT: 10.61.76.31
+    SessionID: TurlaGunter-SessionCarbon25
+    Connector: skt-zpa-connector-east-01
+    ConnectorIP: 10.61.10.20
+    ClientCountryCode: RU
+    Platform: windows
+    identHostName: WKSTN-GUNTER-01
+    scenario_name: Turla Carbon Replay

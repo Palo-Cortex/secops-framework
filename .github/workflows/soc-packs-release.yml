@@ -96,6 +96,18 @@ jobs:
               fh.write(f"has_changes={'true' if changed else 'false'}\n")
           PY
 
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate shadow mode (pre-release safety net)
+        # Belt-and-suspenders: PR Gate already ran this, but we re-run here
+        # before any zip is built or released. A shadow_mode: false action on
+        # a destructive command must never make it into a production release asset.
+        run: |
+          python tools/validate_shadow_mode.py --all \
+            --actions-list Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json \
+            --policy Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/shadow_mode_policy.json
+
       - name: Build & publish production releases
         if: steps.changed.outputs.has_changes == 'true'
         env:
