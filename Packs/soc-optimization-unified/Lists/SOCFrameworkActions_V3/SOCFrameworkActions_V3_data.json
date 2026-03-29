@@ -71,10 +71,11 @@
         }
       },
       "CrowdStrike Falcon": {
-        "command": "cs-falcon-run-script",
+        "command": "cs-falcon-run-command",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "raw": "Stop-Process -Id ${SOCFramework.Artifacts.PID} -Force -ErrorAction SilentlyContinue"
+          "command_type": "runscript",
+          "full_command": "runscript -Raw=```Stop-Process -Id ${SOCFramework.Artifacts.PID} -Force -ErrorAction SilentlyContinue```"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
@@ -105,10 +106,11 @@
         }
       },
       "CrowdStrike Falcon": {
-        "command": "cs-falcon-run-script",
+        "command": "cs-falcon-run-command",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "raw": "Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue"
+          "command_type": "runscript",
+          "full_command": "runscript -Raw=```Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue```"
         }
       }
     },
@@ -117,7 +119,7 @@
   "soc-remove-persistence": {
     "responses": {
       "Cortex Core - IR": {
-        "command": "core-run-script-execute",
+        "command": "core-script-run",
         "inline_args": {
           "endpoint_ids": "${SOCFramework.Artifacts.EndPointID}",
           "script_name": "remove_persistence",
@@ -125,10 +127,11 @@
         }
       },
       "CrowdStrike Falcon": {
-        "command": "cs-falcon-run-script",
+        "command": "cs-falcon-run-command",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "raw": "Remove-ItemProperty -Path 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name '${SOCFramework.Artifacts.ProcessName}' -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName '${SOCFramework.Artifacts.ProcessName}' -Confirm:$false -ErrorAction SilentlyContinue"
+          "command_type": "runscript",
+          "full_command": "runscript -Raw=```Remove-ItemProperty -Path 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name '${SOCFramework.Artifacts.ProcessName}' -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName '${SOCFramework.Artifacts.ProcessName}' -Confirm:$false -ErrorAction SilentlyContinue```"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
@@ -151,10 +154,11 @@
         }
       },
       "CrowdStrike Falcon": {
-        "command": "cs-falcon-run-script",
+        "command": "cs-falcon-run-command",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "raw": "Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue"
+          "command_type": "runscript",
+          "full_command": "runscript -Raw=```Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue```"
         }
       }
     },
@@ -170,10 +174,11 @@
         }
       },
       "CrowdStrike Falcon": {
-        "command": "cs-falcon-run-script",
+        "command": "cs-falcon-run-command",
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "raw": "Test-Path -Path '${SOCFramework.Artifacts.FilePath}'"
+          "command_type": "runscript",
+          "full_command": "runscript -Raw=```Test-Path -Path '${SOCFramework.Artifacts.FilePath}'```"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
@@ -280,7 +285,7 @@
           "userId": "${SOCFramework.Artifacts.UserName}"
         }
       },
-      "Azure Active Directory Identity And Access": {
+      "Entra ID Users": {
         "command": "msgraph-user-account-disable",
         "inline_args": {
           "user": "${SOCFramework.Artifacts.UserName}"
@@ -386,7 +391,7 @@
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
-        "command": "microsoft-atp-get-machine-by-id",
+        "command": "microsoft-atp-get-machine-details",
         "inline_args": {
           "machine_id": "${SOCFramework.Artifacts.EndPointID}"
         }
@@ -505,9 +510,9 @@
   "soc-enrich-ioc": {
     "responses": {
       "Cortex Core - IR": {
-        "command": "enrichIndicators",
+        "command": "core-get-hash-analytics-prevalence",
         "inline_args": {
-          "indicators": "${SOCFramework.Artifacts}"
+          "sha256": "${SOCFramework.Artifacts.Hash}"
         }
       },
       "Recorded Future": {
@@ -517,7 +522,7 @@
           "entity_type": "indicator"
         }
       },
-      "Proofpoint TAP": {
+      "Proofpoint TAP v2": {
         "command": "proofpoint-get-forensics",
         "inline_args": {
           "threatId": "${SOCFramework.Artifacts.Hash}"
@@ -529,29 +534,33 @@
   "soc-get-email-events": {
     "responses": {
       "Proofpoint TAP v2": {
-        "command": "proofpoint-get-messages-delivered",
+        "command": "proofpoint-get-events-messages-delivered",
         "inline_args": {
-          "interval": "P7D",
-          "threatType": "url",
-          "url": "${SOCFramework.Email.threat_url}"
+          "threat_type": "url",
+          "time_range": "7 days"
         },
         "output_map": {
           "UC.Email.Events.messages_delivered": "Proofpoint.MessagesDelivered",
-          "UC.Email.Events.delivered_count": "Proofpoint.MessagesDelivered.messagesDelivered",
-          "UC.Email.Events.message_id": "Proofpoint.MessagesDelivered.GUID"
+          "UC.Email.Events.message_id": "Proofpoint.MessagesDelivered.GUID",
+          "UC.Email.Events.sender": "Proofpoint.MessagesDelivered.sender",
+          "UC.Email.Events.recipient": "Proofpoint.MessagesDelivered.recipient",
+          "UC.Email.Events.subject": "Proofpoint.MessagesDelivered.subject",
+          "UC.Email.Events.threat_id": "Proofpoint.MessagesDelivered.threatsInfoMap.threatID",
+          "UC.Email.Events.threat_url": "Proofpoint.MessagesDelivered.threatsInfoMap.threatUrl"
         }
       },
       "Proofpoint TAP v2 (clicks)": {
-        "command": "proofpoint-get-clicks-permitted",
+        "command": "proofpoint-get-events-clicks-permitted",
         "inline_args": {
-          "interval": "P7D",
-          "threatType": "url",
-          "url": "${SOCFramework.Email.threat_url}"
+          "time_range": "7 days"
         },
         "output_map": {
           "UC.Email.Events.clicks_permitted": "Proofpoint.ClicksPermitted",
-          "UC.Email.Events.click_count": "Proofpoint.ClicksPermitted.clicksPermitted",
-          "UC.Email.Events.message_id": "Proofpoint.ClicksPermitted.GUID"
+          "UC.Email.Events.message_id": "Proofpoint.ClicksPermitted.GUID",
+          "UC.Email.Events.click_url": "Proofpoint.ClicksPermitted.url",
+          "UC.Email.Events.click_ip": "Proofpoint.ClicksPermitted.clickIP",
+          "UC.Email.Events.recipient": "Proofpoint.ClicksPermitted.recipient",
+          "UC.Email.Events.threat_id": "Proofpoint.ClicksPermitted.threatID"
         }
       }
     },
@@ -656,24 +665,13 @@
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
-        "command": "microsoft-atp-add-tiindicator",
+        "command": "microsoft-atp-sc-indicator-create",
         "inline_args": {
           "indicator_value": "${SOCFramework.Email.sender}",
           "indicator_type": "EmailSenderAddress",
           "action": "BlockAndRemediate",
           "description": "SOCFramework block sender",
           "expiration_date_time": "90"
-        },
-        "output_map": {
-          "UC.Email.BlockSender.status": "Mimecast.BlockedSender.status",
-          "UC.Email.BlockSender.message": "Mimecast.BlockedSender.message"
-        }
-      },
-      "Proofpoint TAP v2": {
-        "command": "proofpoint-block-sender",
-        "inline_args": {
-          "sender_address": "${SOCFramework.Email.sender}",
-          "action": "block"
         },
         "output_map": {
           "UC.Email.BlockSender.status": "Mimecast.BlockedSender.status",
@@ -696,19 +694,9 @@
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
-        "command": "microsoft-atp-sc-delete-indicator",
+        "command": "microsoft-atp-sc-indicator-delete",
         "inline_args": {
           "indicator_value": "${SOCFramework.Email.sender}"
-        },
-        "output_map": {
-          "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
-          "UC.Email.UnblockSender.message": "Mimecast.DeleteBlockedSender.message"
-        }
-      },
-      "Proofpoint TAP v2": {
-        "command": "proofpoint-delete-blocked-sender",
-        "inline_args": {
-          "sender": "${SOCFramework.Email.sender}"
         },
         "output_map": {
           "UC.Email.UnblockSender.status": "Mimecast.DeleteBlockedSender.status",
@@ -861,7 +849,7 @@
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
-        "command": "microsoft-atp-add-tiindicator",
+        "command": "microsoft-atp-sc-indicator-create",
         "inline_args": {
           "indicator_value": "${SOCFramework.Artifacts.File}",
           "indicator_type": "FileSha256",
