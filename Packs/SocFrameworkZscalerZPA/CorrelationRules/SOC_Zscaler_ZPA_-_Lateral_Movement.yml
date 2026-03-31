@@ -1,0 +1,349 @@
+rule_id: 0
+# ============================================================
+# SOC Zscaler ZPA - Lateral Movement
+# Version: 1.0.0  (SOC Framework)
+#
+# SCENARIO COVERAGE (Turla Carbon replay):
+#   Row 2  14:03 - LDAP  389  → corp-ad-ldap         Discovery
+#   Row 3  14:06 - SMB   445  → corp-fileserver       Collection (512 KB RX)
+#   Row 4  14:11 - SMB   445  → elnbsbsrv40           Lateral Movement (4 MB RX)
+#   Row 5  14:14 - RPC   135  → corp-mgmt             Discovery sweep
+#   Row 7  14:22 - 8443       → corp-backup           Exfiltration (150 MB RX)
+#   Row 8  14:48 - 8443 close → corp-backup           Exfil confirmed (conn-EXFIL-001)
+#   Row 9  14:50 - 8080       → wmimetricsq-relay     C2 tunnel
+#
+# CASE GROUPING LINKAGE:
+#   agent_hostname         = identHostName  →  N73CG1B4
+#     ↳ joins CrowdStrike Falcon alert (agent_hostname = hostname)
+#   actor_effective_username = usrName      →  gunter@sktlocal.it
+#     ↳ joins Proofpoint TAP alert (actor_effective_username = recipient)
+#
+# SHADOW MODE:
+#   soc-terminate-zpa-session fires in Shadow Mode by default.
+#   Flip "shadow_mode": false in SOCFrameworkActions_V3 when PS hands off
+#   to production. One action, one flip, zero playbook edits required.
+#
+# SIDE-BY-SIDE PATTERN:
+#   is_enabled: false until ready to replace any existing ZPA rules.
+#   ID/name collision risk: NONE. "SOC " prefix on all identifiers.
+# ============================================================
+#
+# CHANGELOG:
+#   1.0.0  Initial SOC Framework release.
+#          Detects lateral movement, collection, and C2 tunnel patterns
+#          via ZPA private application access.
+#          Three detection gates: sensitive protocols / bulk data / tunnel ports.
+#          Suppression: ConnectionID / 1 hour (per-connection dedup).
+#          MITRE tactic dynamically assigned per detection gate.
+# ============================================================
+
+fromversion: 6.10.0
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+
+  # -- Core identity / actor (grouping linkage to CrowdStrike + Proofpoint) ---
+  actor_effective_username: usrName         # gunter@sktlocal.it  → joins PP recipient
+  userid: usrName                           # backward-compat alias
+  user_principal: usrName
+  agent_hostname: identHostName             # N73CG1B4            → joins CS hostname
+  agent_device_domain: domain               # extracted from usrName in XQL
+
+  # -- Network indicators -----------------------------------------------------
+  action_local_ip: src                      # client external IP (185.220.101.47)
+  action_remote_ip: dst                     # internal destination IP
+  prenatsourceip: srcPreNAT                 # ZPA internal pre-NAT IP
+  postnatdestinationip: dst
+
+  # -- MITRE ------------------------------------------------------------------
+  mitretacticid: mitre_tactic_id
+  mitretacticname: mitre_tactic
+  mitretechniqueid: mitre_technique_id
+  mitretechniquename: mitre_technique
+
+  # -- SOC Framework ZPA fields (read by SOC_Network_Analysis_V3) ------------
+  socfwzpasessionid: SessionID
+  socfwzpaconnectionid: ConnectionID
+  socfwzpaconnectionstatus: ConnectionStatus
+  socfwzpaappname: ApplicationName
+  socfwzpasegment: ApplicationSegment
+  socfwzpaappgroup: AppGroup
+  socfwzpaserver: Server
+  socfwzpaserverport: ServerPort
+  socfwzpaclientcountry: ClientCountryCode
+  socfwzpaconnectorip: ConnectorIP
+  socfwzpabytesrxconnector: ZENTotalBytesRxConnector
+  socfwzpabytestxconnector: ZENTotalBytesTxConnector
+  socfwzpaversion: Version                  # surfaces implant version strings (e.g. turla-implant)
+  socfwzpadetectiongate: detection_gate     # lateral_movement / bulk_data / tunnel_port
+  socfwzpaprotocollabel: protocol_label
+
+alert_name: $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+description: >-
+  Detects Zscaler ZPA private application access patterns consistent with post-compromise
+  lateral movement, internal data collection, and C2 tunneling. Three detection gates:
+  (1) sensitive internal protocol access (SMB, LDAP, RDP, RPC, SSH, WinRM),
+  (2) bulk data ingress via ZPA (>1 MB received -- collection / exfiltration indicator),
+  (3) tunnel-pattern ports (8080, 8443, 1080, 4444) from high-risk source geographies.
+  Correlates into the same XSIAM case as CrowdStrike Falcon endpoint alerts and Proofpoint
+  TAP email alerts via shared agent_hostname (identHostName) and user identity (usrName).
+  Response action: soc-terminate-zpa-session (Shadow Mode default -- no production execution
+  until PS flips shadow_mode: false in SOCFrameworkActions_V3).
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC Zscaler ZPA - Lateral Movement
+investigation_query_link: |
+  // All ZPA activity for this user -- lateral movement timeline
+  dataset = zscaler_zpa_raw
+  | filter usrName = $actor_effective_username
+  | sort asc _time
+  | fields _time, cat, leefEventID, usrName, identHostName, ApplicationName,
+            ServerPort, ConnectionStatus, ZENTotalBytesRxConnector, ClientCountryCode,
+            src, dst, SessionID, ConnectionID, Version
+is_enabled: false
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0007 - Discovery:
+  - T1018 - Remote System Discovery
+  - T1049 - System Network Connections Discovery
+  TA0008 - Lateral Movement:
+  - T1021 - Remote Services
+  - T1550 - Use Alternate Authentication Material
+  TA0009 - Collection:
+  - T1039 - Data from Network Shared Drive
+  - T1005 - Data from Local System
+  TA0010 - Exfiltration:
+  - T1048 - Exfiltration Over Alternative Protocol
+  TA0011 - Command and Control:
+  - T1071 - Application Layer Protocol
+  - T1572 - Protocol Tunneling
+name: SOC Zscaler ZPA - Lateral Movement
+search_window: null
+severity: User Defined
+simple_schedule: null
+
+# -- Suppression: ConnectionID / 1 hour -------------------------------------
+# ConnectionID is ZPA's per-connection unique identifier within a session.
+# Format: "<SessionID>,<conn-ID>" e.g. "TurlaGunter-SessionCarbon25,conn-AD-001"
+# Each distinct ZPA private app connection has a unique ConnectionID -- suppressing
+# on it scopes dedup to a single connection only. Multiple connections within the
+# same session to different internal targets each fire their own alert independently,
+# preserving the full lateral movement blast-radius story in XSIAM.
+# 1-hour window: ZPA can deliver open and active-heartbeat events for the same
+# ConnectionID across consecutive polling cycles. This prevents duplicate alerts
+# from the same open connection while allowing the close event (different ConnectionID
+# in the scenario -- conn-EXFIL-001 vs conn-BKP-001) to fire as a distinct alert.
+# Prior to this rule: no ZPA lateral movement detection existed in the framework.
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+  - ConnectionID
+
+timezone: null
+user_defined_category: mitre_tactic
+user_defined_severity: alert_severity
+
+xql_query: |
+  /*
+  Title:   SOC Zscaler ZPA - Lateral Movement
+  Dataset: zscaler_zpa_raw
+  Version: 1.0.0 (SOC Framework)
+
+  Detection gates (any one sufficient to fire):
+    Gate 1 - SENSITIVE_PROTOCOL: ZPA User Activity connecting to SMB (445), LDAP (389/636),
+             RDP (3389), SSH (22), WinRM (5985/5986), or RPC (135) internal targets.
+             Maps to Lateral Movement (SMB/RDP/SSH/WinRM/RPC) or Discovery (LDAP).
+    Gate 2 - BULK_DATA: ZPA User Activity where the connector received >1 MB
+             (ZENTotalBytesRxConnector > 1048576). Catches collection and exfiltration
+             events on any port, including standard HTTPS (443, 8443).
+    Gate 3 - TUNNEL_PORT: ZPA User Activity on non-standard tunnel/proxy ports
+             (8080, 8008, 1080, 4444, 8888) originating from a high-risk source country.
+             Catches C2-over-ZPA patterns where volume alone would not trigger Gate 2.
+
+  Case grouping:
+    agent_hostname         = identHostName (N73CG1B4)    → CrowdStrike Falcon alert
+    actor_effective_username = usrName (gunter@sktlocal.it) → Proofpoint TAP alert
+  */
+
+  config case_sensitive = false
+  | dataset = zscaler_zpa_raw
+
+  // Activity events only -- excludes ZPA User Status (auth/disconnect) rows
+  // which have no ConnectionID, AppName, or ServerPort populated.
+  | filter cat = "ZPA User Activity"
+
+  // -------------------------------------------------------------------------
+  // Detection gates
+  // -------------------------------------------------------------------------
+
+  // Gate 1: Sensitive internal protocol (lateral movement / discovery)
+  | alter gate1_sensitive_protocol = if(
+      ServerPort in ("445", "389", "636", "3389", "22", "5985", "5986", "135"),
+      true, false
+    )
+
+  // Gate 2: Bulk data received via ZPA (collection / exfiltration indicator)
+  | alter gate2_bulk_data = if(
+      to_number(ZENTotalBytesRxConnector) > 1048576,
+      true, false
+    )
+
+  // Gate 3: Tunnel-pattern port from high-risk source country
+  // High-risk list is intentionally narrow -- tune for your customer's baseline.
+  // ZPA acts as a zero-trust proxy: a Tor-exit or APT-cluster IP authenticating
+  // from RU/CN/KP/IR and tunneling 8080/1080 through the ZPA fabric is high-fidelity.
+  | alter gate3_tunnel_port = if(
+      ServerPort in ("8080", "8008", "1080", "4444", "8888")
+          and ClientCountryCode in ("RU", "CN", "KP", "IR", "BY"),
+      true, false
+    )
+
+  // Apply gates -- any gate sufficient; non-matching rows dropped
+  | filter gate1_sensitive_protocol = true
+      or gate2_bulk_data = true
+      or gate3_tunnel_port = true
+
+  // -------------------------------------------------------------------------
+  // Detection gate label (surfaces in warroom and SOCCommandWrapper logging)
+  // -------------------------------------------------------------------------
+  | alter detection_gate = if(
+      gate2_bulk_data = true and to_number(ZENTotalBytesRxConnector) >= 10485760, "bulk_data_high",
+      gate2_bulk_data = true,                                                      "bulk_data",
+      gate3_tunnel_port = true,                                                    "tunnel_port",
+      gate1_sensitive_protocol = true,                                             "sensitive_protocol"
+    )
+
+  // -------------------------------------------------------------------------
+  // Protocol label for alert naming and warroom context
+  // -------------------------------------------------------------------------
+  | alter protocol_label = if(
+      ServerPort = "445",  "SMB",
+      ServerPort = "389",  "LDAP",
+      ServerPort = "636",  "LDAPS",
+      ServerPort = "3389", "RDP",
+      ServerPort = "22",   "SSH",
+      ServerPort = "5985", "WinRM",
+      ServerPort = "5986", "WinRM/HTTPS",
+      ServerPort = "135",  "RPC",
+      ServerPort = "8080", "HTTP-alt",
+      ServerPort = "8443", "HTTPS-alt",
+      ServerPort = "1080", "SOCKS",
+      concat("Port ", ServerPort)
+    )
+
+  // -------------------------------------------------------------------------
+  // MITRE tactic / technique assignment per detection gate + protocol
+  // -------------------------------------------------------------------------
+  | alter mitre_tactic = if(
+      detection_gate in ("bulk_data_high", "bulk_data") and to_number(ZENTotalBytesRxConnector) >= 10485760,
+          "Exfiltration",
+      detection_gate in ("bulk_data_high", "bulk_data"),
+          "Collection",
+      detection_gate = "tunnel_port",
+          "Command and Control",
+      ServerPort in ("389", "636", "135"),
+          "Discovery",
+      "Lateral Movement"
+    )
+
+  | alter mitre_tactic_id = if(
+      mitre_tactic = "Exfiltration",        "TA0010",
+      mitre_tactic = "Collection",          "TA0009",
+      mitre_tactic = "Command and Control", "TA0011",
+      mitre_tactic = "Discovery",           "TA0007",
+                                            "TA0008"
+    )
+
+  | alter mitre_technique = if(
+      mitre_tactic = "Exfiltration",        "Exfiltration Over Alternative Protocol",
+      mitre_tactic = "Collection",          "Data from Network Shared Drive",
+      mitre_tactic = "Command and Control", "Protocol Tunneling",
+      mitre_tactic = "Discovery",           "Remote System Discovery",
+                                            "Remote Services"
+    )
+
+  | alter mitre_technique_id = if(
+      mitre_tactic = "Exfiltration",        "T1048",
+      mitre_tactic = "Collection",          "T1039",
+      mitre_tactic = "Command and Control", "T1572",
+      mitre_tactic = "Discovery",           "T1018",
+                                            "T1021"
+    )
+
+  // -------------------------------------------------------------------------
+  // Alert severity
+  //   HIGH:   bulk exfil (>10 MB), SMB/RDP from high-risk country, tunnel port gate
+  //   MEDIUM: all other matches
+  // -------------------------------------------------------------------------
+  | alter alert_severity = if(
+      detection_gate = "bulk_data_high",                                           "SEV_020_HIGH",
+      detection_gate = "tunnel_port",                                              "SEV_020_HIGH",
+      ServerPort in ("445", "3389") and ClientCountryCode in ("RU", "CN", "KP", "IR", "BY"),
+                                                                                   "SEV_020_HIGH",
+                                                                                   "SEV_030_MEDIUM"
+    )
+
+  // -------------------------------------------------------------------------
+  // Domain extracted from usrName (user@domain.com -> domain.com)
+  // Used for agent_device_domain mapping and Foundation normalization
+  // -------------------------------------------------------------------------
+  | alter domain = if(
+      usrName ~= "@",
+      arrayindex(regextract(usrName, "@(.+)$"), 0),
+      ""
+    )
+
+  // -------------------------------------------------------------------------
+  // Alert name: [Network] <user> - <tactic>: ZPA <Protocol> to <App>
+  // Matches the bracket-prefix naming pattern of CrowdStrike ([Endpoint])
+  // and Proofpoint ([Email]) rules so all three sort together in the case view.
+  // -------------------------------------------------------------------------
+  | alter alert_name = concat(
+      "[Network] ",
+      coalesce(usrName, identHostName, "Unknown"),
+      " - ",
+      mitre_tactic,
+      ": ZPA ",
+      protocol_label,
+      " to ",
+      coalesce(ApplicationName, Server, dst, "Unknown")
+    )
+
+  // -------------------------------------------------------------------------
+  // Alert description -- surfaces key ZPA context in the alert row
+  // -------------------------------------------------------------------------
+  | alter alert_description = concat(
+      "ZPA private app access | ",
+      "User: ", coalesce(usrName, "Unknown"),
+      " | Host: ", coalesce(identHostName, "Unknown"),
+      " | App: ", coalesce(ApplicationName, Server, dst, "Unknown"),
+      " (", protocol_label, " / port ", ServerPort, ")",
+      " | Src country: ", coalesce(ClientCountryCode, "Unknown"),
+      " | Src IP: ", coalesce(src, "Unknown"),
+      " | Bytes RX: ", coalesce(ZENTotalBytesRxConnector, "0"),
+      " | Gate: ", detection_gate
+    )
+
+  // -------------------------------------------------------------------------
+  // Final field projection
+  // Leading fields drive alert table, grouping, and entity stitching.
+  // identHostName and usrName must be in projection for XSIAM alert field mapping.
+  // -------------------------------------------------------------------------
+  | fields
+      usrName, identHostName, src, srcPreNAT, dst,
+      SessionID, ConnectionID, ConnectionStatus,
+      ApplicationName, ApplicationSegment, AppGroup, Server, ServerPort,
+      ClientCountryCode, ConnectorIP, domain,
+      ZENTotalBytesRxConnector, ZENTotalBytesTxConnector,
+      mitre_tactic, mitre_tactic_id, mitre_technique, mitre_technique_id,
+      protocol_label, detection_gate, alert_severity,
+      alert_name, alert_description,
+      gate1_sensitive_protocol, gate2_bulk_data, gate3_tunnel_port,
+      Version, Idp, dstPort, proto, _time,
+      *
