@@ -71,7 +71,8 @@ tasks:
       body:
         simple: '{"request_data" : {"filters" : [{"field": "status","operator": "eq","value":
           "New"},{"operator": "lte", "value": ${TimeNowUnix}, "field": "modification_time"},{"operator":
-          "eq", "value": false, "field": "starred"}]}}'
+          "eq", "value": false, "field": "starred"},{"operator": "lte", "value": ${TriageScoreThreshold},
+          "field": "aggregated_score"}]}}'
       extend-context:
         simple: Found=.
       uri:
@@ -112,7 +113,7 @@ tasks:
       '#error#':
       - "6"
       '#none#':
-      - "1"
+      - "10"
     scriptarguments:
       hoursAgo:
         complex:
@@ -319,6 +320,66 @@ tasks:
         "position": {
           "x": 340.5,
           "y": 1060
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: a3f21b44-7c3e-4d18-b9f5-2e6a0c8d1e37
+    type: regular
+    task:
+      id: a3f21b44-7c3e-4d18-b9f5-2e6a0c8d1e37
+      version: -1
+      name: Read Triage Score Threshold
+      description: >-
+        Reads TriageScoreThreshold from SOCOptimizationConfig_V3 and stores it
+        in context. Incidents with aggregated_score above this value are excluded
+        from auto-close even if unstarred and past the triage window.
+      scriptName: Set
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#none#':
+      - "1"
+    scriptarguments:
+      key:
+        simple: TriageScoreThreshold
+      value:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: Triage Incidents JOB
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: fields
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: TriageScoreThreshold
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 290.5,
+          "y": 460
         }
       }
     note: false
