@@ -14,8 +14,11 @@ Checks:
                              pre-merge).  Version is sourced from pack_metadata.json,
                              not from the id field.  Dependency pack entries are
                              matched by pack name prefix in the url.
-  3. pre_config_docs[*].url  — HTTP check (file must exist on main)
-  4. post_config_docs[*].url — HTTP check (file must exist on main)
+  3. pre_config_docs[*].url  — HTTP check (file must exist on main).
+                                Skipped for new packs — doc files cannot exist on
+                                main until the PR introducing the pack merges.
+  4. post_config_docs[*].url — HTTP check (file must exist on main).
+                                Skipped for new packs — same reason as above.
 
 Bypass:
   Create a preflight_overrides.json in the pack directory to skip specific
@@ -110,6 +113,30 @@ def load_overrides(pack_dir: Path) -> Set[str]:
     return skipped_urls
 
 
+# ── New pack detection ────────────────────────────────────────────────────────
+
+def is_new_pack(pack_dir: Path) -> bool:
+    """Return True if this pack did not exist in HEAD~1.
+
+    Uses git to check whether pack_metadata.json was present in the previous
+    commit. If the git command fails (file not found in tree, shallow clone,
+    or not in a git repo), we conservatively return False so HTTP checks still
+    run rather than silently skipping them.
+    """
+    import subprocess
+    meta_rel = pack_dir / "pack_metadata.json"
+    try:
+        subprocess.check_output(
+            ["git", "show", f"HEAD~1:{meta_rel}"],
+            stderr=subprocess.DEVNULL,
+        )
+        return False  # existed in HEAD~1 → not new
+    except subprocess.CalledProcessError:
+        return True   # not found in HEAD~1 → new pack
+    except FileNotFoundError:
+        return False  # git not available → don't skip
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def load_json(path: Path) -> dict:
@@ -173,7 +200,7 @@ def expected_zip_url(pack_id: str, version: str) -> str:
 
 
 def validate_zip_url_format(
-    url: str, pack_id: str, version: str, label: str
+        url: str, pack_id: str, version: str, label: str
 ) -> Tuple[bool, str]:
     """
     Format-only validation for custom_packs zip URLs.
@@ -210,6 +237,10 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
     """
     Validate xsoar_config.json for a single pack.
     Returns a list of error strings.  Empty = all checks passed.
+
+    Doc URL HTTP checks (pre/post_config_docs) are skipped for new packs —
+    packs not present in HEAD~1 cannot have their doc files on main yet.
+    The skip is printed as a visible warning, not silently ignored.
     """
     config_path = pack_dir / "xsoar_config.json"
     errors = []
@@ -291,6 +322,20 @@ def validate_pack(pack_dir: Path, no_http: bool = False) -> List[str]:
 
     # ── 3. pre_config_docs URLs — HTTP check ─────────────────────────────────
     pre_docs = cfg.get("pre_config_docs", [])
+    post_docs = cfg.get("post_config_docs", [])
+
+    # New packs: doc files cannot exist on main until this PR merges.
+    # Skip HTTP checks entirely — format is validated by the URL structure above.
+    if (pre_docs or post_docs) and not no_http:
+        if is_new_pack(pack_dir):
+            print(
+                "  ⚠  New pack detected (not present in HEAD~1) — "
+                "skipping doc URL HTTP checks.\n"
+                "     pre_config_docs / post_config_docs files cannot exist on "
+                "main until this PR merges."
+            )
+            return errors
+
     if pre_docs:
         if no_http:
             print("  Skipping pre_config_docs URL checks (--no-http).")
