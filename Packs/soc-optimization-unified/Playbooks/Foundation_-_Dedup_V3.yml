@@ -34,7 +34,7 @@ tasks:
       playbooktaskmissingcomponent:
     nexttasks:
       '#none#':
-        - "10"
+        - "19"
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -103,24 +103,7 @@ tasks:
     scriptarguments:
       fromDate:
         complex:
-          root: lists
-          accessor: SOCOptimizationConfig_V3
-          transformers:
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: Dedup
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: fields
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: DedupWindow
+          root: inputs.DedupWindow
       minimunIncidentSimilarity:
         simple: "0.8"
       query:
@@ -207,7 +190,7 @@ tasks:
       '#error#':
         - "18"
       '#none#':
-        - "14"
+        - "20"
     scriptarguments:
       value:
         simple: "🔁 **Duplicate alert detected** — current alert (${alert.id}) is the latest. Closing older duplicate(s): ${DBotFindSimilarIncidents.similarIncident.id}"
@@ -340,21 +323,226 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  "19":
+    id: "19"
+    taskid: e2a47b13-5c8d-4f91-a3e0-7d9b2f6c4a08
+    type: condition
+    task:
+      id: e2a47b13-5c8d-4f91-a3e0-7d9b2f6c4a08
+      version: -1
+      name: Score Bypass?
+      description: >-
+        If the parent incident's predicted_score meets or exceeds
+        DedupScoreThreshold, skip dedup entirely. High-scoring active cases
+        should surface new signals independently rather than have them suppressed.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#default#':
+        - "10"
+      "yes":
+        - "8"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: greaterThanOrEqual
+          left:
+            value:
+              simple: parentIncidentFields.predicted_score
+            iscontext: true
+          right:
+            value:
+              complex:
+                root: inputs.DedupScoreThreshold
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: f3b58c24-6d9e-4a02-b4f1-8e0c3g7d5b19
+    type: condition
+    task:
+      id: f3b58c24-6d9e-4a02-b4f1-8e0c3g7d5b19
+      version: -1
+      name: DryRun?
+      description: >-
+        If DryRun is true, print what would be closed without executing.
+        Used for smoke testing post-deploy without closing any issues.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#default#':
+        - "14"
+      "yes":
+        - "21"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isTrue
+          left:
+            value:
+              complex:
+                root: inputs.DryRun
+            iscontext: true
+          right:
+            value: {}
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 387.5,
+          "y": 580
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "21":
+    id: "21"
+    taskid: a4c69d35-7e0f-4b13-c5g2-9f1d4h8e6c20
+    type: regular
+    task:
+      id: a4c69d35-7e0f-4b13-c5g2-9f1d4h8e6c20
+      version: -1
+      name: "[DRY RUN] Print Issues That Would Close"
+      description: >-
+        Smoke test output. Lists duplicate issue IDs that would have been
+        closed by dedup. No issues are modified.
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+    nexttasks:
+      '#none#':
+        - "8"
+    scriptarguments:
+      value:
+        simple: >-
+          [DRY RUN] Dedup would close issue(s): ${DBotFindSimilarIncidents.similarIncident.id}
+          Current alert: ${alert.id}
+          Dedup window: ${inputs.DedupWindow}
+          Score threshold (bypass): ${inputs.DedupScoreThreshold}
+          Parent score: ${parentIncidentFields.predicted_score}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 650,
+          "y": 760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
 system: true
 view: |-
   {
-    "linkLabelsPosition": {},
+    "linkLabelsPosition": {
+      "19_10_#default#": 0.5,
+      "19_8_yes": 0.5,
+      "20_14_#default#": 0.5,
+      "20_21_yes": 0.5
+    },
     "paper": {
       "dimensions": {
-        "height": 1130,
-        "width": 717.5,
+        "height": 1400,
+        "width": 900,
         "x": 50,
         "y": 50
-
       }
     }
   }
-inputs: []
+inputs:
+- key: DryRun
+  value:
+    simple: "false"
+  required: false
+  description: >-
+    When true, prints duplicate issues that would be closed without executing
+    any close actions. Use for smoke testing after deployment.
+  playbookInputQuery:
+- key: DedupWindow
+  value:
+    complex:
+      root: lists
+      accessor: SOCOptimizationConfig_V3
+      transformers:
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: Dedup
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: fields
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: DedupWindow
+  required: false
+  description: >-
+    How far back to search for similar alerts. Read from SOCOptimizationConfig_V3.
+    Default: 1 days ago.
+  playbookInputQuery:
+- key: DedupScoreThreshold
+  value:
+    complex:
+      root: lists
+      accessor: SOCOptimizationConfig_V3
+      transformers:
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: Dedup
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: fields
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: DedupScoreThreshold
+  required: false
+  description: >-
+    If parent incident predicted_score is at or above this value, dedup is
+    bypassed. Read from SOCOptimizationConfig_V3. Default: 70.
+  playbookInputQuery:
 outputs: []
 sourceplaybookid: Foundation - Upon Trigger
 dirtyInputs: true

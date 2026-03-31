@@ -1,0 +1,38 @@
+commonfields:
+  id: SOCAutoTriageScoreFilter
+  version: -1
+name: SOCAutoTriageScoreFilter
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.13.7444307
+tags:
+- SOC
+- SOC_Framework_Unified
+comment: |-
+  Filters the get_incidents API response by aggregated_score and manual_score.
+  Cases above the score threshold or where manual_score is set (analyst-touched)
+  are excluded from the auto-close loop. Part of JOB - Auto Triage V3.
+  VD3: frees analyst time by auto-closing low-signal noise cases.
+enabled: true
+args:
+- name: incidents
+  required: true
+  description: Array of incident objects from get_incidents API response (Found.response.reply.incidents)
+- name: score_threshold
+  required: true
+  description: Maximum aggregated_score to be eligible for auto-close. Cases above this are skipped. Reads from SOCOptimizationConfig_V3 TriageScoreThreshold field.
+outputs:
+- contextPath: AutoTriage.filtered_incidents
+  description: Incident objects that passed both gates (score <= threshold, manual_score is null)
+  type: Unknown
+- contextPath: AutoTriage.skipped_incidents
+  description: Incident objects that failed one or both gates with reason
+  type: Unknown
+- contextPath: AutoTriage.passed_count
+  description: Count of incidents that passed the score filter
+  type: Number
+- contextPath: AutoTriage.skipped_count
+  description: Count of incidents that were skipped
+  type: Number
+fromversion: 6.10.0
