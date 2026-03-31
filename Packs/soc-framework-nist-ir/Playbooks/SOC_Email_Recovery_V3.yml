@@ -1,43 +1,76 @@
-adopted: true
+fromversion: 5.0.0
 id: SOC Email Recovery_V3
+version: 19
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.4.5
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Recovery_V3
-version: -1
-fromversion: 6.10.0
-description: "NIST IR 800-61 — Recovery Phase — Email / SEG\n\nValidates eradication outcomes and handles false positive correction.\n\
-  \nValue Driver: VD1 (Reduce Risk) — confirms threat is neutralised before closing.\nValue Driver: VD3 (Efficiency) — automated\
-  \ recovery validation and FP correction eliminates manual post-incident cleanup steps.\n\nGate: Eradication.attempted=true.\n\
-  All actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.\n\nRouting:\n  Eradication not attempted\
-  \ → Recovery.status=not_required\n  Eradication failed        → Recovery.status=eradication_failed, analyst flag\n  False\
-  \ positive (verdict=benign) → soc-unblock-sender via SOCCommandWrapper\n  Confirmed malicious       → Recovery.status=contained,\
-  \ monitoring_required=true\n\nUC: soc-unblock-sender (false positive path only)\nNote: soc-unblock-sender is not yet in\
-  \ SOCFrameworkActions_V3 — add to Email action group alongside soc-block-sender.\n\nContext keys produced:\n  Recovery.status\n\
-  \  Recovery.monitoring_required\n  Recovery.story\n  Recovery.Execution"
+description: |-
+  NIST IR 800-61 — Recovery Phase — Email / SEG
+
+  Validates eradication outcomes and handles false positive correction.
+
+  Value Driver: VD1 (Reduce Risk) — confirms threat is neutralised before closing.
+  Value Driver: VD3 (Efficiency) — automated recovery validation and FP correction eliminates manual post-alert cleanup steps.
+
+  Gate: Eradication.attempted=true.
+  All actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.
+
+  Routing:
+    Eradication not attempted → Recovery.status=not_required
+    Eradication failed        → Recovery.status=eradication_failed, analyst flag
+    False positive (verdict=benign) → soc-unblock-sender via SOCCommandWrapper
+    Confirmed malicious       → Recovery.status=contained, monitoring_required=true
+
+  UC: soc-unblock-sender (false positive path only)
+  Note: soc-unblock-sender is not yet in SOCFrameworkActions_V3 — add to Email action group alongside soc-block-sender.
+
+  Context keys produced:
+    Recovery.status
+    Recovery.monitoring_required
+    Recovery.story
+    Recovery.Execution
 tags:
 - SOC
 - SOC_Framework_Unified
 - Recovery
 - NIST 800-61
 - Email
-starttaskid: '0'
+starttaskid: "0"
 tasks:
-  '0':
-    id: '0'
-    taskid: 9074be53-340d-42c9-a6da-bac06f1e440d
+  "0":
+    id: "0"
+    taskid: 4dbb466a-9df6-406f-9755-37aca3afcb90
     type: start
     task:
       id: 4dbb466a-9df6-406f-9755-37aca3afcb90
       version: -1
-      name: ''
+      name: ""
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '1'
+      - "1"
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 50\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 50
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -45,9 +78,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '1':
-    id: '1'
-    taskid: 8a37c98e-ad8c-4c0d-b812-6e3fc59d875d
+  "1":
+    id: "1"
+    taskid: 83248196-9682-496b-8c01-320d85fc1b75
     type: title
     task:
       id: 83248196-9682-496b-8c01-320d85fc1b75
@@ -55,15 +88,21 @@ tasks:
       name: Evaluate Recovery Requirements
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '2'
+      - "2"
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 195\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 220
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -71,29 +110,30 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '2':
-    id: '2'
-    taskid: 03a5057f-f619-47c7-a712-6c80395c7001
+  "2":
+    id: "2"
+    taskid: 81c93d73-7e3e-4a79-b5cc-ea2fc1d8449f
     type: condition
     task:
       id: 81c93d73-7e3e-4a79-b5cc-ea2fc1d8449f
       version: -1
       name: Eradication Was Attempted?
+      description: |-
+        Gate: only run recovery actions if eradication was attempted.
+        If eradication was skipped (no containment, or escalate_IR), set status=not_required and exit.
       type: condition
-      description: 'Gate: only run recovery actions if eradication was attempted.
-
-        If eradication was skipped (no containment, or escalate_IR), set status=not_required and exit.'
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - '3'
-      'yes':
-      - '5'
+      - "3"
+      "yes":
+      - "5"
+    separatecontext: false
     conditions:
-    - label: 'yes'
+    - label: "yes"
       condition:
       - - operator: isEqualString
           left:
@@ -102,11 +142,16 @@ tasks:
             iscontext: true
           right:
             value:
-              simple: 'true'
+              simple: "true"
           ignorecase: true
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 365\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 390
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -114,9 +159,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '3':
-    id: '3'
-    taskid: 830a6e73-ed69-4aec-b118-b5dbb0fd9f88
+  "3":
+    id: "3"
+    taskid: 3d3fcd56-a89e-45a4-8a91-fb5355fb0c46
     type: regular
     task:
       id: 3d3fcd56-a89e-45a4-8a91-fb5355fb0c46
@@ -125,25 +170,31 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '4'
+      - "4"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.status
       value:
         simple: not_required
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 555\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 930
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -151,9 +202,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '4':
-    id: '4'
-    taskid: 14992c16-b185-451d-98ee-03832488fd30
+  "4":
+    id: "4"
+    taskid: 8484031c-b16e-4194-a25c-d6403c40c5ef
     type: regular
     task:
       id: 8484031c-b16e-4194-a25c-d6403c40c5ef
@@ -162,32 +213,36 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '15'
+      - "15"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.story
       value:
-        simple: 'Recovery not required. Eradication was not attempted.
-
+        simple: |-
+          Recovery not required. Eradication was not attempted.
 
           Containment required: ${Containment.required}
-
           Eradication attempted: ${Eradication.attempted}
-
-          Response recommended: ${Analysis.Email.response_recommended}'
+          Response recommended: ${Analysis.Email.response_recommended}
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 725\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1115
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -195,9 +250,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '5':
-    id: '5'
-    taskid: 70eff30b-eaa2-4abd-bc0b-337b13016d0c
+  "5":
+    id: "5"
+    taskid: 59bc7ca9-332a-44fa-9f5e-32ba9e33dc91
     type: title
     task:
       id: 59bc7ca9-332a-44fa-9f5e-32ba9e33dc91
@@ -205,15 +260,21 @@ tasks:
       name: Check Eradication Success
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '6'
+      - "6"
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 555\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 575
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -221,29 +282,30 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '6':
-    id: '6'
-    taskid: 819b6299-d8f0-432f-9283-999f433551c9
+  "6":
+    id: "6"
+    taskid: 1937a2f5-e996-4b54-8ad8-a96e9f8d6934
     type: condition
     task:
       id: 1937a2f5-e996-4b54-8ad8-a96e9f8d6934
       version: -1
       name: Eradication Succeeded?
+      description: |-
+        If eradication succeeded (sender blocked), validate and set monitoring.
+        If eradication failed, flag for analyst review — do not unblock.
       type: condition
-      description: 'If eradication succeeded (sender blocked), validate and set monitoring.
-
-        If eradication failed, flag for analyst review — do not unblock.'
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - '7'
-      'yes':
-      - '9'
+      - "7"
+      "yes":
+      - "9"
+    separatecontext: false
     conditions:
-    - label: 'yes'
+    - label: "yes"
       condition:
       - - operator: isEqualString
           left:
@@ -252,11 +314,16 @@ tasks:
             iscontext: true
           right:
             value:
-              simple: 'true'
+              simple: "true"
           ignorecase: true
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 725\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 745
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -264,9 +331,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '7':
-    id: '7'
-    taskid: 06578729-8951-4833-ada4-f08f78613c2e
+  "7":
+    id: "7"
+    taskid: 3022bb30-b24f-4c3c-9830-42ac49e44046
     type: regular
     task:
       id: 3022bb30-b24f-4c3c-9830-42ac49e44046
@@ -275,25 +342,31 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '8'
+      - "8"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.status
       value:
         simple: eradication_failed
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 920\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 930
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -301,9 +374,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '8':
-    id: '8'
-    taskid: 8051d562-06a6-4fb0-9a1e-028704803402
+  "8":
+    id: "8"
+    taskid: 6636b5f8-45a7-4ac8-9df9-70d819c8c40a
     type: regular
     task:
       id: 6636b5f8-45a7-4ac8-9df9-70d819c8c40a
@@ -312,35 +385,38 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '15'
+      - "15"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.story
       value:
-        simple: 'Recovery flagged — eradication did not complete successfully.
-
+        simple: |-
+          Recovery flagged — eradication did not complete successfully.
 
           Sender block was not confirmed. Analyst review required.
 
-
           Sender: ${SOCFramework.Artifacts.Email.From}
-
           Threat Classification: ${SOCFramework.Email.TAP.Classification}
-
-          Eradication story: ${Eradication.story}'
+          Eradication story: ${Eradication.story}
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 1090\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1115
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -348,9 +424,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '9':
-    id: '9'
-    taskid: a6158110-1314-4db9-8e2a-3a1fc207b646
+  "9":
+    id: "9"
+    taskid: 35fe1808-92af-4491-9a91-03c15715b440
     type: title
     task:
       id: 35fe1808-92af-4491-9a91-03c15715b440
@@ -358,15 +434,21 @@ tasks:
       name: Check for False Positive
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '10'
+      - "10"
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 920\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 937.5
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -374,31 +456,31 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '10':
-    id: '10'
-    taskid: cb5b44e1-2fce-4eb9-b474-8e2bf5df65a3
+  "10":
+    id: "10"
+    taskid: 60286f5b-6081-40b1-8143-d3b7c8683906
     type: condition
     task:
       id: 60286f5b-6081-40b1-8143-d3b7c8683906
       version: -1
       name: False Positive? (Unblock Sender)
-      type: condition
-      description: 'If a re-evaluation determined the verdict was benign (false positive),
-
+      description: |-
+        If a re-evaluation determined the verdict was benign (false positive),
         unblock the sender via soc-unblock-sender.
-
-        Default: verdict=malicious confirmed, no unblock needed.'
+        Default: verdict=malicious confirmed, no unblock needed.
+      type: condition
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - '12'
-      'yes':
-      - '11'
+      - "12"
+      "yes":
+      - "11"
+    separatecontext: false
     conditions:
-    - label: 'yes'
+    - label: "yes"
       condition:
       - - operator: isEqualString
           left:
@@ -409,9 +491,14 @@ tasks:
             value:
               simple: benign
           ignorecase: true
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1090\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 1115
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -419,9 +506,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '11':
-    id: '11'
-    taskid: 9e03e802-3771-4120-b1c9-2e00ea7dd9dd
+  "11":
+    id: "11"
+    taskid: 1749786d-145c-4618-b36d-dead5677f857
     type: regular
     task:
       id: 1749786d-145c-4618-b36d-dead5677f857
@@ -430,21 +517,21 @@ tasks:
       scriptName: SOCCommandWrapper
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '14'
+      - "14"
     scriptarguments:
       Action_Actor:
         simple: automation
+      LifeCycle:
+        simple: NIST_IR
       Phase:
         simple: Recovery
       action:
         simple: soc-unblock-sender
-      LifeCycle:
-        simple: NIST_IR
       output_key:
         simple: Recovery.Execution
       tags:
@@ -473,8 +560,14 @@ tasks:
                 value:
                   simple: Shadow Mode,Recovery
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 1280\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1340,
+          "y": 1300
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -482,9 +575,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '12':
-    id: '12'
-    taskid: e8427d48-8b3c-42e6-ab9c-bd0d20d2aa65
+  "12":
+    id: "12"
+    taskid: 867a5fe0-ef2e-4291-b863-6ec9fddc8fb2
     type: regular
     task:
       id: 867a5fe0-ef2e-4291-b863-6ec9fddc8fb2
@@ -493,25 +586,31 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '13'
+      - "13"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.status
       value:
         simple: contained
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 700,\n    \"y\": 1280\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 1300
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -519,9 +618,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '13':
-    id: '13'
-    taskid: 8674c5c0-3457-4c82-8b42-36fbfa3fe596
+  "13":
+    id: "13"
+    taskid: 6a3e4464-ebd0-47c2-8cc8-ac9fc5011283
     type: regular
     task:
       id: 6a3e4464-ebd0-47c2-8cc8-ac9fc5011283
@@ -530,25 +629,31 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '16'
+      - "16"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.monitoring_required
       value:
-        simple: 'true'
+        simple: "true"
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 700,\n    \"y\": 1450\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 1485
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -556,9 +661,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '14':
-    id: '14'
-    taskid: 3495a68d-234a-4a80-afd4-73c1bb667506
+  "14":
+    id: "14"
+    taskid: 971107c4-7541-4dc3-b01b-264ce22b5e08
     type: regular
     task:
       id: 971107c4-7541-4dc3-b01b-264ce22b5e08
@@ -567,25 +672,31 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '16'
+      - "16"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.status
       value:
         simple: false_positive_cleared
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 200,\n    \"y\": 1450\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1340,
+          "y": 1485
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -593,9 +704,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '15':
-    id: '15'
-    taskid: bc67e880-8ab9-41bf-b3d3-2bb81ce541c4
+  "15":
+    id: "15"
+    taskid: 9adefd3c-5a00-49ed-915c-540110b82c28
     type: title
     task:
       id: 9adefd3c-5a00-49ed-915c-540110b82c28
@@ -603,13 +714,18 @@ tasks:
       name: Done
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-    nexttasks: {}
     separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1830\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1307.5
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -617,9 +733,9 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '16':
-    id: '16'
-    taskid: 10914090-4646-476c-bb3d-52db0f482ed5
+  "16":
+    id: "16"
+    taskid: cad412ee-8c05-4b36-a37d-033d89427e39
     type: regular
     task:
       id: cad412ee-8c05-4b36-a37d-033d89427e39
@@ -628,45 +744,40 @@ tasks:
       scriptName: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '201'
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Recovery.story
       value:
-        simple: 'Recovery Assessment
-
+        simple: |-
+          Recovery Assessment
 
           Eradication: ${Eradication.attempted} | Success: ${Eradication.success}
-
           Recovery status: ${Recovery.status}
 
-
           Sender: ${SOCFramework.Artifacts.Email.From}
-
           Recipient: ${SOCFramework.Artifacts.Email.To}
-
           Subject: ${SOCFramework.Artifacts.Email.Subject}
-
           Threat Classification: ${SOCFramework.Email.TAP.Classification}
-
           Exposure: ${Analysis.Email.ExposureLevel} | Scope: ${Analysis.Email.RecipientScope}
-
           Forensics available: ${Analysis.Email.forensics_available}
-
-          Shadow Mode: ${inputs.ShadowMode}'
+          Shadow Mode: ${inputs.ShadowMode}
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 1640\n  }\n}"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1125,
+          "y": 1670
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -674,18 +785,36 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+    nexttasks:
+      '#none#':
+      - "15"
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1695,
+        "width": 1670,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
 inputs:
 - key: EradicationAttempted
   value:
     simple: ${Eradication.attempted}
   required: false
-  description: Eradication.attempted from Eradication phase. true = eradication action was executed.
+  description: Eradication.attempted from Eradication phase. true = eradication action
+    was executed.
   playbookInputQuery: null
 - key: EradicationSuccess
   value:
     simple: ${Eradication.success}
   required: false
-  description: Eradication.success from Eradication phase. true = sender block was confirmed.
+  description: Eradication.success from Eradication phase. true = sender block was
+    confirmed.
   playbookInputQuery: null
 - key: Verdict
   value:
@@ -703,6 +832,14 @@ inputSections:
 - inputs: []
   name: Execution Context
   description: Shadow mode from SOCExecutionList_V3
+outputSections:
+- outputs:
+  - Recovery.status
+  - Recovery.monitoring_required
+  - Recovery.story
+  - Recovery.Execution
+  name: Recovery Contract
+  description: Consumed by Value Metrics dashboard and post-incident review
 outputs:
 - contextPath: Recovery.status
   description: contained / not_required / eradication_failed / false_positive_cleared
@@ -716,105 +853,4 @@ outputs:
 - contextPath: Recovery.Execution
   description: SOCCommandWrapper execution record (false positive path only)
   type: unknown
-  '200':
-    id: '200'
-    taskid: 0241d152-9080-4696-be33-6985e2b0ae58
-    type: regular
-    task:
-      id: 0241d152-9080-4696-be33-6985e2b0ae58
-      version: -1
-      name: Write recoverystory to incident field
-      scriptName: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '15'
-    scriptarguments:
-      append:
-        simple: 'false'
-      force:
-        simple: 'true'
-      key:
-        simple: incident.recoverystory
-      value:
-        simple: ${Recovery.story}
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-
-  '201':
-    id: '201'
-    taskid: 70c05d4d-1dd2-4941-93e4-2d1b34564851
-    type: regular
-    task:
-      id: 70c05d4d-1dd2-4941-93e4-2d1b34564851
-      version: -1
-      name: Write recoverystory to issue field
-      description: commands.local.cmd.set.incident
-      script: Builtin|||setIncident
-      type: regular
-      iscommand: true
-      brand: Builtin
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '15'
-    scriptarguments:
-      recoverystory:
-        simple: ${Recovery.story}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-
-outputSections:
-- outputs:
-  - Recovery.status
-  - Recovery.monitoring_required
-  - Recovery.story
-  - Recovery.Execution
-  name: Recovery Contract
-  description: Consumed by Value Metrics dashboard and post-incident review
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1890,\n      \"width\":\
-  \ 1200,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
-contentitemexportablefields:
-  contentitemfields:
-    definitionid: ''
-    fromServerVersion: 6.10.0
-    isoverridable: false
-    itemVersion: 3.0.0
-    packID: soc-framework-nist-ir
-    packName: SOC Framework NIST IR
-    prevname: ''
-    supportedModules: []
-    toServerVersion: ''
-dirtyInputs: false
+adopted: true
