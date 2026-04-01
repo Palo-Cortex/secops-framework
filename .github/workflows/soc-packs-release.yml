@@ -3,19 +3,33 @@ name: SOC Packs — Release
 # ─────────────────────────────────────────────────────────────────
 # push → main
 #
+# Job 0 · bump        — read version label from merged PR;
+#                       bump pack_metadata.json (patch/minor/major);
+#                       commit back to main [skip ci]
+#
 # Job 1 · release     — build zip + create immutable GitHub release
 #                       + upload modified xsoar_config.json as asset
 #                         (url points at production zip — repo file
 #                          is never modified by CI)
 #
+# Job 2 · catalog     — rebuild pack_catalog.json from bumped metadata;
+#                       only runs after a successful release so the
+#                       catalog always reflects what actually shipped;
+#                       commits back to main [skip ci]
+#
 # Tenant deploy is intentionally NOT here. It runs once, pre-merge,
-# in soc-packs-pr-gate.yml (Job 7 · deploy-dev). Running it again
+# in soc-packs-pr-gate.yml (Job 8 · deploy-dev). Running it again
 # post-merge would deploy twice on every merged PR.
 #
 # Deploy sources by environment:
 #   Dev tenant  → PR Gate prerelease asset  (-pr<N>/xsoar_config.json)
 #   PoV tenant  → Production release asset  (<tag>/xsoar_config.json)
 #   Repo file   → Baseline template only    (never used directly by CI)
+#
+# Failure modes:
+#   bump fails    → release + catalog both skipped; metadata unchanged
+#   release fails → catalog skipped; catalog stays truthful at old version
+#   catalog fails → zip already on GitHub; re-run catalog job manually
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -33,20 +47,182 @@ env:
 
 jobs:
 
+  # ── JOB 0: BUMP PACK VERSIONS ───────────────────────────────────
+  # Reads the label from the PR that was just merged.
+  # Bumps pack_metadata.json for all content-changed packs.
+  # Commits back with [skip ci] to avoid re-triggering this workflow.
+  #
+  # No label on merged PR → patch bump with a visible warning in the log.
+  # Label resolution: version:major > version:minor > version:patch > patch default
+  bump:
+    name: Bump pack versions
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      packs:      ${{ steps.do_bump.outputs.packs }}
+      has_bumped: ${{ steps.do_bump.outputs.has_bumped }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Resolve merged PR label
+        id: label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - << 'PY'
+          import os, re, subprocess
+
+          # GitHub writes "Merge pull request #N from ..." or "title (#N)" on squash
+          msg = subprocess.check_output(
+              ["git", "log", "-1", "--pretty=%s"], text=True
+          ).strip()
+          print(f"Merge commit subject: {msg}")
+
+          match = re.search(r"#(\d+)", msg)
+          if not match:
+              print("::warning::Could not extract PR number from commit message — defaulting to patch.")
+              level = "patch"
+          else:
+              pr_number = match.group(1)
+              result = subprocess.run(
+                  ["gh", "pr", "view", pr_number, "--json", "labels",
+                   "--jq", ".labels[].name"],
+                  capture_output=True, text=True
+              )
+              labels = result.stdout.strip().splitlines()
+              print(f"PR #{pr_number} labels: {labels or '(none)'}")
+
+              if "version:major" in labels:
+                  level = "major"
+              elif "version:minor" in labels:
+                  level = "minor"
+              elif "version:patch" in labels:
+                  level = "patch"
+              else:
+                  level = "patch"
+                  print(f"::warning::PR #{pr_number} had no version label — defaulting to patch. "
+                        "Add version:patch, version:minor, or version:major next time.")
+
+          print(f"Bump level: {level}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"bump_level={level}\n")
+          PY
+
+      - name: Find content-changed packs
+        id: changed
+        run: |
+          python - << 'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+
+          changed_files = subprocess.check_output(
+              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
+          ).splitlines()
+
+          packs = set()
+          for f in changed_files:
+              p = Path(f)
+              if p.parts and p.parts[0] == str(packs_dir):
+                  pack = p.parts[1] if len(p.parts) > 1 else None
+                  if pack and (packs_dir / pack / "pack_metadata.json").exists():
+                      packs.add(pack)
+
+          out = ",".join(sorted(packs))
+          print("Packs to bump:", out or "(none)")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={out}\n")
+              fh.write(f"has_packs={'true' if packs else 'false'}\n")
+          PY
+
+      - name: Bump pack_metadata.json versions
+        id: do_bump
+        if: steps.changed.outputs.has_packs == 'true'
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+          BUMP_LEVEL:    ${{ steps.label.outputs.bump_level }}
+        run: |
+          python - << 'PY'
+          import json, os
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          packs     = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
+          level     = os.environ["BUMP_LEVEL"]
+
+          def bump_version(version_str: str, level: str) -> str:
+              parts = version_str.split(".")
+              while len(parts) < 3:
+                  parts.append("0")
+              major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
+              if level == "major":
+                  major += 1; minor = 0; patch = 0
+              elif level == "minor":
+                  minor += 1; patch = 0
+              else:
+                  patch += 1
+              return f"{major}.{minor}.{patch}"
+
+          bumped = []
+          for pack in packs:
+              meta_path = packs_dir / pack / "pack_metadata.json"
+              if not meta_path.exists():
+                  print(f"{pack}: no pack_metadata.json, skipping")
+                  continue
+              meta = json.loads(meta_path.read_text())
+              # Support both key names used across packs
+              key  = "version" if "version" in meta else "currentVersion"
+              old  = meta.get(key, "1.0.0")
+              new  = bump_version(old, level)
+              meta[key] = new
+              meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+              print(f"{pack}: {old} → {new}  ({level})")
+              bumped.append(pack)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={','.join(bumped)}\n")
+              fh.write(f"has_bumped={'true' if bumped else 'false'}\n")
+          PY
+
+      - name: Commit version bumps
+        if: steps.do_bump.outputs.has_bumped == 'true'
+        env:
+          BUMP_LEVEL: ${{ steps.label.outputs.bump_level }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Packs/*/pack_metadata.json
+          git commit -m "chore: bump pack versions (${BUMP_LEVEL}) [skip ci]"
+          git push origin main
+
   # ── JOB 1: BUILD ZIP + CREATE GITHUB RELEASE ────────────────────
   release:
     name: Build & release (production)
-    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[skip release]')"
+    needs: [bump]
+    if: needs.bump.outputs.has_bumped == 'true'
     runs-on: ubuntu-latest
     environment:
       name: main
     outputs:
-      packs: ${{ steps.changed.outputs.packs }}
-      has_changes: ${{ steps.changed.outputs.has_changes }}
+      released_packs: ${{ steps.publish.outputs.released_packs }}
 
     steps:
       - uses: actions/checkout@v4
         with:
+          # Checkout main after the bump commit so we build the bumped version
+          ref: main
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
@@ -109,6 +285,7 @@ jobs:
             --policy Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/shadow_mode_policy.json
 
       - name: Build & publish production releases
+        id: publish
         if: steps.changed.outputs.has_changes == 'true'
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
@@ -130,6 +307,8 @@ jobs:
 
           def gh(*args, check=True):
               return subprocess.run(["gh", *args], check=check)
+
+          released = []
 
           for pack in changed:
               pack_path   = packs_dir / pack
@@ -193,8 +372,59 @@ jobs:
                   print(f"Config asset: {config_asset_url}")
               else:
                   print(f"{pack}: no xsoar_config.json — skipping config asset upload")
+
+              released.append(pack)
+
+          # Only populated if at least one pack was successfully released.
+          # The catalog job gates on this being non-empty.
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"released_packs={','.join(released)}\n")
           PY
 
       - name: No packs changed
         if: steps.changed.outputs.has_changes != 'true'
         run: echo "No version bumps detected — nothing to release."
+
+  # ── JOB 2: REBUILD PACK CATALOG ─────────────────────────────────
+  # Only runs after a successful release so the catalog always reflects
+  # what actually shipped. If the zip build failed, this is skipped and
+  # the catalog stays truthful at the previous version.
+  #
+  # Writes to pack_catalog.json at the repo root.
+  # Commits with [skip ci] — does not re-trigger the release workflow.
+  #
+  # If this job fails after a successful release, re-run it manually
+  # from the Actions UI — the zip is already on GitHub and is safe.
+  catalog:
+    name: Rebuild pack catalog
+    needs: [release]
+    if: needs.release.outputs.released_packs != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch main after the bump + release commits
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Rebuild pack_catalog.json
+        run: python tools/build_pack_catalog.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Only commit if the file actually changed — idempotent on re-runs
+          git diff --quiet pack_catalog.json || {
+            git add pack_catalog.json
+            git commit -m "chore: rebuild pack_catalog.json [skip ci]"
+            git push origin main
+          }
+          echo "Catalog job complete."
