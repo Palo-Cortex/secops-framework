@@ -194,6 +194,50 @@ jobs:
               print(f"No contract changes — bump level '{level}' is valid.")
           PY
 
+      - name: Enforce single-pack PR
+        # A single version label maps to a single bump level.
+        # Multiple packs in one PR makes the label ambiguous — the fix and the
+        # new feature would both get the same bump. Reject early with a clear
+        # message so contributors know to split the PR.
+        # Exception: changes only to shared repo-level files (tools/, .github/, etc.)
+        # that touch no pack content are allowed through unlabelled.
+        run: |
+          python - << 'PY'
+          import os, subprocess, sys
+          from pathlib import Path
+
+          base = subprocess.check_output(
+              ["git", "merge-base", "HEAD", "origin/main"], text=True
+          ).strip()
+
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", base, "HEAD"], text=True
+          ).splitlines()
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          touched_packs = set()
+          for f in changed:
+              p = Path(f)
+              if p.parts and p.parts[0] == str(packs_dir) and len(p.parts) > 1:
+                  pack = p.parts[1]
+                  if (packs_dir / pack / "pack_metadata.json").exists():
+                      touched_packs.add(pack)
+
+          if len(touched_packs) > 1:
+              print("::error::This PR touches multiple packs:")
+              for pack in sorted(touched_packs):
+                  print(f"  {pack}")
+              print()
+              print("Submit one PR per pack so version labels are unambiguous.")
+              print("Split this PR into separate branches — one per pack.")
+              sys.exit(1)
+
+          if touched_packs:
+              print(f"Single-pack PR confirmed: {next(iter(touched_packs))}")
+          else:
+              print("No pack content changed — repo-level change, no pack version label required.")
+          PY
+
   # ── JOB 2: DETECT CHANGED PACKS ────────────────────────────────
   detect:
     name: Detect changed packs
