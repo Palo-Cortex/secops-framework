@@ -1,44 +1,63 @@
-import demistomock as demisto
-from CommonServerPython import *
-import json
-from datetime import datetime, timezone
+import demistomock as demisto  # noqa: F401
+from CommonServerPython import *  # noqa: F401
 
 
 def main():
     args = demisto.args()
-    incidents = args.get('incidents', [])
 
+    incidents = args.get('incidents', [])
+    threshold = args.get('score_threshold', '30')
+
+    # Ensure list
     if isinstance(incidents, dict):
         incidents = [incidents]
 
-    if not incidents:
-        return_results('No incidents to write to dataset.')
-        return
+    # Cast threshold — config stores as string, float handles decimals
+    try:
+        threshold = float(threshold)
+    except (ValueError, TypeError):
+        return_error(f'Invalid score_threshold value: {threshold}')
 
-    rows = []
+    passed = []
+    skipped = []
+
     for inc in incidents:
-        rows.append({
-            "case_id": inc.get("incident_id", "unknown"),
-            "case_name": inc.get("name", ""),
-            "aggregated_score": inc.get("aggregated_score"),
-            "closed_timestamp": datetime.now(timezone.utc).isoformat(),
-            "tag": "auto_triage_closed",
-            "value_driver": "VD3"
-        })
+        incident_id = inc.get('incident_id', 'unknown')
+        aggregated_score = inc.get('aggregated_score')
+        manual_score = inc.get('manual_score')
 
-    # json.dumps handles all escaping — quotes, apostrophes, newlines, tabs
-    payload = json.dumps(rows)
+        # Skip if analyst has manually set a score — do not auto-close
+        if manual_score is not None:
+            skipped.append({
+                'incident_id': incident_id,
+                'aggregated_score': aggregated_score,
+                'reason': 'manual_score set — analyst touched this case'
+            })
+            continue
 
-    result = execute_command(
-        'xql-post-to-dataset',
-        {
-            'dataset_name': 'xsiam_socfw_ir_execution_raw',
-            'data': payload
-        }
-    )
+        # Skip if score is above threshold or missing
+        if aggregated_score is None or float(aggregated_score) > threshold:
+            skipped.append({
+                'incident_id': incident_id,
+                'aggregated_score': aggregated_score,
+                'reason': f'aggregated_score {aggregated_score} exceeds threshold {threshold}'
+            })
+            continue
+
+        passed.append(inc)
 
     return_results(CommandResults(
-        readable_output=f'Wrote {len(rows)} auto-triage rows to dataset.'
+        outputs_prefix='AutoTriage',
+        outputs={
+            'filtered_incidents': passed,
+            'skipped_incidents': skipped,
+            'passed_count': len(passed),
+            'skipped_count': len(skipped)
+        },
+        readable_output=(
+            f'Score filter complete: {len(passed)} passed, {len(skipped)} skipped '
+            f'(threshold: {threshold})'
+        )
     ))
 
 
