@@ -160,7 +160,9 @@ jobs:
 
               # Plain zip of the pack directory — preserves all XSIAM content types
               # (CorrelationRules, ModelingRules, etc.) without SDK transformation.
-              run(["zip", "-r", str(final.resolve()), pack],
+              # xsoar_config.json is a deploy config asset, not pack content — exclude it.
+              run(["zip", "-r", str(final.resolve()), pack,
+                   "--exclude", f"{pack}/xsoar_config.json"],
                   cwd=str(packs_dir.resolve()))
 
               if not final.exists():
