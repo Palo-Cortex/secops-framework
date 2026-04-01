@@ -15,8 +15,8 @@ contentitemexportablefields:
 vcShouldKeepItemLegacyProdMachine: false
 name: JOB - Auto Triage V3
 tags:
-  - SOC
-  - SOC_Framework_Unified
+- SOC
+- SOC_Framework_Unified
 starttaskid: "0"
 tasks:
   "0":
@@ -33,7 +33,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "1"
+      - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -68,7 +68,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "12"
+      - "12"
     scriptarguments:
       body:
         simple: '{"request_data":{"filters":[{"field":"status","operator":"eq","value":"new"},{"field":"starred","operator":"eq","value":false}],"fields":["incident_id","aggregated_score","manual_score","creation_time","status","starred"],"sort":{"field":"creation_time","keyword":"asc"}}}'
@@ -109,20 +109,20 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-        - "9"
+      - "9"
       "yes":
-        - "8"
+      - "8"
     separatecontext: false
     conditions:
-      - label: "yes"
-        condition:
-          - - operator: isExists
-              left:
-                value:
-                  simple: AutoTriage.filtered_incidents.incident_id
-                iscontext: true
-              right:
-                value: {}
+    - label: "yes"
+      condition:
+      - - operator: isExists
+          left:
+            value:
+              simple: AutoTriage.filtered_incidents.incident_id
+            iscontext: true
+          right:
+            value: {}
     continueonerrortype: ""
     view: |-
       {
@@ -183,7 +183,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "13"
+      - "9"
     scriptarguments:
       incident_id:
         simple: ${AutoTriage.filtered_incidents.incident_id}
@@ -230,7 +230,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "7"
+      - "7"
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -266,7 +266,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "5"
+      - "5"
     scriptarguments:
       incidents:
         complex:
@@ -277,41 +277,41 @@ tasks:
           root: lists
           accessor: SOCOptimizationConfig_V3
           transformers:
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: Triage Incidents JOB
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: fields
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: TriageScoreThreshold
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: Triage Incidents JOB
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: fields
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: TriageScoreThreshold
       window_hours:
         complex:
           root: lists
           accessor: SOCOptimizationConfig_V3
           transformers:
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: Triage Incidents JOB
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: fields
-            - operator: getField
-              args:
-                field:
-                  value:
-                    simple: TriageWindowHours
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: Triage Incidents JOB
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: fields
+          - operator: getField
+            args:
+              field:
+                value:
+                  simple: TriageWindowHours
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -320,54 +320,6 @@ tasks:
         "position": {
           "x": 50,
           "y": 590
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "13":
-    id: "13"
-    taskid: 060002f1-d895-4042-9808-1ba178cd5be5
-    type: regular
-    task:
-      id: 060002f1-d895-4042-9808-1ba178cd5be5
-      version: -1
-      name: Write Closed Cases to Dataset
-      description: Writes one row per auto-closed case to xsiam_socfw_ir_execution_raw
-        via socfw_ir_execution instance. Tags auto_triage_closed for Value Metrics
-        Dashboard join. VD3 metric — analyst hours saved by auto-close.
-      script: '|||xql-post-to-dataset'
-      type: regular
-      iscommand: true
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-        - "9"
-    scriptarguments:
-      JSON:
-        simple: '[{"timestamp":"${TimeNowUnix}","event_type":"auto_triage","universal_command":"auto_close_incident","action_taken":"auto_triage_closed","action_status":"success","execution_mode":"production","shadow_mode_state":"not_applicable","lifecycle":"AUTO_TRIAGE","phase":"triage","incident_id":"${AutoTriage.filtered_incidents.incident_id}","aggregated_score":"${AutoTriage.filtered_incidents.aggregated_score}","tags":["auto_triage_closed"],"has_error":false,"error_type":"","error_message":""}]'
-      using:
-        simple: socfw_ir_execution
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    loop:
-      iscommand: false
-      exitCondition: ""
-      wait: 1
-      max: 100
-      forEach: true
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 1145
         }
       }
     note: false

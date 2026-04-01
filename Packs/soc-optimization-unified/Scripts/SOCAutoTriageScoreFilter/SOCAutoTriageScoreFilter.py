@@ -84,6 +84,38 @@ def main():
 
         passed.append(inc)
 
+    # Write one row per passed incident to dataset using json.dumps for safe serialization
+    if passed:
+        rows = []
+        for inc in passed:
+            rows.append({
+                "timestamp": str(int(time.time())),
+                "event_type": "auto_triage",
+                "universal_command": "auto_close_incident",
+                "action_taken": "auto_triage_closed",
+                "action_status": "success",
+                "execution_mode": "production",
+                "shadow_mode_state": "not_applicable",
+                "lifecycle": "AUTO_TRIAGE",
+                "phase": "triage",
+                "incident_id": str(inc.get("incident_id", "")),
+                "aggregated_score": str(inc.get("aggregated_score", "")),
+                "tags": ["auto_triage_closed"],
+                "has_error": False,
+                "error_type": "",
+                "error_message": ""
+            })
+        try:
+            execute_command(
+                'xql-post-to-dataset',
+                {
+                    'JSON': json.dumps(rows),
+                    'using': 'socfw_ir_execution'
+                }
+            )
+        except Exception as e:
+            demisto.debug(f'Dataset write failed: {e}')
+
     return_results(CommandResults(
         outputs_prefix='AutoTriage',
         outputs={
