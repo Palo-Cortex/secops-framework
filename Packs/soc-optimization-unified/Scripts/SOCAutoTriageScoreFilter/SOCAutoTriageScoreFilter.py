@@ -1,5 +1,6 @@
 import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401
+import json
 import time
 
 
@@ -10,7 +11,12 @@ def main():
     threshold = args.get('score_threshold', '30')
     window_hours = args.get('window_hours', '6')
 
-    # Ensure list
+    # Ensure list — handle string (CLI), dict (single), or list
+    if isinstance(incidents, str):
+        try:
+            incidents = json.loads(incidents)
+        except Exception:
+            return_error(f'Could not parse incidents as JSON: {incidents[:100]}')
     if isinstance(incidents, dict):
         incidents = [incidents]
 
