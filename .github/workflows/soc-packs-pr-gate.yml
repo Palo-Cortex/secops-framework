@@ -3,31 +3,37 @@ name: SOC Packs — PR Gate
 # ─────────────────────────────────────────────────────────────────
 # Runs on every PR targeting main. All jobs must pass before merge.
 #
-# Job 1 · scan           — no customer data in the diff
-# Job 2 · detect         — find packs with version bumps
-# Job 3 · json-integrity — pack_catalog.json schema + xsoar_config.json validity
+# Job 1  · scan           — no customer data in the diff
+# Job 1b · version-plan   — read version:patch/minor/major label;
+#                           default patch + warning if no label;
+#                           hard-block if contract file changed without major
+# Job 2  · detect         — find packs with content changes; pass bump_level
+# Job 3  · json-integrity — pack_catalog.json schema + xsoar_config.json validity
 #                          + cross-pack dependency version check (--strict)
-# Job 4 · shadow-mode    — every SOCCommandWrapper action must have shadow_mode: true
+# Job 4  · shadow-mode    — every SOCCommandWrapper action must have shadow_mode: true
 #                          in SOCFrameworkActions_V3, OR be listed with a documented
 #                          reason in shadow_mode_policy.json (read-only/enrichment only).
 #                          Blocks the entire downstream chain on any violation.
-# Job 5 · validate       — demisto-sdk normalize + validate
-# Job 6 · preflight      — xsoar_config.json format + doc URL checks
-# Job 7 · prerelease     — build zip + upload as PR prerelease tag
+# Job 5  · validate       — demisto-sdk normalize + validate
+# Job 6  · preflight      — xsoar_config.json format + doc URL checks
+# Job 7  · prerelease     — build zip + upload as PR prerelease tag
 #                          e.g. SocFrameworkProofPointTap-v1.1.1-pr647
 #                          Also uploads a modified xsoar_config.json
 #                          as a release asset with the prerelease zip URL.
-# Job 8 · deploy-dev     — deploy to test tenant using prerelease assets
+# Job 8  · deploy-dev     — deploy to test tenant using prerelease assets
 #
-# After merge, soc-packs-release.yml creates the real immutable tag
-# and the prerelease is superseded.
+# After merge, soc-packs-release.yml:
+#   · reads the merged PR label to determine bump level
+#   · bumps pack_metadata.json (patch / minor / major)
+#   · builds the immutable production zip
+#   · updates pack_catalog.json only after a successful release
 # ─────────────────────────────────────────────────────────────────
 
 on:
   pull_request:
     branches:
       - main
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 # Default: read-only. Jobs that create releases override to write.
 permissions:
@@ -85,14 +91,163 @@ jobs:
           fi
           echo "Scan passed — no customer data found."
 
+  # ── JOB 1b: VERSION PLAN ────────────────────────────────────────
+  # Reads the PR label and determines the bump level for this merge.
+  # Defaults to patch with a warning if no label is present.
+  # Hard-blocks merge if a contract/schema file changed without major.
+  # Runs in parallel with scan — no dependency between them.
+  version-plan:
+    name: Version plan — read label
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      bump_level: ${{ steps.plan.outputs.bump_level }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch origin main --depth=50
+
+      - name: Resolve bump level from PR labels
+        id: plan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          python - << 'PY'
+          import os, subprocess, sys
+
+          pr_number = os.environ["PR_NUMBER"]
+
+          result = subprocess.run(
+              ["gh", "pr", "view", pr_number, "--json", "labels",
+               "--jq", ".labels[].name"],
+              capture_output=True, text=True
+          )
+          labels = result.stdout.strip().splitlines()
+          print(f"PR #{pr_number} labels: {labels or '(none)'}")
+
+          if "version:major" in labels:
+              level = "major"
+          elif "version:minor" in labels:
+              level = "minor"
+          elif "version:patch" in labels:
+              level = "patch"
+          else:
+              level = "patch"
+              print("::warning::No version label on this PR — defaulting to patch. "
+                    "Add version:patch, version:minor, or version:major before merge.")
+
+          print(f"Resolved bump level: {level}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"bump_level={level}\n")
+          PY
+
+      - name: Enforce major label on contract changes
+        env:
+          BUMP_LEVEL: ${{ steps.plan.outputs.bump_level }}
+        run: |
+          python - << 'PY'
+          import os, subprocess, sys
+          from pathlib import Path
+
+          base = subprocess.check_output(
+              ["git", "merge-base", "HEAD", "origin/main"], text=True
+          ).strip()
+
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", base, "HEAD"], text=True
+          ).splitlines()
+
+          # Any change to these files implies a breaking contract —
+          # consumers of the framework depend on these schemas being stable.
+          CONTRACT_PATTERNS = [
+              "soc_framework_lifecycle_contracts",
+              "SOCFrameworkSchema",
+              "SOCFrameworkExecutionSchema",
+          ]
+
+          contract_files = [
+              f for f in changed
+              if any(p in f for p in CONTRACT_PATTERNS)
+          ]
+
+          level = os.environ["BUMP_LEVEL"]
+
+          if contract_files and level != "major":
+              print("::error::The following contract/schema files changed in this PR:")
+              for f in contract_files:
+                  print(f"  {f}")
+              print("This requires the 'version:major' label. "
+                    "Add it to the PR and re-run checks.")
+              sys.exit(1)
+
+          if contract_files:
+              print(f"Contract change detected — major bump confirmed.")
+              for f in contract_files:
+                  print(f"  {f}")
+          else:
+              print(f"No contract changes — bump level '{level}' is valid.")
+          PY
+
+      - name: Enforce single-pack PR
+        # A single version label maps to a single bump level.
+        # Multiple packs in one PR makes the label ambiguous — the fix and the
+        # new feature would both get the same bump. Reject early with a clear
+        # message so contributors know to split the PR.
+        # Exception: changes only to shared repo-level files (tools/, .github/, etc.)
+        # that touch no pack content are allowed through unlabelled.
+        run: |
+          python - << 'PY'
+          import os, subprocess, sys
+          from pathlib import Path
+
+          base = subprocess.check_output(
+              ["git", "merge-base", "HEAD", "origin/main"], text=True
+          ).strip()
+
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", base, "HEAD"], text=True
+          ).splitlines()
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          touched_packs = set()
+          for f in changed:
+              p = Path(f)
+              if p.parts and p.parts[0] == str(packs_dir) and len(p.parts) > 1:
+                  pack = p.parts[1]
+                  if (packs_dir / pack / "pack_metadata.json").exists():
+                      touched_packs.add(pack)
+
+          if len(touched_packs) > 1:
+              print("::error::This PR touches multiple packs:")
+              for pack in sorted(touched_packs):
+                  print(f"  {pack}")
+              print()
+              print("Submit one PR per pack so version labels are unambiguous.")
+              print("Split this PR into separate branches — one per pack.")
+              sys.exit(1)
+
+          if touched_packs:
+              print(f"Single-pack PR confirmed: {next(iter(touched_packs))}")
+          else:
+              print("No pack content changed — repo-level change, no pack version label required.")
+          PY
+
   # ── JOB 2: DETECT CHANGED PACKS ────────────────────────────────
   detect:
     name: Detect changed packs
+    needs: [version-plan]
     runs-on: ubuntu-latest
     outputs:
-      packs: ${{ steps.changed.outputs.packs }}
+      packs:       ${{ steps.changed.outputs.packs }}
       has_changes: ${{ steps.changed.outputs.has_changes }}
       has_content: ${{ steps.changed.outputs.has_content }}
+      bump_level:  ${{ needs.version-plan.outputs.bump_level }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:

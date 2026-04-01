@@ -21,12 +21,32 @@ def save_json(path: Path, data) -> None:
     print(f"Wrote: {path}")
 
 
-def choose_bump_type(current_version: str) -> str:
+def choose_bump_type(current_version: str, level: str | None = None) -> str:
     """
-    Ask the user whether to bump Major, Minor, or Revision (patch),
-    showing the semantic version guidance.
+    Return bump type for the version.
+
+    If --level is supplied (CI / non-interactive mode), map it directly:
+      patch / revision / r  → 'revision'
+      minor / m             → 'minor'
+      major / j             → 'major'
+
+    Otherwise fall through to the interactive prompt (local dev use).
     Returns one of: 'major', 'minor', 'revision'
     """
+    if level is not None:
+        normalized = level.strip().lower()
+        if normalized in ("r", "rev", "revision", "patch"):
+            return "revision"
+        if normalized in ("m", "min", "minor"):
+            return "minor"
+        if normalized in ("j", "maj", "major"):
+            return "major"
+        raise SystemExit(
+            f"ERROR: Unknown --level value '{level}'. "
+            "Use: patch (or revision), minor, major"
+        )
+
+    # Interactive mode — local dev only, not used in CI
     print(f"Current version: {current_version}")
     print()
     print("Select version bump type:")
@@ -80,9 +100,10 @@ def bump_semver(version: str, part: str) -> str:
     return f"{major}.{minor}.{patch}"
 
 
-def bump_pack_metadata(pack_metadata_path: Path) -> Tuple[str, str]:
+def bump_pack_metadata(pack_metadata_path: Path, level: str | None = None) -> Tuple[str, str]:
     """
-    Bump version in pack_metadata.json *interactively* based on user choice.
+    Bump version in pack_metadata.json.
+    If level is supplied (CI / non-interactive mode), skips the prompt.
     Returns (old_version, new_version).
     """
     meta = load_json(pack_metadata_path)
@@ -93,7 +114,7 @@ def bump_pack_metadata(pack_metadata_path: Path) -> Tuple[str, str]:
             f"ERROR: No 'version' or 'currentVersion' found in {pack_metadata_path}"
         )
 
-    bump_type = choose_bump_type(old_version)
+    bump_type = choose_bump_type(old_version, level=level)
     new_version = bump_semver(old_version, bump_type)
 
     print(f"Selected bump: {bump_type.upper()}")
@@ -253,8 +274,8 @@ def bump_xsoar_config_version(config_path: Path, old_version: str, new_version: 
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Interactively bump version in pack_metadata.json and xsoar_config.json "
-            "for a given pack (Major / Minor / Revision). "
+            "Bump version in pack_metadata.json and xsoar_config.json for a given pack "
+            "(Major / Minor / Revision). Interactive by default; pass --level for CI use. "
             "Auto-corrects custom_packs zip URL and id based on the actual pack "
             "directory name — catches stale names from directory renames."
         )
@@ -262,6 +283,16 @@ def main():
     parser.add_argument(
         "pack_path",
         help="Path to the pack directory (e.g. Packs/SocFrameworkProofPointTap)",
+    )
+    parser.add_argument(
+        "--level",
+        metavar="LEVEL",
+        default=None,
+        help=(
+            "Non-interactive bump level for CI use. "
+            "Accepted values: patch (or revision), minor, major. "
+            "If omitted the interactive prompt is shown (local dev mode)."
+        ),
     )
 
     args = parser.parse_args()
@@ -279,7 +310,7 @@ def main():
     print(f"Pack ID (dir)  : {pack_id}")
     print()
 
-    old_ver, new_ver = bump_pack_metadata(pack_metadata_path)
+    old_ver, new_ver = bump_pack_metadata(pack_metadata_path, level=args.level)
 
     # 1. Update top-level version in xsoar_config.json
     bump_xsoar_config_version(xsoar_config_path, old_ver, new_ver)
