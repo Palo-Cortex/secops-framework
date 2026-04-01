@@ -148,6 +148,9 @@ jobs:
           PY
 
       - name: Bump pack_metadata.json versions
+        # Calls the actual bump_pack_version.py tool in non-interactive mode.
+        # The tool also fixes xsoar_config.json custom_packs URL + id + doc URLs
+        # in one pass — same behaviour as running it locally.
         id: do_bump
         if: steps.changed.outputs.has_packs == 'true'
         env:
@@ -155,40 +158,26 @@ jobs:
           BUMP_LEVEL:    ${{ steps.label.outputs.bump_level }}
         run: |
           python - << 'PY'
-          import json, os
+          import os, subprocess, sys
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
           packs     = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
-          level     = os.environ["BUMP_LEVEL"]
-
-          def bump_version(version_str: str, level: str) -> str:
-              parts = version_str.split(".")
-              while len(parts) < 3:
-                  parts.append("0")
-              major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
-              if level == "major":
-                  major += 1; minor = 0; patch = 0
-              elif level == "minor":
-                  minor += 1; patch = 0
-              else:
-                  patch += 1
-              return f"{major}.{minor}.{patch}"
+          level     = os.environ["BUMP_LEVEL"]   # major | minor | patch
 
           bumped = []
           for pack in packs:
-              meta_path = packs_dir / pack / "pack_metadata.json"
-              if not meta_path.exists():
+              pack_dir = packs_dir / pack
+              if not (pack_dir / "pack_metadata.json").exists():
                   print(f"{pack}: no pack_metadata.json, skipping")
                   continue
-              meta = json.loads(meta_path.read_text())
-              # Support both key names used across packs
-              key  = "version" if "version" in meta else "currentVersion"
-              old  = meta.get(key, "1.0.0")
-              new  = bump_version(old, level)
-              meta[key] = new
-              meta_path.write_text(json.dumps(meta, indent=2) + "\n")
-              print(f"{pack}: {old} → {new}  ({level})")
+              result = subprocess.run(
+                  ["python", "tools/bump_pack_version.py", str(pack_dir), "--level", level],
+                  capture_output=False   # let stdout/stderr stream to Actions log
+              )
+              if result.returncode != 0:
+                  print(f"::error::bump_pack_version.py failed for {pack} (exit {result.returncode})")
+                  sys.exit(result.returncode)
               bumped.append(pack)
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
@@ -203,7 +192,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Packs/*/pack_metadata.json
+          git add Packs/*/pack_metadata.json Packs/*/xsoar_config.json
           git commit -m "chore: bump pack versions (${BUMP_LEVEL}) [skip ci]"
           git push origin main
 
