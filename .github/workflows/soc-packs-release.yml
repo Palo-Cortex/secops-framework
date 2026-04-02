@@ -1,262 +1,125 @@
-name: SOC Packs — PR Gate
+name: SOC Packs — Release
 
 # ─────────────────────────────────────────────────────────────────
-# Runs on every PR targeting main. All jobs must pass before merge.
+# push → main
 #
-# Job 1  · scan           — no customer data in the diff
-# Job 1b · version-plan   — read version:patch/minor/major label;
-#                           default patch + warning if no label;
-#                           hard-block if contract file changed without major
-# Job 2  · detect         — find packs with content changes; pass bump_level
-# Job 3  · json-integrity — pack_catalog.json schema + xsoar_config.json validity
-#                          + cross-pack dependency version check (--strict)
-# Job 4  · shadow-mode    — every SOCCommandWrapper action must have shadow_mode: true
-#                          in SOCFrameworkActions_V3, OR be listed with a documented
-#                          reason in shadow_mode_policy.json (read-only/enrichment only).
-#                          Blocks the entire downstream chain on any violation.
-# Job 5  · validate       — demisto-sdk normalize + validate
-# Job 6  · preflight      — xsoar_config.json format + doc URL checks
-# Job 7  · prerelease     — build zip + upload as PR prerelease tag
-#                          e.g. SocFrameworkProofPointTap-v1.1.1-pr647
-#                          Also uploads a modified xsoar_config.json
-#                          as a release asset with the prerelease zip URL.
-# Job 8  · deploy-dev     — deploy to test tenant using prerelease assets
+# Job 0 · bump        — read version label from merged PR;
+#                       bump pack_metadata.json (patch/minor/major);
+#                       commit back to main [skip ci]
 #
-# After merge, soc-packs-release.yml:
-#   · reads the merged PR label to determine bump level
-#   · bumps pack_metadata.json (patch / minor / major)
-#   · builds the immutable production zip
-#   · updates pack_catalog.json only after a successful release
+# Job 1 · release     — build zip + create immutable GitHub release
+#                       + upload modified xsoar_config.json as asset
+#                         (url points at production zip — repo file
+#                          is never modified by CI)
+#
+# Job 2 · catalog     — rebuild pack_catalog.json from bumped metadata;
+#                       only runs after a successful release so the
+#                       catalog always reflects what actually shipped;
+#                       commits back to main [skip ci]
+#
+# Tenant deploy is intentionally NOT here. It runs once, pre-merge,
+# in soc-packs-pr-gate.yml (Job 8 · deploy-dev). Running it again
+# post-merge would deploy twice on every merged PR.
+#
+# Deploy sources by environment:
+#   Dev tenant  → PR Gate prerelease asset  (-pr<N>/xsoar_config.json)
+#   PoV tenant  → Production release asset  (<tag>/xsoar_config.json)
+#   Repo file   → Baseline template only    (never used directly by CI)
+#
+# Failure modes:
+#   bump fails    → release + catalog both skipped; metadata unchanged
+#   release fails → catalog skipped; catalog stays truthful at old version
+#   catalog fails → zip already on GitHub; re-run catalog job manually
 # ─────────────────────────────────────────────────────────────────
 
 on:
-  pull_request:
+  push:
     branches:
       - main
-    types: [opened, synchronize, reopened, labeled, unlabeled]
 
-# Default: read-only. Jobs that create releases override to write.
 permissions:
-  contents: read
+  contents: write
 
 env:
   PACKS_DIR: Packs
   DEMISTO_SDK_VERSION: "1.38.14"
   DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
 
-concurrency:
-  group: pr-gate-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
 
-  # ── JOB 1: CUSTOMER DATA SCAN ───────────────────────────────────
-  scan:
-    name: Scan — no customer data
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-        with:
-          fetch-depth: 0
-
-      - name: Fetch base branch
-        run: git fetch origin main --depth=50
-
-      - name: Load forbidden patterns
-        id: patterns
-        run: |
-          if [ -f Lists/customer-identifiers.json ]; then
-            PATTERNS=$(python -c "
-          import json, sys
-          data = json.load(open('Lists/customer-identifiers.json'))
-          items = data if isinstance(data, list) else data.get('identifiers', [])
-          print('|'.join(str(i) for i in items if i))
-          ")
-            echo "patterns=$PATTERNS" >> "$GITHUB_OUTPUT"
-          else
-            echo "patterns=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Scan diff for forbidden patterns
-        run: |
-          DIFF="$(git diff origin/main HEAD)"
-          PATTERNS="${{ steps.patterns.outputs.patterns }}"
-          if [ -z "$PATTERNS" ]; then
-            echo "No customer identifiers configured — scan skipped."
-            exit 0
-          fi
-          if echo "$DIFF" | grep -Eq "$PATTERNS"; then
-            echo "::error::Customer data found in diff. Remove before merging."
-            exit 1
-          fi
-          echo "Scan passed — no customer data found."
-
-  # ── JOB 1b: VERSION PLAN ────────────────────────────────────────
-  # Reads the PR label and determines the bump level for this merge.
-  # Defaults to patch with a warning if no label is present.
-  # Hard-blocks merge if a contract/schema file changed without major.
-  # Runs in parallel with scan — no dependency between them.
-  version-plan:
-    name: Version plan — read label
+  # ── JOB 0: BUMP PACK VERSIONS ───────────────────────────────────
+  # Reads the label from the PR that was just merged.
+  # Bumps pack_metadata.json for all content-changed packs.
+  # Commits back with [skip ci] to avoid re-triggering this workflow.
+  #
+  # No label on merged PR → patch bump with a visible warning in the log.
+  # Label resolution: version:major > version:minor > version:patch > patch default
+  bump:
+    name: Bump pack versions
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
+      contents: write
     outputs:
-      bump_level: ${{ steps.plan.outputs.bump_level }}
+      packs:      ${{ steps.do_bump.outputs.packs }}
+      has_bumped: ${{ steps.do_bump.outputs.has_bumped }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fetch base branch
-        run: git fetch origin main --depth=50
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-      - name: Resolve bump level from PR labels
-        id: plan
+      - name: Resolve merged PR label
+        id: label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           python - << 'PY'
-          import os, subprocess, sys
+          import os, re, subprocess
 
-          pr_number = os.environ["PR_NUMBER"]
+          # GitHub writes "Merge pull request #N from ..." or "title (#N)" on squash
+          msg = subprocess.check_output(
+              ["git", "log", "-1", "--pretty=%s"], text=True
+          ).strip()
+          print(f"Merge commit subject: {msg}")
 
-          result = subprocess.run(
-              ["gh", "pr", "view", pr_number, "--json", "labels",
-               "--jq", ".labels[].name"],
-              capture_output=True, text=True
-          )
-          labels = result.stdout.strip().splitlines()
-          print(f"PR #{pr_number} labels: {labels or '(none)'}")
-
-          if "version:major" in labels:
-              level = "major"
-          elif "version:minor" in labels:
-              level = "minor"
-          elif "version:patch" in labels:
+          match = re.search(r"#(\d+)", msg)
+          if not match:
+              print("::warning::Could not extract PR number from commit message — defaulting to patch.")
               level = "patch"
           else:
-              level = "patch"
-              print("::warning::No version label on this PR — defaulting to patch. "
-                    "Add version:patch, version:minor, or version:major before merge.")
+              pr_number = match.group(1)
+              result = subprocess.run(
+                  ["gh", "pr", "view", pr_number, "--json", "labels",
+                   "--jq", ".labels[].name"],
+                  capture_output=True, text=True
+              )
+              labels = result.stdout.strip().splitlines()
+              print(f"PR #{pr_number} labels: {labels or '(none)'}")
 
-          print(f"Resolved bump level: {level}")
+              if "version:major" in labels:
+                  level = "major"
+              elif "version:minor" in labels:
+                  level = "minor"
+              elif "version:patch" in labels:
+                  level = "patch"
+              else:
+                  level = "patch"
+                  print(f"::warning::PR #{pr_number} had no version label — defaulting to patch. "
+                        "Add version:patch, version:minor, or version:major next time.")
+
+          print(f"Bump level: {level}")
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"bump_level={level}\n")
           PY
 
-      - name: Enforce major label on contract changes
-        env:
-          BUMP_LEVEL: ${{ steps.plan.outputs.bump_level }}
-        run: |
-          python - << 'PY'
-          import os, subprocess, sys
-          from pathlib import Path
-
-          base = subprocess.check_output(
-              ["git", "merge-base", "HEAD", "origin/main"], text=True
-          ).strip()
-
-          changed = subprocess.check_output(
-              ["git", "diff", "--name-only", base, "HEAD"], text=True
-          ).splitlines()
-
-          # Any change to these files implies a breaking contract —
-          # consumers of the framework depend on these schemas being stable.
-          CONTRACT_PATTERNS = [
-              "soc_framework_lifecycle_contracts",
-              "SOCFrameworkSchema",
-              "SOCFrameworkExecutionSchema",
-          ]
-
-          contract_files = [
-              f for f in changed
-              if any(p in f for p in CONTRACT_PATTERNS)
-          ]
-
-          level = os.environ["BUMP_LEVEL"]
-
-          if contract_files and level != "major":
-              print("::error::The following contract/schema files changed in this PR:")
-              for f in contract_files:
-                  print(f"  {f}")
-              print("This requires the 'version:major' label. "
-                    "Add it to the PR and re-run checks.")
-              sys.exit(1)
-
-          if contract_files:
-              print(f"Contract change detected — major bump confirmed.")
-              for f in contract_files:
-                  print(f"  {f}")
-          else:
-              print(f"No contract changes — bump level '{level}' is valid.")
-          PY
-
-      - name: Enforce single-pack PR
-        # A single version label maps to a single bump level.
-        # Multiple packs in one PR makes the label ambiguous — the fix and the
-        # new feature would both get the same bump. Reject early with a clear
-        # message so contributors know to split the PR.
-        # Exception: changes only to shared repo-level files (tools/, .github/, etc.)
-        # that touch no pack content are allowed through unlabelled.
-        run: |
-          python - << 'PY'
-          import os, subprocess, sys
-          from pathlib import Path
-
-          base = subprocess.check_output(
-              ["git", "merge-base", "HEAD", "origin/main"], text=True
-          ).strip()
-
-          changed = subprocess.check_output(
-              ["git", "diff", "--name-only", base, "HEAD"], text=True
-          ).splitlines()
-
-          packs_dir = Path(os.environ["PACKS_DIR"])
-          touched_packs = set()
-          for f in changed:
-              p = Path(f)
-              if p.parts and p.parts[0] == str(packs_dir) and len(p.parts) > 1:
-                  pack = p.parts[1]
-                  if (packs_dir / pack / "pack_metadata.json").exists():
-                      touched_packs.add(pack)
-
-          if len(touched_packs) > 1:
-              print("::error::This PR touches multiple packs:")
-              for pack in sorted(touched_packs):
-                  print(f"  {pack}")
-              print()
-              print("Submit one PR per pack so version labels are unambiguous.")
-              print("Split this PR into separate branches — one per pack.")
-              sys.exit(1)
-
-          if touched_packs:
-              print(f"Single-pack PR confirmed: {next(iter(touched_packs))}")
-          else:
-              print("No pack content changed — repo-level change, no pack version label required.")
-          PY
-
-  # ── JOB 2: DETECT CHANGED PACKS ────────────────────────────────
-  detect:
-    name: Detect changed packs
-    needs: [version-plan]
-    runs-on: ubuntu-latest
-    outputs:
-      packs:       ${{ steps.changed.outputs.packs }}
-      has_changes: ${{ steps.changed.outputs.has_changes }}
-      has_content: ${{ steps.changed.outputs.has_content }}
-      bump_level:  ${{ needs.version-plan.outputs.bump_level }}
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-        with:
-          fetch-depth: 0
-
-      - name: Fetch base branch
-        run: git fetch origin main --depth=50
-
-      - name: Find changed packs (content + version)
+      - name: Find content-changed packs
         id: changed
         run: |
           python - << 'PY'
@@ -265,19 +128,110 @@ jobs:
 
           packs_dir = Path(os.environ["PACKS_DIR"])
 
-          base = subprocess.check_output(
-              ["git", "merge-base", "HEAD", "origin/main"], text=True
-          ).strip()
-
           changed_files = subprocess.check_output(
-              ["git", "diff", "--name-only", base, "HEAD"], text=True
+              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
           ).splitlines()
 
-          # has_content: any file changed under Packs/<pack>/
-          # has_changes: pack_metadata.json version bumped (controls production release)
-          content_packs = set()
-          version_packs = set()
+          packs = set()
+          for f in changed_files:
+              p = Path(f)
+              if p.parts and p.parts[0] == str(packs_dir):
+                  pack = p.parts[1] if len(p.parts) > 1 else None
+                  if pack and (packs_dir / pack / "pack_metadata.json").exists():
+                      packs.add(pack)
 
+          out = ",".join(sorted(packs))
+          print("Packs to bump:", out or "(none)")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={out}\n")
+              fh.write(f"has_packs={'true' if packs else 'false'}\n")
+          PY
+
+      - name: Bump pack_metadata.json versions
+        # Calls the actual bump_pack_version.py tool in non-interactive mode.
+        # The tool also fixes xsoar_config.json custom_packs URL + id + doc URLs
+        # in one pass — same behaviour as running it locally.
+        id: do_bump
+        if: steps.changed.outputs.has_packs == 'true'
+        env:
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+          BUMP_LEVEL:    ${{ steps.label.outputs.bump_level }}
+        run: |
+          python - << 'PY'
+          import os, subprocess, sys
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          packs     = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
+          level     = os.environ["BUMP_LEVEL"]   # major | minor | patch
+
+          bumped = []
+          for pack in packs:
+              pack_dir = packs_dir / pack
+              if not (pack_dir / "pack_metadata.json").exists():
+                  print(f"{pack}: no pack_metadata.json, skipping")
+                  continue
+              result = subprocess.run(
+                  ["python", "tools/bump_pack_version.py", str(pack_dir), "--level", level],
+                  capture_output=False   # let stdout/stderr stream to Actions log
+              )
+              if result.returncode != 0:
+                  print(f"::error::bump_pack_version.py failed for {pack} (exit {result.returncode})")
+                  sys.exit(result.returncode)
+              bumped.append(pack)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={','.join(bumped)}\n")
+              fh.write(f"has_bumped={'true' if bumped else 'false'}\n")
+          PY
+
+      - name: Commit version bumps
+        if: steps.do_bump.outputs.has_bumped == 'true'
+        env:
+          BUMP_LEVEL: ${{ steps.label.outputs.bump_level }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Packs/*/pack_metadata.json Packs/*/xsoar_config.json
+          git commit -m "chore: bump pack versions (${BUMP_LEVEL}) [skip ci]"
+          git push origin main
+
+  # ── JOB 1: BUILD ZIP + CREATE GITHUB RELEASE ────────────────────
+  release:
+    name: Build & release (production)
+    needs: [bump]
+    if: needs.bump.outputs.has_bumped == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: main
+    outputs:
+      released_packs: ${{ steps.publish.outputs.released_packs }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Checkout main after the bump commit so we build the bumped version
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Find packs with version bumps
+        id: changed
+        run: |
+          python - << 'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+
+          changed_files = subprocess.check_output(
+              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
+          ).splitlines()
+
+          changed = set()
           for f in changed_files:
               p = Path(f)
               if p.parts and p.parts[0] == str(packs_dir):
@@ -287,199 +241,53 @@ jobs:
                   meta = packs_dir / pack / "pack_metadata.json"
                   if not meta.exists():
                       continue
-                  content_packs.add(pack)
                   try:
                       old = subprocess.check_output(
-                          ["git", "show", f"{base}:{packs_dir}/{pack}/pack_metadata.json"],
+                          ["git", "show", f"HEAD~1:{packs_dir}/{pack}/pack_metadata.json"],
                           stderr=subprocess.DEVNULL, text=True
                       )
                       new_text = meta.read_text()
                       old_ver = json.loads(old).get("version") or json.loads(old).get("currentVersion")
                       new_ver = json.loads(new_text).get("version") or json.loads(new_text).get("currentVersion")
                       if old_ver != new_ver:
-                          version_packs.add(pack)
+                          changed.add(pack)
                   except subprocess.CalledProcessError:
-                      version_packs.add(pack)
+                      changed.add(pack)
 
-          # For prerelease/deploy: use all content-changed packs
-          # For validate/preflight: also use content-changed packs (run on any change)
-          # has_changes (version bump) is passed through for release workflow compatibility
-          all_packs = content_packs
-          out = ",".join(sorted(all_packs))
-          print("Content-changed packs:", out or "(none)")
-          print("Version-bumped packs:", ",".join(sorted(version_packs)) or "(none)")
+          out = ",".join(sorted(changed))
+          print("Changed packs:", out or "(none)")
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"packs={out}\n")
-              fh.write(f"has_content={'true' if content_packs else 'false'}\n")
-              fh.write(f"has_changes={'true' if version_packs else 'false'}\n")
+              fh.write(f"has_changes={'true' if changed else 'false'}\n")
           PY
-
-  # ── JOB 3: JSON INTEGRITY ───────────────────────────────────────
-  # Runs on every PR regardless of version bumps.
-  # pack_catalog.json is a repo-level file — always checked.
-  # xsoar_config.json is scoped to changed packs when available,
-  # otherwise all packs are checked as a safety net.
-  json-integrity:
-    name: JSON integrity — catalog + xsoar_config
-    needs: detect
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: "3.10"
-
-      - name: Validate pack_catalog.json
-        run: |
-          python tools/validate_pack_catalog.py
-
-      - name: Validate xsoar_config.json files
-        env:
-          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
-        run: |
-          if [ -n "$CHANGED_PACKS" ]; then
-            python tools/validate_xsoar_configs.py --packs "$CHANGED_PACKS"
-          else
-            python tools/validate_xsoar_configs.py
-          fi
-
-      - name: Check cross-pack dependency versions
-        # Scans ALL packs regardless of what changed. When pack A bumps its version,
-        # any consuming pack whose xsoar_config.json still references the old A version
-        # fails here — even if that consuming pack has no other changes in this PR.
-        run: |
-          python tools/check_dependency_versions.py --strict
-
-  # ── JOB 4: SHADOW MODE GATE ─────────────────────────────────────
-  # Runs on every PR touching any content.
-  # Hard-blocks merge if any SOCCommandWrapper action has shadow_mode: false
-  # without a documented entry in shadow_mode_policy.json.
-  # Read-only/enrichment actions approved in the policy emit warnings only.
-  shadow-mode:
-    name: Shadow mode — UC action gate
-    needs: [detect, json-integrity]
-    if: needs.detect.outputs.has_content == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: "3.10"
 
       - name: Install PyYAML
         run: pip install pyyaml
 
-      - name: Validate shadow mode (all packs)
+      - name: Validate shadow mode (pre-release safety net)
+        # Belt-and-suspenders: PR Gate already ran this, but we re-run here
+        # before any zip is built or released. A shadow_mode: false action on
+        # a destructive command must never make it into a production release asset.
         run: |
           python tools/validate_shadow_mode.py --all \
             --actions-list Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json \
             --policy Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/shadow_mode_policy.json
 
-  # ── JOB 5: VALIDATE ─────────────────────────────────────────────
-  validate:
-    name: Validate — demisto-sdk
-    needs: [detect, json-integrity, shadow-mode]
-    if: needs.detect.outputs.has_content == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: "3.10"
-
-      - name: Install demisto-sdk
-        run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}"
-
-      - name: Normalize rule IDs and adopted flags
+      - name: Build & publish production releases
+        id: publish
+        if: steps.changed.outputs.has_changes == 'true'
         env:
-          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
-        run: |
-          IFS=',' read -r -a PACKS <<< "$CHANGED_PACKS"
-          for PACK in "${PACKS[@]}"; do
-            [ -z "$PACK" ] && continue
-            echo "=== Normalizing ${PACK} ==="
-            python tools/normalize_ruleid_adopted.py --fix "${PACKS_DIR}/${PACK}" || true
-          done
-
-      - name: Run demisto-sdk validate
-        env:
-          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
-          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
-        run: |
-          IFS=',' read -r -a PACKS <<< "$CHANGED_PACKS"
-          FAILED=0
-          for PACK in "${PACKS[@]}"; do
-            [ -z "$PACK" ] && continue
-            echo "=== Validating ${PACK} ==="
-            demisto-sdk validate \
-              -i "${PACKS_DIR}/${PACK}" \
-              --no-docker-checks \
-              --allow-skipped \
-              --skip-pack-dependencies \
-              --no-multiprocessing || FAILED=1
-          done
-          exit $FAILED
-
-  # ── JOB 6: PREFLIGHT xsoar_config.json ──────────────────────────
-  preflight:
-    name: Preflight — xsoar_config.json
-    needs: [detect, json-integrity, shadow-mode, validate]
-    if: needs.detect.outputs.has_content == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: "3.10"
-
-      - name: Validate xsoar_config.json zip format + doc URLs
-        env:
-          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
-        run: |
-          python tools/preflight_xsoar_config.py --packs "$CHANGED_PACKS"
-
-  # ── JOB 7: BUILD PRERELEASE ZIP ─────────────────────────────────
-  prerelease:
-    name: Build prerelease zip
-    permissions:
-      contents: write
-    needs: [detect, preflight]
-    if: needs.detect.outputs.has_content == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      config_url: ${{ steps.upload.outputs.config_url }}
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: "3.10"
-
-      - name: Build zip + create prerelease + upload modified xsoar_config.json
-        id: upload
-        env:
-          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
+          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           python - << 'PY'
-          import json, os, subprocess, tempfile
+          import json, os, subprocess
           from pathlib import Path
 
-          packs_dir   = Path(os.environ["PACKS_DIR"])
-          changed     = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
-          repo        = os.environ["REPO"]
-          pr_number   = os.environ["PR_NUMBER"]
-          dist        = Path("dist")
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          changed   = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
+          repo      = os.environ["GITHUB_REPOSITORY"]
+          dist      = Path("dist")
           dist.mkdir(exist_ok=True)
 
           def run(cmd, **kw):
@@ -487,15 +295,14 @@ jobs:
               subprocess.run(cmd, check=True, **kw)
 
           def gh(*args, check=True):
-              return subprocess.run(["gh", *args], check=check, capture_output=True, text=True)
+              return subprocess.run(["gh", *args], check=check)
 
-          config_url = ""
+          released = []
 
           for pack in changed:
-              pack_path  = packs_dir / pack
-              meta_path  = pack_path / "pack_metadata.json"
+              pack_path   = packs_dir / pack
+              meta_path   = pack_path / "pack_metadata.json"
               config_path = pack_path / "xsoar_config.json"
-
               if not meta_path.exists():
                   print(f"{pack}: no pack_metadata.json, skipping")
                   continue
@@ -506,12 +313,16 @@ jobs:
                   print(f"{pack}: no version, skipping")
                   continue
 
-              # PR prerelease tag — ephemeral, overwritten on every push to this PR
-              pr_tag   = f"{pack}-v{version}-pr{pr_number}"
-              pr_asset = f"{pack}-v{version}-pr{pr_number}.zip"
-              pr_zip_url = f"https://github.com/{repo}/releases/download/{pr_tag}/{pr_asset}"
+              tag   = f"{pack}-v{version}"
+              asset = f"{pack}-v{version}.zip"
 
-              final = dist / pr_asset
+              if gh("release", "view", tag, check=False).returncode == 0:
+                  raise RuntimeError(
+                      f"Release tag {tag} already exists. "
+                      f"Bump pack_metadata.json version to publish a new release."
+                  )
+
+              final = dist / asset
               if final.exists():
                   final.unlink()
 
@@ -527,71 +338,82 @@ jobs:
 
               print(f"Built: {final}")
 
-              # Delete existing prerelease if present, then create fresh
-              gh("release", "delete", pr_tag, "--yes", "--cleanup-tag", check=False)
-              gh("release", "create", pr_tag, str(final),
-                 "-t", f"{pack} v{version} (PR #{pr_number})",
-                 "-n", f"Ephemeral prerelease for PR #{pr_number}. Will be superseded on merge.",
-                 "--prerelease")
+              gh("release", "create", tag, str(final),
+                 "-t", f"{pack} v{version}",
+                 "-n", f"Production release for {pack} v{version}")
 
-              # Build modified xsoar_config.json with prerelease zip URL
+              url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
+              print(f"Published: {url}")
+
+              # Upload modified xsoar_config.json as a release asset.
+              # The repo file is never touched — this asset is the deploy source
+              # for the Starter playbook. Pattern mirrors the PR Gate prerelease job.
               if config_path.exists():
                   cfg = json.loads(config_path.read_text())
                   for entry in cfg.get("custom_packs", []):
                       if entry.get("id") == f"{pack}.zip":
-                          entry["url"] = pr_zip_url
+                          entry["url"] = url
                           break
+                  prod_config = dist / "xsoar_config.json"
+                  prod_config.write_text(json.dumps(cfg, indent=2) + "\n")
+                  gh("release", "upload", tag, str(prod_config), "--clobber")
+                  config_asset_url = f"https://github.com/{repo}/releases/download/{tag}/xsoar_config.json"
+                  print(f"Config asset: {config_asset_url}")
+              else:
+                  print(f"{pack}: no xsoar_config.json — skipping config asset upload")
 
-                  pr_config = dist / "xsoar_config.json"
-                  pr_config.write_text(json.dumps(cfg, indent=2) + "\n")
+              released.append(pack)
 
-                  # Upload modified xsoar_config.json as release asset
-                  gh("release", "upload", pr_tag, str(pr_config), "--clobber")
-
-                  config_url = f"https://github.com/{repo}/releases/download/{pr_tag}/xsoar_config.json"
-                  print(f"Config URL: {config_url}")
-
-          # Write output
+          # Only populated if at least one pack was successfully released.
+          # The catalog job gates on this being non-empty.
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-              fh.write(f"config_url={config_url}\n")
+              fh.write(f"released_packs={','.join(released)}\n")
           PY
 
-  # ── JOB 8: DEPLOY TO TEST TENANT ────────────────────────────────
-  deploy-dev:
-    name: Deploy — dev tenant (pre-merge)
-    needs: [detect, prerelease]
-    if: needs.detect.outputs.has_content == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: No packs changed
+        if: steps.changed.outputs.has_changes != 'true'
+        run: echo "No version bumps detected — nothing to release."
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+  # ── JOB 2: REBUILD PACK CATALOG ─────────────────────────────────
+  # Only runs after a successful release so the catalog always reflects
+  # what actually shipped. If the zip build failed, this is skipped and
+  # the catalog stays truthful at the previous version.
+  #
+  # Writes to pack_catalog.json at the repo root.
+  # Commits with [skip ci] — does not re-trigger the release workflow.
+  #
+  # If this job fails after a successful release, re-run it manually
+  # from the Actions UI — the zip is already on GitHub and is safe.
+  catalog:
+    name: Rebuild pack catalog
+    needs: [release]
+    if: needs.release.outputs.released_packs != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch main after the bump + release commits
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - name: Checkout xsiam-pov-automation
-        # SECURITY: pinned to specific commit SHA — never use default branch.
-        # To update: gh api repos/annabarone/xsiam-pov-automation/commits/main --jq '.sha'
-        # then replace the ref value below and update the comment.
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-        with:
-          repository: annabarone/xsiam-pov-automation
-          ref: 99e515d1458bbb72690f28915c5794fd43926e0b  # main as of 2026-03-30; update via: gh api repos/annabarone/xsiam-pov-automation/commits/main --jq '.sha'
-          path: xsiam-pov-automation
+      - name: Rebuild pack_catalog.json
+        run: python tools/build_pack_catalog.py
 
-      - name: Install POV requirements
-        working-directory: xsiam-pov-automation
-        run: pip install -r requirements.txt
-
-      - name: Deploy to test tenant
-        working-directory: xsiam-pov-automation
-        env:
-          DEMISTO_BASE_URL:      ${{ secrets.XSIAM_API_URL }}
-          DEMISTO_API_KEY:       ${{ secrets.XSIAM_API_KEY }}
-          XSIAM_AUTH_ID:         ${{ secrets.XSIAM_API_ID }}
-          # Use the prerelease xsoar_config.json which points at the prerelease zip
-          CONTENT_REPO_RAW_LINK: ${{ needs.prerelease.outputs.config_url }}
-          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
+      - name: Commit if changed
         run: |
-          echo "Deploying using prerelease config: $CONTENT_REPO_RAW_LINK"
-          echo "yes" | python setup.py
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Only commit if the file actually changed — idempotent on re-runs
+          git diff --quiet pack_catalog.json || {
+            git add pack_catalog.json
+            git commit -m "chore: rebuild pack_catalog.json [skip ci]"
+            git push origin main
+          }
+          echo "Catalog job complete."
