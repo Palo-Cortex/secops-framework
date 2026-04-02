@@ -36,6 +36,21 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      packs:
+        description: 'Comma-separated pack names to release (e.g. soc-framework-nist-ir,soc-optimization-unified). Leave empty to auto-detect from last commit.'
+        required: false
+        default: ''
+      bump_level:
+        description: 'Version bump level'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -51,8 +66,11 @@ jobs:
   bump:
     name: Bump pack versions
     if: |
-      !contains(github.event.head_commit.message, '[skip ci]') &&
-      !contains(github.event.head_commit.message, '[skip release]')
+      github.event_name == 'workflow_dispatch' ||
+      (
+        !contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[skip release]')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -121,24 +139,32 @@ jobs:
 
       - name: Find content-changed packs
         id: changed
+        env:
+          MANUAL_PACKS: ${{ github.event.inputs.packs }}
         run: |
           python - << 'PY'
           import json, os, subprocess
           from pathlib import Path
 
           packs_dir = Path(os.environ["PACKS_DIR"])
+          manual = os.environ.get("MANUAL_PACKS", "").strip()
 
-          changed_files = subprocess.check_output(
-              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
-          ).splitlines()
-
-          packs = set()
-          for f in changed_files:
-              p = Path(f)
-              if p.parts and p.parts[0] == str(packs_dir):
-                  pack = p.parts[1] if len(p.parts) > 1 else None
-                  if pack and (packs_dir / pack / "pack_metadata.json").exists():
-                      packs.add(pack)
+          if manual:
+              # workflow_dispatch: use explicitly provided pack list
+              packs = {p.strip() for p in manual.split(",") if p.strip()}
+              print("Manual pack override:", packs)
+          else:
+              # push: auto-detect from last commit
+              changed_files = subprocess.check_output(
+                  ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
+              ).splitlines()
+              packs = set()
+              for f in changed_files:
+                  p = Path(f)
+                  if p.parts and p.parts[0] == str(packs_dir):
+                      pack = p.parts[1] if len(p.parts) > 1 else None
+                      if pack and (packs_dir / pack / "pack_metadata.json").exists():
+                          packs.add(pack)
 
           out = ",".join(sorted(packs))
           print("Packs to bump:", out or "(none)")
@@ -152,7 +178,7 @@ jobs:
         if: steps.changed.outputs.has_packs == 'true'
         env:
           CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
-          BUMP_LEVEL:    ${{ steps.label.outputs.bump_level }}
+          BUMP_LEVEL:    ${{ github.event.inputs.bump_level || steps.label.outputs.bump_level }}
         run: |
           python - << 'PY'
           import os, subprocess, sys
