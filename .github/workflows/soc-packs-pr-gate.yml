@@ -538,11 +538,9 @@ jobs:
               if config_path.exists():
                   cfg = json.loads(config_path.read_text())
                   for entry in cfg.get("custom_packs", []):
-                      entry["url"] = pr_zip_url
-                      # Keep the stable bare pack id — never set a versioned id.
-                      # XSIAM uses this field as the upgrade-in-place key; a
-                      # versioned id installs a parallel copy on every PR push.
-                      entry["id"]  = pack
+                      if entry.get("id") == f"{pack}.zip":
+                          entry["url"] = pr_zip_url
+                          break
 
                   pr_config = dist / "xsoar_config.json"
                   pr_config.write_text(json.dumps(cfg, indent=2) + "\n")
