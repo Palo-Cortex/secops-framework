@@ -1,10 +1,10 @@
 id: Foundation - Dedup_V3
-version: 9
+version: 10
 contentitemexportablefields:
   contentitemfields:
     packID: soc-optimization-unified
-    _packName: SOC Framework Unified
-    itemVersion: 2.1.16
+    packName: SOC Framework Unified
+    itemVersion: 3.7.4
     fromServerVersion: 5.0.0
     toServerVersion: ""
     definitionid: ""
@@ -14,11 +14,13 @@ contentitemexportablefields:
 vcShouldKeepItemLegacyProdMachine: false
 name: Foundation - Dedup_V3
 description: |
-  Uses our alert fingerprinting - and compares the alert to the alert ledger
-  If a duplicate is identified - the parent alert is recorded, and the alert resolves
+  Uses alert fingerprinting to detect duplicate alerts within the dedup window.
+  Determines the canonical case by selecting the lowest alert ID in the duplicate
+  group — deterministic, race-free winner selection. Non-winner instances
+  self-close cleanly. The canonical case continues the processing chain.
 tags:
-  - SOC
-  - SOC_Framework_Unified
+- SOC
+- SOC_Framework_Unified
 starttaskid: "0"
 tasks:
   "0":
@@ -31,16 +33,17 @@ tasks:
       name: ""
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "19"
+      - "19"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 50,
+          "x": 377.5,
           "y": 50
         }
       }
@@ -62,14 +65,15 @@ tasks:
       type: title
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 162.5,
-          "y": 1120
+          "x": 397.5,
+          "y": 2070
         }
       }
     note: false
@@ -94,12 +98,13 @@ tasks:
       type: regular
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#error#':
-        - "18"
+      - "18"
       '#none#':
-        - "16"
+      - "16"
     scriptarguments:
       fromDate:
         complex:
@@ -118,90 +123,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 50,
-          "y": 220
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "14":
-    id: "14"
-    taskid: ddcf8da0-3949-415f-8bbb-6c440ff050ee
-    type: regular
-    task:
-      id: ddcf8da0-3949-415f-8bbb-6c440ff050ee
-      version: -1
-      name: Close As Duplicates
-      description: commands.local.cmd.close.inv
-      script: Builtin|||closeInvestigation
-      type: regular
-      iscommand: true
-      brand: Builtin
-      playbooktaskmissingcomponent:
-    nexttasks:
-      '#error#':
-        - "18"
-      '#none#':
-        - "8"
-    scriptarguments:
-      closeNotes:
-        simple: Auto-Close Duplicate
-      closeReason:
-        simple: Resolved - Duplicate Alert
-      id:
-        simple: ${DBotFindSimilarIncidents.similarIncident.id}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: errorPath
-    view: |-
-      {
-        "position": {
-          "x": 387.5,
-          "y": 760
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 2
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "15":
-    id: "15"
-    taskid: 4f2a3250-61d8-4556-aea2-4612ac251ad6
-    type: regular
-    task:
-      id: 4f2a3250-61d8-4556-aea2-4612ac251ad6
-      version: -1
-      name: Print Duplicate Alerts
-      description: Prints text to war room (Markdown supported)
-      scriptName: Print
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent:
-    nexttasks:
-      '#error#':
-        - "18"
-      '#none#':
-        - "20"
-    scriptarguments:
-      value:
-        simple: "🔁 **Duplicate alert detected** — current alert (${alert.id}) is the latest. Closing older duplicate(s): ${DBotFindSimilarIncidents.similarIncident.id}"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: errorPath
-    view: |-
-      {
-        "position": {
-          "x": 275,
-          "y": 580
+          "x": 265,
+          "y": 405
         }
       }
     note: false
@@ -222,29 +145,64 @@ tasks:
       type: condition
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-        - "8"
+      - "8"
       "yes":
-        - "15"
+      - "22"
     separatecontext: false
     conditions:
-      - label: "yes"
-        condition:
-          - - operator: isTrue
-              left:
-                value:
-                  simple: DBotFindSimilarIncidents.isSimilarIncidentFound
-                iscontext: true
-              right:
-                value: {}
+    - label: "yes"
+      condition:
+      - - operator: isTrue
+          left:
+            value:
+              simple: DBotFindSimilarIncidents.isSimilarIncidentFound
+            iscontext: true
+          right:
+            value: {}
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 162.5,
-          "y": 400
+          "x": 377.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: c9a53716-a57b-4fae-8e00-d3508d482f51
+    type: playbook
+    task:
+      id: c9a53716-a57b-4fae-8e00-d3508d482f51
+      version: -1
+      name: Foundation - Error Handling_V3
+      playbookName: Foundation - Error Handling_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: true
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1885
         }
       }
     note: false
@@ -267,53 +225,24 @@ tasks:
       type: regular
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "17"
+      - "17"
     scriptarguments:
       value:
-        simple: "⚠️ **Dedup skipped** — an error occurred during alert fingerprinting or dedup close. This alert was not evaluated for duplicates. Check the error log for details."
+        simple: ⚠️ **Dedup skipped** — an error occurred during alert fingerprinting
+          or dedup close. This alert was not evaluated for duplicates. Check the error
+          log for details.
     separatecontext: false
     continueonerror: true
     continueonerrortype: errorPath
     view: |-
       {
         "position": {
-          "x": 162.5,
-          "y": 760
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "17":
-    id: "17"
-    taskid: c9a53716-a57b-4fae-8e00-d3508d482f51
-    type: playbook
-    task:
-      id: c9a53716-a57b-4fae-8e00-d3508d482f51
-      version: -1
-      name: Foundation - Error Handling_V3
-      playbookName: Foundation - Error Handling_V3
-      type: playbook
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent:
-    nexttasks:
-      '#none#':
-        - "8"
-    separatecontext: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 940
+          "x": 50,
+          "y": 1700
         }
       }
     note: false
@@ -331,19 +260,19 @@ tasks:
       id: e2a47b13-5c8d-4f91-a3e0-7d9b2f6c4a08
       version: -1
       name: Score Bypass?
-      description: >-
-        If the parent incident's predicted_score meets or exceeds
-        DedupScoreThreshold, skip dedup entirely. High-scoring active cases
-        should surface new signals independently rather than have them suppressed.
+      description: If the parent alert's predicted_score meets or exceeds DedupScoreThreshold,
+        skip dedup entirely. High-scoring active cases should surface new signals
+        independently rather than have them suppressed.
       type: condition
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-        - "10"
+      - "10"
       "yes":
-        - "8"
+      - "8"
     separatecontext: false
     conditions:
     - label: "yes"
@@ -362,8 +291,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 50,
-          "y": 120
+          "x": 377.5,
+          "y": 220
         }
       }
     note: false
@@ -381,18 +310,18 @@ tasks:
       id: f3b58c24-6d9e-4a02-b4f1-8e0c3g7d5b19
       version: -1
       name: DryRun?
-      description: >-
-        If DryRun is true, print what would be closed without executing.
+      description: If DryRun is true, print what would be closed without executing.
         Used for smoke testing post-deploy without closing any issues.
       type: condition
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-        - "14"
+      - "26"
       "yes":
-        - "21"
+      - "21"
     separatecontext: false
     conditions:
     - label: "yes"
@@ -410,7 +339,7 @@ tasks:
       {
         "position": {
           "x": 387.5,
-          "y": 580
+          "y": 1330
         }
       }
     note: false
@@ -422,39 +351,38 @@ tasks:
     isautoswitchedtoquietmode: false
   "21":
     id: "21"
-    taskid: a4c69d35-7e0f-4b13-c5g2-9f1d4h8e6c20
+    taskid: faa59a37-0bc9-4516-9c91-26991341bc6d
     type: regular
     task:
-      id: a4c69d35-7e0f-4b13-c5g2-9f1d4h8e6c20
+      id: faa59a37-0bc9-4516-9c91-26991341bc6d
       version: -1
-      name: "[DRY RUN] Print Issues That Would Close"
-      description: >-
-        Smoke test output. Lists duplicate issue IDs that would have been
+      name: '[DRY RUN] Print Issues That Would Close'
+      description: Smoke test output. Lists duplicate issue IDs that would have been
         closed by dedup. No issues are modified.
+      tags:
+      - Auto-Triage
       scriptName: Print
       type: regular
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent:
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "8"
+      - "8"
     scriptarguments:
       value:
-        simple: >-
-          [DRY RUN] Dedup would close issue(s): ${DBotFindSimilarIncidents.similarIncident.id}
-          Current alert: ${alert.id}
-          Dedup window: ${inputs.DedupWindow}
-          Score threshold (bypass): ${inputs.DedupScoreThreshold}
-          Parent score: ${parentIncidentFields.predicted_score}
+        simple: '[DRY RUN] Dedup would close issue(s): ${DBotFindSimilarIncidents.similarIncident.id}
+          Current alert: ${alert.id} Dedup window: ${inputs.DedupWindow} Score threshold
+          (bypass): ${inputs.DedupScoreThreshold} Parent score: ${parentIncidentFields.predicted_score}'
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 650,
-          "y": 760
+          "x": 510,
+          "y": 1885
         }
       }
     note: false
@@ -464,19 +392,250 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  "22":
+    id: "22"
+    taskid: 90806324-1af6-4a1d-9c96-a02a016d3fb4
+    type: regular
+    task:
+      id: 90806324-1af6-4a1d-9c96-a02a016d3fb4
+      version: -1
+      name: Compute Winner ID (min alert ID in duplicate group)
+      description: Appends the current alert ID to the list of similar alert IDs,
+        then applies the min transformer to determine the canonical case. The alert
+        with the lowest ID is the winner — deterministic, race-free, no coordination
+        required.
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "18"
+      '#none#':
+      - "23"
+    scriptarguments:
+      key:
+        simple: SOCFramework.Dedup.WinnerID
+      value:
+        complex:
+          root: DBotFindSimilarIncidents
+          accessor: similarIncident.id
+          transformers:
+          - operator: append
+            args:
+              item:
+                value:
+                  simple: alert.id
+                iscontext: true
+          - operator: min
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 490,
+          "y": 775
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: 7e7ac992-b48f-4c7f-9a9c-023455c595ef
+    type: condition
+    task:
+      id: 7e7ac992-b48f-4c7f-9a9c-023455c595ef
+      version: -1
+      name: Am I the Winner? (lowest ID = canonical case)
+      description: Compares the current alert ID to the computed minimum group ID.
+        If equal, this instance is the canonical case — continue the chain. If not
+        equal, a lower-ID sibling is canonical — close self cleanly.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "25"
+      "yes":
+      - "24"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isEqualNumber
+          left:
+            value:
+              simple: alert.id
+            iscontext: true
+          right:
+            value:
+              simple: SOCFramework.Dedup.WinnerID
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 602.5,
+          "y": 960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "24":
+    id: "24"
+    taskid: 6791cee5-456f-46c5-84f1-ca33a6244faa
+    type: regular
+    task:
+      id: 6791cee5-456f-46c5-84f1-ca33a6244faa
+      version: -1
+      name: Print Winner Note
+      description: Prints text to war room (Markdown supported)
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    scriptarguments:
+      value:
+        simple: '✅ **Dedup — canonical case** | Alert ${alert.id} is the lowest-ID
+          in this duplicate group and will continue processing. Duplicate sibling(s)
+          detected: ${DBotFindSimilarIncidents.similarIncident.id} — each will self-close
+          as a duplicate of this case.'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 940,
+          "y": 1885
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "25":
+    id: "25"
+    taskid: 9e710d09-e505-426b-9cce-ade2f6be9ae0
+    type: regular
+    task:
+      id: 9e710d09-e505-426b-9cce-ade2f6be9ae0
+      version: -1
+      name: Print Self-Close Note
+      description: Prints text to war room (Markdown supported)
+      scriptName: Print
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      value:
+        simple: "\U0001F501 **Dedup — closing self** | Alert ${alert.id} is a duplicate.
+          Canonical case is alert ${SOCFramework.Dedup.WinnerID} (lowest ID in group).
+          This alert will self-close. No other alerts are modified by this instance."
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 387.5,
+          "y": 1145
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "26":
+    id: "26"
+    taskid: ed574f23-7596-4af6-b90c-429c257b3402
+    type: regular
+    task:
+      id: ed574f23-7596-4af6-b90c-429c257b3402
+      version: -1
+      name: Close Self as Duplicate
+      description: commands.local.cmd.close.inv
+      tags:
+      - Auto-Triage
+      script: Builtin|||closeInvestigation
+      type: regular
+      iscommand: true
+      brand: Builtin
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#error#':
+      - "18"
+      '#none#':
+      - "8"
+    scriptarguments:
+      closeNotes:
+        simple: 'Duplicate alert. Canonical case: ${SOCFramework.Dedup.WinnerID} (lowest
+          alert ID in duplicate group — deterministic winner selection).'
+      closeReason:
+        simple: Resolved - Duplicate Alert
+      id:
+        simple: ${alert.id}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 275,
+          "y": 1515
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
 system: true
 view: |-
   {
     "linkLabelsPosition": {
       "19_10_#default#": 0.5,
       "19_8_yes": 0.5,
-      "20_14_#default#": 0.5,
       "20_21_yes": 0.5
     },
     "paper": {
       "dimensions": {
-        "height": 1400,
-        "width": 900,
+        "height": 2080,
+        "width": 1270,
         "x": 50,
         "y": 50
       }
@@ -487,10 +646,9 @@ inputs:
   value:
     simple: "false"
   required: false
-  description: >-
-    When true, prints duplicate issues that would be closed without executing
+  description: When true, prints duplicate issues that would be closed without executing
     any close actions. Use for smoke testing after deployment.
-  playbookInputQuery:
+  playbookInputQuery: null
 - key: DedupWindow
   value:
     complex:
@@ -513,10 +671,9 @@ inputs:
             value:
               simple: DedupWindow
   required: false
-  description: >-
-    How far back to search for similar alerts. Read from SOCOptimizationConfig_V3.
-    Default: 1 days ago.
-  playbookInputQuery:
+  description: 'How far back to search for similar alerts. Read from SOCOptimizationConfig_V3.
+    Default: 1 days ago.'
+  playbookInputQuery: null
 - key: DedupScoreThreshold
   value:
     complex:
@@ -539,12 +696,21 @@ inputs:
             value:
               simple: DedupScoreThreshold
   required: false
-  description: >-
-    If parent incident predicted_score is at or above this value, dedup is
-    bypassed. Read from SOCOptimizationConfig_V3. Default: 70.
-  playbookInputQuery:
+  description: 'If parent incident predicted_score is at or above this value, dedup
+    is bypassed. Read from SOCOptimizationConfig_V3. Default: 70.'
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - DryRun
+  - DedupWindow
+  - DedupScoreThreshold
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputSections:
+- outputs: []
+  name: General (Outputs group)
+  description: Generic group for outputs
 outputs: []
 sourceplaybookid: Foundation - Upon Trigger
 dirtyInputs: true
 adopted: true
-fromversion: 5.0.0
