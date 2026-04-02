@@ -1,6 +1,6 @@
 fromversion: 5.0.0
 id: Foundation - Dedup_V3
-version: 10
+version: 15
 contentitemexportablefields:
   contentitemfields:
     packID: soc-optimization-unified
@@ -44,7 +44,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 377.5,
+          "x": 480,
           "y": 50
         }
       }
@@ -73,7 +73,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 397.5,
+          "x": 480,
           "y": 2070
         }
       }
@@ -124,7 +124,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 265,
+          "x": 367.5,
           "y": 405
         }
       }
@@ -168,7 +168,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 377.5,
+          "x": 480,
           "y": 590
         }
       }
@@ -292,7 +292,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 377.5,
+          "x": 480,
           "y": 220
         }
       }
@@ -339,7 +339,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 387.5,
+          "x": 685,
           "y": 1330
         }
       }
@@ -382,7 +382,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 510,
+          "x": 910,
           "y": 1885
         }
       }
@@ -437,7 +437,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 490,
+          "x": 592.5,
           "y": 775
         }
       }
@@ -486,7 +486,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 602.5,
+          "x": 797.5,
           "y": 960
         }
       }
@@ -514,7 +514,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "8"
+      - "27"
     scriptarguments:
       value:
         simple: '✅ **Dedup — canonical case** | Alert ${alert.id} is the lowest-ID
@@ -527,8 +527,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 940,
-          "y": 1885
+          "x": 1135,
+          "y": 1515
         }
       }
     note: false
@@ -567,7 +567,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 387.5,
+          "x": 685,
           "y": 1145
         }
       }
@@ -599,7 +599,7 @@ tasks:
       '#error#':
       - "18"
       '#none#':
-      - "8"
+      - "27"
     scriptarguments:
       closeNotes:
         simple: 'Duplicate alert. Canonical case: ${SOCFramework.Dedup.WinnerID} (lowest
@@ -614,7 +614,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 275,
+          "x": 470,
           "y": 1515
         }
       }
@@ -623,6 +623,100 @@ tasks:
     ignoreworker: false
     skipunavailable: false
     quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "27":
+    id: "27"
+    taskid: 6210c826-1621-4978-9b9a-d5c7ed316777
+    type: regular
+    task:
+      id: 6210c826-1621-4978-9b9a-d5c7ed316777
+      version: -1
+      name: Set Dedup Execution Payload
+      description: Builds the dedup outcome record for xsiam_socfw_ir_execution_raw.
+        winner_id and alert_id together convey the outcome — XQL consumers determine
+        canonical vs duplicate by comparing the two fields. Both the winner path and
+        self-close path converge here.
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "28"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: SOCFramework.Dedup.ExecutionPayload
+      value:
+        simple: '{"event_type":"dedup","lifecycle":"DEDUP","phase":"dedup", "alert_id":"${alert.id}","incident_id":"${alert.id}",
+          "winner_id":"${SOCFramework.Dedup.WinnerID}", "similar_ids":"${DBotFindSimilarIncidents.similarIncident.id}",
+          "dedup_window":"${inputs.DedupWindow}"}'
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1700
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "28":
+    id: "28"
+    taskid: a2a6a59b-c92a-4aaa-992d-ccae89b08bf4
+    type: regular
+    task:
+      id: a2a6a59b-c92a-4aaa-992d-ccae89b08bf4
+      version: -1
+      name: Post Dedup Outcome to Execution Dataset
+      description: Writes the dedup outcome record to xsiam_socfw_ir_execution_raw
+        via the socfw_ir_execution instance. continueonerror true — dataset write
+        failure must never stop the chain.
+      script: '|||xql-post-to-dataset'
+      type: regular
+      iscommand: true
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    scriptarguments:
+      JSON:
+        complex:
+          root: SOCFramework.Dedup.ExecutionPayload
+          transformers:
+          - operator: Stringify
+      using:
+        simple: socfw_ir_execution
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1885
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
 system: true
@@ -636,7 +730,7 @@ view: |-
     "paper": {
       "dimensions": {
         "height": 2080,
-        "width": 1270,
+        "width": 1465,
         "x": 50,
         "y": 50
       }
@@ -645,7 +739,7 @@ view: |-
 inputs:
 - key: DryRun
   value:
-    simple: "false"
+    simple: "true"
   required: false
   description: When true, prints duplicate issues that would be closed without executing
     any close actions. Use for smoke testing after deployment.
