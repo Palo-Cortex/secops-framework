@@ -48,12 +48,6 @@ env:
 jobs:
 
   # ── JOB 0: BUMP PACK VERSIONS ───────────────────────────────────
-  # Reads the label from the PR that was just merged.
-  # Bumps pack_metadata.json for all content-changed packs.
-  # Commits back with [skip ci] to avoid re-triggering this workflow.
-  #
-  # No label on merged PR → patch bump with a visible warning in the log.
-  # Label resolution: version:major > version:minor > version:patch > patch default
   bump:
     name: Bump pack versions
     if: |
@@ -66,10 +60,17 @@ jobs:
       packs:      ${{ steps.do_bump.outputs.packs }}
       has_bumped: ${{ steps.do_bump.outputs.has_bumped }}
     steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.bot-token.outputs.token }}
 
       - uses: actions/setup-python@v5
         with:
@@ -78,12 +79,11 @@ jobs:
       - name: Resolve merged PR label
         id: label
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           python - << 'PY'
           import os, re, subprocess
 
-          # GitHub writes "Merge pull request #N from ..." or "title (#N)" on squash
           msg = subprocess.check_output(
               ["git", "log", "-1", "--pretty=%s"], text=True
           ).strip()
@@ -148,9 +148,6 @@ jobs:
           PY
 
       - name: Bump pack_metadata.json versions
-        # Calls the actual bump_pack_version.py tool in non-interactive mode.
-        # The tool also fixes xsoar_config.json custom_packs URL + id + doc URLs
-        # in one pass — same behaviour as running it locally.
         id: do_bump
         if: steps.changed.outputs.has_packs == 'true'
         env:
@@ -163,7 +160,7 @@ jobs:
 
           packs_dir = Path(os.environ["PACKS_DIR"])
           packs     = [p for p in os.environ["CHANGED_PACKS"].split(",") if p]
-          level     = os.environ["BUMP_LEVEL"]   # major | minor | patch
+          level     = os.environ["BUMP_LEVEL"]
 
           bumped = []
           for pack in packs:
@@ -173,7 +170,7 @@ jobs:
                   continue
               result = subprocess.run(
                   ["python", "tools/bump_pack_version.py", str(pack_dir), "--level", level],
-                  capture_output=False   # let stdout/stderr stream to Actions log
+                  capture_output=False
               )
               if result.returncode != 0:
                   print(f"::error::bump_pack_version.py failed for {pack} (exit {result.returncode})")
@@ -189,12 +186,13 @@ jobs:
         if: steps.do_bump.outputs.has_bumped == 'true'
         env:
           BUMP_LEVEL: ${{ steps.label.outputs.bump_level }}
+          BOT_TOKEN:  ${{ steps.bot-token.outputs.token }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Packs/*/pack_metadata.json Packs/*/xsoar_config.json
           git commit -m "chore: bump pack versions (${BUMP_LEVEL}) [skip ci]"
-          git push origin main
+          git push https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }} main
 
   # ── JOB 1: BUILD ZIP + CREATE GITHUB RELEASE ────────────────────
   release:
@@ -210,7 +208,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Checkout main after the bump commit so we build the bumped version
           ref: main
           fetch-depth: 0
 
@@ -265,9 +262,6 @@ jobs:
         run: pip install pyyaml
 
       - name: Validate shadow mode (pre-release safety net)
-        # Belt-and-suspenders: PR Gate already ran this, but we re-run here
-        # before any zip is built or released. A shadow_mode: false action on
-        # a destructive command must never make it into a production release asset.
         run: |
           python tools/validate_shadow_mode.py --all \
             --actions-list Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json \
@@ -326,9 +320,6 @@ jobs:
               if final.exists():
                   final.unlink()
 
-              # Plain zip of the pack directory — preserves all XSIAM content types
-              # (CorrelationRules, ModelingRules, etc.) without SDK transformation.
-              # xsoar_config.json is a deploy config asset, not pack content — exclude it.
               run(["zip", "-r", str(final.resolve()), pack,
                    "--exclude", f"{pack}/xsoar_config.json"],
                   cwd=str(packs_dir.resolve()))
@@ -345,9 +336,6 @@ jobs:
               url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
               print(f"Published: {url}")
 
-              # Upload modified xsoar_config.json as a release asset.
-              # The repo file is never touched — this asset is the deploy source
-              # for the Starter playbook. Pattern mirrors the PR Gate prerelease job.
               if config_path.exists():
                   cfg = json.loads(config_path.read_text())
                   for entry in cfg.get("custom_packs", []):
@@ -364,8 +352,6 @@ jobs:
 
               released.append(pack)
 
-          # Only populated if at least one pack was successfully released.
-          # The catalog job gates on this being non-empty.
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"released_packs={','.join(released)}\n")
           PY
@@ -375,15 +361,6 @@ jobs:
         run: echo "No version bumps detected — nothing to release."
 
   # ── JOB 2: REBUILD PACK CATALOG ─────────────────────────────────
-  # Only runs after a successful release so the catalog always reflects
-  # what actually shipped. If the zip build failed, this is skipped and
-  # the catalog stays truthful at the previous version.
-  #
-  # Writes to pack_catalog.json at the repo root.
-  # Commits with [skip ci] — does not re-trigger the release workflow.
-  #
-  # If this job fails after a successful release, re-run it manually
-  # from the Actions UI — the zip is already on GitHub and is safe.
   catalog:
     name: Rebuild pack catalog
     needs: [release]
@@ -392,12 +369,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
-          # Fetch main after the bump + release commits
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.bot-token.outputs.token }}
 
       - uses: actions/setup-python@v5
         with:
@@ -407,13 +390,14 @@ jobs:
         run: python tools/build_pack_catalog.py
 
       - name: Commit if changed
+        env:
+          BOT_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Only commit if the file actually changed — idempotent on re-runs
           git diff --quiet pack_catalog.json || {
             git add pack_catalog.json
             git commit -m "chore: rebuild pack_catalog.json [skip ci]"
-            git push origin main
+            git push https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }} main
           }
           echo "Catalog job complete."
