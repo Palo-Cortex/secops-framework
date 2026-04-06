@@ -199,11 +199,20 @@ def extract_tasks(text: str) -> list[dict]:
         for km in re.finditer(r"""key\s*:\s*\n\s+simple\s*:\s*(\S+)""", block):
             set_keys.append(km.group(1).strip())
 
+        # Extract contract:allow annotations from the task description.
+        # Format: # contract:allow RULE_ID — reason
+        # Any rule ID listed here is suppressed for this specific task.
+        # Multiple annotations on separate lines are supported.
+        allowed_rules: set[str] = set()
+        for ann_m in re.finditer(r"contract:allow\s+(\w+)", block):
+            allowed_rules.add(ann_m.group(1).strip())
+
         tasks.append({
-            "id":       tid,
-            "name":     name,
-            "script":   script,
-            "set_keys": set_keys,
+            "id":            tid,
+            "name":          name,
+            "script":        script,
+            "set_keys":      set_keys,
+            "allowed_rules": allowed_rules,
         })
 
     return tasks
@@ -251,7 +260,8 @@ def _check_workflow(tasks: list[dict]) -> list[Finding]:
     for t in tasks:
         # setIssue from Workflow — writes to the alert, not the case
         # This is a hard error because it writes to the wrong object entirely.
-        if _SET_ISSUE in t["script"]:
+        # Suppress with: # contract:allow WORKFLOW_SET_ISSUE — <reason>
+        if _SET_ISSUE in t["script"] and "WORKFLOW_SET_ISSUE" not in t["allowed_rules"]:
             findings.append(Finding(
                 severity   = "ERROR",
                 rule       = "WORKFLOW_SET_ISSUE",
@@ -265,7 +275,8 @@ def _check_workflow(tasks: list[dict]) -> list[Finding]:
             ))
 
         # setIncident from Workflow — Foundation's job
-        if _SET_INCIDENT in t["script"]:
+        # Suppress with: # contract:allow WORKFLOW_SET_INCIDENT — <reason>
+        if _SET_INCIDENT in t["script"] and "WORKFLOW_SET_INCIDENT" not in t["allowed_rules"]:
             findings.append(Finding(
                 severity   = "ERROR",
                 rule       = "WORKFLOW_SET_INCIDENT",
@@ -279,7 +290,8 @@ def _check_workflow(tasks: list[dict]) -> list[Finding]:
             ))
 
         # setParentIncident from Workflow — should be at Lifecycle boundary
-        if _SET_PARENT_INCIDENT in t["script"]:
+        # Suppress with: # contract:allow WORKFLOW_SET_PARENT_INCIDENT — <reason>
+        if _SET_PARENT_INCIDENT in t["script"] and "WORKFLOW_SET_PARENT_INCIDENT" not in t["allowed_rules"]:
             findings.append(Finding(
                 severity   = "WARN",
                 rule       = "WORKFLOW_SET_PARENT_INCIDENT",
@@ -292,21 +304,25 @@ def _check_workflow(tasks: list[dict]) -> list[Finding]:
                 ),
             ))
 
-        # SOCFramework.* written from Workflow — wrong namespace
-        for key in t["set_keys"]:
-            if key.startswith(_SOCFRAMEWORK_PREFIX):
-                findings.append(Finding(
-                    severity   = "WARN",
-                    rule       = "WORKFLOW_WRITES_SOCFRAMEWORK",
-                    task_id    = t["id"],
-                    task_name  = t["name"],
-                    message    = f"Workflow writes to SOCFramework.* namespace: {key}",
-                    suggestion = (
-                        f"Rename to the phase namespace instead. "
-                        f"Example: {key.replace('SOCFramework.', 'Analysis.')} "
-                        f"(or the appropriate phase prefix for this playbook)."
-                    ),
-                ))
+        # SOCFramework.* written from Workflow — wrong namespace.
+        # Suppress with: # contract:allow WORKFLOW_WRITES_SOCFRAMEWORK — <reason>
+        if "WORKFLOW_WRITES_SOCFRAMEWORK" not in t["allowed_rules"]:
+            for key in t["set_keys"]:
+                if key.startswith(_SOCFRAMEWORK_PREFIX):
+                    findings.append(Finding(
+                        severity   = "WARN",
+                        rule       = "WORKFLOW_WRITES_SOCFRAMEWORK",
+                        task_id    = t["id"],
+                        task_name  = t["name"],
+                        message    = f"Workflow writes to SOCFramework.* namespace: {key}",
+                        suggestion = (
+                            f"Rename to the phase namespace instead. "
+                            f"Example: {key.replace('SOCFramework.', 'Analysis.')} "
+                            f"(or the appropriate phase prefix for this playbook). "
+                            f"If intentional, annotate with: "
+                            f"# contract:allow WORKFLOW_WRITES_SOCFRAMEWORK — <reason>"
+                        ),
+                    ))
 
     return findings
 
