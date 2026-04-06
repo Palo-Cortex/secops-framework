@@ -4,6 +4,7 @@ The SOC Framework turns XSIAM into a structured, repeatable incident response ma
 
 ---
 
+
 ## Five Things Worth Understanding First
 
 ### 1. Every alert runs through the same foundation
