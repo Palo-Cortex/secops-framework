@@ -312,6 +312,7 @@ Resolved three runtime failures in `SOC_Endpoint_Compromise_Evaluation_V3` cause
 
 ---
 
+
 ## Design Principles
 
 - **Modular:** Each phase, category, and evaluation is a separate playbook. Swap or extend one without touching the others.
