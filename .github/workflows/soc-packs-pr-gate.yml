@@ -159,8 +159,11 @@ jobs:
               ["git", "merge-base", "HEAD", "origin/main"], text=True
           ).strip()
 
+          # --diff-filter=ACMR excludes deletions (D) from the pack detection.
+          # Removing a file from a pack is not "touching" it for version bump
+          # purposes — only additions, copies, modifications, and renames count.
           changed = subprocess.check_output(
-              ["git", "diff", "--name-only", base, "HEAD"], text=True
+              ["git", "diff", "--name-only", "--diff-filter=ACMR", base, "HEAD"], text=True
           ).splitlines()
 
           # Any change to these files implies a breaking contract —
@@ -211,7 +214,7 @@ jobs:
           ).strip()
 
           changed = subprocess.check_output(
-              ["git", "diff", "--name-only", base, "HEAD"], text=True
+              ["git", "diff", "--name-only", "--diff-filter=ACMR", base, "HEAD"], text=True
           ).splitlines()
 
           packs_dir = Path(os.environ["PACKS_DIR"])
@@ -269,8 +272,10 @@ jobs:
               ["git", "merge-base", "HEAD", "origin/main"], text=True
           ).strip()
 
+          # --diff-filter=ACMR excludes deletions — a removed file is not
+          # a meaningful content change for pack detection purposes.
           changed_files = subprocess.check_output(
-              ["git", "diff", "--name-only", base, "HEAD"], text=True
+              ["git", "diff", "--name-only", "--diff-filter=ACMR", base, "HEAD"], text=True
           ).splitlines()
 
           # has_content: any file changed under Packs/<pack>/
