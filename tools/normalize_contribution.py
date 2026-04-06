@@ -94,37 +94,88 @@ from typing import Optional
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Pack registry
+# Pack registry — built dynamically from pack_metadata.json files
 # ─────────────────────────────────────────────────────────────────────────────
+# No hardcoded pack lists. When a new pack is added to the repo it is
+# discovered automatically. When a pack is renamed its metadata changes and
+# the script picks up the new name on the next run.
 
-# Maps pack directory name → canonical display name used in contentitemfields.
-# Add a new line here when a new pack is added to the repo.
-PACK_NAMES: dict[str, str] = {
-    "soc-framework-nist-ir":           "SOC Framework NIST IR",
-    "soc-optimization-unified":        "SOC Framework Foundation",
-    "SocFrameworkCrowdstrikeFalcon":   "SOC Framework CrowdStrike Falcon",
-    "SocFrameworkProofPointTap":       "SOC Framework Proofpoint TAP",
-    "soc-microsoft-defender":          "SOC Framework Microsoft Defender",
-    "soc-microsoft-defender-email":    "SOC Framework Microsoft Defender Email",
-    "SocFrameworkTrendMicroVisionOne": "SOC Framework Trend Micro Vision One",
-}
+def _find_packs_root(start: Path) -> Optional[Path]:
+    """
+    Walk up from start until we find a directory containing a Packs/ subdirectory.
+    Returns the Packs/ path, or None if not found.
+    """
+    current = start.resolve()
+    for _ in range(10):  # bounded walk — never go above 10 levels
+        candidate = current / "Packs"
+        if candidate.is_dir():
+            return candidate
+        if current == current.parent:
+            break
+        current = current.parent
+    return None
 
-# Reverse lookup: packName strings from XSIAM UI exports → pack directory name.
-# Covers name variants, old suffixes, and capitalisation differences.
-# Used only as a cross-check against the path-derived pack ID.
-PACK_NAME_TO_ID: dict[str, str] = {
-    "soc framework nist ir":                  "soc-framework-nist-ir",
-    "soc framework nist ir (800-61)":         "soc-framework-nist-ir",
-    "soc framework nist ir 800-61":           "soc-framework-nist-ir",
-    "soc framework foundation":               "soc-optimization-unified",
-    "soc optimization unified":               "soc-optimization-unified",
-    "soc-optimization-unified":               "soc-optimization-unified",
-    "soc framework crowdstrike falcon":        "SocFrameworkCrowdstrikeFalcon",
-    "soc framework proofpoint tap":           "SocFrameworkProofPointTap",
-    "soc framework microsoft defender":       "soc-microsoft-defender",
-    "soc framework microsoft defender email": "soc-microsoft-defender-email",
-    "soc framework trend micro vision one":   "SocFrameworkTrendMicroVisionOne",
-}
+
+def _load_pack_registry(packs_root: Optional[Path]) -> tuple[dict, dict]:
+    """
+    Build PACK_NAMES and PACK_NAME_TO_ID by reading pack_metadata.json
+    from every pack directory under packs_root.
+
+    PACK_NAMES:      pack_dir_name → canonical display name (from metadata "name")
+    PACK_NAME_TO_ID: lowercased display name variant → pack_dir_name
+
+    The fuzzy reverse map handles UI export variants like "SOC Framework NIST IR (800-61)"
+    by stripping parenthetical suffixes and punctuation before matching.
+
+    Returns two empty dicts if packs_root is None or unreadable.
+    """
+    pack_names:    dict[str, str] = {}
+    pack_name_to_id: dict[str, str] = {}
+
+    if not packs_root or not packs_root.is_dir():
+        return pack_names, pack_name_to_id
+
+    for meta_path in sorted(packs_root.glob("*/pack_metadata.json")):
+        pack_dir = meta_path.parent.name
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        display_name = meta.get("name") or pack_dir
+        pack_names[pack_dir] = display_name
+
+        # Build reverse lookup variants from the display name.
+        # Each variant is lowercased for case-insensitive matching.
+        variants = set()
+
+        # Exact lowercase
+        variants.add(display_name.lower())
+
+        # Strip parenthetical suffixes: "SOC Framework NIST IR (800-61)" →
+        # "soc framework nist ir"
+        stripped = re.sub(r"\s*\(.*?\)\s*", "", display_name).strip()
+        if stripped:
+            variants.add(stripped.lower())
+
+        # Replace hyphens/underscores with spaces
+        variants.add(display_name.lower().replace("-", " ").replace("_", " "))
+        variants.add(stripped.lower().replace("-", " ").replace("_", " "))
+
+        # Pack directory name itself (lowercased, hyphens→spaces)
+        variants.add(pack_dir.lower().replace("-", " "))
+
+        for v in variants:
+            if v:
+                pack_name_to_id[v] = pack_dir
+
+    return pack_names, pack_name_to_id
+
+
+# Populated at module load time by scanning the repo.
+# Falls back to empty dicts if run outside the repo (no Packs/ found).
+_PACKS_ROOT = _find_packs_root(Path(__file__).parent)
+PACK_NAMES, PACK_NAME_TO_ID = _load_pack_registry(_PACKS_ROOT)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -714,6 +765,36 @@ def _set_packid_packname(text: str, pack_id: str, pack_name: str) -> tuple[str, 
     return text, changed
 
 
+def _ensure_fromversion_playbook(text: str) -> tuple[str, bool]:
+    """
+    Ensure 'fromversion: 5.0.0' is present in a playbook YAML.
+
+    Playbooks require this field for the SDK to accept them (BA106).
+    The value 5.0.0 is the correct floor for all SOC Framework playbooks.
+    If the field is already present with any value, it is left unchanged —
+    fix_errors.py handles correction of wrong values if needed.
+    If it is absent, it is inserted immediately after the 'version:' line
+    so related fields stay grouped together.
+    """
+    # Already present — leave it alone regardless of value
+    if re.search(r"^fromversion\s*:", text, re.MULTILINE):
+        return text, False
+
+    # Insert after 'version:' line — keeps identity fields grouped
+    ver_m = re.search(r"^version\s*:.*$", text, re.MULTILINE)
+    if ver_m:
+        insert_at = ver_m.end()
+        return text[:insert_at] + "\nfromversion: 5.0.0" + text[insert_at:], True
+
+    # Fallback: insert after 'adopted: true'
+    adopted_m = re.search(r"^adopted\s*:.*$", text, re.MULTILINE)
+    if adopted_m:
+        insert_at = adopted_m.end()
+        return text[:insert_at] + "\nfromversion: 5.0.0" + text[insert_at:], True
+
+    return text, False
+
+
 def normalize_playbook(
     text: str,
     pack_id: str,
@@ -789,6 +870,11 @@ def normalize_playbook(
     if changed:
         changes.append("renumbered alphanumeric task IDs to integers")
 
+    # 10. Ensure fromversion: 5.0.0 is present (SDK BA106 requirement)
+    text, changed = _ensure_fromversion_playbook(text)
+    if changed:
+        changes.append("fromversion: 5.0.0 added")
+
     return text, changes
 
 
@@ -814,14 +900,17 @@ def normalize_list(data: dict, canon: str) -> tuple[dict, list[str], dict]:
     """
     changes: list[str] = []
 
-    # Build the descriptor — four fields required by fix_errors / SDK
+    # Build the descriptor — fields required by fix_errors / SDK.
+    # fromVersion uses camelCase (6.5.0) for JSON content — different from
+    # the YAML playbook convention (fromversion: 5.0.0, lowercase).
     descriptor: dict = {
         "id":           canon,
         "name":         canon,
         "display_name": canon,
         "type":         "json",
+        "fromVersion":  "6.5.0",
     }
-    for field in ("id", "name", "display_name", "type"):
+    for field in ("id", "name", "display_name", "type", "fromVersion"):
         if data.get(field) != descriptor[field]:
             old_val = data.get(field, "<missing>")
             changes.append(f"descriptor.{field}: '{old_val}' → '{descriptor[field]}'")
