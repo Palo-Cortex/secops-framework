@@ -1,5 +1,10 @@
 rule_id: 0
 fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Endpoint
+  - TrendMicroVisionOne
 action: ALERTS
 alert_category: User Defined
 alert_description: $alert_description
@@ -17,6 +22,8 @@ alert_fields:
   agent_device_domain: domain
   agent_hostname: v1_host_name
   agent_id: v1_host_guid
+  vendor: vendor_name
+  product: product_name
   mitretacticid: mitre_tactic_id
   mitretacticname: mitre_tactic
   mitretechniqueid: mitre_ids_str
@@ -230,7 +237,7 @@ xql_query: "dataset = trend_micro_vision_one_v3_generic_alert_raw\n| filter aler
   | alter reg_path = json_extract_scalar(i_reg, \"$.value\")\n| alter filepath =\n\
   \    coalesce(\n      reg_path,\n      arrayindex(regextract(cmdline, \"^\\\\s*([^\\\
   \\s]+)\"), 0)\n    )\n| alter filename = replace(filepath, \"^.*[\\\\\\\\/]\", \"\
-  \")\n\n| alter ioc_value = coalesce(sha256, null)\n\n| fields\n    id, workbench_link,\
+  \")\n\n| alter ioc_value = coalesce(sha256, null)\n\n| alter vendor_name = \"Trend Micro\", product_name = \"Vision One\"\n\n| fields\n    id, workbench_link,\
   \ alert_name, alert_source, status,\n    investigation_status, investigation_result,\n\
   \    score, severity, alert_time, alert_description,\n    v1_host_guid, v1_host_name,\
   \ local_ip, mac_address,\n    user_name, user_id,\n    filename, filepath, parent_process_path,\
