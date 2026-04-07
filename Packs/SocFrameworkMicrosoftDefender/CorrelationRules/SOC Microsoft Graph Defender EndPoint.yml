@@ -1,5 +1,10 @@
 rule_id: 0
 fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Endpoint
+  - MicrosoftDefenderForEndpoint
 action: ALERTS
 alert_category: User Defined
 alert_description: $description
@@ -31,8 +36,8 @@ alert_fields:
   externallink: alertWebUrl
   mitretacticid: mitre_tactic_id
   mitretacticname: mitre_tactic
-  mitretechniqueid: mitreTechniques
-  mitretechniquename: mitreTechniques
+  mitretechniqueid: mitre_technique_first
+  mitretechniquename: mitre_technique_str
   originalalertid: providerAlertId
   originalalertname: title
   originalalertsource: productName
@@ -131,8 +136,8 @@ xql_query: "/*\nTitle: Microsoft Graph Security Alerts - Focus on Defender for E
   \n\n// --- Vendor / Product ---\n| alter\n    vendor_name  = \"Microsoft\",\n    product_name = productName\n\n// --- Tactic alias ---\n| alter tactic = category\n\n// --- MITRE helpers ---\n| alter\n    cat_norm  = replace(replace(replace(replace(lowercase(category),\"\
   \ \",\"\"),\"-\",\"\"),\"_\",\"\"),\".\",\"\"),\n    mitre_str = lowercase(coalesce(mitreTechniques,\
   \ \"\"))\n\n// XSIAM MITRE Normalization (contract for split_mitre_rules.py)\n|\
-  \ alter\n    mitre_tactic       = category,\n    mitre_tactic_id    = \"\",\n  \
-  \  mitre_technique    = mitreTechniques,\n    mitre_technique_id = mitreTechniques\n\
+  \ alter\n    mitre_tactic       = category,\n    mitre_tactic_id    = if(cat_norm contains \"initialaccess\", \"TA0001\", cat_norm contains \"execution\", \"TA0002\", cat_norm contains \"persistence\", \"TA0003\", cat_norm contains \"privilegeescalation\", \"TA0004\", cat_norm contains \"defenseevasion\", \"TA0005\", cat_norm contains \"credentialaccess\", \"TA0006\", cat_norm contains \"discovery\", \"TA0007\", cat_norm contains \"lateralmovement\", \"TA0008\", cat_norm contains \"collection\", \"TA0009\", cat_norm contains \"commandandcontrol\", \"TA0011\", cat_norm contains \"exfiltration\", \"TA0010\", cat_norm contains \"impact\", \"TA0040\", \"\"),\n  \
+  \  mitre_technique    = mitreTechniques,\n    mitre_technique_id = mitreTechniques,\n    mitre_technique_first = arrayindex(mitreTechniques -> [], 0),\n    mitre_technique_str   = arraystring(mitreTechniques -> [], \", \")\n\
   \n// -------------------------------------------------------------------\n// Lightweight\
   \ evidence extraction: FIRST element of each evidence type\n// -------------------------------------------------------------------\n\
   | alter\n    processEvidence = arrayindex(arrayfilter(evidence -> [], \"@element\"\
