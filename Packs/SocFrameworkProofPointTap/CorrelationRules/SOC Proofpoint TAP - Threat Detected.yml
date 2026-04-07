@@ -1,5 +1,12 @@
 rule_id: 0
 fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Detection
+  - Email
+  - ProofpointTAP
+  - T1566
+  - T1114
 action: ALERTS
 alert_category: User Defined
 alert_description: $alert_description
@@ -24,6 +31,8 @@ alert_fields:
   emailmessageid: messageID
   emailsenderip: senderIP
   emailsource: sender
+  vendor: vendor_name
+  product: product_name
   fw_email_recipient: recipient
   fw_email_sender: sender
   fw_email_subject: subject
@@ -93,7 +102,7 @@ drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC Proofpoint TAP - Threat Detected
 investigation_query_link: ''
-is_enabled: false
+is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
 mitre_defs:
@@ -153,7 +162,7 @@ xql_query: |
     - Decommission path: remove bc_* alter block + proofpointtap* alert_fields
       when soc-phishing-investigation-1.0.5 retired from all tenants
   Changes v1.3.0:
-    - Set is_enabled: false for side-by-side testing
+    - Set is_enabled: true for side-by-side testing
   Changes v1.2.1:
     - Removed to_json_string() double-encoding bug
     - Suppression changed to GUID/24hr
@@ -162,6 +171,9 @@ xql_query: |
     - Replaced proofpointtap* classifier/mapper with socfw* alert_fields
   */
   dataset = proofpoint_tap_v2_generic_alert_raw
+
+  // Vendor / product (required for SOCProductCategoryMap routing)
+  | alter vendor_name = "Proofpoint", product_name = "TAP"
 
   // Gate 1: event type
   | filter type in ("messages delivered", "clicks permitted")
