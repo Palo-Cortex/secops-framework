@@ -20,7 +20,6 @@ description: >
                   Lack of Visibility (normalizes MDO365 into Email category
                   alongside Proofpoint for unified case view).
 
-type: SCHEDULED
 tags:
   - Email
   - InitialAccess
@@ -48,6 +47,9 @@ xql_query: |
       fw_email_threat_severity   = severity,
       fw_email_category          = category,
       fw_email_mitre_techniques  = arraystring(mitreTechniques -> [], ","),
+      fw_email_tactic_id         = if(category = "InitialAccess", "TA0001",
+                                      category = "LateralMovement", "TA0008",
+                                      ""),
       fw_email_detection_source  = detectionSource,
       fw_email_service_source    = serviceSource,
       fw_email_tenant_id         = tenantId,
@@ -69,6 +71,7 @@ xql_query: |
       fw_email_subject,
       fw_email_threat_severity,
       fw_email_category,
+      fw_email_tactic_id,
       fw_email_mitre_techniques,
       fw_email_detection_source,
       fw_email_service_source,
@@ -93,18 +96,30 @@ user_defined_category: fw_email_category
 user_defined_severity: fw_email_threat_severity
 severity: User Defined
 dataset: alerts
+drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
-is_enabled: false
+search_window: null
+simple_schedule: null
+crontab: null
+timezone: null
+alert_type: null
+investigation_query_link: ''
+is_enabled: true
 suppression_enabled: true
-suppression_duration: 86400
+suppression_duration: 24 hours
 suppression_fields:
   - emailmessageid
 alert_fields:
+  mitretacticid: fw_email_tactic_id
+  mitretacticname: fw_email_category
+  mitretechniqueid: fw_email_mitre_techniques
+  mitretechniquename: fw_email_mitre_techniques
   fw_email_alert_id: fw_email_alert_id
   fw_email_incident_id: fw_email_incident_id
   fw_email_subject: fw_email_subject
   fw_email_threat_severity: fw_email_threat_severity
   fw_email_category: fw_email_category
+  fw_email_tactic_id: fw_email_tactic_id
   fw_email_mitre_techniques: fw_email_mitre_techniques
   fw_email_detection_source: fw_email_detection_source
   fw_email_service_source: fw_email_service_source
@@ -121,6 +136,13 @@ alert_fields:
   vendor: vendor_name
   product: product_name
   externallink: fw_email_alert_url
+mitre_defs:
+  TA0001 - Initial Access:
+    - T1566 - Phishing
+    - T1566.001 - Spearphishing Attachment
+    - T1566.002 - Spearphishing Link
+  TA0008 - Lateral Movement:
+    - T1534 - Internal Spearphishing
 global_rule_id: SOC MDO365 - Email Threat Detected
 mapping_strategy: CUSTOM
 lookup_mapping: []
