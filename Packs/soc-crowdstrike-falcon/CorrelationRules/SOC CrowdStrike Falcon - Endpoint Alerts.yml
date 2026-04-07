@@ -3,23 +3,6 @@ rule_id: 0
 # SOC CrowdStrike Falcon - Endpoint Alerts
 # Version: 2.0.0  (SOC Framework)
 #
-# SIDE-BY-SIDE TEST PATTERN:
-#   This rule ships with is_enabled: false so it can be installed
-#   alongside 1.0.14 per-tactic rules without immediately generating
-#   duplicate alerts. Both rule sets share the same source dataset
-#   (crowdstrike_falcon_event_raw), so only one should be active at a time.
-#
-#   Switch TO this rule:
-#     1. Set is_enabled: true here, redeploy
-#     2. Disable all 1.0.14 rules (is_enabled: false in each)
-#
-#   Roll BACK to 1.0.14:
-#     1. Set is_enabled: false here, redeploy
-#     2. Re-enable 1.0.14 rules
-#
-#   ID/name collision risk: NONE. This rule uses the "SOC " prefix on
-#   id, ruleid, global_rule_id, and name. The 1.0.14 rules do not.
-# ============================================================
 #
 # CHANGELOG vs 1.0.14:
 #   BREAKING: Consolidated 15 per-tactic rules -> single rule
@@ -44,6 +27,11 @@ rule_id: 0
 # ============================================================
 
 fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Endpoint
+  - CrowdStrike
 action: ALERTS
 alert_category: User Defined
 alert_description: $alert_description
@@ -65,6 +53,8 @@ alert_fields:
   agent_device_domain: domain
   agent_hostname: hostname
   agent_id: agent_id
+  vendor: vendor_name
+  product: product_name
   alert_description: alert_description
   alertaction: pattern_disposition_description
   causality_actor_causality_id: aggregate_id
@@ -136,7 +126,7 @@ investigation_query_link: |-
   dataset = xdr_data
   | filter agent_hostname = $hostname
   | fields *
-is_enabled: false    # Deploy dark -- flip to true when ready to cut over from 1.0.14 rules
+is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
 mitre_defs:
@@ -225,6 +215,9 @@ xql_query: |
   */
   config case_sensitive = false
   | dataset = crowdstrike_falcon_event_raw
+
+  // Vendor / product (required for SOCProductCategoryMap routing)
+  | alter vendor_name = "CrowdStrike", product_name = "Falcon"
 
   // Filter to EPP detection events only
   | filter product = "epp"
