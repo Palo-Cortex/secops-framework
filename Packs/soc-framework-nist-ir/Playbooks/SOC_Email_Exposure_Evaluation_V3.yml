@@ -1,0 +1,1300 @@
+adopted: true
+id: SOC Email Exposure Evaluation_V3
+version: -1
+fromversion: 5.0.0
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.4.5
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOC Email Exposure Evaluation_V3
+description: Evaluates Proofpoint TAP email exposure via Universal Command. Determines
+  click/delivered/blocked exposure level, recipient scope, and high-value user involvement.
+  No XQL dependency.
+tags:
+- Email
+- SOCFramework
+- Analysis
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 41afcaf6-108b-5bc5-af11-cd02c873e084
+    type: start
+    task:
+      id: 41afcaf6-108b-5bc5-af11-cd02c873e084
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "3"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: f9bbfbf3-f0ea-4d89-8f8b-77ea3cf7ff2e
+    type: title
+    task:
+      id: f9bbfbf3-f0ea-4d89-8f8b-77ea3cf7ff2e
+      version: -1
+      name: Query Delivery & Click Events
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: 49fbd058-735b-4106-8c23-a54a106c0878
+    type: condition
+    task:
+      id: 49fbd058-735b-4106-8c23-a54a106c0878
+      version: -1
+      name: Is Click Event?
+      description: Checks alert.type directly to determine whether the triggering
+        event is a click or delivery event. No XQL required. If click, seeds click_count=1
+        before API call so count is never zero even if API interval misses this event.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "28"
+      "YES":
+      - "5"
+    separatecontext: false
+    conditions:
+    - label: "YES"
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${alert.type}
+            iscontext: true
+          right:
+            value:
+              simple: clicks permitted
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 390
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: 217eeae7-2140-4eff-8167-549067724f68
+    type: regular
+    task:
+      id: 217eeae7-2140-4eff-8167-549067724f68
+      version: -1
+      name: Seed Click Count - Alert Is Click Event
+      description: Sets click_count=1 as a floor. Subsequent Set Click Count task
+        uses SetAndHandleEmpty which will only overwrite if the API returns a non-empty
+        result. If API interval misses this event, the seed of 1 is preserved.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "28"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.click_count
+      value:
+        simple: "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "6":
+    id: "6"
+    taskid: 435a986d-a283-40f0-8ea6-2fc321f351a3
+    type: regular
+    task:
+      id: 435a986d-a283-40f0-8ea6-2fc321f351a3
+      version: -1
+      name: Get Email Events via Universal Command
+      description: Calls soc-get-email-events via SOCCommandWrapper. Runs proofpoint-get-messages-delivered
+        and proofpoint-get-clicks-permitted against the threat URL. shadow_mode=false
+        so enrichment is never suppressed.
+      script: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "7"
+    scriptarguments:
+      LifeCycle:
+        simple: NIST_IR
+      Phase:
+        simple: Analysis
+      action:
+        simple: soc-get-email-events
+      list_name:
+        simple: SOCFrameworkActions_V3
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1130
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: 633d942c-376a-4367-84f2-a5f8b91865af
+    type: regular
+    task:
+      id: 633d942c-376a-4367-84f2-a5f8b91865af
+      version: -1
+      name: Get Email Forensics via Universal Command
+      description: Calls soc-get-email-forensics via SOCCommandWrapper. Runs proofpoint-get-forensics
+        with threatId and campaignId. shadow_mode=false so enrichment is never suppressed.
+      script: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    scriptarguments:
+      LifeCycle:
+        simple: NIST_IR
+      Phase:
+        simple: Analysis
+      action:
+        simple: soc-get-email-forensics
+      list_name:
+        simple: SOCFrameworkActions_V3
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1315
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: 967479c0-cb7c-470d-8f45-658b43573892
+    type: regular
+    task:
+      id: 967479c0-cb7c-470d-8f45-658b43573892
+      version: -1
+      name: Set Click Count
+      description: Count entries in UC.Email.Events.clicks_permitted array. SetAndHandleEmpty
+        only overwrites if non-empty, preserving the seeded value of 1 if the API
+        returned no results.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.click_count
+      value:
+        complex:
+          root: UC.Email.Events.clicks_permitted
+          transformers:
+          - operator: count
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1500
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: 8792792e-7ab5-4b8e-86bb-e36c39ba44b0
+    type: regular
+    task:
+      id: 8792792e-7ab5-4b8e-86bb-e36c39ba44b0
+      version: -1
+      name: Set Delivered Count
+      description: Count entries in UC.Email.Events.messages_delivered array.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "10"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.delivered_count
+      value:
+        complex:
+          root: UC.Email.Events
+          accessor: recipients
+          transformers:
+          - operator: count
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1685
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: ba5312f9-cb81-4ecb-8052-3106fa41fed4
+    type: regular
+    task:
+      id: ba5312f9-cb81-4ecb-8052-3106fa41fed4
+      version: -1
+      name: Set Mailbox Count
+      description: Derives total mailbox count from delivered messages array length.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "11"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.mailbox_count
+      value:
+        complex:
+          root: UC.Email.Events
+          accessor: recipients
+          transformers:
+          - operator: count
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1870
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: bd3f0432-b36d-48e7-88e0-a0d15fc80be6
+    type: regular
+    task:
+      id: bd3f0432-b36d-48e7-88e0-a0d15fc80be6
+      version: -1
+      name: Set Message ID
+      description: Store the Proofpoint GUID for downstream correlation.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "30"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.message_id
+      value:
+        complex:
+          root: UC.Email.Events
+          accessor: message_id
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2055
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "12":
+    id: "12"
+    taskid: e27cd05f-55be-410a-896f-3af5748e8c71
+    type: title
+    task:
+      id: e27cd05f-55be-410a-896f-3af5748e8c71
+      version: -1
+      name: Set Classification
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "13"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2425
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "13":
+    id: "13"
+    taskid: b3a54664-b6f6-4c20-8307-fc4caa00a41d
+    type: regular
+    task:
+      id: b3a54664-b6f6-4c20-8307-fc4caa00a41d
+      version: -1
+      name: Set Email Classification
+      description: Pulls classification label directly from the alert field (phish/malware/spam).
+        No secondary lookup needed.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "14"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Classification
+      value:
+        complex:
+          root: alert
+          accessor: classification
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2595
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "14":
+    id: "14"
+    taskid: 0c88a6cd-f333-4598-8dd1-577b4e1fa4d7
+    type: title
+    task:
+      id: 0c88a6cd-f333-4598-8dd1-577b4e1fa4d7
+      version: -1
+      name: Determine Exposure Level
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "15"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2780
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "15":
+    id: "15"
+    taskid: a76ec5db-f75f-44f2-8611-30eec141584d
+    type: condition
+    task:
+      id: a76ec5db-f75f-44f2-8611-30eec141584d
+      version: -1
+      name: Exposure Level?
+      description: CLICKED takes priority over DELIVERED. Default with no clicks or
+        deliveries is blocked.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "18"
+      CLICKED:
+      - "16"
+      DELIVERED:
+      - "17"
+    separatecontext: false
+    conditions:
+    - label: CLICKED
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: ${Email.Exposure.click_count}
+            iscontext: true
+        - operator: greaterThan
+          left:
+            value:
+              simple: ${Email.Exposure.click_count}
+            iscontext: true
+          right:
+            value:
+              simple: "0"
+    - label: DELIVERED
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: ${Email.Exposure.delivered_count}
+            iscontext: true
+        - operator: greaterThan
+          left:
+            value:
+              simple: ${Email.Exposure.delivered_count}
+            iscontext: true
+          right:
+            value:
+              simple: "0"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2950
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "16":
+    id: "16"
+    taskid: b024bbb9-70cd-4d38-83dd-bec9196f88a8
+    type: regular
+    task:
+      id: b024bbb9-70cd-4d38-83dd-bec9196f88a8
+      version: -1
+      name: Set Exposure Level - clicked
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "19"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.level
+      value:
+        simple: clicked
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 3135
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: 77bba5f0-2382-4003-87cc-5fa0518b519f
+    type: regular
+    task:
+      id: 77bba5f0-2382-4003-87cc-5fa0518b519f
+      version: -1
+      name: Set Exposure Level - delivered
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "19"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.level
+      value:
+        simple: delivered
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 3135
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "18":
+    id: "18"
+    taskid: 8b4baaf7-b099-448a-892d-60fd1526fc56
+    type: regular
+    task:
+      id: 8b4baaf7-b099-448a-892d-60fd1526fc56
+      version: -1
+      name: Set Exposure Level - blocked
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "19"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.level
+      value:
+        simple: blocked
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 3135
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "19":
+    id: "19"
+    taskid: b5aba957-174a-404e-81d6-b99d95f8a2cb
+    type: title
+    task:
+      id: b5aba957-174a-404e-81d6-b99d95f8a2cb
+      version: -1
+      name: Determine Recipient Scope
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "20"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 3320
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: f34aeaf9-0dc8-444b-8cda-bf42f7d0dcc9
+    type: condition
+    task:
+      id: f34aeaf9-0dc8-444b-8cda-bf42f7d0dcc9
+      version: -1
+      name: Targeted Scope? (≤5 mailboxes)
+      description: Classifies recipient scope as targeted (1-5 mailboxes) or broad
+        (>5). Replaces if-then-else transformer which is not supported in XSIAM (error
+        52).
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "27"
+      "yes":
+      - "26"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: lessThanOrEqual
+          left:
+            value:
+              simple: ${Email.Exposure.mailbox_count}
+            iscontext: true
+          right:
+            value:
+              simple: "5"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 3490
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "21":
+    id: "21"
+    taskid: 0224a802-f073-46f0-8496-3a0a98562974
+    type: title
+    task:
+      id: 0224a802-f073-46f0-8496-3a0a98562974
+      version: -1
+      name: High Value User Check
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "25"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 3860
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "22":
+    id: "22"
+    taskid: ca9c83d4-db06-4909-8f15-26990f110e77
+    type: condition
+    task:
+      id: ca9c83d4-db06-4909-8f15-26990f110e77
+      version: -1
+      name: Is Recipient a High Value User?
+      description: Checks whether the alert username appears in the SOCFWHighValueUsers
+        list. If matched, sets Email.Exposure.high_value_user=true to escalate priority
+        in the parent Analysis playbook.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "YES":
+      - "23"
+    separatecontext: false
+    conditions:
+    - label: "YES"
+      condition:
+      - - operator: inList
+          left:
+            value:
+              simple: ${alert.username}
+            iscontext: true
+          right:
+            value:
+              simple: ${lists.SOCFWHighValueUsers}
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 4215
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: 459859ec-5b87-464e-88bb-7fde7eec67cd
+    type: regular
+    task:
+      id: 459859ec-5b87-464e-88bb-7fde7eec67cd
+      version: -1
+      name: Set High Value User Involved
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "24"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Email.Exposure.high_value_user
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 4400
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "24":
+    id: "24"
+    taskid: 7514e69f-02e0-4e36-8253-dfb9a1151f37
+    type: title
+    task:
+      id: 7514e69f-02e0-4e36-8253-dfb9a1151f37
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 4585
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "25":
+    id: "25"
+    taskid: 02334eba-8797-436c-86b7-514483bc1f66
+    type: regular
+    task:
+      id: 02334eba-8797-436c-86b7-514483bc1f66
+      version: -1
+      name: Set Analysis.Email.RecipientScope
+      description: Copies Email.Exposure.recipient_scope into the Analysis namespace
+        so SOC_Email_Spread_Evaluation_V3 can read it via inputs.RecipientScope.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "22"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Analysis.Email.RecipientScope
+      value:
+        simple: ${Email.Exposure.recipient_scope}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 4030
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "26":
+    id: "26"
+    taskid: e0633a47-610c-4ee1-8e75-eaf4a8deecf1
+    type: regular
+    task:
+      id: e0633a47-610c-4ee1-8e75-eaf4a8deecf1
+      version: -1
+      name: Set Recipient Scope — targeted
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "21"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Email.Exposure.recipient_scope
+      value:
+        simple: targeted
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 3675
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "27":
+    id: "27"
+    taskid: 685ea55f-4213-406c-894b-eaa15457b426
+    type: regular
+    task:
+      id: 685ea55f-4213-406c-894b-eaa15457b426
+      version: -1
+      name: Set Recipient Scope — broad
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "21"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Email.Exposure.recipient_scope
+      value:
+        simple: broad
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 3675
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "28":
+    id: "28"
+    taskid: f194e4ee-cf16-4aa6-85af-9ac9f038be49
+    type: regular
+    task:
+      id: f194e4ee-cf16-4aa6-85af-9ac9f038be49
+      version: -1
+      name: Write Query For Clicks in Microsoft Graph Security
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "29"
+    scriptarguments:
+      key:
+        simple: SOCFramework.Email.ClicksPermittedQuery
+      value:
+        complex:
+          root: issue
+          accessor: proofpointtapsuspiciousurl
+          transformers:
+          - operator: FirstArrayElement
+          - operator: substringFrom
+            args:
+              from:
+                value:
+                  simple: //
+          - operator: concat
+            args:
+              prefix:
+                value:
+                  simple: UrlClickEvents | where Url has "
+              suffix:
+                value:
+                  simple: '"  | project Timestamp, Url, AccountUpn'
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "29":
+    id: "29"
+    taskid: 0b9bfc87-3b6a-41a4-8ccd-d54e18320818
+    type: regular
+    task:
+      id: 0b9bfc87-3b6a-41a4-8ccd-d54e18320818
+      version: -1
+      name: Write Query For Messages Delivered In Microsoft Graph Security
+      description: "Set a value in context under the key you entered. If no value
+        is entered, the script doesn't do anything.\n\nThis automation runs using
+        the default Limited User role, unless you explicitly change the permissions.\nFor
+        more information, see the section about permissions here:\n- For Cortex XSOAR
+        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
+        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
+        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "6"
+    scriptarguments:
+      key:
+        simple: SOCFramework.Email.MessagesDeliveredQuery
+      value:
+        simple: EmailEvents | where RecipientEmailAddress == "${alert.username.[0]}"
+          and SenderFromAddress == "${alert.proofpointtapsmtpsender}" and InternetMessageId
+          == "${alert.proofpointtapmessageid}"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 945
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "30":
+    id: "30"
+    taskid: ad5b8db7-1b90-4bca-8e09-f415dadbff43
+    type: regular
+    task:
+      id: ad5b8db7-1b90-4bca-8e09-f415dadbff43
+      version: -1
+      name: Override Issue Username With Username(s) from Email Activity
+      description: |
+        commands.local.cmd.set.alert
+        Corrects the alert username to the actual email recipient.
+        Proofpoint fires with a generic detection user; this overrides it
+        with the real recipient for analyst display.
+        # contract:allow WORKFLOW_SET_ISSUE — intentional: corrects alert attribution username. Proofpoint misattributes the detection user; this sets the actual email recipient for analyst context.
+      script: Builtin|||setIssue
+      type: regular
+      iscommand: true
+      brand: Builtin
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "12"
+    scriptarguments:
+      username:
+        complex:
+          root: UC.Email.Events
+          accessor: recipients
+          transformers:
+          - operator: append
+            args:
+              item:
+                value:
+                  simple: UC.Email.Events.clickers
+                iscontext: true
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2240
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 4595,
+        "width": 1240,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs: []
+outputs:
+- contextPath: Email.Exposure.level
+  description: 'Exposure level: clicked / delivered / blocked'
+  type: String
+- contextPath: Email.Exposure.click_count
+  description: Number of click events observed for the threat URL
+  type: Number
+- contextPath: Email.Exposure.delivered_count
+  description: Number of delivered message events for the threat URL
+  type: Number
+- contextPath: Email.Exposure.mailbox_count
+  description: Total number of affected mailboxes (blast radius)
+  type: Number
+- contextPath: Email.Exposure.recipient_scope
+  description: 'Recipient scope: targeted (≤5 mailboxes) / broad (>5)'
+  type: String
+- contextPath: Email.Exposure.message_id
+  description: Proofpoint GUID for downstream correlation
+  type: String
+- contextPath: Email.Exposure.high_value_user
+  description: true if a high-value user was targeted
+  type: String
+- contextPath: Email.Classification
+  description: 'Email classification from TAP alert: phish / malware / spam'
+  type: String
