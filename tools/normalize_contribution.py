@@ -698,8 +698,10 @@ def _renumber_alphanumeric_task_ids(text: str) -> tuple[str, bool]:
     at the same indent level are structural keys (task:, nexttasks:, etc.)
     and are excluded by requiring the quotes in the pattern.
     """
-    # Match quoted task key declarations at 2-space indent: '18a':  "0":
-    task_key_re = re.compile(r"""^  ['"]([\w\-]+)['"]\s*:\s*$""", re.MULTILINE)
+    # Match task key declarations at 2-space indent.
+    # Handles both quoted ('18a':, "0":) and unquoted (g13:, g14i:) forms.
+    # Unquoted alphanumeric keys are produced by some XSIAM export versions.
+    task_key_re = re.compile(r"""^  ['"']?([\w\-]+)['"']?\s*:\s*$""", re.MULTILINE)
 
     alpha_ids: list[str] = []
     max_int   = -1
@@ -722,7 +724,7 @@ def _renumber_alphanumeric_task_ids(text: str) -> tuple[str, bool]:
     for old_id, new_id in mapping.items():
         escaped = re.escape(old_id)
 
-        # Replace task key declaration: '18a':  →  '25':
+        # Replace task key declaration: g13:  →  '25':
         decl_re = re.compile(
             r"^(  )['\"]?" + escaped + r"['\"]?(\s*:)",
             re.MULTILINE,
@@ -731,7 +733,16 @@ def _renumber_alphanumeric_task_ids(text: str) -> tuple[str, bool]:
         if n:
             changed = True
 
-        # Replace nexttasks references: - '18a'  →  - '25'
+        # Replace the inner id: field inside the task block: id: g13  →  id: '25'
+        inner_id_re = re.compile(
+            r"^(    id:\s*)['\"]?" + escaped + r"['\"]?\s*$",
+            re.MULTILINE,
+        )
+        result, n = inner_id_re.subn(r"\g<1>" + new_id, result)
+        if n:
+            changed = True
+
+        # Replace nexttasks references: - g13  →  - '25'
         ref_re = re.compile(r"(- )['\"]?" + escaped + r"['\"]?")
         result, n = ref_re.subn(r"\g<1>'" + new_id + "'", result)
         if n:
