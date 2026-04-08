@@ -193,6 +193,9 @@ NEVER_PROCESS_FILENAMES: set[str] = {
     ".secrets-ignore",
     "Author_image.png",
     "CHANGELOG.md",
+    # Policy/config files that live inside List directories but are not
+    # list descriptors or data files — read directly by framework validators.
+    "shadow_mode_policy.json",
 }
 
 # Files in these directories are skipped. They have their own SDK schema
