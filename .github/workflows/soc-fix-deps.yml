@@ -1,0 +1,257 @@
+name: SOC Packs — Fix dependency versions
+
+# ─────────────────────────────────────────────────────────────────
+# Slash command handler. Fires when a PR comment contains one of:
+#
+#   /fix-deps                   — fix all stale deps in the changed pack
+#   /fix-dep <dependency-name>  — fix one dependency by name
+#   /pin-dep <dependency-name> <reason>  — suppress a mismatch permanently
+#
+# Scoped to the single pack changed in the PR (enforced by the
+# single-pack PR gate). Never touches other packs.
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  fix-deps:
+    # Only run on PR comments (not issue comments) containing a slash command
+    if: |
+      github.event.issue.pull_request != null &&
+      (
+        startsWith(github.event.comment.body, '/fix-deps') ||
+        startsWith(github.event.comment.body, '/fix-dep ') ||
+        startsWith(github.event.comment.body, '/pin-dep ')
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Parse the slash command ──────────────────────────────────
+      - name: Parse command
+        id: cmd
+        env:
+          COMMENT: ${{ github.event.comment.body }}
+        run: |
+          python - << 'PY'
+          import os, re, sys
+
+          comment = os.environ["COMMENT"].strip()
+          out = open(os.environ["GITHUB_OUTPUT"], "a")
+
+          # /fix-deps
+          if comment == "/fix-deps" or comment.startswith("/fix-deps "):
+              out.write("mode=fix-all\n")
+              out.write("dep=\n")
+              out.write("pin_reason=\n")
+
+          # /fix-dep <dep-name>
+          elif m := re.match(r"^/fix-dep\s+(\S+)", comment):
+              out.write("mode=fix-one\n")
+              out.write(f"dep={m.group(1)}\n")
+              out.write("pin_reason=\n")
+
+          # /pin-dep <dep-name> <reason text>
+          elif m := re.match(r"^/pin-dep\s+(\S+)\s+(.+)", comment):
+              out.write("mode=pin\n")
+              out.write(f"dep={m.group(1)}\n")
+              out.write(f"pin_reason={m.group(2).strip()}\n")
+
+          else:
+              print(f"Unrecognized command: {comment!r}")
+              sys.exit(1)
+          PY
+
+      # ── Resolve PR metadata ──────────────────────────────────────
+      - name: Get PR branch and changed pack
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          PACKS_DIR: Packs
+        run: |
+          python - << 'PY'
+          import os, subprocess, json
+          from pathlib import Path
+
+          pr_number = os.environ["PR_NUMBER"]
+          repo      = os.environ["REPO"]
+          packs_dir = Path(os.environ["PACKS_DIR"])
+
+          pr_data = subprocess.check_output(
+              ["gh", "pr", "view", pr_number, "--repo", repo,
+               "--json", "headRefName,files"],
+              text=True
+          )
+          pr = json.loads(pr_data)
+          branch = pr["headRefName"]
+
+          # Identify the single changed pack from the PR file list
+          touched = set()
+          for f in pr.get("files", []):
+              path = Path(f["path"])
+              if path.parts and path.parts[0] == str(packs_dir) and len(path.parts) > 1:
+                  pack = path.parts[1]
+                  if (packs_dir / pack / "pack_metadata.json").exists():
+                      touched.add(pack)
+
+          if len(touched) != 1:
+              print(f"Expected exactly one changed pack, found: {touched or '(none)'}")
+              # Non-fatal — let the next steps decide what to do
+              pack = ""
+          else:
+              pack = next(iter(touched))
+
+          out = open(os.environ["GITHUB_OUTPUT"], "a")
+          out.write(f"branch={branch}\n")
+          out.write(f"pack={pack}\n")
+          PY
+
+      # ── Checkout the PR branch ───────────────────────────────────
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      # ── Execute the command ──────────────────────────────────────
+      - name: Apply fix or pin
+        id: apply
+        env:
+          MODE:       ${{ steps.cmd.outputs.mode }}
+          DEP:        ${{ steps.cmd.outputs.dep }}
+          PIN_REASON: ${{ steps.cmd.outputs.pin_reason }}
+          PACK:       ${{ steps.pr.outputs.pack }}
+          ACTOR:      ${{ github.event.comment.user.login }}
+        run: |
+          python - << 'PY'
+          import os, subprocess, sys
+
+          mode       = os.environ["MODE"]
+          dep        = os.environ["DEP"]
+          pin_reason = os.environ["PIN_REASON"]
+          pack       = os.environ["PACK"]
+          actor      = os.environ["ACTOR"]
+
+          if not pack:
+              print("::error::Could not determine the changed pack from this PR.")
+              sys.exit(1)
+
+          base_cmd = ["python", "tools/check_dependency_versions.py", "--pack", pack]
+
+          if mode == "fix-all":
+              subprocess.run([*base_cmd, "--fix"], check=True)
+
+          elif mode == "fix-one":
+              if not dep:
+                  print("::error::No dependency name provided.")
+                  sys.exit(1)
+              subprocess.run([*base_cmd, "--fix-dep", dep], check=True)
+
+          elif mode == "pin":
+              if not dep or not pin_reason:
+                  print("::error::Both dependency name and reason are required for /pin-dep.")
+                  sys.exit(1)
+              subprocess.run(
+                  [*base_cmd, "--pin", dep, pin_reason, "--actor", actor],
+                  check=True
+              )
+          PY
+
+      # ── Commit if anything changed ───────────────────────────────
+      - name: Commit changes
+        id: commit
+        env:
+          GH_TOKEN:  ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPO:      ${{ github.repository }}
+          MODE:      ${{ steps.cmd.outputs.mode }}
+          DEP:       ${{ steps.cmd.outputs.dep }}
+          PACK:      ${{ steps.pr.outputs.pack }}
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage only the files this tool is allowed to touch
+          git add Packs/*/xsoar_config.json Packs/*/dependency_pins.json
+
+          if [ "$MODE" = "fix-all" ]; then
+            MSG="ci: fix all stale dependency URLs in ${PACK} [skip ci]"
+          elif [ "$MODE" = "fix-one" ]; then
+            MSG="ci: fix stale dependency URL for ${DEP} in ${PACK} [skip ci]"
+          else
+            MSG="ci: pin ${DEP} dependency in ${PACK} [skip ci]"
+          fi
+
+          git commit -m "$MSG"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # ── Post result comment ──────────────────────────────────────
+      - name: Post result comment
+        env:
+          GH_TOKEN:   ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER:  ${{ github.event.issue.number }}
+          REPO:       ${{ github.repository }}
+          MODE:       ${{ steps.cmd.outputs.mode }}
+          DEP:        ${{ steps.cmd.outputs.dep }}
+          PIN_REASON: ${{ steps.cmd.outputs.pin_reason }}
+          PACK:       ${{ steps.pr.outputs.pack }}
+          CHANGED:    ${{ steps.commit.outputs.changed }}
+        run: |
+          python - << 'PY'
+          import os, subprocess
+
+          mode       = os.environ["MODE"]
+          dep        = os.environ["DEP"]
+          pin_reason = os.environ["PIN_REASON"]
+          pack       = os.environ["PACK"]
+          changed    = os.environ["CHANGED"]
+          pr_number  = os.environ["PR_NUMBER"]
+          repo       = os.environ["REPO"]
+
+          if changed == "false":
+              if mode == "fix-all":
+                  body = f"✅ No stale dependency URLs found in `{pack}` — nothing to fix."
+              elif mode == "fix-one":
+                  body = f"✅ `{dep}` in `{pack}` is already at the correct version — nothing to fix."
+              else:
+                  body = f"ℹ️ No changes were needed."
+          elif mode == "fix-all":
+              body = (
+                  f"✅ All stale dependency URLs in `{pack}/xsoar_config.json` have been updated "
+                  f"and committed to this branch.\n\nRe-run the PR checks to confirm."
+              )
+          elif mode == "fix-one":
+              body = (
+                  f"✅ `{dep}` URL in `{pack}/xsoar_config.json` has been updated "
+                  f"and committed to this branch.\n\nRe-run the PR checks to confirm."
+              )
+          else:
+              body = (
+                  f"📌 `{dep}` pinned in `{pack}/dependency_pins.json`.\n\n"
+                  f"**Reason:** {pin_reason}\n\n"
+                  f"Future dependency checks will silently skip this entry. "
+                  f"Remove the pin entry when you're ready to upgrade."
+              )
+
+          subprocess.run(
+              ["gh", "pr", "comment", pr_number, "--repo", repo, "--body", body],
+              check=True
+          )
+          PY
