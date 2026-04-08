@@ -1,349 +1,267 @@
 #!/usr/bin/env python3
 """
-check_dependency_versions.py — Verify cross-pack dependency versions in xsoar_config.json
+check_dependency_versions.py
 
-For every custom_packs entry that references a different pack (a dependency, not the
-pack itself), compare the pinned version in the entry against the current version in
-that pack's pack_metadata.json.
+Compares version strings embedded in each pack's xsoar_config.json URLs
+against the current versions in pack_catalog.json.
 
-When a mismatch is found:
-  • Interactive (TTY):  prompt to auto-fix the id/url in-place
-  • Non-interactive:    print a warning (default) or exit 1 (--strict)
-  • --fix flag:         apply all updates non-interactively (no prompts)
+No pack content is read. This is purely a version string comparison.
 
-Self-entries (where the entry pack name == the containing pack) are SKIPPED — those
-are already enforced by preflight_xsoar_config.py.
-
-Dependency entries whose id format is not parseable (e.g. legacy bare .zip names
-without a version) are reported as SKIP warnings but do not cause failures.
+Pinned dependencies (intentional version locks) are read from
+dependency_pins.json in the pack directory and silently skipped.
 
 Usage:
-  # All packs
-  python3 tools/check_dependency_versions.py
-
-  # Specific packs (comma-separated)
-  python3 tools/check_dependency_versions.py --packs soc-optimization-unified,SocFrameworkProofPointTap
-
-  # Auto-fix stale entries
-  python3 tools/check_dependency_versions.py --fix
-
-  # CI hard-fail mode (warn becomes error)
-  python3 tools/check_dependency_versions.py --strict
-
-  # Combine: fix only specific packs
-  python3 tools/check_dependency_versions.py --packs soc-optimization-unified --fix
-
-Exit codes:
-  0  All dependency versions match (or no cross-pack dependencies found)
-  1  Stale versions found and --strict is set, or fix was requested but write failed
+  python tools/check_dependency_versions.py                         # check all packs, warn only
+  python tools/check_dependency_versions.py --pack my-pack         # check one pack only
+  python tools/check_dependency_versions.py --fix                   # rewrite all stale URLs
+  python tools/check_dependency_versions.py --fix-dep nist-ir       # fix one dependency only
+  python tools/check_dependency_versions.py --strict                # exit 1 on mismatch (no fix)
+  python tools/check_dependency_versions.py --pin dep reason        # add a suppression pin
 """
 
 import argparse
 import json
-import os
 import re
 import sys
+from datetime import date
 from pathlib import Path
-from typing import Optional
 
-GITHUB_REPO = "Palo-Cortex/secops-framework"
-PACKS_DIR = Path(os.environ.get("PACKS_DIR", "Packs"))
+VERSION_IN_URL = re.compile(r"/releases/download/[^/]+-v([^/]+)/")
+PINS_FILENAME = "dependency_pins.json"
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+def load_catalog(root: Path) -> dict[str, str]:
+    """Returns {pack_name: version} from pack_catalog.json."""
+    catalog_path = root / "pack_catalog.json"
+    if not catalog_path.exists():
+        print("::warning::pack_catalog.json not found — skipping dependency check.")
+        sys.exit(0)
+    catalog = json.loads(catalog_path.read_text())
+    if isinstance(catalog, dict) and "packs" in catalog:
+        return {p["id"]: p["version"] for p in catalog["packs"]}
+    if isinstance(catalog, dict):
+        return catalog
+    raise ValueError(f"Unrecognized pack_catalog.json shape: {type(catalog)}")
 
-def parse_entry_id(entry_id: str) -> Optional[tuple[str, str]]:
+
+def load_pins(pack_dir: Path) -> dict[str, dict]:
+    """Returns {dep_name: pin_record} for this pack."""
+    pins_path = pack_dir / PINS_FILENAME
+    if not pins_path.exists():
+        return {}
+    return json.loads(pins_path.read_text())
+
+
+def write_pins(pack_dir: Path, pins: dict) -> None:
+    (pack_dir / PINS_FILENAME).write_text(json.dumps(pins, indent=2) + "\n")
+
+
+def pack_name_from_id(entry_id: str) -> str:
+    return entry_id.removesuffix(".zip")
+
+
+def version_from_url(url: str) -> str | None:
+    m = VERSION_IN_URL.search(url)
+    return m.group(1) if m else None
+
+
+def updated_url(url: str, new_version: str) -> str:
+    """Rewrites both the tag segment and filename segment in the URL."""
+    return re.sub(
+        r"(/releases/download/([^/]+)-v)[^/]+(/\2-v)[^/]+(\.zip)",
+        lambda m: f"{m.group(1)}{new_version}{m.group(3)}{new_version}{m.group(4)}",
+        url,
+    )
+
+
+class Mismatch:
+    def __init__(self, pack: str, dep_name: str, url_version: str,
+                 catalog_version: str, url: str):
+        self.pack = pack
+        self.dep_name = dep_name
+        self.url_version = url_version
+        self.catalog_version = catalog_version
+        self.url = url
+
+
+def check_pack(
+    pack_dir: Path,
+    catalog: dict[str, str],
+    fix_dep: str | None = None,
+    fix_all: bool = False,
+) -> list[Mismatch]:
     """
-    Extract (pack_name, version) from a custom_packs id field.
-
-    Expected format: {pack_name}-v{version}.zip
-    e.g. 'soc-framework-nist-ir-v1.1.0.zip' → ('soc-framework-nist-ir', '1.1.0')
-
-    Uses rfind('-v') so hyphenated names work regardless of depth.
-    Returns None if the format is unrecognisable (e.g. bare 'pack-name.zip').
+    Returns Mismatch list for this pack.
+    Pinned dependencies are silently skipped.
+    fix_dep: rewrite one dependency URL in-place.
+    fix_all: rewrite all stale URLs in-place.
     """
-    stem = entry_id.removesuffix(".zip")
-    idx = stem.rfind("-v")
-    if idx == -1:
-        return None
-    pack_name = stem[:idx]
-    version = stem[idx + 2:]
-    if not pack_name or not re.fullmatch(r"\d+\.\d+[\.\d]*", version):
-        return None
-    return pack_name, version
-
-
-def build_version_index(packs_root: Path) -> dict[str, str]:
-    """
-    Walk all pack directories under packs_root and return a mapping of
-    pack_name → current_version from pack_metadata.json.
-    """
-    index: dict[str, str] = {}
-    if not packs_root.is_dir():
-        return index
-    for meta_path in packs_root.rglob("pack_metadata.json"):
-        pack_name = meta_path.parent.name
-        try:
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
-            version = data.get("version") or data.get("currentVersion") or ""
-            if version:
-                index[pack_name] = str(version)
-        except (json.JSONDecodeError, OSError):
-            pass
-    return index
-
-
-def build_updated_url(pack_name: str, version: str) -> str:
-    """Build the canonical GitHub release download URL for a pack at a given version."""
-    tag = f"{pack_name}-v{version}"
-    asset = f"{tag}.zip"
-    return f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset}"
-
-
-def build_updated_id(pack_name: str, version: str) -> str:
-    return f"{pack_name}-v{version}.zip"
-
-
-# ── Per-pack check ────────────────────────────────────────────────────────────
-
-class Finding:
-    """Represents one stale dependency entry found in a pack's xsoar_config.json."""
-
-    def __init__(self, config_path: Path, entry_index: int, entry_id: str,
-                 dep_pack: str, pinned: str, actual: str):
-        self.config_path = config_path
-        self.entry_index = entry_index   # index into custom_packs list
-        self.entry_id = entry_id
-        self.dep_pack = dep_pack
-        self.pinned = pinned
-        self.actual = actual
-
-    def __str__(self) -> str:
-        return (
-            f"  STALE  {self.config_path}\n"
-            f"         dependency '{self.dep_pack}': "
-            f"pinned=v{self.pinned}  →  actual=v{self.actual}"
-        )
-
-
-def check_pack(pack_dir: Path, version_index: dict[str, str]) -> list[Finding]:
-    """
-    Check one pack's xsoar_config.json for stale cross-pack dependency versions.
-    Returns a list of Findings (empty = all OK).
-    """
-    findings: list[Finding] = []
     config_path = pack_dir / "xsoar_config.json"
     if not config_path.exists():
-        return findings
+        return []
 
-    primary_pack = pack_dir.name
+    config = json.loads(config_path.read_text())
+    custom_packs = config.get("custom_packs", [])
+    pins = load_pins(pack_dir)
+    mismatches = []
+    dirty = False
 
-    try:
-        cfg = json.loads(config_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        print(f"  WARN  cannot read {config_path}: {exc}")
-        return findings
-
-    for idx, entry in enumerate(cfg.get("custom_packs", [])):
+    for entry in custom_packs:
         entry_id = entry.get("id", "")
-        parsed = parse_entry_id(entry_id)
+        url = entry.get("url", "")
+        dep_name = pack_name_from_id(entry_id)
 
-        if parsed is None:
-            # Unrecognisable format — can't check, skip silently unless verbose
-            print(f"  SKIP  {config_path.relative_to(PACKS_DIR.parent)}")
-            print(f"        entry '{entry_id}' — id format not parseable (no version), skipping")
+        if dep_name not in catalog:
             continue
 
-        dep_pack, pinned_version = parsed
-
-        if dep_pack == primary_pack:
-            # Self-entry — handled by preflight_xsoar_config.py, not our job
+        if dep_name in pins:
+            pin = pins[dep_name]
+            print(f"  [{pack_dir.name}] {dep_name} pinned at "
+                  f"v{pin.get('pinned_version', '?')} — {pin.get('reason', 'no reason')} "
+                  f"(by {pin.get('pinned_by', '?')} on {pin.get('pinned_at', '?')}) — skipping.")
             continue
 
-        actual_version = version_index.get(dep_pack)
-        if actual_version is None:
-            # Dependency pack not present locally — can't compare, skip
-            print(f"  SKIP  {config_path.relative_to(PACKS_DIR.parent)}")
-            print(f"        dependency '{dep_pack}' not found in {PACKS_DIR} — cannot compare")
+        catalog_version = catalog[dep_name]
+        url_version = version_from_url(url)
+
+        if url_version is None:
+            print(f"  ::warning:: [{pack_dir.name}] Cannot parse version from URL "
+                  f"for {dep_name}: {url}")
             continue
 
-        if actual_version != pinned_version:
-            findings.append(Finding(
-                config_path=config_path,
-                entry_index=idx,
-                entry_id=entry_id,
-                dep_pack=dep_pack,
-                pinned=pinned_version,
-                actual=actual_version,
+        if url_version != catalog_version:
+            mismatches.append(Mismatch(
+                pack=pack_dir.name,
+                dep_name=dep_name,
+                url_version=url_version,
+                catalog_version=catalog_version,
+                url=url,
             ))
-        else:
-            print(f"  OK    {config_path.relative_to(PACKS_DIR.parent)}")
-            print(f"        dependency '{dep_pack}' @ v{pinned_version} ✓")
+            if fix_all or (fix_dep and fix_dep == dep_name):
+                entry["url"] = updated_url(url, catalog_version)
+                dirty = True
 
-    return findings
+    if dirty:
+        config_path.write_text(json.dumps(config, indent=2) + "\n")
+        print(f"  [{pack_dir.name}] xsoar_config.json updated.")
 
-
-# ── Fix ───────────────────────────────────────────────────────────────────────
-
-def apply_fix(finding: Finding) -> bool:
-    """
-    Update the id and url fields in the xsoar_config.json entry to reflect the
-    actual current version. Returns True on success, False on error.
-    """
-    try:
-        cfg = json.loads(finding.config_path.read_text(encoding="utf-8"))
-        entry = cfg["custom_packs"][finding.entry_index]
-
-        new_id = build_updated_id(finding.dep_pack, finding.actual)
-        new_url = build_updated_url(finding.dep_pack, finding.actual)
-
-        old_id = entry.get("id", "")
-        old_url = entry.get("url", "")
-
-        entry["id"] = new_id
-        entry["url"] = new_url
-
-        finding.config_path.write_text(
-            json.dumps(cfg, indent=2) + "\n", encoding="utf-8"
-        )
-        print(f"  FIXED {finding.config_path.relative_to(PACKS_DIR.parent)}")
-        print(f"        id:  {old_id}")
-        print(f"          →  {new_id}")
-        print(f"        url: {old_url}")
-        print(f"          →  {new_url}")
-        return True
-
-    except (KeyError, IndexError, OSError, json.JSONDecodeError) as exc:
-        print(f"  ERROR  failed to fix {finding.config_path}: {exc}")
-        return False
+    return mismatches
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+def add_pin(pack_dir: Path, dep_name: str, reason: str,
+            actor: str, catalog: dict[str, str]) -> None:
+    pins = load_pins(pack_dir)
+    pinned_version = catalog.get(dep_name, "unknown")
+    pins[dep_name] = {
+        "pinned_version": pinned_version,
+        "reason": reason,
+        "pinned_by": actor,
+        "pinned_at": str(date.today()),
+    }
+    write_pins(pack_dir, pins)
+    print(f"Pinned {dep_name} at v{pinned_version} "
+          f"in {pack_dir.name}/{PINS_FILENAME}")
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Check cross-pack dependency versions in xsoar_config.json files.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+
+def format_github_comment(mismatches: list[Mismatch], pack_name: str) -> str:
+    rows = "\n".join(
+        f"| `{m.dep_name}` | `v{m.url_version}` | `v{m.catalog_version}` | "
+        f"`/fix-dep {m.dep_name}` &nbsp;·&nbsp; `/pin-dep {m.dep_name} <reason>` |"
+        for m in mismatches
     )
-    parser.add_argument(
-        "--packs",
-        default="",
-        help="Comma-separated pack names to check (default: all packs under Packs/).",
+    return f"""### ⚠️ Stale dependency versions in `{pack_name}`
+
+| Dependency | xsoar_config.json | pack_catalog.json | Options |
+|---|---|---|---|
+{rows}
+
+**Fix one:** Reply `/fix-dep <dependency-name>`
+**Fix all:** Reply `/fix-deps`
+**Keep this version intentionally:** Reply `/pin-dep <dependency-name> <reason>`
+
+Pins are recorded in `{pack_name}/dependency_pins.json` and silently skipped on future runs.
+"""
+
+
+def resolve_pack_dirs(packs_dir: Path, pack_arg: str | None) -> list[Path]:
+    if pack_arg:
+        return [packs_dir / pack_arg]
+    return sorted(
+        p for p in packs_dir.iterdir()
+        if p.is_dir() and (p / "pack_metadata.json").exists()
     )
-    parser.add_argument(
-        "--packs-dir",
-        default=str(PACKS_DIR),
-        help=f"Root packs directory (default: {PACKS_DIR}).",
-    )
-    parser.add_argument(
-        "--fix",
-        action="store_true",
-        help="Automatically update stale dependency versions in xsoar_config.json. "
-             "No prompts — applies all fixes. Use interactively without --fix to be prompted.",
-    )
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Exit 1 if any stale dependency versions are found (default: warn only).",
-    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pack",
+        help="Scope to one pack (directory name under Packs/).")
+    parser.add_argument("--fix", action="store_true",
+        help="Rewrite all stale URLs in-place.")
+    parser.add_argument("--fix-dep",
+        help="Rewrite one specific dependency URL in-place.")
+    parser.add_argument("--strict", action="store_true",
+        help="Exit 1 on any mismatch. No fix is applied.")
+    parser.add_argument("--pin", nargs=2, metavar=("DEP_NAME", "REASON"),
+        help="Add a suppression pin. Requires --pack.")
+    parser.add_argument("--actor", default="unknown",
+        help="GitHub actor written into pin records.")
+    parser.add_argument("--root", default=".",
+        help="Repo root (default: current directory).")
+    parser.add_argument("--output-format", choices=["text", "github-comment"],
+        default="text")
     args = parser.parse_args()
 
-    packs_root = Path(args.packs_dir)
-    if not packs_root.is_dir():
-        print(f"ERROR: packs directory '{packs_root}' not found.")
-        return 1
+    root = Path(args.root)
+    packs_dir = root / "Packs"
+    catalog = load_catalog(root)
 
-    # Resolve pack directories to check
-    pack_names = [p.strip() for p in args.packs.split(",") if p.strip()]
-    if pack_names:
-        pack_dirs = []
-        for name in pack_names:
-            p = packs_root / name
-            if p.is_dir():
-                pack_dirs.append(p)
-            else:
-                print(f"WARN: pack '{name}' not found in {packs_root}, skipping.")
-    else:
-        pack_dirs = sorted(p for p in packs_root.iterdir() if p.is_dir())
+    # ── Pin mode ──────────────────────────────────────────────────
+    if args.pin:
+        if not args.pack:
+            print("--pin requires --pack.")
+            sys.exit(1)
+        dep_name, reason = args.pin
+        add_pin(packs_dir / args.pack, dep_name, reason, args.actor, catalog)
+        return
 
-    if not pack_dirs:
-        print("No pack directories to check.")
-        return 0
+    # ── Check mode ────────────────────────────────────────────────
+    pack_dirs = resolve_pack_dirs(packs_dir, args.pack)
+    for pd in pack_dirs:
+        if not pd.exists():
+            print(f"Pack directory not found: {pd}")
+            sys.exit(1)
 
-    # Build the version index once — map every known pack → its current version
-    version_index = build_version_index(packs_root)
-    if not version_index:
-        print(f"WARN: No pack_metadata.json files found under {packs_root}. "
-              "Cannot perform dependency version checks.")
-        return 0
-
-    # Collect findings across all packs
-    all_findings: list[Finding] = []
-    is_interactive = sys.stdin.isatty() and sys.stdout.isatty()
-
+    all_mismatches: list[Mismatch] = []
     for pack_dir in pack_dirs:
-        findings = check_pack(pack_dir, version_index)
-        all_findings.extend(findings)
+        all_mismatches.extend(check_pack(
+            pack_dir,
+            catalog,
+            fix_dep=None if args.strict else args.fix_dep,
+            fix_all=args.fix and not args.strict,
+        ))
 
-    if not all_findings:
-        print("\nAll cross-pack dependency versions are current.")
-        return 0
+    if not all_mismatches:
+        print("All dependency versions match pack_catalog.json. ✓")
+        return
 
-    # Report findings
-    print(f"\n{'─' * 60}")
-    print(f"Found {len(all_findings)} stale dependency version(s):\n")
-    for f in all_findings:
-        print(str(f))
-    print(f"{'─' * 60}\n")
-
-    # Decide what to do: --fix → apply all; interactive TTY → prompt; else warn/fail
-    if args.fix:
-        print("Applying fixes (--fix)...")
-        fix_errors = 0
-        for f in all_findings:
-            if not apply_fix(f):
-                fix_errors += 1
-        if fix_errors:
-            print(f"\n{fix_errors} fix(es) failed.")
-            return 1
-        print("\nAll stale entries updated.")
-        return 0
-
-    if is_interactive and not args.strict:
-        # Prompt for each finding
-        fix_errors = 0
-        for f in all_findings:
-            prompt = (
-                f"\nUpdate '{f.dep_pack}' from v{f.pinned} → v{f.actual} "
-                f"in {f.config_path.relative_to(packs_root.parent)}? [y/N] "
-            )
-            answer = input(prompt).strip().lower()
-            if answer in ("y", "yes"):
-                if not apply_fix(f):
-                    fix_errors += 1
-            else:
-                print(f"  Skipped '{f.dep_pack}'.")
-        if fix_errors:
-            return 1
-        return 0
-
-    # Non-interactive / --strict
-    if args.strict:
-        print(
-            "FAIL: stale dependency versions found. "
-            "Run with --fix to update, or update xsoar_config.json manually.\n"
-            "Re-run without --strict to treat this as a warning."
-        )
-        return 1
-
-    # Default: warn only
-    print(
-        "WARN: stale dependency versions found (non-blocking).\n"
-        "Run with --fix to update automatically, or update xsoar_config.json manually."
-    )
-    return 0
+    if args.output_format == "github-comment":
+        pack_name = args.pack or "multiple packs"
+        print(format_github_comment(all_mismatches, pack_name))
+    else:
+        label = "ERROR" if args.strict else "WARNING"
+        print(f"\n{label}: {len(all_mismatches)} stale reference(s):\n")
+        for m in all_mismatches:
+            print(f"  [{m.pack}] {m.dep_name}: "
+                  f"config=v{m.url_version}  catalog=v{m.catalog_version}")
+        if not args.strict:
+            print("\nOptions:")
+            print("  --fix              rewrite all stale URLs")
+            print("  --fix-dep <name>   rewrite one dependency")
+            print("  --pin <name> <reason>  suppress this mismatch permanently")
+        else:
+            sys.exit(1)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
