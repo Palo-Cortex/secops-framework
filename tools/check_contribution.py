@@ -76,16 +76,11 @@ def STEP(t): return _c("35;1", t)
 # Git integration — find changed packs
 # ─────────────────────────────────────────────────────────────────────────────
 
-def git_changed_packs(base: str = "origin/main") -> list[Path]:
-    """
-    Return pack directories that have added or modified files on this branch.
-
-    Uses --diff-filter=ACMR to exclude deletions — removing a file from a
-    pack doesn't constitute a contribution that needs validating.
-    """
+def _git_diff_packs(base: str, diff_filter: str) -> list[Path]:
+    """Return pack directories matching the given git diff filter."""
     try:
         result = subprocess.run(
-            ["git", "diff", base, "--name-only", "--diff-filter=ACMR"],
+            ["git", "diff", base, "--name-only", f"--diff-filter={diff_filter}"],
             capture_output=True, text=True, check=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -101,6 +96,27 @@ def git_changed_packs(base: str = "origin/main") -> list[Path]:
                 packs[pack_name] = pack_path
 
     return sorted(packs.values())
+
+
+def git_changed_packs(base: str = "origin/main") -> list[Path]:
+    """
+    Return pack directories that have added or modified files on this branch.
+
+    Uses --diff-filter=ACMR to exclude deletions — removing a file from a
+    pack doesn't constitute a contribution that needs validating.
+    """
+    return _git_diff_packs(base, "ACMR")
+
+
+def git_new_packs(base: str = "origin/main") -> list[Path]:
+    """
+    Return pack directories that have genuinely new (Added) files only.
+
+    Used to scope normalize_contribution — running normalize on modified
+    existing files would strip content that is already correctly structured.
+    Only new additions need normalization.
+    """
+    return _git_diff_packs(base, "A")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -214,14 +230,29 @@ def main() -> None:
           + ", ".join(INFO(p.name) for p in packs))
 
     # ── Step 1: Normalize ─────────────────────────────────────────────────────
-    # Run once across all changed files — normalize finds them via git diff.
-    # When --input is given, pass it through so normalize scopes to that pack.
-    normalize_cmd = [sys.executable, "tools/normalize_contribution.py"]
-    if args.input:
-        normalize_cmd += ["--input", str(args.input)]
-
+    # Only runs on genuinely new (Added) files — never on modifications to
+    # existing content. Running normalize on modified files strips structure
+    # that was already correct when the content was first contributed.
     results: list[StepResult] = []
-    results.append(run_step("Normalize contribution", normalize_cmd, args.ci))
+
+    if args.input:
+        # Explicit pack: always normalize — caller knows what they're doing
+        normalize_cmd = [sys.executable, "tools/normalize_contribution.py",
+                         "--input", str(args.input)]
+        results.append(run_step("Normalize contribution", normalize_cmd, args.ci))
+    else:
+        new_packs = git_new_packs(args.base)
+        if new_packs:
+            # New files found — normalize each pack that has additions
+            for new_pack in new_packs:
+                normalize_cmd = [sys.executable, "tools/normalize_contribution.py",
+                                  "--input", str(new_pack)]
+                results.append(run_step(
+                    f"Normalize contribution — {new_pack.name}",
+                    normalize_cmd, args.ci,
+                ))
+        else:
+            print(f"\n  {OK('✓')}  Normalize — no new files (modifications only, skipped)")
 
     # ── Per-pack steps ────────────────────────────────────────────────────────
     for pack in packs:

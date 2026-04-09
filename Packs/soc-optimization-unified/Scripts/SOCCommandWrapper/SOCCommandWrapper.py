@@ -408,6 +408,8 @@ def enrich_payload(payload, ctx, issue, wrapper_values, args):
     payload["action_actor"] = wrapper_values["action_actor"]
     payload["execution_mode"] = wrapper_values["execution_mode"]
     payload["shadow_mode_state"] = wrapper_values["shadow_mode_state"]
+    payload["action_time_minutes"] = wrapper_values.get("action_time_minutes", 0)
+    payload["action_time_category"] = wrapper_values.get("action_time_category", "")
     payload["has_error"] = wrapper_values["has_error"]
     payload["error_type"] = wrapper_values["error_type"]
     payload["error_message"] = wrapper_values["error_message"]
@@ -525,6 +527,23 @@ def main():
 
     if not action_entry:
         return_error(f"Action not found: {action}")
+
+    # Load action time map — soft fail if list not present or action not listed.
+    # SOCActionTimeMap_V3 is customer-editable: one entry per SOC Framework
+    # action name with time_minutes and action_category fields.
+    # Both values are written to the dataset so dashboards need no join.
+    _time_map_result = demisto.executeCommand("getList", {"listName": "SOCActionTimeMap_V3"})
+    _time_map: dict = {}
+    if _time_map_result and isinstance(_time_map_result, list) and "Contents" in _time_map_result[0]:
+        _time_map = _try_json_loads(_time_map_result[0].get("Contents", "")) or {}
+    _time_entry = _time_map.get(action, {}) if isinstance(_time_map, dict) else {}
+    action_time_minutes = int(_time_entry.get("time_minutes", 0)) if isinstance(_time_entry, dict) else 0
+    action_time_category = str(_time_entry.get("action_category", "")) if isinstance(_time_entry, dict) else ""
+    demisto.debug(
+        f"SOCActionTimeMap_V3: action={action} "
+        f"time_minutes={action_time_minutes} "
+        f"action_category={action_time_category}"
+    )
 
     # Read shadow_mode from the action entry — single source of truth
     shadow_mode = action_entry.get("shadow_mode", False)
@@ -667,7 +686,9 @@ def main():
             "shadow_mode_state": "collected",
             "has_error": False,
             "error_type": "",
-            "error_message": ""
+            "error_message": "",
+            "action_time_minutes": action_time_minutes,
+            "action_time_category": action_time_category
         }
 
         dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
@@ -747,7 +768,9 @@ def main():
                 "shadow_mode_state": "not_applicable",
                 "has_error": True,
                 "error_type": "integration_unavailable" if integration_unavailable else "command_execution",
-                "error_message": error_msg
+                "error_message": error_msg,
+                "action_time_minutes": action_time_minutes,
+                "action_time_category": action_time_category
             }
 
             dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
@@ -814,7 +837,9 @@ def main():
             "shadow_mode_state": "not_applicable",
             "has_error": False,
             "error_type": "",
-            "error_message": ""
+            "error_message": "",
+            "action_time_minutes": action_time_minutes,
+            "action_time_category": action_time_category
         }
 
         dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
@@ -866,7 +891,9 @@ def main():
                 "shadow_mode_state": "not_applicable",
                 "has_error": True,
                 "error_type": "command_execution",
-                "error_message": str(e)
+                "error_message": str(e),
+                "action_time_minutes": action_time_minutes,
+                "action_time_category": action_time_category
             }
 
             dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
