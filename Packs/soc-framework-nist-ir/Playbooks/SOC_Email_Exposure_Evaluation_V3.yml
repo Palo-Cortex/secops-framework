@@ -420,7 +420,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "30"
+      - "31"
     scriptarguments:
       append:
         simple: "false"
@@ -1200,6 +1200,64 @@ tasks:
         "position": {
           "x": 480,
           "y": 945
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "31":
+    id: "31"
+    taskid: c7a1e8f2-3b5d-4e9a-a2f0-8d6c1b4e7f90
+    type: condition
+    task:
+      id: c7a1e8f2-3b5d-4e9a-a2f0-8d6c1b4e7f90
+      version: -1
+      name: Click Event With Clicker Data?
+      description: >-
+        Guards setIssue attribution override. Two conditions must both be true
+        (AND) for YES: (1) alert.type == clicks permitted — delivered events
+        already have the correct recipient from the correlation rule, no
+        override needed. (2) UC.Email.Events.clickers is non-empty — clicker
+        identity returned from Proofpoint API. Empty in shadow mode or replay.
+        Default path skips setIssue cleanly with no missing argument error.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "12"
+      "YES":
+      - "30"
+    separatecontext: false
+    conditions:
+    - label: "YES"
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ${alert.type}
+            iscontext: true
+          right:
+            value:
+              simple: clicks permitted
+          ignorecase: true
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: ${UC.Email.Events.clickers}
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2135
         }
       }
     note: false
