@@ -1225,6 +1225,15 @@ def process_file(
         # The contributor is updating an existing list. Write the new content
         # directly to _data.json and leave the descriptor completely untouched.
         # No descriptor modification, no fromVersion injection, no split.
+        #
+        # IMPORTANT: if the file being processed IS the descriptor (its stem
+        # matches the canonical list name exactly, no _data suffix), skip it.
+        # The descriptor is repo infrastructure — normalize never rewrites or
+        # removes it. Only data files submitted by contributors are processed.
+        if path.stem == canon:
+            print(OK(f"    ✓ {path.name} is the list descriptor — skipped"))
+            return True, False
+
         if data_path.exists():
             # Check if content actually changed
             try:
