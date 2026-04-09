@@ -287,7 +287,7 @@ def default_schema_entries():
         {"field": "mitre_subtechnique", "source": "SOCFramework.Mitre.SubTechnique.Name", "default": ""},
         {"field": "alert_name", "source": "issue.name", "default": ""},
         {"field": "alert_source", "source": "issue.sourceBrand", "default": ""},
-        {"field": "alert_category", "source": "issue.categoryname", "default": ""},
+        {"field": "alert_category", "source": "SOCFramework.Product.category", "default": ""},
         {"field": "alert_domain", "source": "issue.alert_domain", "default": ""},
         {"field": "severity", "source": "issue.severity", "default": ""},
         {"field": "status", "source": "issue.status", "default": ""},
@@ -432,7 +432,10 @@ def enrich_payload(payload, ctx, issue, wrapper_values, args):
 
         set_if_missing(payload, "alert_name", issue.get("name"))
         set_if_missing(payload, "alert_source", issue.get("sourceBrand") or issue.get("sourceInstance") or issue.get("source"))
-        set_if_missing(payload, "alert_category", issue.get("categoryname") or issue.get("category"))
+        set_if_missing(payload, "alert_category",
+            demisto.get(ctx, "SOCFramework.Product.category") or
+            issue.get("categoryname") or
+            issue.get("category"))
         set_if_missing(payload, "alert_domain", issue.get("alert_domain"))
 
         set_if_missing(payload, "severity", issue.get("severity"))
