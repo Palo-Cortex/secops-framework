@@ -64,14 +64,6 @@ def main():
             })
             continue
 
-        # Skip if analyst has manually set a score
-        if manual_score is not None:
-            skipped.append({
-                'incident_id': incident_id,
-                'aggregated_score': aggregated_score,
-                'reason': 'manual_score set — analyst touched this case'
-            })
-            continue
 
         # Skip if score is above threshold or missing
         if aggregated_score is None or float(aggregated_score) > threshold:
