@@ -15,8 +15,8 @@ contentitemexportablefields:
 vcShouldKeepItemLegacyProdMachine: false
 name: JOB - Auto Triage V3
 tags:
-- SOC
-- SOC_Framework_Unified
+  - SOC
+  - SOC_Framework_Unified
 starttaskid: "0"
 tasks:
   "0":
@@ -33,7 +33,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "1"
+        - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -58,8 +58,10 @@ tasks:
       id: 993570fa-2548-4e9c-af63-478189b6c22b
       version: -1
       name: Get Unstarred Open Cases
-      description: Queries get_incidents — starred=false, status new. Age window filtering
-        handled in SOCAutoTriageScoreFilter using Python time.time() ms comparison.
+      description: Queries get_incidents — starred=false, status new, sorted oldest-first.
+        Fetches up to 100 cases per run (API maximum). Age window and score filtering
+        handled in SOCAutoTriageScoreFilter. Run this JOB frequently (e.g., every 15m)
+        to drain backlogs exceeding 100 cases across successive executions.
       script: '|||core-api-post'
       type: regular
       iscommand: true
@@ -68,10 +70,10 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "12"
+        - "12"
     scriptarguments:
       body:
-        simple: '{"request_data":{"filters":[{"field":"status","operator":"eq","value":"new"},{"field":"starred","operator":"eq","value":false}],"fields":["incident_id","aggregated_score","manual_score","creation_time","status","starred"],"sort":{"field":"creation_time","keyword":"asc"}}}'
+        simple: '{"request_data":{"filters":[{"field":"status","operator":"eq","value":"new"},{"field":"starred","operator":"eq","value":false}],"fields":["incident_id","aggregated_score","manual_score","creation_time","status","starred"],"sort":{"field":"creation_time","keyword":"asc"},"search_from":0,"search_to":100}}'
       extend-context:
         simple: Found=.
       uri:
@@ -109,20 +111,20 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "9"
+        - "9"
       "yes":
-      - "8"
+        - "8"
     separatecontext: false
     conditions:
-    - label: "yes"
-      condition:
-      - - operator: isExists
-          left:
-            value:
-              simple: AutoTriage.filtered_incidents.incident_id
-            iscontext: true
-          right:
-            value: {}
+      - label: "yes"
+        condition:
+          - - operator: isExists
+              left:
+                value:
+                  simple: AutoTriage.filtered_incidents.incident_id
+                iscontext: true
+              right:
+                value: {}
     continueonerrortype: ""
     view: |-
       {
@@ -183,7 +185,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "9"
+        - "9"
     scriptarguments:
       incident_id:
         simple: ${AutoTriage.filtered_incidents.incident_id}
@@ -230,7 +232,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "7"
+        - "7"
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -266,7 +268,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "5"
+        - "5"
     scriptarguments:
       incidents:
         complex:
@@ -277,41 +279,41 @@ tasks:
           root: lists
           accessor: SOCOptimizationConfig_V3
           transformers:
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: Triage Incidents JOB
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: fields
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: TriageScoreThreshold
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Triage Incidents JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: TriageScoreThreshold
       window_hours:
         complex:
           root: lists
           accessor: SOCOptimizationConfig_V3
           transformers:
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: Triage Incidents JOB
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: fields
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: TriageWindowHours
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Triage Incidents JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: TriageWindowHours
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
