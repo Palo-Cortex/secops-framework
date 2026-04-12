@@ -1,0 +1,72 @@
+commonfields:
+  id: SOCFWPoVSender
+  version: -1
+name: SOCFWPoVSender
+display: SOC Framework PoV Sender
+category: Utilities
+description: |-
+  Thin HTTP POST wrapper for the SOC Framework PoV Test pack.
+  Receives pre-processed events from the SOCFWPoVSend script and
+  posts them as NDJSON to the configured HTTP Collector endpoint.
+  All list reading, normalization, and timestamp rebasing is handled
+  by the SOCFWPoVSend script — this integration only stores credentials
+  and performs the HTTP POST.
+configuration:
+  - name: url
+    display: HTTP Collector URL
+    required: true
+    type: 0
+    section: Connect
+    additionalinfo: |-
+      Full URL of the XSIAM HTTP Collector endpoint for this data source.
+      Found in Settings → Data Sources → [your collector] → Connection Details.
+
+  - name: api_key
+    display: API Key
+    required: true
+    type: 4
+    section: Connect
+    additionalinfo: HTTP Collector API key for this data source.
+
+  - name: source_name
+    display: Source Name
+    required: true
+    type: 0
+    defaultvalue: crowdstrike
+    section: Connect
+    additionalinfo: |-
+      Source type label for logging. e.g. crowdstrike, proofpoint.
+
+  - name: insecure
+    display: Trust any certificate (not secure)
+    required: false
+    type: 8
+    section: Connect
+    advanced: true
+
+  - name: proxy
+    display: Use system proxy settings
+    required: false
+    type: 8
+    section: Connect
+    advanced: true
+
+script:
+  script: ''
+  type: python
+  subtype: python3
+  dockerimage: demisto/python3:3.10.14.100715
+  commands:
+    - name: socfw-pov-send-data
+      description: |-
+        Accepts pre-processed events as a JSON string and posts them as
+        NDJSON to the configured HTTP Collector. Called by the SOCFWPoVSend
+        script — do not call directly.
+      arguments:
+        - name: JSON
+          required: true
+          description: JSON array of events to send (pre-processed by SOCFWPoVSend script).
+      outputs: []
+fromversion: 8.0.0
+tests:
+  - No tests

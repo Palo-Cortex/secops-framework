@@ -1,0 +1,130 @@
+adopted: true
+id: JOB - POV Teardown Reminder V1
+version: -1
+name: JOB - POV Teardown Reminder V1
+description: |-
+  Scheduled reminder to uninstall the SOC Framework PoV Test pack after the PoV ends.
+  Creates a High severity case with the full uninstall checklist in the war room.
+
+  SETUP: After installing soc-framework-pov-test, go to Automation → Jobs →
+  POV Teardown Reminder V1 → set the schedule to fire on the last day of the PoV.
+
+  Do not leave this pack installed on a tenant going to production.
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: c3d4e5f6-0003-0003-0003-000000000001
+    type: start
+    task:
+      id: c3d4e5f6-0003-0003-0003-000000000001
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      description: ""
+    nexttasks:
+      '#none#':
+        - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {"x": 450, "y": 50}
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "1":
+    id: "1"
+    taskid: c3d4e5f6-0003-0003-0003-000000000002
+    type: regular
+    task:
+      id: c3d4e5f6-0003-0003-0003-000000000002
+      version: -1
+      name: Create uninstall reminder case
+      description: |-
+        Creates a High severity case visible in the analyst queue.
+        The case name and war room entry contain the full uninstall checklist.
+      script: '|||CreateNewIncident'
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+        - "2"
+    scriptarguments:
+      name:
+        simple: "ACTION REQUIRED: Uninstall SOC Framework PoV Test Pack"
+      severity:
+        simple: "3"
+      type:
+        simple: "Other"
+      details:
+        simple: |-
+          The SOC Framework PoV has ended. The soc-framework-pov-test pack must be
+          uninstalled before this tenant goes to production or is handed off to PS.
+
+          UNINSTALL CHECKLIST:
+          ☐ 1. Delete the socfw_pov_crowdstrike_sender integration instance
+                Settings → Integrations → search "socfw_pov" → delete both instances
+          ☐ 2. Delete the socfw_pov_tap_sender integration instance
+          ☐ 3. Uninstall soc-framework-pov-test from Marketplace
+          ☐ 4. Confirm SOCFWPoVData_* lists are removed
+          ☐ 5. Disable or delete this JOB (POV Teardown Reminder V1)
+          ☐ 6. Set shadow_mode = false per action in SOCFrameworkActions_V3 to go live
+
+          After completing the above, close this case.
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {"x": 450, "y": 175}
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+  "2":
+    id: "2"
+    taskid: c3d4e5f6-0003-0003-0003-000000000003
+    type: title
+    task:
+      id: c3d4e5f6-0003-0003-0003-000000000003
+      version: -1
+      name: Reminder case created
+      type: title
+      iscommand: false
+      brand: ""
+      description: |-
+        Reminder case is now visible in Cases & Issues.
+        The DC or PS engineer must complete the uninstall checklist and close the case.
+    nexttasks:
+      '#none#': []
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {"x": 450, "y": 325}
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+
+system: true
+fromversion: 8.0.0
+tags:
+  - SOCFramework
+  - PoV
