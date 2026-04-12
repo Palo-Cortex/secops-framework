@@ -1,0 +1,65 @@
+adopted: true
+commonfields:
+  id: SOCFWPoVSend
+  version: -1
+name: SOCFWPoVSend
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.10.14.100715
+enabled: true
+tags:
+  - SOCFramework
+  - PoV
+comment: |-
+  Reads a PoV scenario data list, rebases timestamps to now with window
+  compression, normalizes source-specific fields, rotates suppression IDs,
+  then calls the SOCFWPoVSender integration to POST events to the configured
+  HTTP Collector endpoint.
+
+  Run from any case war room or the playground:
+    !SOCFWPoVSend list_name=SOCFWPoVData_CrowdStrike_TurlaCarbon_V1
+      instance_name=socfw_pov_crowdstrike_sender
+      source_name=crowdstrike
+      global_min=2025-12-02T13:00:00Z
+      global_max=2025-12-04T12:01:07Z
+
+  Part of soc-framework-pov-test pack. Do not use on production tenants.
+args:
+  - name: list_name
+    required: true
+    description: Name of the XSIAM list containing scenario event data as a JSON array.
+    supportedModules: []
+  - name: instance_name
+    required: true
+    description: |-
+      SOCFWPoVSender integration instance to use for sending.
+      e.g. socfw_pov_crowdstrike_sender or socfw_pov_tap_sender
+    supportedModules: []
+  - name: source_name
+    required: true
+    description: |-
+      Source type for normalization routing.
+      Supported: crowdstrike, proofpoint, defender.
+    supportedModules: []
+  - name: compress_window
+    required: false
+    description: Compress original event timeline into this window. Default 2h.
+    defaultValue: "2h"
+    supportedModules: []
+  - name: global_min
+    required: false
+    description: |-
+      ISO timestamp of the earliest event across ALL sources in this scenario.
+      Required for multi-source time alignment.
+      Turla Carbon: 2025-12-02T13:00:00Z
+    supportedModules: []
+  - name: global_max
+    required: false
+    description: |-
+      ISO timestamp of the latest event across ALL sources in this scenario.
+      Required for multi-source time alignment.
+      Turla Carbon: 2025-12-04T12:01:07Z
+    supportedModules: []
+outputs: []
+fromversion: 6.10.0
+script: ''
