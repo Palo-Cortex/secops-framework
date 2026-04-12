@@ -1,75 +1,97 @@
-# Post-Installation Configuration
-
-After the pack is installed, these manual steps are required to complete the configuration.
+# Post-Configuration — SOC Framework PoV Test Pack
 
 ---
 
-## Quick Start (5 minutes)
+## Running the Turla Carbon scenario
 
-**1. Enable the Auto Triage job**
-- Navigate to **Investigation & Response → Automation → Jobs**
-- Find **JOB - Triage Alerts V3** → click **Enable**
-- Refresh — status should show **Running** or **Completed**
+Open the playground or any case war room and run both commands.
+The shared `global_min` / `global_max` keeps both sources on the same time axis
+so the email delivery always appears ~2 hours before the endpoint detections.
 
-**2. Configure the Starring Rule**
-- Navigate to **Cases & Issues → Case Configuration → Starred Issues**
-- Add rule: `Severity >= Medium` AND `Has MITRE Tactic`
-
-**3. Configure the Automation Trigger**
-- Navigate to **Investigation & Response → Automation → Automation Rules**
-- Add rule: Run playbook **EP_IR_NIST (800-61)_V3** when `starred = true`
-
----
-
-## What to Check Next
-
-**Value Metrics Dashboard**
-- Navigate to **Dashboards → XSIAM SOC Value Metrics V3**
-- Select a **7-day** window for reporting
-- The dashboard requires alerts to have fired playbooks with tasks. Give it a few hours after your first starred alert processes.
-
-**Shadow Mode**
-- All Containment, Eradication, and Recovery actions default to Shadow Mode
-- Actions are logged to the warroom and written to `xsiam_socfw_ir_execution_raw` but vendor commands are not executed
-- To move individual actions to production, set `"shadow_mode": false` in `SOCFrameworkActions_V3`
-
-**Run a Health Check**
-- Open any case and run the `SOCFWHealthCheck` script from the warroom
-- It will report on integration instances, installed playbooks, jobs, and required lists
-
----
-
-## Errored Jobs
-
-If **JOB - Triage Alerts V3** or **JOB - Store Playbook Metrics in Dataset V3** show as **Error**:
-
-**Step 1 — Verify the playbooks are installed**
-
-In the Playbook Library (**Investigation & Response → Automation → Playbooks**), verify both playbooks exist:
+### Send CrowdStrike Falcon events (138 endpoint detections)
 
 ```
-JOB - Triage Alerts V3
-JOB - Store Playbook Metrics in Dataset V3
+!SOCFWPoVSend list_name="SOCFWPoVData_CrowdStrike_TurlaCarbon_V1"
+  instance_name="socfw_pov_crowdstrike_sender"
+  source_name="crowdstrike"
+  global_min="2025-12-02T13:00:00Z"
+  global_max="2025-12-04T12:01:07Z"
 ```
 
-If they are missing, the pack installation failed. Re-run the installer.
+### Send Proofpoint TAP events (2 email threat events)
 
-**Step 2 — Check for a registration timing gap**
+```
+!SOCFWPoVSend list_name="SOCFWPoVData_TAP_TurlaCarbon_V1"
+  instance_name="socfw_pov_tap_sender"
+  source_name="proofpoint"
+  global_min="2025-12-02T13:00:00Z"
+  global_max="2025-12-04T12:01:07Z"
+```
 
-A known XSIAM behavior: there is sometimes a delay between when a custom content pack installs and when its playbooks become available to jobs. If the job shows **"Missing/Deleted playbook"** but the playbook exists in the library:
+Navigate to **Cases & Issues → Cases**. Cases appear within seconds for real-time rules.
 
-1. Wait 30–60 minutes
-2. Hard-refresh the page
-3. If the playbook now appears, click **Run now** to verify it executes
+---
 
-**Step 3 — Clean stuck job runs**
+## What you should see
 
-If previous job runs are stuck in **Running** status, clean them before enabling:
+- **Email alert**: `[Email] Gunter@SKT.LOCAL - Initial Access: Threat Email Delivered`
+- **Endpoint alerts**: `[Endpoint] Gunter@SKT.LOCAL - Command and Control: ...` (138 events grouped)
+- **Cross-source case**: XSIAM groups both into one case via shared `Gunter@SKT.LOCAL` username
+- **AI narrative**: spans both sources — email delivery → Carbon dropper execution → C2
+- **SOC Framework**: Foundation → Analysis → Containment → Eradication → Recovery (all shadow mode)
 
-1. In the top-right corner of the Jobs screen, click the hamburger menu → **Switch to Detailed View**
-2. For each run showing **Running**:
-   - Click the Run ID
-   - Go to the **Work Plan** tab
-   - Click **Choose a playbook**
-   - Select **SOC Close Cases V3** or another simple close playbook to terminate the run
-3. Once all stuck runs are cleared, click **Enable** on the job
+---
+
+## Replaying the scenario
+
+Suppression IDs rotate automatically on every run. Just re-run the same commands.
+No cleanup needed between replays.
+
+To compress into a shorter window for a live demo:
+
+```
+!SOCFWPoVSend list_name="SOCFWPoVData_CrowdStrike_TurlaCarbon_V1"
+  instance_name="socfw_pov_crowdstrike_sender"
+  source_name="crowdstrike"
+  compress_window="30m"
+  global_min="2025-12-02T13:00:00Z"
+  global_max="2025-12-04T12:01:07Z"
+```
+
+---
+
+## Set the teardown reminder
+
+Go to **Automation → Jobs → POV Teardown Reminder V1**.
+Set the schedule to fire on the last day of the PoV.
+The JOB creates a High severity case titled:
+`ACTION REQUIRED: Uninstall SOC Framework PoV Test Pack`
+
+---
+
+## Teardown (before PS handoff)
+
+Complete in order:
+
+```
+☐ 1. Uninstall soc-framework-pov-test from Marketplace
+☐ 2. Delete socfw_pov_crowdstrike HTTP Collector
+      Settings → Data Sources → socfw_pov_crowdstrike → Delete
+☐ 3. Delete socfw_pov_tap HTTP Collector
+☐ 4. Set shadow_mode = false per action in SOCFrameworkActions_V3
+☐ 5. Help PS onboard real customer data sources (CrowdStrike, TAP integrations)
+☐ 6. Verify correlation rules fire on real data before leaving
+☐ 7. Close the teardown reminder case
+```
+
+---
+
+## Adding future scenario sources (XDR agent, MS Defender, etc.)
+
+1. Build the TSV from lab execution
+2. Add as a new List: `SOCFWPoVData_<Vendor>_<Scenario>_V1`
+3. Create a new HTTP Collector in XSIAM targeting the correct dataset
+4. Add a new `SOCFWPoVSender` integration instance
+5. Run `!SOCFWPoVSend` with the new list name and instance name
+
+No code changes needed for new vendors.
