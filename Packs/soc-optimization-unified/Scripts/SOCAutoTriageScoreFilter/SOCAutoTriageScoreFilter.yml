@@ -20,21 +20,30 @@ tags:
 - SOC
 - SOC_Framework_Unified
 comment: |-
-  Filters the get_incidents API response by aggregated_score and manual_score.
-  Cases above the score threshold or where manual_score is set (analyst-touched)
-  are excluded from the auto-close loop. Part of JOB - Auto Triage V3.
+  Fetches unstarred new cases via core-api-post in paginated batches of 100,
+  sorted by creation_time asc. Filters by aggregated_score <= threshold,
+  creation_time outside window, and manual_score is null. Skips above-threshold
+  cases without holding them in memory. Stops when eligible cases are found or
+  max_batches reached. Part of JOB - Auto Triage V3.
   VD3: frees analyst time by auto-closing low-signal noise cases.
 enabled: true
 args:
-- supportedModules: []
-  name: incidents
-  required: true
-  description: Array of incident objects from get_incidents API response (Found.response.reply.incidents)
 - supportedModules: []
   name: score_threshold
   required: true
   description: Maximum aggregated_score to be eligible for auto-close. Cases above
     this are skipped. Reads from SOCOptimizationConfig_V3 TriageScoreThreshold field.
+- supportedModules: []
+  name: window_hours
+  required: true
+  description: Minimum age in hours before a case is eligible for auto-close. Cases
+    newer than this are skipped. Reads from SOCOptimizationConfig_V3 TriageWindowHours field.
+- supportedModules: []
+  name: max_batches
+  required: false
+  description: Maximum number of 100-case batches to fetch from the API per run.
+    Default 5 (scans up to 500 cases). Increase if backlog consistently exceeds 500.
+  defaultValue: "5"
 outputs:
 - contextPath: AutoTriage.filtered_incidents
   description: Incident objects that passed both gates (score <= threshold, manual_score
@@ -48,6 +57,12 @@ outputs:
   type: Number
 - contextPath: AutoTriage.skipped_count
   description: Count of incidents that were skipped
+  type: Number
+- contextPath: AutoTriage.total_scanned
+  description: Total number of incidents scanned across all batches
+  type: Number
+- contextPath: AutoTriage.batches_run
+  description: Number of API batches fetched before stopping
   type: Number
 scripttarget: 0
 subtype: python3
