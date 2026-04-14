@@ -79,7 +79,7 @@ HEALTH_SCRIPT="$(dirname "$0")/platform_health_check.sh"
 if [[ -f "$HEALTH_SCRIPT" ]]; then
   # shellcheck source=tools/platform_health_check.sh
   source "$HEALTH_SCRIPT"
-  if ! check_platform_health; then
+  if ! check_platform_health "$PACK_PATH"; then
     echo "  Aborting upload — platform is unhealthy."
     exit 1
   fi
