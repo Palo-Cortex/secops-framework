@@ -74,6 +74,17 @@ echo "  Tenant : $DEMISTO_BASE_URL"
 echo "  Pack   : $PACK_PATH"
 echo ""
 
+# ── Platform health check ─────────────────────────────────────────────────────
+HEALTH_SCRIPT="$(dirname "$0")/platform_health_check.sh"
+if [[ -f "$HEALTH_SCRIPT" ]]; then
+  # shellcheck source=tools/platform_health_check.sh
+  source "$HEALTH_SCRIPT"
+  if ! check_platform_health; then
+    echo "  Aborting upload — platform is unhealthy."
+    exit 1
+  fi
+fi
+
 start=$(date +%s)
 
 demisto-sdk upload \
