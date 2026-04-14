@@ -13,18 +13,24 @@ WORKFLOW
 ────────
   1. normalize_contribution.py   Strip UI export artifacts, rename to canonical
                                  filename, place in correct directory structure.
-  2. pack_prep.py                SDK validation, xsoar_config JSON integrity,
+  2. correlation_rule_preflight   Validate correlation rule YAML and script .py
+                                 files against known platform gotchas that the
+                                 SDK does not catch (empty mitre_defs, missing
+                                 null fields, empty .py files, MITRE mappings).
+  3. pack_prep.py                SDK validation, xsoar_config JSON integrity,
                                  cross-pack dependency version check.
-  3. fix_errors.py (report)      Report BA101/BA106 issues without auto-fixing.
+  4. fix_errors.py (report)      Report BA101/BA106 issues without auto-fixing.
                                  Errors here mean normalize didn't catch something
                                  — useful signal for improving the pipeline.
-  4. check_contracts.py          Layer contract violations — setIssue from
+  5. check_contracts.py          Layer contract violations — setIssue from
                                  Workflow, wrong namespace writes, missing
                                  Lifecycle phase boundaries.
-  5. validate_shadow_mode.py     Shadow mode consistency across all UC actions.
-  6. upload_package.sh           Deploy changed packs to review tenant.
+  6. validate_shadow_mode.py     Shadow mode consistency across all UC actions.
+  7. upload_package.sh           Deploy changed packs to review tenant.
                                  Runs in both local and CI — credentials come
                                  from .env locally, GitHub Secrets in CI.
+                                 Includes platform health check — aborts if
+                                 API endpoints are unhealthy.
 
 EXIT CODES
 ──────────
@@ -260,14 +266,23 @@ def main() -> None:
         print(f"  Pack: {BOLD(pack.name)}")
         print(f"{'─' * 62}")
 
-        # ── Step 2: pack_prep ─────────────────────────────────────────────────
+        # ── Step 2: correlation_rule_preflight ────────────────────────────────
+        preflight_script = Path("tools/correlation_rule_preflight.py")
+        if preflight_script.exists():
+            results.append(run_step(
+                f"correlation_rule_preflight — {pack.name}",
+                [sys.executable, str(preflight_script), str(pack)],
+                args.ci,
+            ))
+
+        # ── Step 3: pack_prep ─────────────────────────────────────────────────
         results.append(run_step(
             f"pack_prep — {pack.name}",
             [sys.executable, "tools/pack_prep.py", str(pack)],
             args.ci,
         ))
 
-        # ── Step 3: fix_errors (report only) ──────────────────────────────────
+        # ── Step 4: fix_errors (report only) ──────────────────────────────────
         # fix_errors reads from output/sdk_errors.txt produced by pack_prep.
         # We run it in report mode — it prints what it would fix but makes no
         # changes. If it fires, normalize missed something worth investigating.
@@ -282,14 +297,14 @@ def main() -> None:
         else:
             print(f"\n  {OK('✓')}  fix_errors — no SDK errors to report")
 
-        # ── Step 4: check_contracts ───────────────────────────────────────────
+        # ── Step 5: check_contracts ───────────────────────────────────────────
         results.append(run_step(
             f"check_contracts — {pack.name}",
             [sys.executable, "tools/check_contracts.py", "--input", str(pack)],
             args.ci,
         ))
 
-    # ── Step 5: validate_shadow_mode (once, --all) ────────────────────────────
+    # ── Step 6: validate_shadow_mode (once, --all) ────────────────────────────
     # Always runs across the entire framework — shadow mode consistency is a
     # global property, not per-pack. One broken action affects every playbook.
     print(f"\n{'─' * 62}")
@@ -302,7 +317,7 @@ def main() -> None:
         args.ci,
     ))
 
-    # ── Step 6: upload ────────────────────────────────────────────────────────
+    # ── Step 7: upload ────────────────────────────────────────────────────────
     if not args.no_upload:
         for pack in packs:
             results.append(run_step(
