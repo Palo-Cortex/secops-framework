@@ -1,7 +1,4 @@
-# Load these for testing, but ignore in operation
 # Universal Command allows multiple Vendor commands to be used by a single Universal Command
-import demistomock as demisto  # type: ignore
-from CommonServerPython import *  # type: ignore
 
 CONSTANT_PACK_VERSION = '3.3.1'
 demisto.debug('pack id = soc-optimization-unified, pack version = 3.3.1')
@@ -101,7 +98,77 @@ def append_context(key, record):
     demisto.setContext(key, existing)
 
 
-def apply_output_map(output_map, ctx, shadow_mode):
+def _extract_entry_context(result):
+    """
+    Pull the merged EntryContext dict from an executeCommand result list.
+    Commands may return multiple entries; merge all EntryContext dicts.
+
+    XSOAR integration commands use DT (demisto transforms) expression keys
+    for dedup/append control, e.g.:
+        "MsGraph.Hunt(val.query && val.query == obj.query)": [...]
+
+    We strip the DT parenthetical so output_map can resolve against the
+    clean base path. The raw value (what the command actually returned)
+    is preserved — it is NOT the accumulated array from investigation
+    context, just this execution's output.
+    """
+    merged = {}
+    if not result or not isinstance(result, list):
+        return merged
+    for entry in result:
+        if isinstance(entry, dict):
+            ec = entry.get("EntryContext")
+            if isinstance(ec, dict):
+                for key, value in ec.items():
+                    # Strip DT expression: "MsGraph.Hunt(val.x == obj.x)" → "MsGraph.Hunt"
+                    clean_key = re.sub(r'\(.*\)$', '', key)
+                    merged[clean_key] = value
+    return merged
+
+
+def _resolve_from_entry_context(ec, path):
+    """
+    Resolve a dotted path against a flat-key EntryContext dict.
+
+    EntryContext keys are flat dotted strings (after DT stripping), e.g.
+    "MsGraph.Hunt", not nested dicts. demisto.get() does nested dict
+    traversal and won't match flat keys, so we match directly.
+
+    Tries exact match first, then prefix match for sub-path access
+    (e.g., path "MsGraph.Hunt.results" against key "MsGraph.Hunt").
+    """
+    if not ec or not isinstance(ec, dict) or not path:
+        return None
+
+    # Exact match — output_map source == EntryContext key
+    if path in ec:
+        return ec[path]
+
+    # Sub-path: output_map asks for "MsGraph.Hunt.results" but EC key is "MsGraph.Hunt"
+    # Find the longest matching EC key that is a prefix of path
+    best_key = ""
+    for ec_key in ec:
+        if path.startswith(ec_key + ".") and len(ec_key) > len(best_key):
+            best_key = ec_key
+
+    if best_key:
+        remainder = path[len(best_key) + 1:]  # strip prefix + dot
+        value = ec[best_key]
+        # Walk the remainder into the value
+        for part in remainder.split("."):
+            if isinstance(value, dict):
+                value = value.get(part)
+            elif isinstance(value, list) and value:
+                # If it's a list, try walking into the first element
+                value = value[0].get(part) if isinstance(value[0], dict) else None
+            else:
+                return None
+        return value
+
+    return None
+
+
+def apply_output_map(output_map, ctx, shadow_mode, entry_context=None):
     """
     Write UC.* canonical keys from vendor-specific context paths.
 
@@ -111,8 +178,10 @@ def apply_output_map(output_map, ctx, shadow_mode):
     In shadow mode: writes "shadow_mode" sentinel so downstream conditions
     can use isExists(UC.*) without erroring.
 
-    In execute mode: resolves each source path from context and writes
-    to the destination UC.* key. Skips entries where source resolves empty.
+    In execute mode: resolves each source path from the executeCommand
+    EntryContext (fresh return value), falling back to investigation context
+    only if entry_context lookup fails. Skips entries where source
+    resolves empty.
     """
     if not output_map or not isinstance(output_map, dict):
         return
@@ -133,14 +202,26 @@ def apply_output_map(output_map, ctx, shadow_mode):
         if '[' not in source_path:
             base_path = source_path
 
-        value = demisto.get(ctx, base_path)
+        value = None
+
+        # 1. Try fresh EntryContext from this executeCommand's return value
+        if entry_context:
+            value = _resolve_from_entry_context(entry_context, base_path)
+            if value not in (None, "", [], {}):
+                demisto.debug(f"apply_output_map: {dest_key} <- {base_path} (from EntryContext)")
+
+        # 2. Fallback: investigation context (stale but covers side-effect writes)
+        if value in (None, "", [], {}):
+            value = demisto.get(ctx, base_path)
+            if value not in (None, "", [], {}):
+                demisto.debug(f"apply_output_map: {dest_key} <- {base_path} (from investigation context fallback)")
 
         if value in (None, "", [], {}):
-            demisto.debug(f"apply_output_map: {dest_key} skipped — source {base_path} empty")
+            demisto.debug(f"apply_output_map: {dest_key} skipped — source {base_path} empty in both contexts")
             continue
 
         demisto.setContext(dest_key, value)
-        demisto.debug(f"apply_output_map: {dest_key} <- {base_path}")
+        demisto.debug(f"apply_output_map: {dest_key} set successfully")
 
 
 def integration_failed(result):
@@ -435,9 +516,9 @@ def enrich_payload(payload, ctx, issue, wrapper_values, args):
         set_if_missing(payload, "alert_name", issue.get("name"))
         set_if_missing(payload, "alert_source", issue.get("sourceBrand") or issue.get("sourceInstance") or issue.get("source"))
         set_if_missing(payload, "alert_category",
-            demisto.get(ctx, "SOCFramework.Product.category") or
-            issue.get("categoryname") or
-            issue.get("category"))
+                       demisto.get(ctx, "SOCFramework.Product.category") or
+                       issue.get("categoryname") or
+                       issue.get("category"))
         set_if_missing(payload, "alert_domain", issue.get("alert_domain"))
 
         set_if_missing(payload, "severity", issue.get("severity"))
@@ -848,7 +929,8 @@ def main():
         # Map vendor output to canonical UC.* context keys
         output_map = vendor_data.get("output_map", {})
         fresh_ctx = demisto.context()
-        apply_output_map(output_map, fresh_ctx, shadow_mode=False)
+        entry_context = _extract_entry_context(result)
+        apply_output_map(output_map, fresh_ctx, shadow_mode=False, entry_context=entry_context)
 
         warroom_log(
             "SOC Framework - Command Success",
