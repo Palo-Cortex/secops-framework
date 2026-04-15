@@ -82,15 +82,15 @@ alert_fields:
   mac: mac_address
   mitretacticid: mitre_tactic_id
   mitretacticname: mitre_tactic
-  mitretechniqueid: mitre_technique_id
-  mitretechniquename: mitre_technique
+  mitretechniqueid: mitre_ids_str
+  mitretechniquename: mitre_ids_str
   network_accesses: network_accesses
   objective: objective
   originalalertid: composite_id
   originalalertname: alert_name
   originaldescription: alert_description
   parentprocesscmd: parent_process_cmd
-  parentprocessid: parent_process_name
+  parentprocessid: parent_local_process_id
   parentprocessids: parent_local_process_id
   parentprocessname: parent_process_name
   parentprocesspath: parent_process_path
@@ -106,7 +106,7 @@ alert_fields:
   sourceid: aggregate_id
   tim_main_indicator: ioc_value
   user_principal: user_principal
-  userid: user_principal                                # restored from 1.0.14 (UPN -> userid; use user_principal field for new consumers)
+  userid: user_name                                     # restored from 1.0.14
   usersid: user_id
 alert_name: SOC CrowdStrike Falcon - $alert_name
 alert_type: null
@@ -213,8 +213,7 @@ xql_query: |
     - Un-nulled network_accesses and dns_requests
     - Added user_principal, pattern_disposition_details, files_written
   */
-  config case_sensitive = false
-  | dataset = crowdstrike_falcon_event_raw
+  dataset = crowdstrike_falcon_event_raw
 
   // Vendor / product (required for SOCProductCategoryMap routing)
   | alter vendor_name = "CrowdStrike", product_name = "Falcon"
@@ -230,6 +229,13 @@ xql_query: |
           mitre_tactic_id        = tactic_id,
           mitre_technique        = technique,
           mitre_technique_id     = technique_id
+
+  // Combined technique string for mitretechniqueid/mitretechniquename alert_fields
+  | alter mitre_ids_str = if(
+      technique_id != null and technique != null,
+      concat(technique_id, " - ", technique),
+      coalesce(technique_id, technique)
+    )
 
   // Extract fields from nested objects
   | alter
@@ -278,12 +284,12 @@ xql_query: |
       " - ",
       coalesce(tactic, "Detection"),
       ": ",
-      coalesce(technique, _name)
+      coalesce(technique, name)
     )
 
   // Compute rich alert description for layout display and originaldescription mapping
   | alter alert_description = concat(
-      coalesce(description, _name),
+      coalesce(description, name),
       " | Host: ",  coalesce(hostname, "Unknown"),
       " | User: ",  coalesce(user_name, "Unknown"),
       " | Severity: ", coalesce(severity_name, "Unknown")
@@ -297,6 +303,7 @@ xql_query: |
       cgo_cmd, cgo_name, cgo_path,
       template_instance_id, external_ip, falcon_host_link, mac_address,
       mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique,
+      mitre_ids_str,
       tactic_id, tactic, technique_id, technique,
       objective, composite_id,
       parent_process_cmd, parent_process_name, parent_local_process_id,
