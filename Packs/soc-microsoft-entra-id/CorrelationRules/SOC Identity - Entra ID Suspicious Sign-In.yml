@@ -1,0 +1,161 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Detection
+  - Identity
+  - EntraID
+  - T1078
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  # -- Core identity ----------------------------------------------------------
+  actor_effective_username: userprincipalname
+  agent_device_domain: domain_part
+  action_remote_ip: ipaddress
+  vendor: vendor_name
+  product: product_name
+
+  # -- Identity context -------------------------------------------------------
+  user_principal: userprincipalname
+  userid: userprincipalname
+  usersid: userid
+
+  # -- SOC Framework identity fields ------------------------------------------
+  socfwidentityaction: sign_in_action
+  socfwidentityapp: appdisplayname
+  socfwidentityresource: resourcedisplayname
+  socfwidentityrisk: risklevelduringsignin
+  socfwidentityriskstate: riskstate
+  socfwidentitylocation: location_str
+  socfwidentitycondaccess: conditionalaccessstatus
+  socfwidentityerrorcode: error_code_str
+  socfwidentityfailurereason: failure_reason
+
+  # -- MITRE ATT&CK fields ---------------------------------------------------
+  mitretacticid: mitre_tactic_id
+  mitretacticname: mitre_tactic
+  mitretechniqueid: mitre_ids_str
+  mitretechniquename: mitre_ids_str
+
+alert_name: SOC Identity - $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+name: SOC Identity - Entra ID Suspicious Sign-In
+description: >-
+  Fires on Entra ID sign-in events with risk indicators: failed authentication,
+  elevated risk level, or risky sign-in state. Designed for SOC Framework PoV
+  scenarios using synthetic identity data. Note: XSIAM has native behavioral
+  identity analytics that will also fire on real data after baseline learning.
+  This rule is for immediate PoV demonstration — document overlap with native
+  detections during PS handoff.
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC Identity - Entra ID Suspicious Sign-In
+investigation_query_link: ''
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+  - correlationid
+timezone: null
+user_defined_category: alert_category
+user_defined_severity: alert_severity
+xql_query: |
+  /*
+  Title:   SOC Identity - Entra ID Suspicious Sign-In
+  Dataset: msft_azure_ad_raw
+  Version: 1.0.0
+  Note:    Dataset populated via Office 365 data source → Microsoft Graph API
+           checkboxes for Entra ID sign-in logs.
+           All field names are lowercase per XSIAM ingestion normalization.
+           XSIAM has native behavioral identity analytics that overlap with
+           this rule on production tenants with real data. This rule exists
+           for immediate PoV demonstration with synthetic data where native
+           analytics have no baseline to detect against.
+  */
+  dataset = msft_azure_ad_raw
+
+  // Vendor / product (required for SOCProductCategoryMap routing)
+  | alter vendor_name = "Microsoft", product_name = "Entra ID"
+
+  // Extract nested status fields (status is a JSON string)
+  | alter
+      error_code     = json_extract_scalar(status, "$.errorCode"),
+      failure_reason = json_extract_scalar(status, "$.failureReason")
+
+  // Gate: only fire on events with risk indicators
+  // 1. Failed auth (errorCode != 0)
+  // 2. Risk level elevated during sign-in
+  // 3. Risk state indicates active risk
+  | filter (
+      error_code != "0"
+      or risklevelduringsignin not in ("none", "")
+      or riskstate not in ("none", "")
+  )
+
+  // Exclude baseline normal events (no risk, successful)
+  | filter not (error_code = "0" and risklevelduringsignin = "none" and riskstate = "none")
+
+  // Alert severity based on risk level
+  | alter
+      alert_severity = if(
+          risklevelduringsignin = "high", "SEV_050_CRITICAL",
+          risklevelduringsignin = "medium", "SEV_040_HIGH",
+          error_code != "0", "SEV_030_MEDIUM",
+          "SEV_020_LOW"
+      ),
+      alert_category = "Identity Security",
+      sign_in_action = if(
+          error_code != "0", "failed_sign_in",
+          risklevelduringsignin = "high", "risky_sign_in",
+          risklevelduringsignin = "medium", "risky_sign_in",
+          "suspicious_sign_in"
+      ),
+      alert_name = concat(
+          "[Identity] ",
+          coalesce(userprincipalname, userdisplayname, "Unknown"),
+          if(error_code != "0",
+              concat(" - Failed Auth (", error_code, ") to ", coalesce(appdisplayname, "Unknown App")),
+              concat(" - Risky Sign-In (", coalesce(risklevelduringsignin, "unknown"), ") to ", coalesce(appdisplayname, "Unknown App"))
+          )
+      ),
+      alert_description = concat(
+          if(error_code != "0", "Failed authentication", "Risky sign-in detected"),
+          " | User: ", coalesce(userprincipalname, "Unknown"),
+          " | App: ", coalesce(appdisplayname, "Unknown"),
+          " | IP: ", coalesce(ipaddress, "Unknown"),
+          " | Risk: ", coalesce(risklevelduringsignin, "none"),
+          " | Location: ", coalesce(json_extract_scalar(location, "$.countryOrRegion"), "Unknown")
+      )
+
+  // Location as flat string for alert_fields
+  | alter location_str = concat(
+      coalesce(json_extract_scalar(location, "$.city"), ""),
+      ", ",
+      coalesce(json_extract_scalar(location, "$.state"), ""),
+      ", ",
+      coalesce(json_extract_scalar(location, "$.countryOrRegion"), "")
+  )
+
+  // Domain extraction from UPN
+  | alter domain_part = arrayindex(split(userprincipalname, "@"), 1)
+
+  // Error code as string for alert_fields
+  | alter error_code_str = to_string(error_code)
+
+  // MITRE ATT&CK — Identity events are Valid Accounts / Initial Access
+  | alter
+      mitre_tactic       = "Initial Access",
+      mitre_tactic_id    = "TA0001",
+      mitre_technique    = "Valid Accounts",
+      mitre_technique_id = "T1078",
+      mitre_ids_str      = "T1078 - Valid Accounts"
