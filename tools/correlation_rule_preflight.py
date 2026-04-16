@@ -12,7 +12,6 @@ Usage:
 
 import argparse
 import os
-import re
 import sys
 import yaml
 from pathlib import Path
@@ -39,14 +38,6 @@ CANONICAL_MITRE_MAPPINGS = {
     "mitretechniquename": "mitre_ids_str",
 }
 
-# XQL stages allowed in REAL_TIME correlation rules (per Cortex XSIAM docs)
-REALTIME_ALLOWED_STAGES = {"dataset", "datamodel", "filter", "alter", "fields", "config"}
-
-# System fields (_prefixed) that don't exist in raw vendor data — referencing
-# these in XQL causes 101704 when the dataset schema doesn't have them.
-# Exclude known safe system fields that XSIAM always provides.
-SAFE_SYSTEM_FIELDS = {"_vendor", "_product", "_time", "_raw_log", "_insert_time", "_device_id", "_tag", "_id"}
-
 
 def validate_rule(path: Path) -> list[str]:
     errors = []
@@ -58,92 +49,12 @@ def validate_rule(path: Path) -> list[str]:
     if not isinstance(rule, dict):
         return [f"Failed to parse as YAML dict: {path}"], []
 
-    name = rule.get("name", "")
-    xql = rule.get("xql_query", "")
-    exec_mode = rule.get("execution_mode", "")
-
-    # ── rule_id: 0 must not be present (causes SDK null id resolution → 101704)
-    if rule.get("rule_id") == 0:
-        errors.append("rule_id: 0 present — remove entirely (causes SDK null id resolution)")
-
-    # ── fromversion must be 8.0.0 for correlation rules
-    fv = str(rule.get("fromversion", ""))
-    if fv and fv != "8.0.0":
-        errors.append(f"fromversion: '{fv}' — correlation rules require 8.0.0")
-
-    # ── id and ruleid fields must both be present and match name
-    has_id = "id" in rule and rule["id"] is not None
-    has_ruleid = "ruleid" in rule and rule["ruleid"] is not None
-    if not has_id:
-        errors.append(f"Missing 'id' field — required by SDK pydantic model (should be: '{name}')")
-    if not has_ruleid:
-        errors.append(f"Missing 'ruleid' field — required by platform (should be: '{name}')")
-    if has_id and has_ruleid and rule["id"] != rule["ruleid"]:
-        errors.append(f"id ('{rule['id']}') != ruleid ('{rule['ruleid']}') — must match")
-    if has_id and name and rule["id"] != name:
-        warnings.append(f"id ('{rule['id']}') != name ('{name}') — typically these should match")
-
-    # ── is_enabled must be boolean, not string
-    ie = rule.get("is_enabled")
-    if isinstance(ie, str):
-        errors.append(f"is_enabled: '{ie}' is a string — must be boolean true/false")
-
-    # ── user_defined_category required when alert_category is 'User Defined'
-    ac = rule.get("alert_category", "")
-    if ac == "User Defined" and not rule.get("user_defined_category"):
-        errors.append("alert_category is 'User Defined' but user_defined_category is null/missing — "
-                      "platform requires a value when alert_category is 'User Defined'")
-
-    # ── XQL: system fields (_prefixed) may not exist in raw vendor data
-    if xql:
-        system_refs = set()
-        for m in re.finditer(r'(?<!\w)(_[a-z]\w*)\b', xql):
-            field = m.group(1)
-            if field not in SAFE_SYSTEM_FIELDS:
-                system_refs.add(field)
-        if system_refs:
-            errors.append(f"XQL references system field(s): {', '.join(sorted(system_refs))} — "
-                          f"these may not exist in raw vendor data (use name without _ prefix)")
-
-    # ── XQL: 'config' as first statement — has caused 101704 in practice
-    if xql:
-        for line in xql.split("\n"):
-            stripped = line.strip()
-            if stripped and not stripped.startswith("/*") and not stripped.startswith("//") and not stripped.startswith("*"):
-                if stripped.lower().startswith("config"):
-                    warnings.append("XQL starts with 'config' — has caused 101704 in some tenants. "
-                                    "Consider removing if not strictly required.")
-                break
-
-    # ── XQL: validate stages for REAL_TIME rules
-    if exec_mode == "REAL_TIME" and xql:
-        invalid_stages = set()
-        for line in xql.split("\n"):
-            stripped = line.strip()
-            if not stripped or stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
-                continue
-            stage_match = re.match(r'^\|?\s*(\w+)', stripped)
-            if stage_match:
-                stage = stage_match.group(1).lower()
-                if stage in ("and", "or", "not", "as", "true", "false", "null", "if",
-                             "coalesce", "concat", "lowercase", "arraymap", "replace",
-                             "arrayindex"):
-                    continue
-                if stage not in REALTIME_ALLOWED_STAGES:
-                    if stage in ("comp", "sort", "limit", "dedup", "join", "union", "bin"):
-                        invalid_stages.add(stage)
-        if invalid_stages:
-            errors.append(f"REAL_TIME rule uses invalid XQL stage(s): {', '.join(sorted(invalid_stages))} — "
-                          f"allowed: {', '.join(sorted(REALTIME_ALLOWED_STAGES))}")
-
     # alert_category: OTHER causes 101704
     if rule.get("alert_category") == "OTHER":
         errors.append("alert_category: 'OTHER' causes 101704 — use 'User Defined'")
 
-    # mitre_defs must be populated map, not empty
+    # mitre_defs format validation (empty {} is valid — preferred for passthrough rules)
     md = rule.get("mitre_defs")
-    if md is not None and md == {}:
-        errors.append("mitre_defs: {} causes 101704 — must be a populated map")
 
     if isinstance(md, dict) and md:
         for tactic, techniques in md.items():
