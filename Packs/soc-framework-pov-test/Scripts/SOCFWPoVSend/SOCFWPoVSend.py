@@ -25,8 +25,8 @@ _FALLBACK_FORMATS = [
     "%Y-%m-%d %H:%M:%S",
 ]
 
+_KEEP_FIELDS = {"_time", "_name"}
 
-# ── Timestamp helpers — identical logic to replay_scenario.py ─────────────────
 
 def _parse_timestamp(raw: str) -> Optional[datetime]:
     s = raw.strip()
@@ -78,7 +78,7 @@ def parse_duration(spec: str) -> timedelta:
     return timedelta(seconds=total)
 
 
-def time_range(events: List[Dict[str, Any]], field: str) -> Tuple[Optional[datetime], Optional[datetime]]:
+def time_range(events, field):
     times = []
     for ev in events:
         raw = ev.get(field)
@@ -89,22 +89,13 @@ def time_range(events: List[Dict[str, Any]], field: str) -> Tuple[Optional[datet
     return (min(times), max(times)) if times else (None, None)
 
 
-def rebase(
-        events: List[Dict[str, Any]],
-        field: str,
-        anchor: datetime,
-        compress_window: timedelta,
-        global_min: Optional[datetime] = None,
-        global_max: Optional[datetime] = None,
-) -> int:
+def rebase(events, field, anchor, compress_window, global_min=None, global_max=None):
     first_dt, last_dt = time_range(events, field)
     if first_dt is None:
         return 0
-
     range_min = global_min or first_dt
     range_max = global_max or last_dt
     span = (range_max - range_min).total_seconds()
-
     updated = 0
     for ev in events:
         raw = ev.get(field)
@@ -113,19 +104,16 @@ def rebase(
         original_dt = _parse_timestamp(raw)
         if original_dt is None:
             continue
-
         if span > 0:
             frac = max(0.0, min(1.0, (original_dt - range_min).total_seconds() / span))
             new_dt = (anchor - compress_window) + timedelta(seconds=frac * compress_window.total_seconds())
         else:
             new_dt = anchor
-
         new_iso = new_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         ev.setdefault("_original_time", raw)
         ev[field]          = new_iso
         ev["_time"]        = new_iso
         ev["_insert_time"] = new_iso
-
         for fld in _REBASE_FIELDS:
             if fld == field or fld not in ev:
                 continue
@@ -141,19 +129,14 @@ def rebase(
             else:
                 new_other = anchor
             ev[fld] = new_other.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
         updated += 1
     return updated
 
 
-# ── Normalization — identical logic to replay_scenario.py ────────────────────
-
-def normalize_events(events: List[Dict[str, Any]], source_name: str) -> List[Dict[str, Any]]:
+def normalize_events(events, source_name):
     run_id = uuid.uuid4().hex[:8]
     src = source_name.lower()
-
     for ev in events:
-        # Proofpoint TAP: normalize recipient list, rotate GUID/id
         if "proofpoint" in src or "tap" in src:
             recipient = ev.get("recipient")
             if isinstance(recipient, list):
@@ -170,8 +153,6 @@ def normalize_events(events: List[Dict[str, Any]], source_name: str) -> List[Dic
                 val = ev.get(guid_field, "")
                 if val:
                     ev[guid_field] = f"{val}-{run_id}"
-
-        # CrowdStrike: reconstruct UPN, rotate composite_id
         if "crowdstrike" in src or "falcon" in src:
             user_name = ev.get("user_name", "")
             if (isinstance(user_name, str) and user_name
@@ -193,32 +174,21 @@ def normalize_events(events: List[Dict[str, Any]], source_name: str) -> List[Dic
             val = ev.get("composite_id", "")
             if val:
                 ev["composite_id"] = f"{val}-{run_id}"
-
-        # Microsoft Defender: rotate providerAlertId/id
         if "defender" in src or "microsoft" in src or "mde" in src:
             for id_field in ("providerAlertId", "id"):
                 val = ev.get(id_field, "")
                 if val:
                     ev[id_field] = f"{val}-{run_id}"
-
     return events
 
 
-# ── List loading — scripts have executeCommand ────────────────────────────────
-
-def load_list(list_name: str) -> List[Dict[str, Any]]:
+def load_list(list_name):
     res = demisto.executeCommand("getList", {"listName": list_name})
     if isError(res):
-        raise ValueError(
-            f"List '{list_name}' not found or could not be read. "
-            f"Check the list name matches exactly. Error: {get_error(res)}"
-        )
+        raise ValueError(f"List '{list_name}' not found. Error: {get_error(res)}")
     content = res[0].get("Contents", "")
     if not content or content == "Item not found (8)":
-        raise ValueError(
-            f"List '{list_name}' does not exist. "
-            f"Verify the list is installed and the name is correct."
-        )
+        raise ValueError(f"List '{list_name}' does not exist.")
     if isinstance(content, list):
         return content
     if isinstance(content, str):
@@ -226,36 +196,86 @@ def load_list(list_name: str) -> List[Dict[str, Any]]:
     raise ValueError(f"Unexpected list content type: {type(content)}")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     args = demisto.args()
 
-    list_name     = args.get("list_name", "")
-    instance_name = args.get("instance_name", "")
-    source_name   = args.get("source_name", "")
-    compress_str  = args.get("compress_window", "2h")
+    list_name      = args.get("list_name", "")
+    source_name    = args.get("source_name", "")
+    seed_mode      = argToBoolean(args.get("seed", "false"))
+    compress_str   = args.get("compress_window", "2h")
     global_min_str = args.get("global_min", "")
     global_max_str = args.get("global_max", "")
 
     if not list_name:
         return_error("list_name is required.")
-    if not instance_name:
-        return_error("instance_name is required (e.g. socfw_pov_crowdstrike_sender).")
     if not source_name:
         return_error("source_name is required (e.g. crowdstrike or proofpoint).")
 
+    # Instance name follows convention: socfw_pov_{source_name}_sender
+    # Enforced by xsoar_config.json — adding a new source = adding the instance there.
+    instance_name = f"socfw_pov_{source_name.lower()}_sender"
+
     try:
-        compress_window = parse_duration(compress_str)
-
-        global_min: Optional[datetime] = _parse_timestamp(global_min_str) if global_min_str else None
-        global_max: Optional[datetime] = _parse_timestamp(global_max_str) if global_max_str else None
-
-        # Load from list (executeCommand available in scripts)
+        # Load event data from list
         events = load_list(list_name)
         if not events:
-            return_results(f"List '{list_name}' contains no events — nothing sent.")
+            return_results(f"List '{list_name}' is empty — nothing sent.")
             return
+
+        # Strip XSIAM system fields that collide with HTTP Collector metadata.
+        # Keep _time (needed for rebase) and _name (CrowdStrike detection name).
+        stripped_count = 0
+        for ev in events:
+            sys_keys = [k for k in ev if k.startswith("_") and k not in _KEEP_FIELDS]
+            for k in sys_keys:
+                del ev[k]
+            if sys_keys:
+                stripped_count += 1
+
+        # Strip non-vendor fields that shouldn't be in the dataset.
+        # These survive the _ prefix check but aren't real vendor fields.
+        _STRIP_EXTRA = {"scenario_name", "scenario_source"}
+        for ev in events:
+            for k in _STRIP_EXTRA:
+                ev.pop(k, None)
+
+        # ── SEED MODE ──
+        # Sends a single event with an old timestamp to create the dataset
+        # and populate its schema. Does NOT trigger correlation rules.
+        # Run this BEFORE installing vendor correlation rule packs.
+        if seed_mode:
+            seed_event = dict(events[0])  # copy first event for schema
+            seed_event["_time"] = "2020-01-01T00:00:00.000Z"
+            # Zero out scores so it never looks like a real detection
+            for score_field in ("confidence", "severity", "phishScore",
+                                "spamScore", "malwareScore", "impostorScore"):
+                if score_field in seed_event:
+                    seed_event[score_field] = 0
+
+            execute_args = {
+                "JSON": json.dumps([seed_event]),
+                "using": instance_name,
+            }
+            result = demisto.executeCommand("socfw-pov-send-data", execute_args)
+            if isError(result):
+                return_error(f"Seed failed: {get_error(result)}")
+
+            return_results(
+                f"**SOCFWPoVSend** — seed complete\n\n"
+                f"| Field | Value |\n|---|---|\n"
+                f"| Source | `{source_name}` |\n"
+                f"| Instance | `{instance_name}` |\n"
+                f"| Schema fields | {len(seed_event)} |\n"
+                f"| Timestamp | `2020-01-01` (will not trigger rules) |\n\n"
+                f"Wait 60 seconds, then install the vendor correlation rule pack."
+            )
+            return
+
+        # ── FULL REPLAY MODE ──
+        compress_window = parse_duration(compress_str)
+        global_min = _parse_timestamp(global_min_str) if global_min_str else None
+        global_max = _parse_timestamp(global_max_str) if global_max_str else None
 
         # Normalize and rebase
         events = normalize_events(events, source_name)
@@ -264,18 +284,18 @@ def main():
         rebased = rebase(events, time_field, anchor, compress_window,
                          global_min=global_min, global_max=global_max)
 
-        # Batch the executeCommand calls — CrowdStrike events are ~18KB each,
-        # 138 events = 2.3MB which exceeds the executeCommand argument size limit.
-        # Send in batches of 5 events (~100KB per call) to stay well under the limit.
+        # Send in batches via SOCFWPoVSender integration.
+        # Instance name derived from source_name convention, locked by xsoar_config.json.
         _BATCH_SIZE = 5
         total = len(events)
         sent = 0
 
         for i in range(0, total, _BATCH_SIZE):
             batch = events[i:i + _BATCH_SIZE]
-            execute_args = {"JSON": json.dumps(batch)}
-            if instance_name:
-                execute_args["using"] = instance_name
+            execute_args = {
+                "JSON": json.dumps(batch),
+                "using": instance_name,
+            }
 
             result = demisto.executeCommand("socfw-pov-send-data", execute_args)
 
@@ -285,14 +305,15 @@ def main():
                 contents = entry.get("Contents", "") if isinstance(entry, dict) else ""
                 if "Unsupported Command" in str(contents):
                     return_error(
-                        f"SOCFWPoVSender failed — check instance name '{instance_name}' "
-                        f"is correct and the integration is enabled. Detail: {contents}"
+                        f"socfw-pov-send-data not found on instance '{instance_name}'. "
+                        f"Verify: Settings → Integrations → search SOCFWPoVSender → "
+                        f"instance '{instance_name}' exists and is enabled."
                     )
             if failed:
-                return_error(f"SOCFWPoVSender failed on batch {i // _BATCH_SIZE + 1}: {get_error(result)}")
+                return_error(f"Batch {i // _BATCH_SIZE + 1} failed: {get_error(result)}")
 
             sent += len(batch)
-            demisto.debug(f"SOCFWPoVSend: batch {i // _BATCH_SIZE + 1} — {sent}/{total} events sent")
+            demisto.debug(f"SOCFWPoVSend: batch {i // _BATCH_SIZE + 1} — {sent}/{total}")
 
         summary = (
             f"**SOCFWPoVSend** — complete\n\n"
@@ -300,7 +321,8 @@ def main():
             f"| List | `{list_name}` |\n"
             f"| Source | `{source_name}` |\n"
             f"| Instance | `{instance_name}` |\n"
-            f"| Events sent | {len(events)} |\n"
+            f"| Events sent | {sent} |\n"
+            f"| System fields stripped | {stripped_count} |\n"
             f"| Timestamps rebased | {rebased} |\n"
             f"| Compress window | {compress_str} |\n"
             f"| Anchor | {anchor.strftime('%Y-%m-%dT%H:%M:%SZ')} |\n"

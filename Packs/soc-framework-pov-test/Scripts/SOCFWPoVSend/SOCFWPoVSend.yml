@@ -11,14 +11,22 @@ tags:
   - SOCFramework
   - PoV
 comment: |-
-  Reads a PoV scenario data list, rebases timestamps to now with window
-  compression, normalizes source-specific fields, rotates suppression IDs,
-  then calls the SOCFWPoVSender integration to POST events to the configured
-  HTTP Collector endpoint.
+  Reads a PoV scenario data list, strips XSIAM system fields, rebases
+  timestamps to now with window compression, normalizes source-specific
+  fields, rotates suppression IDs, then sends events via the SOCFWPoVSender
+  integration using the auto-resolved instance name from source_name.
 
-  Run from any case war room or the playground:
+  Instance names are locked in _INSTANCE_MAP and match xsoar_config.json:
+    crowdstrike → socfw_pov_crowdstrike_sender
+    proofpoint  → socfw_pov_tap_sender
+    defender    → socfw_pov_defender_sender
+
+  SEED MODE — creates the dataset on a new tenant before corr rules install:
     !SOCFWPoVSend list_name=SOCFWPoVData_CrowdStrike_TurlaCarbon_V1
-      instance_name=socfw_pov_crowdstrike_sender
+      source_name=crowdstrike seed=true
+
+  FULL REPLAY — run after corr rule packs are installed:
+    !SOCFWPoVSend list_name=SOCFWPoVData_CrowdStrike_TurlaCarbon_V1
       source_name=crowdstrike
       global_min=2025-12-02T13:00:00Z
       global_max=2025-12-04T12:01:07Z
@@ -29,17 +37,19 @@ args:
     required: true
     description: Name of the XSIAM list containing scenario event data as a JSON array.
     supportedModules: []
-  - name: instance_name
-    required: true
-    description: |-
-      SOCFWPoVSender integration instance to use for sending.
-      e.g. socfw_pov_crowdstrike_sender or socfw_pov_tap_sender
-    supportedModules: []
   - name: source_name
     required: true
     description: |-
-      Source type for normalization routing.
+      Source type — auto-resolves the sender instance name.
       Supported: crowdstrike, proofpoint, defender.
+    supportedModules: []
+  - name: seed
+    required: false
+    description: |-
+      Set to true to seed the dataset schema on a new tenant.
+      Sends a single event with a 2020 timestamp — will not trigger
+      correlation rules. Run BEFORE installing vendor corr rule packs.
+    defaultValue: "false"
     supportedModules: []
   - name: compress_window
     required: false
