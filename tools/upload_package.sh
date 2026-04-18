@@ -85,6 +85,28 @@ if [[ -f "$HEALTH_SCRIPT" ]]; then
   fi
 fi
 
+# ── Bump pack version ─────────────────────────────────────────────────────────
+# XSIAM's marketplace installer compares `currentVersion` in pack_metadata.json
+# against what's currently installed. If the version has not increased, the
+# install is a no-op — your content changes silently don't deploy. This has
+# bitten us repeatedly during dev iteration.
+#
+# Auto-bump revision before every upload. Opt-out with SKIP_VERSION_BUMP=1
+# (for cases where you genuinely want to re-push the same version, e.g.
+# after manually editing pack_metadata).
+BUMP_SCRIPT="$(dirname "$0")/bump_pack_version.py"
+if [[ "${SKIP_VERSION_BUMP:-0}" == "1" ]]; then
+  echo "  ⊘  Version bump skipped (SKIP_VERSION_BUMP=1)"
+elif [[ -f "$BUMP_SCRIPT" ]]; then
+  echo "  ▶  Bumping pack version (revision)…"
+  python3 "$BUMP_SCRIPT" "$PACK_PATH" --level patch
+  echo ""
+else
+  echo "  ⚠  $BUMP_SCRIPT not found — skipping version bump"
+  echo "     Your upload may be a no-op if currentVersion is unchanged."
+  echo ""
+fi
+
 start=$(date +%s)
 
 demisto-sdk upload \
