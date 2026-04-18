@@ -129,6 +129,43 @@ def git_new_packs(base: str = "origin/main") -> list[Path]:
     return _git_diff_packs(base, "A")
 
 
+def packs_with_contributor_copies() -> list[Path]:
+    """
+    Return pack directories that contain any `*_copy.yml` or `*_copy.json`.
+
+    `_copy` is the contributor convention for submitting a replacement
+    playbook or list. XSIAM's "Save a Copy" bakes `_copy` into both the
+    filename AND the internal id/name fields, so a committed _copy file
+    won't be caught by a content-hash duplicate check — the id and name
+    differ from the canonical file.
+
+    normalize_contribution.py is the only thing that knows how to merge:
+    it strips the _copy suffix from internal fields, writes the result
+    to the canonical filename, and deletes the _copy. If a _copy is
+    still on disk after normalize, that pack was never in normalize's
+    scope — usually because the _copy file was committed on a previous
+    branch rather than added on the current one.
+
+    This helper forces any pack with a lingering _copy file back into
+    the normalize scope regardless of git diff.
+    """
+    packs: dict[str, Path] = {}
+    root = Path("Packs")
+    if not root.is_dir():
+        return []
+    for pattern in ("*_copy.yml", "*_copy.json"):
+        for p in root.rglob(pattern):
+            try:
+                idx = p.parts.index("Packs")
+                pack_name = p.parts[idx + 1]
+                pack_path = Path("Packs") / pack_name
+                if (pack_path / "pack_metadata.json").exists():
+                    packs[pack_name] = pack_path
+            except (ValueError, IndexError):
+                continue
+    return sorted(packs.values())
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Step runner — executes a tool and captures result
 # ─────────────────────────────────────────────────────────────────────────────
@@ -173,6 +210,30 @@ def run_step(
             print(f"::error::{name} failed — see output above")
 
     return StepResult(name, result.returncode if not allow_fail else 0, "")
+
+
+def abort_if_failed(results: list, gate_name: str) -> None:
+    """Bail out immediately if any step in results failed.
+
+    Called at pipeline gates where continuing would be a waste of time —
+    e.g. no point running pack_prep if normalize failed, no point
+    uploading if validation failed.
+    """
+    failures = [r for r in results if not r.passed]
+    if not failures:
+        return
+    print()
+    print("━" * 62)
+    print(ERR(f"  ✗ Halting at gate: {gate_name}"))
+    print(ERR(f"  ✗ {len(failures)} blocking failure(s):"))
+    for f in failures:
+        print(ERR(f"      • {f.name}"))
+    print()
+    print(DIM("  Fix the errors above before re-running."))
+    print(DIM("  Upload skipped — nothing to deploy with broken content."))
+    print("━" * 62)
+    print()
+    sys.exit(1)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,9 +301,15 @@ def main() -> None:
           + ", ".join(INFO(p.name) for p in packs))
 
     # ── Step 1: Normalize ─────────────────────────────────────────────────────
-    # Only runs on genuinely new (Added) files — never on modifications to
-    # existing content. Running normalize on modified files strips structure
-    # that was already correct when the content was first contributed.
+    # Runs on any pack that has either:
+    #   (a) genuinely new (Added) files per git diff, or
+    #   (b) a `*_copy.yml` or `*_copy.json` on disk — the contributor
+    #       submission convention that must be merged and cleaned up.
+    # Both signals mean "there's content here that needs to be merged into
+    # canonical form before anything downstream runs." The second branch
+    # catches the case where a _copy file was committed on a previous
+    # branch and never processed — git diff won't flag it as new, but it
+    # still needs normalize to collapse it into the canonical file.
     results: list[StepResult] = []
 
     if args.input:
@@ -252,17 +319,27 @@ def main() -> None:
         results.append(run_step("Normalize contribution", normalize_cmd, args.ci))
     else:
         new_packs = git_new_packs(args.base)
-        if new_packs:
-            # New files found — normalize each pack that has additions
-            for new_pack in new_packs:
+        copy_packs = packs_with_contributor_copies()
+        # Union, preserving order (git-new first, then any copy-only packs)
+        packs_to_normalize = list(new_packs)
+        for p in copy_packs:
+            if p not in packs_to_normalize:
+                packs_to_normalize.append(p)
+
+        if packs_to_normalize:
+            for pack in packs_to_normalize:
                 normalize_cmd = [sys.executable, "tools/normalize_contribution.py",
-                                  "--input", str(new_pack)]
+                                  "--input", str(pack)]
                 results.append(run_step(
-                    f"Normalize contribution — {new_pack.name}",
+                    f"Normalize contribution — {pack.name}",
                     normalize_cmd, args.ci,
                 ))
         else:
-            print(f"\n  {OK('✓')}  Normalize — no new files (modifications only, skipped)")
+            print(f"\n  {OK('✓')}  Normalize — no new files or _copy artifacts (skipped)")
+
+    # ── Gate: if normalize broke, stop before pack_prep ───────────────────────
+    # pack_prep and everything downstream assumes normalized content.
+    abort_if_failed(results, "normalize")
 
     # ── Per-pack steps ────────────────────────────────────────────────────────
     for pack in packs:
@@ -333,6 +410,12 @@ def main() -> None:
         [sys.executable, "tools/validate_shadow_mode.py", "--all"],
         args.ci,
     ))
+
+    # ── Gate: abort before upload if any validation failed ────────────────────
+    # No point shipping content that's known-broken. Halt here so the user fixes
+    # issues locally instead of waiting for the upload to fail (or worse,
+    # succeed and silently break the tenant).
+    abort_if_failed(results, "pre-upload validation")
 
     # ── Step 7: upload ────────────────────────────────────────────────────────
     if not args.no_upload:

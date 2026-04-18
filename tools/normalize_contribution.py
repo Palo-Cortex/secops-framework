@@ -490,6 +490,22 @@ def collect_files(input_path: Optional[Path], base: str = "origin/main") -> list
                 "     Make sure you are on a branch and 'git fetch origin' has run."
             ))
             return _walk_directory(input_path)
+        # Even with no git diff, any `_copy` files on disk must be processed —
+        # they are the contributor replacement convention. See block below for
+        # full rationale. Scope to input_path if given, otherwise the whole
+        # Packs/ tree.
+        scan_root = input_path if (input_path is not None and input_path.is_dir()) else Path("Packs")
+        if scan_root.is_dir():
+            copy_files = []
+            for pattern in ("*_copy.yml", "*_copy.json"):
+                for p in scan_root.rglob(pattern):
+                    try:
+                        rel = p.resolve().relative_to(Path.cwd())
+                    except ValueError:
+                        rel = p
+                    copy_files.append(rel)
+            if copy_files:
+                return sorted(copy_files)
         return []
 
     # Filter to Packs/ only (git diff may include tools/, .github/, etc.)
@@ -506,6 +522,31 @@ def collect_files(input_path: Optional[Path], base: str = "origin/main") -> list
             f for f in packs_files
             if str(f).startswith(str(rel_input))
         ]
+
+    # ── Always include `_copy` files, even if git diff didn't surface them ────
+    # _copy.yml / _copy.json are the contributor replacement convention: when
+    # present on disk they MUST be processed so normalize can strip the _copy
+    # suffix from internal id/name fields, write to the canonical filename,
+    # and delete the _copy. If such a file was committed on a previous branch
+    # rather than added on the current one, git diff won't flag it and the
+    # cleanup gets skipped. This scan closes that hole.
+    scan_root = Path("Packs")
+    if input_path is not None and input_path.is_dir():
+        scan_root = input_path
+    if scan_root.is_dir():
+        extra = set()
+        for pattern in ("*_copy.yml", "*_copy.json"):
+            for p in scan_root.rglob(pattern):
+                try:
+                    rel = p.resolve().relative_to(Path.cwd())
+                except ValueError:
+                    rel = p
+                extra.add(rel)
+        # Merge without duplicating anything already in packs_files
+        existing = {str(f) for f in packs_files}
+        for f in sorted(extra):
+            if str(f) not in existing:
+                packs_files.append(f)
 
     return sorted(packs_files)
 
@@ -690,22 +731,54 @@ def _fix_task_id_mismatches(text: str) -> tuple[str, bool]:
     return result, changed
 
 
+def _find_tasks_section(text: str):
+    """Locate (start, end) byte range of the tasks: section in raw text.
+
+    start is just after the 'tasks:' line; end is at the next column-0 key.
+    Returns None if no tasks section.
+    """
+    head = re.search(r"^tasks:\s*$", text, flags=re.MULTILINE)
+    if not head:
+        return None
+    section_start = head.end()
+    nxt = re.search(
+        r"^[a-zA-Z][a-zA-Z0-9_]*\s*:",
+        text[section_start:],
+        flags=re.MULTILINE,
+    )
+    section_end = section_start + (nxt.start() if nxt else len(text) - section_start)
+    return section_start, section_end
+
+
 def _renumber_alphanumeric_task_ids(text: str) -> tuple[str, bool]:
     """
     Replace non-integer task IDs (e.g. '18a', '18b') with sequential integers.
 
     XSIAM task IDs must be quoted integers. Alphanumeric IDs sometimes appear
     in playbooks built outside the standard UI. This function:
-      1. Scans for quoted task key declarations at 2-space indent
+      1. Scans the tasks: section for keys at 2-space indent
       2. Identifies any that are not pure integers
       3. Assigns them the next available integers after the current maximum
       4. Updates both the task key declarations and all nexttasks references
 
-    Task IDs in XSIAM YAML are always quoted ('0':, '18a':). Unquoted keys
-    at the same indent level are structural keys (task:, nexttasks:, etc.)
-    and are excluded by requiring the quotes in the pattern.
+    SAFETY: the scan is scoped to the tasks: section. Without this scope the
+    same regex matches legitimate 2-space-indented keys elsewhere in the file
+    (contentitemfields: under contentitemexportablefields:, value: inside an
+    input block) and treats them as alphanumeric task IDs. The resulting
+    rename silently corrupts the playbook -- input defaults are dropped on
+    upload because the SDK treats unrecognised keys as ignored.
+
+    The rename loop below operates on the full text, but only matches the
+    specific alphanumeric IDs collected from the tasks: section, so it
+    cannot false-positive on unrelated keys.
     """
-    # Match task key declarations at 2-space indent.
+    bounds = _find_tasks_section(text)
+    if not bounds:
+        return text, False
+    section_start, section_end = bounds
+    tasks_section = text[section_start:section_end]
+
+    # Match task key declarations at 2-space indent within the tasks: section.
     # Handles both quoted ('18a':, "0":) and unquoted (g13:, g14i:) forms.
     # Unquoted alphanumeric keys are produced by some XSIAM export versions.
     task_key_re = re.compile(r"""^  ['"']?([\w\-]+)['"']?\s*:\s*$""", re.MULTILINE)
@@ -713,7 +786,7 @@ def _renumber_alphanumeric_task_ids(text: str) -> tuple[str, bool]:
     alpha_ids: list[str] = []
     max_int   = -1
 
-    for m in task_key_re.finditer(text):
+    for m in task_key_re.finditer(tasks_section):
         tid = m.group(1)
         if re.match(r"^-?\d+$", tid):
             max_int = max(max_int, int(tid))
