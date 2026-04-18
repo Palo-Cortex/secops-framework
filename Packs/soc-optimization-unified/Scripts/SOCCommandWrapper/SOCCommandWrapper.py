@@ -537,6 +537,7 @@ def post_dataset_payload(payload, tags=None):
             "xql-post-to-dataset",
             {
                 "using": "socfw_ir_execution",
+                "using-brand": "System XQL HTTP Collector",
                 "JSON": json.dumps(payload)
             }
         )

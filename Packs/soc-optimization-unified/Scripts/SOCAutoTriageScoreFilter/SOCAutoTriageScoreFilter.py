@@ -143,8 +143,9 @@ def main():
             execute_command(
                 'xql-post-to-dataset',
                 {
-                    'JSON': json.dumps(rows),
-                    'using': 'socfw_ir_execution'
+                    'using': 'socfw_ir_execution',
+                    'using-brand': 'System XQL HTTP Collector',
+                    'JSON': json.dumps(rows)
                 }
             )
         except Exception as e:
