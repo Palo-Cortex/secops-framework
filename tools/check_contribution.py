@@ -17,6 +17,10 @@ WORKFLOW
                                  files against known platform gotchas that the
                                  SDK does not catch (empty mitre_defs, missing
                                  null fields, empty .py files, MITRE mappings).
+  2.5. playbook_condition_lint   Validate playbook YAML for patterns that parse
+                                 cleanly but silently fail at runtime — broken
+                                 ${X / Y} context interpolations and
+                                 AND-impossible condition blocks.
   3. pack_prep.py                SDK validation, xsoar_config JSON integrity,
                                  cross-pack dependency version check.
   4. fix_errors.py (report)      Report BA101/BA106 issues without auto-fixing.
@@ -272,6 +276,19 @@ def main() -> None:
             results.append(run_step(
                 f"correlation_rule_preflight — {pack.name}",
                 [sys.executable, str(preflight_script), str(pack)],
+                args.ci,
+            ))
+
+        # ── Step 2.5: playbook_condition_lint ─────────────────────────────────
+        # Catches playbook YAML patterns that parse cleanly but silently fail:
+        # broken ${X / Y} context interpolations and AND-impossible conditions.
+        # The XSIAM Playbook Editor UI prevents these by construction; hand-written
+        # YAML bypasses that guardrail.
+        condition_lint = Path("tools/playbook_condition_lint.py")
+        if condition_lint.exists():
+            results.append(run_step(
+                f"playbook_condition_lint — {pack.name}",
+                [sys.executable, str(condition_lint), str(pack), "--quiet"],
                 args.ci,
             ))
 
