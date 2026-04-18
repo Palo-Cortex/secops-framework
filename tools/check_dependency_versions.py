@@ -111,6 +111,13 @@ def check_pack(
         url = entry.get("url", "")
         dep_name = pack_name_from_id(entry_id)
 
+        # Skip self-references. A pack's own entry in its xsoar_config.json
+        # always lags pack_catalog.json during its version-bump PR because
+        # the catalog updates post-release via build_pack_catalog.py. Strict-
+        # failing on it creates a merge deadlock with zero signal value.
+        if dep_name == pack_dir.name:
+            continue
+
         if dep_name not in catalog:
             continue
 
