@@ -85,10 +85,10 @@ class Mismatch:
 
 
 def check_pack(
-    pack_dir: Path,
-    catalog: dict[str, str],
-    fix_dep: str | None = None,
-    fix_all: bool = False,
+        pack_dir: Path,
+        catalog: dict[str, str],
+        fix_dep: str | None = None,
+        fix_all: bool = False,
 ) -> list[Mismatch]:
     """
     Returns Mismatch list for this pack.
@@ -202,21 +202,21 @@ def resolve_pack_dirs(packs_dir: Path, pack_arg: str | None) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--pack",
-        help="Scope to one pack (directory name under Packs/).")
+                        help="Scope to one pack (directory name under Packs/).")
     parser.add_argument("--fix", action="store_true",
-        help="Rewrite all stale URLs in-place.")
+                        help="Rewrite all stale URLs in-place.")
     parser.add_argument("--fix-dep",
-        help="Rewrite one specific dependency URL in-place.")
+                        help="Rewrite one specific dependency URL in-place.")
     parser.add_argument("--strict", action="store_true",
-        help="Exit 1 on any mismatch. No fix is applied.")
+                        help="Exit 1 on any mismatch. No fix is applied.")
     parser.add_argument("--pin", nargs=2, metavar=("DEP_NAME", "REASON"),
-        help="Add a suppression pin. Requires --pack.")
+                        help="Add a suppression pin. Requires --pack.")
     parser.add_argument("--actor", default="unknown",
-        help="GitHub actor written into pin records.")
+                        help="GitHub actor written into pin records.")
     parser.add_argument("--root", default=".",
-        help="Repo root (default: current directory).")
+                        help="Repo root (default: current directory).")
     parser.add_argument("--output-format", choices=["text", "github-comment"],
-        default="text")
+                        default="text")
     args = parser.parse_args()
 
     root = Path(args.root)
