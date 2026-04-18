@@ -3,13 +3,10 @@ fromversion: 5.0.0
 id: SOC Identity Eradication_V3
 version: -1
 name: SOC Identity Eradication_V3
-description: "Identity-specific eradication playbook. Runs inside SOC Eradication_V3 when\nSOCFramework.Product.category =\
-  \ \"Identity\".\n\nFlow:\n  1. Response gate - skip if response_recommended = false\n  2. Compromise level check - likely_compromised\
-  \ runs reset + revoke; suspicious runs revoke only\n  3. Universal Command: soc-reset-password (Shadow Mode by default)\n\
-  \  4. Universal Command: soc-revoke-tokens (Shadow Mode by default)\n  5. Set Eradication context keys and story\n\nShadow\
-  \ Mode: All vendor commands suppressed until PS flips SOCExecutionList_V3.\nUniversal Command reads shadow_mode directly\
-  \ from lists.SOCExecutionList_V3.\n\nContext keys set:\n  Eradication.attempted, Eradication.credentials_reset, Eradication.tokens_revoked,\
-  \ Eradication.story"
+description: "Identity-specific eradication playbook. Runs inside SOC Eradication_V3 when\nSOCFramework.Product.category = \"Identity\".\n\nFlow:\n  1. Response gate - skip if response_recommended = false\n\
+  \  2. Compromise level check - likely_compromised runs reset + revoke; suspicious runs revoke only\n  3. Universal Command: soc-reset-password (Shadow Mode by default)\n  4. Universal Command: soc-revoke-tokens\
+  \ (Shadow Mode by default)\n  5. Set Eradication context keys and story\n\nShadow Mode: All vendor commands suppressed until PS flips SOCExecutionList_V3.\nUniversal Command reads shadow_mode directly\
+  \ from lists.SOCExecutionList_V3.\n\nContext keys set:\n  Eradication.attempted, Eradication.credentials_reset, Eradication.tokens_revoked, Eradication.story"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -167,7 +164,7 @@ tasks:
       id: 5e9d32a5-7a16-556c-9d12-59b9a0cf8e84
       version: -1
       name: Reset Password - Universal Command
-      scriptName: SOCCommandWrapper
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
       brand: ''
@@ -231,7 +228,7 @@ tasks:
       id: 55faf68e-460c-5e6c-a548-932b360d1bd9
       version: -1
       name: Set Credentials Reset
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -291,7 +288,7 @@ tasks:
       id: fba8f3c8-f62f-54de-b88b-ee0db6fe85ee
       version: -1
       name: Set Credentials NOT Reset
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -326,7 +323,7 @@ tasks:
       id: 84b38bfc-cc25-54a2-b65e-09159468f3f6
       version: -1
       name: Revoke Tokens - Universal Command
-      scriptName: SOCCommandWrapper
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
       brand: ''
@@ -415,7 +412,7 @@ tasks:
       id: bbc23e09-ec5e-5170-b465-c07a93aaed70
       version: -1
       name: Set Eradication Attempted
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -450,7 +447,7 @@ tasks:
       id: 2bfa8905-0035-5e61-abd4-c7121d9cec0c
       version: -1
       name: Set Tokens Revoked
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -485,7 +482,7 @@ tasks:
       id: f60802bb-5b51-5a83-9a96-6283b9a757bd
       version: -1
       name: Set Eradication Story
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -537,7 +534,7 @@ tasks:
       id: 062df020-51da-5d2a-8af6-0b31cd23c72e
       version: -1
       name: Set Eradication Not Attempted
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -572,7 +569,7 @@ tasks:
       id: 196209f0-1c8b-50f0-9b7c-b1da83ebaf6a
       version: -1
       name: Set No Eradication Story
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -631,6 +628,80 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  '200':
+    id: '200'
+    taskid: e85aa53e-c174-41e0-86a9-ca62790023c3
+    type: regular
+    task:
+      id: e85aa53e-c174-41e0-86a9-ca62790023c3
+      version: -1
+      name: Write eradicationstory to incident field
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '99'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: incident.eradicationstory
+      value:
+        simple: ${Eradication.story}
+    separatecontext: false
+    continueonerrortype: ''
+    view: '{ "position": { "x": 50, "y": 3515 } }'
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '201':
+    id: '201'
+    taskid: 414b94a3-bced-41bc-9e21-6ee8c3a81cbb
+    type: regular
+    task:
+      id: 414b94a3-bced-41bc-9e21-6ee8c3a81cbb
+      version: -1
+      name: Set Eradication Story
+      description: Write phase narrative to Eradication.story. Foundation mirrors phase-namespace keys to case fields at phase boundaries; Workflow playbooks must not call setIncident directly.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '99'
+    scriptarguments:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Eradication.story
+      value:
+        simple: ${Eradication.story}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: '{ "position": { "x": 50, "y": 3515 } }'
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
 inputs:
 - key: compromise_level
   value:
@@ -656,102 +727,6 @@ inputs:
   required: false
   description: ''
   playbookInputQuery: null
-inputSections:
-- inputs:
-  - compromise_level
-  - compromise_decision
-  - response_recommended
-  - primary_entity_user
-  name: General (Inputs group)
-  description: Generic group for inputs
-  '200':
-    id: '200'
-    taskid: e85aa53e-c174-41e0-86a9-ca62790023c3
-    type: regular
-    task:
-      id: e85aa53e-c174-41e0-86a9-ca62790023c3
-      version: -1
-      name: Write eradicationstory to incident field
-      scriptName: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '99'
-    scriptarguments:
-      append:
-        simple: 'false'
-      force:
-        simple: 'true'
-      key:
-        simple: incident.eradicationstory
-      value:
-        simple: ${Eradication.story}
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-
-  '201':
-    id: '201'
-    taskid: 414b94a3-bced-41bc-9e21-6ee8c3a81cbb
-    type: regular
-    task:
-      id: 414b94a3-bced-41bc-9e21-6ee8c3a81cbb
-      version: -1
-      name: Write eradicationstory to issue field
-      description: commands.local.cmd.set.incident
-      script: Builtin|||setIncident
-      type: regular
-      iscommand: true
-      brand: Builtin
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '99'
-    scriptarguments:
-      eradicationstory:
-        simple: ${Eradication.story}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-
-outputSections:
-- outputs:
-  - Eradication.attempted
-  - Eradication.credentials_reset
-  - Eradication.tokens_revoked
-  - Eradication.story
-  name: General (Outputs group)
-  description: Generic group for outputs
 outputs:
 - contextPath: Eradication.attempted
   type: unknown
@@ -761,7 +736,4 @@ outputs:
   type: unknown
 - contextPath: Eradication.story
   type: unknown
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1860,\n      \"width\":\
-  \ 1100,\n      \"x\": 0,\n      \"y\": 50\n    }\n  }\n}"
-sourceplaybookid: SOC Data Eradication_V3
-dirtyInputs: false
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1860,\n      \"width\": 1100,\n      \"x\": 0,\n      \"y\": 50\n    }\n  }\n}"

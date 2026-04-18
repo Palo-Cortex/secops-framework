@@ -1,6 +1,7 @@
+adopted: true
 fromversion: 5.0.0
 id: SOC Containment_V3
-version: 7
+version: -1
 contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
@@ -12,7 +13,6 @@ contentitemexportablefields:
     prevname: ""
     isoverridable: false
     supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Containment_V3
 description: |-
   Limit the damage, stop the attacker’s ability to continue harmful activity, and prevent the alert from spreading while preserving evidence and keeping essential business operations running.
@@ -31,7 +31,7 @@ description: |-
 
   Coordinating with stakeholders to select the right containment strategy (e.g., monitor, disconnect, shutdown, or redirect).
 
-  Outcome:
+  '9006':
   The alert is stabilized, the attacker’s ability to cause further harm is limited, and the environment is safe enough to begin eradication and recovery without losing essential evidence.
 tags:
 - SOC
@@ -495,20 +495,20 @@ tasks:
         simple: ${Analysis.case_score}
       CompromiseLevel:
         complex:
-          root: ${Analysis
-          accessor: compromise_level}
+          root: Analysis
+          accessor: compromise_level
           transformers:
           - operator: toLowerCase
       Confidence:
         complex:
-          root: ${Analysis
-          accessor: confidence}
+          root: Analysis
+          accessor: confidence
           transformers:
           - operator: toLowerCase
       ExecutionConfirmed:
         complex:
-          root: ${Analysis
-          accessor: compromise_decision}
+          root: Analysis
+          accessor: compromise_decision
           transformers:
           - operator: toLowerCase
       FeaturedHost:
@@ -519,8 +519,8 @@ tasks:
         simple: ${SOCFramework.Product.response}
       Verdict:
         complex:
-          root: ${Analysis
-          accessor: verdict}
+          root: Analysis
+          accessor: verdict
           transformers:
           - operator: toLowerCase
     separatecontext: true
@@ -1223,7 +1223,7 @@ tasks:
       id: c47d557d-c843-42bd-84b3-7825d3179091
       version: -1
       name: Set Containment Not Required
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -1266,7 +1266,7 @@ tasks:
       id: 188c332a-c6aa-4204-b61d-7498a069d059
       version: -1
       name: Set Containment Action — None
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -1309,7 +1309,7 @@ tasks:
       id: da7884c4-ccd3-4497-9c37-b0295e4096aa
       version: -1
       name: Set Containment Story — No Action
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -1357,7 +1357,7 @@ tasks:
       id: 79d54bf7-c598-43c6-82fc-6e295e08940e
       version: -1
       name: Set Phase — Containment
-      scriptName: Set
+      script: Set
       type: regular
       iscommand: false
       brand: ""
@@ -1365,7 +1365,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "21"
+      - "9001"
     scriptarguments:
       key:
         simple: SOCFramework.phase
@@ -1379,6 +1379,179 @@ tasks:
         "position": {
           "x": 950,
           "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9001":
+    id: "9001"
+    taskid: e4f20720-2ca5-4d5d-b9b1-containdef0001
+    type: regular
+    task:
+      id: e4f20720-2ca5-4d5d-b9b1-containdef0001
+      version: -1
+      name: Set Containment Default — required
+      description: Default Containment.required=false at phase start so every run
+        leaves evidence in context even if no product branch fires. Force:true so
+        actual decisions overwrite.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "9002"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Containment.required
+      value:
+        simple: "false"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 950,
+          "y": 310
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9002":
+    id: "9002"
+    taskid: e4f20720-2ca5-4d5d-b9b1-containdef0002
+    type: regular
+    task:
+      id: e4f20720-2ca5-4d5d-b9b1-containdef0002
+      version: -1
+      name: Set Containment Default — action
+      description: Default Containment.action=none at phase start.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "9003"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Containment.action
+      value:
+        simple: none
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 950,
+          "y": 390
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9003":
+    id: "9003"
+    taskid: e4f20720-2ca5-4d5d-b9b1-containdef0003
+    type: regular
+    task:
+      id: e4f20720-2ca5-4d5d-b9b1-containdef0003
+      version: -1
+      name: Set Containment Default — story
+      description: Default story at phase start so dashboards and warroom summary
+        always have a string. Overwritten if a decision fires downstream.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "9004"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Containment.story
+      value:
+        simple: "Containment phase entered. No containment action taken; no product
+          branch or decision gate matched."
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 950,
+          "y": 470
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9004":
+    id: "9004"
+    taskid: e4f20720-2ca5-4d5d-b9b1-containdef0004
+    type: regular
+    task:
+      id: e4f20720-2ca5-4d5d-b9b1-containdef0004
+      version: -1
+      name: Set Containment Default — execution_mode
+      description: Default Containment.Execution so dashboards can filter shadow
+        vs production reliably even when no action was taken.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "21"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Containment.Execution
+      value:
+        simple: shadow
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 950,
+          "y": 550
         }
       }
     note: false
@@ -1418,20 +1591,6 @@ inputs:
   required: false
   description: ""
   playbookInputQuery: null
-inputSections:
-- inputs:
-  - ProductCategory
-  - ExecutionBranch
-  name: General (Inputs group)
-  description: Generic group for inputs
-outputSections:
-- outputs:
-  - Containment.status
-  - Containment.isolated_hosts
-  - Containment.action
-  - Containment.story
-  name: General (Outputs group)
-  description: Generic group for outputs
 outputs:
 - contextPath: Containment.status
   type: unknown
@@ -1441,5 +1600,11 @@ outputs:
   type: unknown
 - contextPath: Containment.story
   type: unknown
-sourceplaybookid: SOC Containment_V3
-adopted: true
+- contextPath: Containment.required
+  description: Whether containment action was required
+  type: unknown
+- contextPath: Containment.Execution
+  description: Execution mode (shadow or production) — used for dashboard filtering
+  type: unknown
+- contextPath: Containment.disabled_users
+  type: unknown

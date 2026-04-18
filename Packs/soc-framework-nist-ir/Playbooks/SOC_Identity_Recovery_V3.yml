@@ -3,11 +3,9 @@ fromversion: 5.0.0
 id: SOC Identity Recovery_V3
 version: -1
 name: SOC Identity Recovery_V3
-description: "Identity-specific recovery playbook. Runs inside SOC Recovery_V3 when\nSOCFramework.Product.category = \"Identity\"\
-  .\n\nFlow:\n  1. Eradication gate - only proceeds if Eradication.attempted = true\n  2. Universal Command: soc-enable-user\
-  \ (task 200, Shadow Mode by default)\n  3. Set Recovery context keys and story\n\nShadow Mode: All vendor commands suppressed\
-  \ until PS flips SOCExecutionList_V3.\nUniversal Command reads shadow_mode directly from lists.SOCExecutionList_V3.\n\n\
-  Context keys set:\n  Recovery.attempted, Recovery.account_restored, Recovery.monitoring_required,\n  Recovery.restore_method,\
+description: "Identity-specific recovery playbook. Runs inside SOC Recovery_V3 when\nSOCFramework.Product.category = \"Identity\".\n\nFlow:\n  1. Eradication gate - only proceeds if Eradication.attempted\
+  \ = true\n  2. Universal Command: soc-enable-user (task 200, Shadow Mode by default)\n  3. Set Recovery context keys and story\n\nShadow Mode: All vendor commands suppressed until PS flips SOCExecutionList_V3.\n\
+  Universal Command reads shadow_mode directly from lists.SOCExecutionList_V3.\n\nContext keys set:\n  Recovery.attempted, Recovery.account_restored, Recovery.monitoring_required,\n  Recovery.restore_method,\
   \ Recovery.story"
 tags:
 - SOC
@@ -115,7 +113,7 @@ tasks:
       id: 0c8201d0-dfbb-5adc-83a7-df14f680ff60
       version: -1
       name: Re-enable User Account - Universal Command
-      scriptName: SOCCommandWrapper
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
       brand: ''
@@ -179,7 +177,7 @@ tasks:
       id: a1bd3e77-3bef-5929-95cd-b2322fdad3fd
       version: -1
       name: Set Recovery Attempted
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -214,7 +212,7 @@ tasks:
       id: 48e962e5-864f-503b-be8e-987e6c89c964
       version: -1
       name: Set Account Restored
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -249,7 +247,7 @@ tasks:
       id: a3bdd25b-00bd-5a38-935d-f037f3b47f20
       version: -1
       name: Set Monitoring Required
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -284,7 +282,7 @@ tasks:
       id: e1c9a288-02dd-50c9-a003-a8474fb84777
       version: -1
       name: Set Restore Method
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -319,7 +317,7 @@ tasks:
       id: 4c55b721-438a-59ec-8f4c-923dd8493647
       version: -1
       name: Set Recovery Story
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -375,7 +373,7 @@ tasks:
       id: 48642fd6-397d-5841-86a9-71ec0ebd2930
       version: -1
       name: Set Recovery Not Attempted
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -410,7 +408,7 @@ tasks:
       id: 6c10f89f-3e71-5310-86c7-7314b4d28e1c
       version: -1
       name: Set No Recovery Story
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -469,18 +467,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-inputs:
-- key: compromise_decision
-  value:
-    simple: ${Analysis.compromise_decision}
-  required: false
-  description: ''
-  playbookInputQuery: null
-inputSections:
-- inputs:
-  - compromise_decision
-  name: General (Inputs group)
-  description: Generic group for inputs
   '201':
     id: '201'
     taskid: 4bf7d319-56e4-4339-b04c-6abd2c448aa7
@@ -489,7 +475,7 @@ inputSections:
       id: 4bf7d319-56e4-4339-b04c-6abd2c448aa7
       version: -1
       name: Write recoverystory to incident field
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -509,12 +495,7 @@ inputSections:
         simple: ${Recovery.story}
     separatecontext: false
     continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
+    view: '{ "position": { "x": 50, "y": 3515 } }'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -522,7 +503,6 @@ inputSections:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
   '202':
     id: '202'
     taskid: 22cb8d5f-7e04-4008-be4c-33eb4bfd938e
@@ -530,29 +510,30 @@ inputSections:
     task:
       id: 22cb8d5f-7e04-4008-be4c-33eb4bfd938e
       version: -1
-      name: Write recoverystory to issue field
-      description: commands.local.cmd.set.incident
-      script: Builtin|||setIncident
+      name: Set Recovery Story
+      description: Write phase narrative to Recovery.story. Foundation mirrors phase-namespace keys to case fields at phase boundaries; Workflow playbooks must not call setIncident directly.
+      script: SetAndHandleEmpty
       type: regular
-      iscommand: true
-      brand: Builtin
+      iscommand: false
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
       - '99'
     scriptarguments:
-      recoverystory:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Recovery.story
+      value:
         simple: ${Recovery.story}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
+    view: '{ "position": { "x": 50, "y": 3515 } }'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -560,16 +541,13 @@ inputSections:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-outputSections:
-- outputs:
-  - Recovery.attempted
-  - Recovery.account_restored
-  - Recovery.monitoring_required
-  - Recovery.restore_method
-  - Recovery.story
-  name: General (Outputs group)
-  description: Generic group for outputs
+inputs:
+- key: compromise_decision
+  value:
+    simple: ${Analysis.compromise_decision}
+  required: false
+  description: ''
+  playbookInputQuery: null
 outputs:
 - contextPath: Recovery.attempted
   type: unknown
@@ -581,7 +559,4 @@ outputs:
   type: unknown
 - contextPath: Recovery.story
   type: unknown
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1500,\n      \"width\":\
-  \ 1100,\n      \"x\": 0,\n      \"y\": 50\n    }\n  }\n}"
-sourceplaybookid: SOC Data Recovery_V3
-dirtyInputs: false
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 1500,\n      \"width\": 1100,\n      \"x\": 0,\n      \"y\": 50\n    }\n  }\n}"

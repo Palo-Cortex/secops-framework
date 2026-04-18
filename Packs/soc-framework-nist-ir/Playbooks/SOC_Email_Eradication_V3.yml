@@ -1,76 +1,51 @@
+adopted: true
 fromversion: 5.0.0
 id: SOC Email Eradication_V3
-version: 59
+version: -1
 contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
     packName: SOC Framework NIST IR (800-61)
     itemVersion: 1.2.0
     fromServerVersion: 6.10.0
-    toServerVersion: ""
-    definitionid: ""
-    prevname: ""
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
     isoverridable: false
     supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Eradication_V3
-description: |-
-  NIST IR 800-61 — Eradication Phase — Email / SEG
-
-  Removes the threat source by blocking the sender domain/address to prevent future delivery of the same campaign.
-
-  Value Driver: VD1 (Reduce Risk) — attack surface reduction; sender blocked before next campaign wave.
-  Value Driver: VD4 (Secure Growth) — persistent sender block closes the delivery vector at the SEG layer.
-
-  Gate: Containment.required=true (malicious verdict was confirmed and actioned).
-  All actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.
-
-  Routing:
-    Containment not required  → Eradication.attempted=false, no action
-    escalate_IR               → skip automated block, story for analyst
-    all other containment actions → soc-block-sender via SOCCommandWrapper
-
-  UC: soc-block-sender
-  Vendors: Mimecast / Microsoft Defender ATP / Proofpoint TAP v2
-  output_map: UC.Email.BlockSender.* (pending SOCCommandWrapper.py update)
-
-  Context keys produced:
-    Eradication.attempted
-    Eradication.success
-    Eradication.story
-    Eradication.Execution
+description: "NIST IR 800-61 — Eradication Phase — Email / SEG\n\nRemoves the threat source by blocking the sender domain/address to prevent future delivery of the same campaign.\n\nValue Driver: VD1 (Reduce\
+  \ Risk) — attack surface reduction; sender blocked before next campaign wave.\nValue Driver: VD4 (Secure Growth) — persistent sender block closes the delivery vector at the SEG layer.\n\nGate: Containment.required=true\
+  \ (malicious verdict was confirmed and actioned).\nAll actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.\n\nRouting:\n  Containment not required  → Eradication.attempted=false,\
+  \ no action\n  escalate_IR               → skip automated block, story for analyst\n  all other containment actions → soc-block-sender via SOCCommandWrapper\n\nUC: soc-block-sender\nVendors: Mimecast\
+  \ / Microsoft Defender ATP / Proofpoint TAP v2\noutput_map: UC.Email.BlockSender.* (pending SOCCommandWrapper.py update)\n\nContext keys produced:\n  Eradication.attempted\n  Eradication.success\n  Eradication.story\n\
+  \  Eradication.Execution"
 tags:
 - SOC
 - SOC_Framework_Unified
 - Eradication
 - NIST 800-61
 - Email
-starttaskid: "0"
+starttaskid: '0'
 tasks:
-  "0":
-    id: "0"
+  '0':
+    id: '0'
     taskid: 47cb54ec-1127-4920-8906-68a25e15a801
     type: start
     task:
       id: 47cb54ec-1127-4920-8906-68a25e15a801
       version: -1
-      name: ""
+      name: ''
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "1"
+      - '1'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 50
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 50\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -78,8 +53,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "1":
-    id: "1"
+  '1':
+    id: '1'
     taskid: 7c2adee8-98e2-4abe-9d53-3cc9da81775e
     type: title
     task:
@@ -88,21 +63,15 @@ tasks:
       name: Evaluate for Eradication
       type: title
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "2"
+      - '2'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 220
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 220\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -110,30 +79,30 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "2":
-    id: "2"
+  '2':
+    id: '2'
     taskid: 5d5a6073-f1d4-48f4-9754-dd8050781171
     type: condition
     task:
       id: 5d5a6073-f1d4-48f4-9754-dd8050781171
       version: -1
       name: Containment Was Required?
-      description: |-
-        Gate: only proceed to eradication if Containment.required=true.
-        Ensures eradication only runs when a malicious verdict was confirmed and a containment action was taken (or escalate_IR was set).
+      description: 'Gate: only proceed to eradication if Containment.required=true.
+
+        Ensures eradication only runs when a malicious verdict was confirmed and a containment action was taken (or escalate_IR was set).'
       type: condition
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "3"
-      "yes":
-      - "4"
+      - '3'
+      'yes':
+      - '4'
     separatecontext: false
     conditions:
-    - label: "yes"
+    - label: 'yes'
       condition:
       - - operator: isEqualString
           left:
@@ -142,16 +111,10 @@ tasks:
             iscontext: true
           right:
             value:
-              simple: "true"
+              simple: 'true'
           ignorecase: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 390
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 390\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -159,42 +122,36 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "3":
-    id: "3"
+  '3':
+    id: '3'
     taskid: e183e162-a7e5-4fcc-8673-9d6573d4cb3f
     type: regular
     task:
       id: e183e162-a7e5-4fcc-8673-9d6573d4cb3f
       version: -1
       name: Set Eradication Not Attempted
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "14"
+      - '14'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.attempted
       value:
-        simple: "false"
+        simple: 'false'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1655
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1655\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -202,8 +159,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "4":
-    id: "4"
+  '4':
+    id: '4'
     taskid: 8ef1c333-2a6b-4e3f-867f-f4da10a2b8c7
     type: title
     task:
@@ -212,21 +169,15 @@ tasks:
       name: Check Escalation Status
       type: title
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "5"
+      - '5'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 705,
-          "y": 575
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 705,\n    \"y\": 575\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -234,31 +185,32 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "5":
-    id: "5"
+  '5':
+    id: '5'
     taskid: 0d5ebb39-df36-4be9-91ef-2844e5894836
     type: condition
     task:
       id: 0d5ebb39-df36-4be9-91ef-2844e5894836
       version: -1
       name: Escalate IR? (Skip Automated Eradication)
-      description: |-
-        If response_recommended=escalate_IR, the IR team owns this case.
+      description: 'If response_recommended=escalate_IR, the IR team owns this case.
+
         Skip automated sender block — analyst will determine eradication scope.
-        Set attempted=false and story accordingly.
+
+        Set attempted=false and story accordingly.'
       type: condition
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "6"
-      "yes":
-      - "9"
+      - '6'
+      'yes':
+      - '9'
     separatecontext: false
     conditions:
-    - label: "yes"
+    - label: 'yes'
       condition:
       - - operator: isEqualString
           left:
@@ -269,14 +221,8 @@ tasks:
             value:
               simple: escalate_IR
           ignorecase: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 705,
-          "y": 745
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 705,\n    \"y\": 745\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -284,8 +230,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "6":
-    id: "6"
+  '6':
+    id: '6'
     taskid: e503b8a6-0d55-4a94-b4d4-d8165b0f3d23
     type: title
     task:
@@ -294,21 +240,15 @@ tasks:
       name: Block Sender
       type: title
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "7"
+      - '7'
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 930
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 930\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -316,23 +256,23 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "7":
-    id: "7"
+  '7':
+    id: '7'
     taskid: b72d34d9-0fa6-4fe5-bd43-2f7cdf6c99ca
     type: regular
     task:
       id: b72d34d9-0fa6-4fe5-bd43-2f7cdf6c99ca
       version: -1
       name: Block Sender — Universal Command
-      scriptName: SOCCommandWrapper
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "8"
+      - '8'
     scriptarguments:
       Action_Actor:
         simple: automation
@@ -370,14 +310,8 @@ tasks:
                 value:
                   simple: Shadow Mode,Eradication
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 1100
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 1100\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -385,42 +319,36 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "8":
-    id: "8"
+  '8':
+    id: '8'
     taskid: 6cd4e5ac-52b7-46f8-b72c-90ef77f514b3
     type: regular
     task:
       id: 6cd4e5ac-52b7-46f8-b72c-90ef77f514b3
       version: -1
       name: Set Eradication Attempted
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "10"
+      - '10'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.attempted
       value:
-        simple: "true"
+        simple: 'true'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 1285
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 1285\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -428,42 +356,36 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "9":
-    id: "9"
+  '9':
+    id: '9'
     taskid: 8d70459d-6a29-4957-b550-e8ef5ef664f0
     type: regular
     task:
       id: 8d70459d-6a29-4957-b550-e8ef5ef664f0
       version: -1
       name: Set Eradication Not Attempted — Escalate IR
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "13"
+      - '13'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.attempted
       value:
-        simple: "false"
+        simple: 'false'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1032.5,
-          "y": 1840
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 1032.5,\n    \"y\": 1840\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -471,42 +393,36 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "10":
-    id: "10"
+  '10':
+    id: '10'
     taskid: 4f6ffc9f-882d-427f-afc9-1565f3ded161
     type: regular
     task:
       id: 4f6ffc9f-882d-427f-afc9-1565f3ded161
       version: -1
       name: Set Eradication Success
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "11"
+      - '11'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.success
       value:
-        simple: "true"
+        simple: 'true'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 1470
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 1470\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -514,53 +430,55 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "11":
-    id: "11"
+  '11':
+    id: '11'
     taskid: a100330f-e2ac-46b8-b3c0-b2277a14f110
     type: regular
     task:
       id: a100330f-e2ac-46b8-b3c0-b2277a14f110
       version: -1
       name: Set Eradication Story
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "16"
+      - '16'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.story
       value:
-        simple: |-
-          Email eradication executed — sender blocked.
+        simple: 'Email eradication executed — sender blocked.
+
 
           Sender: ${SOCFramework.Artifacts.Email.From}
+
           Recipient: ${SOCFramework.Artifacts.Email.To}
+
           Subject: ${SOCFramework.Artifacts.Email.Subject}
+
           Threat URL: ${SOCFramework.Artifacts.Email.ThreatURL}
+
           Threat Type: ${SOCFramework.Artifacts.Email.ThreatType}
+
           Classification: ${SOCFramework.Email.TAP.Classification}
+
           Exposure: ${Analysis.Email.ExposureLevel} | Scope: ${Analysis.Email.RecipientScope}
+
           Containment action: ${Containment.action}
-          Shadow Mode: ${inputs.ShadowMode}
+
+          Shadow Mode: ${inputs.ShadowMode}'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 1655
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 1655\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -568,8 +486,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "12":
-    id: "12"
+  '12':
+    id: '12'
     taskid: 34854d98-d3f7-4549-9372-ad5634912193
     type: title
     task:
@@ -578,18 +496,12 @@ tasks:
       name: Done
       type: title
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 2210
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 2210\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -597,47 +509,43 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "13":
-    id: "13"
+  '13':
+    id: '13'
     taskid: 141edab4-5419-43ad-8c3e-9d00edc129d6
     type: regular
     task:
       id: 141edab4-5419-43ad-8c3e-9d00edc129d6
       version: -1
       name: Set No Eradication Story — Escalate IR
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "12"
+      - '12'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.story
       value:
-        simple: |-
-          Eradication deferred — escalate_IR recommendation.
+        simple: 'Eradication deferred — escalate_IR recommendation.
+
 
           Automated sender block skipped. IR analyst owns eradication scope.
+
           Sender: ${SOCFramework.Artifacts.Email.From}
-          Threat Classification: ${SOCFramework.Email.TAP.Classification}
+
+          Threat Classification: ${SOCFramework.Email.TAP.Classification}'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1032.5,
-          "y": 2025
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 1032.5,\n    \"y\": 2025\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -645,42 +553,36 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "14":
-    id: "14"
+  '14':
+    id: '14'
     taskid: aae3838a-6309-46c1-86f2-6859626678a7
     type: regular
     task:
       id: aae3838a-6309-46c1-86f2-6859626678a7
       version: -1
       name: Set Eradication Success False
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "15"
+      - '15'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.success
       value:
-        simple: "false"
+        simple: 'false'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1840
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1840\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -688,18 +590,18 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "15":
-    id: "15"
+  '15':
+    id: '15'
     taskid: b8f8435d-bc91-4e8a-a1b8-15600a989429
     type: regular
     task:
       id: b8f8435d-bc91-4e8a-a1b8-15600a989429
       version: -1
       name: Set No Eradication Story
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
@@ -707,25 +609,19 @@ tasks:
       - '201'
     scriptarguments:
       append:
-        simple: "false"
+        simple: 'false'
       force:
-        simple: "true"
+        simple: 'true'
       key:
         simple: Eradication.story
       value:
-        simple: |-
-          No eradication required. Verdict did not meet containment threshold.
-          Containment.required: ${Containment.required}
+        simple: 'No eradication required. Verdict did not meet containment threshold.
+
+          Containment.required: ${Containment.required}'
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 2025
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2025\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -733,8 +629,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "16":
-    id: "16"
+  '16':
+    id: '16'
     taskid: ab12cd34-ef56-7890-abcd-ef1234567890
     type: condition
     task:
@@ -744,17 +640,17 @@ tasks:
       description: Gates inbox rule removal. Only fires if Spread Evaluation set persistence_type=inbox_rule_persistence.
       type: condition
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "12"
-      "yes":
-      - "17"
+      - '12'
+      'yes':
+      - '17'
     separatecontext: false
     conditions:
-    - label: "yes"
+    - label: 'yes'
       condition:
       - - operator: isEqualString
           left:
@@ -764,14 +660,8 @@ tasks:
           right:
             value:
               simple: inbox_rule_persistence
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 490,
-          "y": 1840
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 1840\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -779,26 +669,24 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "17":
-    id: "17"
+  '17':
+    id: '17'
     taskid: bc23de45-fa67-8901-bcde-fa2345678901
     type: regular
     task:
       id: bc23de45-fa67-8901-bcde-fa2345678901
       version: -1
       name: Remove Inbox Rules — Universal Command
-      description: 'Calls soc-remove-inbox-rules via SOCCommandWrapper. Shadow Mode:
-        prints to warroom, no execution. Execute Mode: removes forwarding/auto-delete
-        rules created by attacker post-delivery.'
-      scriptName: SOCCommandWrapper
+      description: 'Calls soc-remove-inbox-rules via SOCCommandWrapper. Shadow Mode: prints to warroom, no execution. Execute Mode: removes forwarding/auto-delete rules created by attacker post-delivery.'
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
-      brand: ""
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "12"
+      - '12'
     scriptarguments:
       action:
         simple: soc-remove-inbox-rules
@@ -807,14 +695,8 @@ tasks:
       LifeCycle:
         simple: NIST_IR
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 602.5,
-          "y": 2025
-        }
-      }
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 602.5,\n    \"y\": 2025\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false
@@ -822,49 +704,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-system: true
-view: |-
-  {
-    "linkLabelsPosition": {},
-    "paper": {
-      "dimensions": {
-        "height": 2220,
-        "width": 1362.5,
-        "x": 50,
-        "y": 50
-      }
-    }
-  }
-inputs:
-- key: ContainmentRequired
-  value:
-    simple: ${Containment.required}
-  required: false
-  description: Containment.required from Containment phase. true = malicious verdict
-    confirmed, action taken.
-  playbookInputQuery: null
-- key: ResponseRecommended
-  value:
-    simple: ${Analysis.Email.response_recommended}
-  required: false
-  description: Advisory from Verdict Resolution. escalate_IR skips automated block.
-  playbookInputQuery: null
-- key: PersistenceType
-  value: {}
-  required: false
-  description: Analysis.Email.persistence_type — inbox_rule_persistence gates inbox
-    rule removal task.
-  playbookInputQuery: null
-inputSections:
-- inputs:
-  - ContainmentRequired
-  - ResponseRecommended
-  - PersistenceType
-  name: Containment Contract
-  description: Gate and routing inputs from Containment phase
-- inputs: []
-  name: Execution Context
-  description: Shadow mode from SOCExecutionList_V3
   '200':
     id: '200'
     taskid: 72587523-4254-4c30-9698-f1c295f663d4
@@ -873,7 +712,7 @@ inputSections:
       id: 72587523-4254-4c30-9698-f1c295f663d4
       version: -1
       name: Write eradicationstory to incident field
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -893,12 +732,7 @@ inputSections:
         simple: ${Eradication.story}
     separatecontext: false
     continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
+    view: '{ "position": { "x": 50, "y": 3515 } }'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -906,7 +740,6 @@ inputSections:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
   '201':
     id: '201'
     taskid: 77898518-2c9c-4251-b2ea-f641e600f5fe
@@ -914,29 +747,30 @@ inputSections:
     task:
       id: 77898518-2c9c-4251-b2ea-f641e600f5fe
       version: -1
-      name: Write eradicationstory to issue field
-      description: commands.local.cmd.set.incident
-      script: Builtin|||setIncident
+      name: Set Eradication Story
+      description: Write phase narrative to Eradication.story. Foundation mirrors phase-namespace keys to case fields at phase boundaries; Workflow playbooks must not call setIncident directly.
+      script: SetAndHandleEmpty
       type: regular
-      iscommand: true
-      brand: Builtin
+      iscommand: false
+      brand: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
       - '12'
     scriptarguments:
-      eradicationstory:
+      append:
+        simple: 'false'
+      force:
+        simple: 'true'
+      key:
+        simple: Eradication.story
+      value:
         simple: ${Eradication.story}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
-    view: "{
-  \"position\": {
-    \"x\": 50,
-    \"y\": 3515
-  }
-}"
+    view: '{ "position": { "x": 50, "y": 3515 } }'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -944,15 +778,26 @@ inputSections:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-
-outputSections:
-- outputs:
-  - Eradication.attempted
-  - Eradication.success
-  - Eradication.story
-  - Eradication.Execution
-  name: Eradication Contract
-  description: Consumed by Recovery phase and Value Metrics dashboard
+system: true
+view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 2220,\n      \"width\": 1362.5,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
+inputs:
+- key: ContainmentRequired
+  value:
+    simple: ${Containment.required}
+  required: false
+  description: Containment.required from Containment phase. true = malicious verdict confirmed, action taken.
+  playbookInputQuery: null
+- key: ResponseRecommended
+  value:
+    simple: ${Analysis.Email.response_recommended}
+  required: false
+  description: Advisory from Verdict Resolution. escalate_IR skips automated block.
+  playbookInputQuery: null
+- key: PersistenceType
+  value: {}
+  required: false
+  description: Analysis.Email.persistence_type — inbox_rule_persistence gates inbox rule removal task.
+  playbookInputQuery: null
 outputs:
 - contextPath: Eradication.attempted
   description: true if eradication action was attempted
@@ -966,4 +811,3 @@ outputs:
 - contextPath: Eradication.Execution
   description: SOCCommandWrapper execution record — written to xsiam_socfw_ir_execution_raw
   type: unknown
-adopted: true
