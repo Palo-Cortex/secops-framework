@@ -23,7 +23,7 @@ description: |-
   Value Driver: VD2 (Simplify Ops) — Universal Command abstracts retract/quarantine across Microsoft Graph, Gmail, Trend Micro, Mimecast.
 
   Gate: verdict=malicious AND confidence=high or medium.
-  All actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.
+  All actions run through SOCCommandWrapper — shadow_mode read from SOCFrameworkActions_V3.
 
   Routing by Analysis.Email.response_recommended:
     escalate_IR     → no automated action, story set for analyst engagement
@@ -477,31 +477,6 @@ tasks:
         simple: soc-retract-email
       output_key:
         simple: Containment.Execution
-      tags:
-        complex:
-          root: inputs.ShadowMode
-          transformers:
-            - operator: If-Then-Else
-              args:
-                condition: {}
-                conditionB: {}
-                conditionInBetween: {}
-                else:
-                  value:
-                    simple: Containment
-                equals:
-                  value:
-                    simple: inputs.ShadowMode
-                  iscontext: true
-                lhs: {}
-                lhsB: {}
-                options: {}
-                optionsB: {}
-                rhs: {}
-                rhsB: {}
-                then:
-                  value:
-                    simple: Shadow Mode,Containment
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -578,31 +553,6 @@ tasks:
         simple: soc-retract-email
       output_key:
         simple: Containment.Execution
-      tags:
-        complex:
-          root: inputs.ShadowMode
-          transformers:
-            - operator: If-Then-Else
-              args:
-                condition: {}
-                conditionB: {}
-                conditionInBetween: {}
-                else:
-                  value:
-                    simple: Containment
-                equals:
-                  value:
-                    simple: inputs.ShadowMode
-                  iscontext: true
-                lhs: {}
-                lhsB: {}
-                options: {}
-                optionsB: {}
-                rhs: {}
-                rhsB: {}
-                then:
-                  value:
-                    simple: Shadow Mode,Containment
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -751,31 +701,6 @@ tasks:
         simple: soc-quarantine-email
       output_key:
         simple: Containment.Execution
-      tags:
-        complex:
-          root: inputs.ShadowMode
-          transformers:
-            - operator: If-Then-Else
-              args:
-                condition: {}
-                conditionB: {}
-                conditionInBetween: {}
-                else:
-                  value:
-                    simple: Containment
-                equals:
-                  value:
-                    simple: inputs.ShadowMode
-                  iscontext: true
-                lhs: {}
-                lhsB: {}
-                options: {}
-                optionsB: {}
-                rhs: {}
-                rhsB: {}
-                then:
-                  value:
-                    simple: Shadow Mode,Containment
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -870,7 +795,6 @@ tasks:
           Subject: ${SOCFramework.Artifacts.Email.Subject}
           Message ID: ${SOCFramework.Artifacts.Email.MessageID}
           Exposure: ${Analysis.Email.ExposureLevel} | Scope: ${Analysis.Email.RecipientScope}
-          Shadow Mode: ${inputs.ShadowMode}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""

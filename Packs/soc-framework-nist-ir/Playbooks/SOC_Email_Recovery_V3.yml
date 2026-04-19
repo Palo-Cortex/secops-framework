@@ -1,6 +1,7 @@
+adopted: true
 fromversion: 5.0.0
 id: SOC Email Recovery_V3
-version: 19
+version: -1
 contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
@@ -12,7 +13,6 @@ contentitemexportablefields:
     prevname: ""
     isoverridable: false
     supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Recovery_V3
 description: |-
   NIST IR 800-61 — Recovery Phase — Email / SEG
@@ -23,7 +23,7 @@ description: |-
   Value Driver: VD3 (Efficiency) — automated recovery validation and FP correction eliminates manual post-alert cleanup steps.
 
   Gate: Eradication.attempted=true.
-  All actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.
+  All actions run through SOCCommandWrapper — shadow_mode read from SOCFrameworkActions_V3.
 
   Routing:
     Eradication not attempted → Recovery.status=not_required
@@ -167,7 +167,7 @@ tasks:
       id: 3d3fcd56-a89e-45a4-8a91-fb5355fb0c46
       version: -1
       name: Set Recovery Status — Not Required
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -210,7 +210,7 @@ tasks:
       id: 8484031c-b16e-4194-a25c-d6403c40c5ef
       version: -1
       name: Set Recovery Story — Not Required
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -339,7 +339,7 @@ tasks:
       id: 3022bb30-b24f-4c3c-9830-42ac49e44046
       version: -1
       name: Set Recovery Status — Eradication Failed
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -382,7 +382,7 @@ tasks:
       id: 6636b5f8-45a7-4ac8-9df9-70d819c8c40a
       version: -1
       name: Set Recovery Story — Eradication Failed
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -514,7 +514,7 @@ tasks:
       id: 1749786d-145c-4618-b36d-dead5677f857
       version: -1
       name: Unblock Sender — Universal Command
-      scriptName: SOCCommandWrapper
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
       brand: ""
@@ -534,31 +534,6 @@ tasks:
         simple: soc-unblock-sender
       output_key:
         simple: Recovery.Execution
-      tags:
-        complex:
-          root: inputs.ShadowMode
-          transformers:
-          - operator: If-Then-Else
-            args:
-              condition: {}
-              conditionB: {}
-              conditionInBetween: {}
-              else:
-                value:
-                  simple: Recovery
-              equals:
-                value:
-                  simple: inputs.ShadowMode
-                iscontext: true
-              lhs: {}
-              lhsB: {}
-              options: {}
-              optionsB: {}
-              rhs: {}
-              rhsB: {}
-              then:
-                value:
-                  simple: Shadow Mode,Recovery
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -583,7 +558,7 @@ tasks:
       id: 867a5fe0-ef2e-4291-b863-6ec9fddc8fb2
       version: -1
       name: Set Recovery Status — Contained
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -626,7 +601,7 @@ tasks:
       id: 6a3e4464-ebd0-47c2-8cc8-ac9fc5011283
       version: -1
       name: Set Recovery Monitoring Required
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -669,7 +644,7 @@ tasks:
       id: 971107c4-7541-4dc3-b01b-264ce22b5e08
       version: -1
       name: Set Recovery Status — False Positive Cleared
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -741,7 +716,7 @@ tasks:
       id: cad412ee-8c05-4b36-a37d-033d89427e39
       version: -1
       name: Set Recovery Story
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ""
@@ -767,7 +742,6 @@ tasks:
           Threat Classification: ${SOCFramework.Email.TAP.Classification}
           Exposure: ${Analysis.Email.ExposureLevel} | Scope: ${Analysis.Email.RecipientScope}
           Forensics available: ${Analysis.Email.forensics_available}
-          Shadow Mode: ${inputs.ShadowMode}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -822,24 +796,6 @@ inputs:
   required: false
   description: Analysis.Email.verdict — used to detect false positive (benign = unblock).
   playbookInputQuery: null
-inputSections:
-- inputs:
-  - EradicationAttempted
-  - EradicationSuccess
-  - Verdict
-  name: Eradication Contract
-  description: Gate and routing inputs from Eradication phase
-- inputs: []
-  name: Execution Context
-  description: Shadow mode from SOCExecutionList_V3
-outputSections:
-- outputs:
-  - Recovery.status
-  - Recovery.monitoring_required
-  - Recovery.story
-  - Recovery.Execution
-  name: Recovery Contract
-  description: Consumed by Value Metrics dashboard and post-incident review
 outputs:
 - contextPath: Recovery.status
   description: contained / not_required / eradication_failed / false_positive_cleared
@@ -853,4 +809,3 @@ outputs:
 - contextPath: Recovery.Execution
   description: SOCCommandWrapper execution record (false positive path only)
   type: unknown
-adopted: true
