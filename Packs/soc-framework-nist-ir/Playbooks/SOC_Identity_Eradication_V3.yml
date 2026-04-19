@@ -5,8 +5,8 @@ version: -1
 name: SOC Identity Eradication_V3
 description: "Identity-specific eradication playbook. Runs inside SOC Eradication_V3 when\nSOCFramework.Product.category = \"Identity\".\n\nFlow:\n  1. Response gate - skip if response_recommended = false\n\
   \  2. Compromise level check - likely_compromised runs reset + revoke; suspicious runs revoke only\n  3. Universal Command: soc-reset-password (Shadow Mode by default)\n  4. Universal Command: soc-revoke-tokens\
-  \ (Shadow Mode by default)\n  5. Set Eradication context keys and story\n\nShadow Mode: All vendor commands suppressed until PS flips SOCExecutionList_V3.\nUniversal Command reads shadow_mode directly\
-  \ from lists.SOCExecutionList_V3.\n\nContext keys set:\n  Eradication.attempted, Eradication.credentials_reset, Eradication.tokens_revoked, Eradication.story"
+  \ (Shadow Mode by default)\n  5. Set Eradication context keys and story\n\nShadow Mode: All vendor commands suppressed until PS flips shadow_mode in SOCFrameworkActions_V3.\nUniversal Command reads shadow_mode directly\
+  \ from lists.SOCFrameworkActions_V3.\n\nContext keys set:\n  Eradication.attempted, Eradication.credentials_reset, Eradication.tokens_revoked, Eradication.story"
 tags:
 - SOC
 - SOC_Framework_Unified
@@ -185,31 +185,6 @@ tasks:
         simple: SOCFrameworkActions_V3
       output_key:
         simple: Eradication.Execution
-      tags:
-        complex:
-          root: inputs.ShadowMode
-          transformers:
-          - operator: If-Then-Else
-            args:
-              condition: {}
-              conditionB: {}
-              conditionInBetween: {}
-              else:
-                value:
-                  simple: Eradication
-              equals:
-                value:
-                  simple: inputs.ShadowMode
-                iscontext: true
-              lhs: {}
-              lhsB: {}
-              options: {}
-              optionsB: {}
-              rhs: {}
-              rhsB: {}
-              then:
-                value:
-                  simple: Shadow Mode,Eradication
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": { \"x\": 180, \"y\": 720 }\n}"
@@ -344,31 +319,6 @@ tasks:
         simple: SOCFrameworkActions_V3
       output_key:
         simple: Eradication.Execution
-      tags:
-        complex:
-          root: inputs.ShadowMode
-          transformers:
-          - operator: If-Then-Else
-            args:
-              condition: {}
-              conditionB: {}
-              conditionInBetween: {}
-              else:
-                value:
-                  simple: Eradication
-              equals:
-                value:
-                  simple: inputs.ShadowMode
-                iscontext: true
-              lhs: {}
-              lhsB: {}
-              options: {}
-              optionsB: {}
-              rhs: {}
-              rhsB: {}
-              then:
-                value:
-                  simple: Shadow Mode,Eradication
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": { \"x\": 480, \"y\": 1060 }\n}"
@@ -506,7 +456,7 @@ tasks:
           Compromise Level: ${inputs.compromise_level}
 
 
-          Actions taken (Shadow Mode: ${inputs.ShadowMode}):
+          Actions taken:
 
           • Credentials reset: ${Eradication.credentials_reset}
 
@@ -515,7 +465,7 @@ tasks:
 
           In Shadow Mode all actions were logged to warroom and dataset.
 
-          Flip SOCExecutionList_V3 shadow_mode to false to enable live execution.'
+          Flip shadow_mode to false in SOCFrameworkActions_V3 to enable live execution.'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": { \"x\": 480, \"y\": 1655 }\n}"

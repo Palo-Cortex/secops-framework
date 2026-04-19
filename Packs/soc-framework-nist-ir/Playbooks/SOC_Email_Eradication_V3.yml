@@ -16,7 +16,7 @@ contentitemexportablefields:
 name: SOC Email Eradication_V3
 description: "NIST IR 800-61 — Eradication Phase — Email / SEG\n\nRemoves the threat source by blocking the sender domain/address to prevent future delivery of the same campaign.\n\nValue Driver: VD1 (Reduce\
   \ Risk) — attack surface reduction; sender blocked before next campaign wave.\nValue Driver: VD4 (Secure Growth) — persistent sender block closes the delivery vector at the SEG layer.\n\nGate: Containment.required=true\
-  \ (malicious verdict was confirmed and actioned).\nAll actions run through SOCCommandWrapper — shadow_mode read from SOCExecutionList_V3.\n\nRouting:\n  Containment not required  → Eradication.attempted=false,\
+  \ (malicious verdict was confirmed and actioned).\nAll actions run through SOCCommandWrapper — shadow_mode read from SOCFrameworkActions_V3.\n\nRouting:\n  Containment not required  → Eradication.attempted=false,\
   \ no action\n  escalate_IR               → skip automated block, story for analyst\n  all other containment actions → soc-block-sender via SOCCommandWrapper\n\nUC: soc-block-sender\nVendors: Mimecast\
   \ / Microsoft Defender ATP / Proofpoint TAP v2\noutput_map: UC.Email.BlockSender.* (pending SOCCommandWrapper.py update)\n\nContext keys produced:\n  Eradication.attempted\n  Eradication.success\n  Eradication.story\n\
   \  Eradication.Execution"
@@ -284,31 +284,6 @@ tasks:
         simple: NIST_IR
       output_key:
         simple: Eradication.Execution
-      tags:
-        complex:
-          root: inputs.ShadowMode
-          transformers:
-          - operator: If-Then-Else
-            args:
-              condition: {}
-              conditionB: {}
-              conditionInBetween: {}
-              else:
-                value:
-                  simple: Eradication
-              equals:
-                value:
-                  simple: inputs.ShadowMode
-                iscontext: true
-              lhs: {}
-              lhsB: {}
-              options: {}
-              optionsB: {}
-              rhs: {}
-              rhsB: {}
-              then:
-                value:
-                  simple: Shadow Mode,Eradication
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 490,\n    \"y\": 1100\n  }\n}"
@@ -472,9 +447,7 @@ tasks:
 
           Exposure: ${Analysis.Email.ExposureLevel} | Scope: ${Analysis.Email.RecipientScope}
 
-          Containment action: ${Containment.action}
-
-          Shadow Mode: ${inputs.ShadowMode}'
+          Containment action: ${Containment.action}'
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''

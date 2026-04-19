@@ -1,6 +1,7 @@
+adopted: true
 fromversion: 5.0.0
 id: SOC Email Signal Characterization_V3
-version: 11
+version: -1
 contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
@@ -12,7 +13,6 @@ contentitemexportablefields:
     prevname: ''
     isoverridable: false
     supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: SOC Email Signal Characterization_V3
 description: "Purpose\nDetermine what kind of email threat this is and build the indicator\
   \ intelligence needed for verdict resolution.\n\nThis is not verdict determination\
@@ -185,7 +185,7 @@ tasks:
       version: -1
       name: Assign DBot Score — URL
       description: Seeds DBot score for the threat URL from Proofpoint TAP signal.
-      scriptName: AddDBotScoreToContext
+      script: AddDBotScoreToContext
       type: regular
       iscommand: false
       brand: ''
@@ -325,7 +325,7 @@ tasks:
       version: -1
       name: Assign DBot Score — File
       description: Seeds DBot score for the attachment hash from Proofpoint TAP signal.
-      scriptName: AddDBotScoreToContext
+      script: AddDBotScoreToContext
       type: regular
       iscommand: false
       brand: ''
@@ -396,7 +396,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - g12
+      - '29'
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 695,\n    \"y\": 1130\n  }\n}"
@@ -464,7 +464,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - g14
+      - '30'
       'yes':
       - '15'
     separatecontext: false
@@ -544,7 +544,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - g14
+      - '30'
     scriptarguments:
       indicatorsValues:
         complex:
@@ -785,7 +785,7 @@ tasks:
       name: Get Indicator DBot Score
       description: Retrieves the cached DBot score for the threat indicator to use
         in verdict resolution.
-      scriptName: GetIndicatorDBotScoreFromCache
+      script: GetIndicatorDBotScoreFromCache
       type: regular
       iscommand: false
       brand: ''
@@ -819,7 +819,7 @@ tasks:
       description: Maps the numeric DBot score to the standard source_verdict string
         used in Analysis. Used as a secondary signal — primary verdict comes from
         Proofpoint ThreatStatus.
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -953,7 +953,7 @@ tasks:
       id: 2b8c2bd5-c608-4083-bf1b-d598cfa93e97
       version: -1
       name: Set Signal Type — url_phish
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -990,7 +990,7 @@ tasks:
       id: ace0321d-e7e3-4fea-a901-583b475a9687
       version: -1
       name: Set Signal Type — file_malware
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -1027,7 +1027,7 @@ tasks:
       id: 733d359e-2a41-4ce2-bb62-e9bbcebc0234
       version: -1
       name: Set Signal Type — unknown
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -1079,8 +1079,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  g12:
-    id: g12
+  '29':
+    id: 29
     taskid: 3f7e2d1c-4b5a-4987-b8c9-d0e1f2a3b4c5
     type: condition
     task:
@@ -1119,8 +1119,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  g14:
-    id: g14
+  '30':
+    id: 30
     taskid: 4e8f3d2c-5c6b-4098-c9da-e1f2a3b4c5d6
     type: condition
     task:
@@ -1200,25 +1200,6 @@ inputs:
   required: false
   description: Sender IP address for prevalence check
   playbookInputQuery: null
-inputSections:
-- inputs:
-  - ThreatType
-  - ThreatURL
-  - ThreatIndicator
-  name: Threat Artifact
-  description: Threat object inputs — populated from SOCFramework.Artifacts.Email.*
-    set by Foundation Normalize Artifacts
-- inputs:
-  - SenderDomain
-  - SenderIP
-  name: Sender
-  description: Sender identity inputs for prevalence analysis
-outputSections:
-- outputs:
-  - Analysis.Email.signal_type
-  - Analysis.Email.source_verdict
-  name: Signal Characterization
-  description: ''
 outputs:
 - contextPath: Analysis.Email.signal_type
   description: 'Behavioral classification of the email threat: url_phish / file_malware
@@ -1228,4 +1209,3 @@ outputs:
   description: 'DBot-derived indicator verdict: malicious / suspicious / benign. Secondary
     signal — primary verdict comes from ThreatStatus in SOC Email Verdict Resolution_V3.'
   type: string
-adopted: true
