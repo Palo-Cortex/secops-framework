@@ -81,7 +81,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts\n| filter severity = \"critical\" or severity = \"high\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
+                "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
                 "time_frame": {
                   "relativeTime": 604800000
                 },
@@ -112,7 +112,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts\n| comp count_distinct(alert_source) as security_tools\n| view graph type = single subtype = standard yaxis = security_tools ",
+                "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(data_source) as security_tools\n| view graph type = single subtype = standard yaxis = security_tools ",
                 "time_frame": {
                   "relativeTime": 604800000
                 },
@@ -215,7 +215,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts \n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by alert_source \n| sort desc total_alerts\n\n\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = alert_source yaxis = total_alerts ",
+                "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as total_alerts by data_source\n| sort desc total_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = total_alerts ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -226,21 +226,21 @@
                       "command": {
                         "op": "=",
                         "name": "show_callouts",
-                        "value": "true"
+                        "value": "`true`"
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "show_callouts_names",
-                        "value": "true"
+                        "value": "`true`"
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "xaxis",
-                        "value": "alert_source"
+                        "value": "data_source"
                       }
                     },
                     {
@@ -260,7 +260,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts\n| filter severity = \"critical\" or severity = \"high\"\n| comp count_distinct(alert_id) as critical_alerts by alert_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = alert_source yaxis = critical_alerts ",
+                "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as critical_alerts by data_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = critical_alerts ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -285,7 +285,7 @@
                       "command": {
                         "op": "=",
                         "name": "xaxis",
-                        "value": "alert_source"
+                        "value": "data_source"
                       }
                     },
                     {
@@ -308,44 +308,46 @@
               "key": "xql_1776716275191",
               "data": {
                 "type": "Custom XQL",
-                "width": 100,
+                "width": 30,
                 "height": 400,
-                "phrase": "dataset = alerts\n// Alert Detection Lag: time from event to XSIAM ingestion \u2014 maps to MTTD (VD1 & VD3)\n| alter event_ts_ms = to_integer(arrayindex(event_timestamp, 0))\n| alter ingest_ts_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(ingest_ts_ms, event_ts_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes) as avg_lag_min,\n    max(lag_minutes) as max_lag_min,\n    count() as alert_count\n  by alert_source\n| sort desc avg_lag_min\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Detection Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
+                "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter time_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, time_ms)\n| filter lag_ms >= 0 and lag_ms < 86400000\n| comp avg(lag_ms) as avg_lag_ms\n| alter avg_lag_seconds = divide(avg_lag_ms, 1000)\n| view graph type = single subtype = standard yaxis = avg_lag_seconds ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
                 "viewOptions": {
-                  "type": "column",
+                  "type": "single",
                   "commands": [
                     {
                       "command": {
                         "op": "=",
                         "name": "subtype",
-                        "value": "grouped"
-                      }
-                    },
-                    {
-                      "command": {
-                        "op": "=",
-                        "name": "layout",
-                        "value": "horizontal"
-                      }
-                    },
-                    {
-                      "command": {
-                        "op": "=",
-                        "name": "xaxis",
-                        "value": "alert_source"
+                        "value": "standard"
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "yaxis",
-                        "value": "avg_lag_min,max_lag_min"
+                        "value": "avg_lag_seconds"
                       }
                     }
                   ]
+                }
+              }
+            },
+            {
+              "key": "xql_1776720084844",
+              "data": {
+                "type": "Custom XQL",
+                "width": 70,
+                "height": 400,
+                "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter time_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, time_ms)\n| filter lag_ms >= 0 and lag_ms < 86400000\n| comp count(alert_id) as alert_count, avg(lag_ms) as avg_lag_ms by data_source\n| alter avg_lag_seconds = divide(avg_lag_ms, 1000)\n| fields data_source, alert_count, avg_lag_seconds\n| sort desc avg_lag_seconds\n| limit 20",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "table",
+                  "commands": []
                 }
               }
             }
@@ -487,9 +489,9 @@
       "widget_key": "xql_1776716275189",
       "title": "Total Alerts By Source",
       "creation_time": 1776716275189,
-      "description": "How many alerts are native XSIAM alerts",
+      "description": "Alert count grouped by vendor data source (DS: tag).",
       "data": {
-        "phrase": "dataset = alerts \n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by alert_source \n| sort desc total_alerts\n\n\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = alert_source yaxis = total_alerts ",
+        "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as total_alerts by data_source\n| sort desc total_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = total_alerts ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -500,21 +502,21 @@
               "command": {
                 "op": "=",
                 "name": "show_callouts",
-                "value": "true"
+                "value": "`true`"
               }
             },
             {
               "command": {
                 "op": "=",
                 "name": "show_callouts_names",
-                "value": "true"
+                "value": "`true`"
               }
             },
             {
               "command": {
                 "op": "=",
                 "name": "xaxis",
-                "value": "alert_source"
+                "value": "data_source"
               }
             },
             {
@@ -581,43 +583,29 @@
     },
     {
       "widget_key": "xql_1776716275191",
-      "title": "Alert Detection Lag by Source",
+      "title": "Avg Alert Ingestion Lag (sec)",
       "creation_time": 1776716275191,
-      "description": "Time from source event to XSIAM ingestion by alert source. Maps to MTTD \u2014 VD1 & VD3.",
+      "description": "Average delay (seconds) from event capture (_time) to alert record creation (alert_arrival_timestamp), across all DS-tagged sources.",
       "data": {
-        "phrase": "dataset = alerts\n// Alert Detection Lag: time from event to XSIAM ingestion \u2014 maps to MTTD (VD1 & VD3)\n| alter event_ts_ms = to_integer(arrayindex(event_timestamp, 0))\n| alter ingest_ts_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(ingest_ts_ms, event_ts_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes) as avg_lag_min,\n    max(lag_minutes) as max_lag_min,\n    count() as alert_count\n  by alert_source\n| sort desc avg_lag_min\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Detection Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
+        "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter time_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, time_ms)\n| filter lag_ms >= 0 and lag_ms < 86400000\n| comp avg(lag_ms) as avg_lag_ms\n| alter avg_lag_seconds = divide(avg_lag_ms, 1000)\n| view graph type = single subtype = standard yaxis = avg_lag_seconds ",
         "time_frame": {
           "relativeTime": 86400000
         },
         "viewOptions": {
-          "type": "column",
+          "type": "single",
           "commands": [
             {
               "command": {
                 "op": "=",
                 "name": "subtype",
-                "value": "grouped"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "layout",
-                "value": "horizontal"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "xaxis",
-                "value": "alert_source"
+                "value": "standard"
               }
             },
             {
               "command": {
                 "op": "=",
                 "name": "yaxis",
-                "value": "avg_lag_min,max_lag_min"
+                "value": "avg_lag_seconds"
               }
             }
           ]
@@ -640,7 +628,7 @@
       "creation_time": 1776716275192,
       "description": "Severity critical+high alert count",
       "data": {
-        "phrase": "dataset = alerts\n| filter severity = \"critical\" or severity = \"high\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
+        "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
         "time_frame": {
           "relativeTime": 604800000
         },
@@ -679,9 +667,9 @@
       "widget_key": "xql_1776716275193",
       "title": "Critical Alerts by Source",
       "creation_time": 1776716275193,
-      "description": "Critical+high severity alerts grouped by source",
+      "description": "Critical+High severity alerts grouped by vendor data source (DS: tag).",
       "data": {
-        "phrase": "dataset = alerts\n| filter severity = \"critical\" or severity = \"high\"\n| comp count_distinct(alert_id) as critical_alerts by alert_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = alert_source yaxis = critical_alerts ",
+        "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as critical_alerts by data_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = critical_alerts ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -706,7 +694,7 @@
               "command": {
                 "op": "=",
                 "name": "xaxis",
-                "value": "alert_source"
+                "value": "data_source"
               }
             },
             {
@@ -734,9 +722,9 @@
       "widget_key": "xql_1776716275194",
       "title": "Security Tools Integrated",
       "creation_time": 1776716275194,
-      "description": "Distinct alert sources ingesting into XSIAM",
+      "description": "Distinct vendor data sources (DS: tags) emitting alerts.",
       "data": {
-        "phrase": "dataset = alerts\n| comp count_distinct(alert_source) as security_tools\n| view graph type = single subtype = standard yaxis = security_tools ",
+        "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(data_source) as security_tools\n| view graph type = single subtype = standard yaxis = security_tools ",
         "time_frame": {
           "relativeTime": 604800000
         },
@@ -758,6 +746,32 @@
               }
             }
           ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "alerts"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776720084844",
+      "title": "Top 20 Slowest Data Sources",
+      "creation_time": 1776720084844,
+      "description": "Twenty slowest data sources by average alert ingestion lag. Columns: data_source, alert_count, avg_lag_seconds.",
+      "data": {
+        "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter time_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, time_ms)\n| filter lag_ms >= 0 and lag_ms < 86400000\n| comp count(alert_id) as alert_count, avg(lag_ms) as avg_lag_ms by data_source\n| alter avg_lag_seconds = divide(avg_lag_ms, 1000)\n| fields data_source, alert_count, avg_lag_seconds\n| sort desc avg_lag_seconds\n| limit 20",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "table",
+          "commands": []
         }
       },
       "support_time_range": true,
