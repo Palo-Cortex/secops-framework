@@ -171,10 +171,11 @@ def packs_with_contributor_copies() -> list[Path]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class StepResult:
-    def __init__(self, name: str, rc: int, output: str):
-        self.name   = name
-        self.rc     = rc
-        self.output = output
+    def __init__(self, name: str, rc: int, output: str, remediation: str = ""):
+        self.name        = name
+        self.rc          = rc
+        self.output      = output
+        self.remediation = remediation
 
     @property
     def passed(self) -> bool:
@@ -186,12 +187,17 @@ def run_step(
     cmd: list[str],
     ci_mode: bool = False,
     allow_fail: bool = False,
+    remediation: str = "",
 ) -> StepResult:
     """
     Run a single pipeline step, stream output to stdout, and return a result.
 
     allow_fail: if True, a non-zero exit code is treated as a warning rather
                 than a hard failure (used for fix_errors report-only mode).
+    remediation: human-readable instruction on how to repair a failure of this
+                 check — echoed in the halt summary so the fix command sits
+                 right next to the check name, not buried 200 lines above in
+                 the streamed tool output.
     """
     print(f"\n  {STEP('▶')}  {BOLD(name)}")
     print(f"     {DIM(' '.join(str(c) for c in cmd))}")
@@ -209,7 +215,12 @@ def run_step(
             # GitHub Actions error annotation
             print(f"::error::{name} failed — see output above")
 
-    return StepResult(name, result.returncode if not allow_fail else 0, "")
+    return StepResult(
+        name,
+        result.returncode if not allow_fail else 0,
+        "",
+        remediation,
+    )
 
 
 def abort_if_failed(results: list, gate_name: str) -> None:
@@ -226,10 +237,16 @@ def abort_if_failed(results: list, gate_name: str) -> None:
     print("━" * 62)
     print(ERR(f"  ✗ Halting at gate: {gate_name}"))
     print(ERR(f"  ✗ {len(failures)} blocking failure(s):"))
+    print()
     for f in failures:
         print(ERR(f"      • {f.name}"))
-    print()
-    print(DIM("  Fix the errors above before re-running."))
+        if f.remediation:
+            # Print each remediation line indented under the failed check name
+            # so the fix instruction sits right next to what needs fixing,
+            # not buried in 200 lines of streamed tool output above.
+            for line in f.remediation.splitlines():
+                print(f"        {DIM(line)}")
+            print()
     print(DIM("  Upload skipped — nothing to deploy with broken content."))
     print("━" * 62)
     print()
@@ -316,7 +333,17 @@ def main() -> None:
         # Explicit pack: always normalize — caller knows what they're doing
         normalize_cmd = [sys.executable, "tools/normalize_contribution.py",
                          "--input", str(args.input)]
-        results.append(run_step("Normalize contribution", normalize_cmd, args.ci))
+        results.append(run_step(
+            "Normalize contribution", normalize_cmd, args.ci,
+            remediation=(
+                "Normalize output above names the offending file(s). Common causes:\n"
+                "  • MISLOCATION — file in wrong directory (move as instructed)\n"
+                "  • missing/empty file — re-export from tenant\n"
+                "  • non-UTF-8 encoding — re-export from tenant\n"
+                "Re-run:\n"
+                f"  python3 tools/normalize_contribution.py --input {args.input}"
+            ),
+        ))
     else:
         new_packs = git_new_packs(args.base)
         copy_packs = packs_with_contributor_copies()
@@ -333,6 +360,14 @@ def main() -> None:
                 results.append(run_step(
                     f"Normalize contribution — {pack.name}",
                     normalize_cmd, args.ci,
+                    remediation=(
+                        "Normalize output above names the offending file(s). Common causes:\n"
+                        "  • MISLOCATION — file in wrong directory (move as instructed)\n"
+                        "  • missing/empty file — re-export from tenant\n"
+                        "  • non-UTF-8 encoding — re-export from tenant\n"
+                        "Re-run:\n"
+                        f"  python3 tools/normalize_contribution.py --input {pack}"
+                    ),
                 ))
         else:
             print(f"\n  {OK('✓')}  Normalize — no new files or _copy artifacts (skipped)")
@@ -354,6 +389,16 @@ def main() -> None:
                 f"correlation_rule_preflight — {pack.name}",
                 [sys.executable, str(preflight_script), str(pack)],
                 args.ci,
+                remediation=(
+                    "Preflight output above names the offending rule(s) and field(s).\n"
+                    "Common fixes per SOC Framework correlation rule schema rules:\n"
+                    "  • remove top-level 'rule_id: 0'\n"
+                    "  • add 'fromversion: 8.0.0' (unquoted)\n"
+                    "  • both 'id:' and 'ruleid:' must be present, same value\n"
+                    "  • 'alert_category: User Defined' (not 'OTHER')\n"
+                    "Re-run after editing:\n"
+                    f"  python3 tools/correlation_rule_preflight.py {pack}"
+                ),
             ))
 
         # ── Step 2.5: playbook_condition_lint ─────────────────────────────────
@@ -367,6 +412,13 @@ def main() -> None:
                 f"playbook_condition_lint — {pack.name}",
                 [sys.executable, str(condition_lint), str(pack), "--quiet"],
                 args.ci,
+                remediation=(
+                    "Auto-fix available for stale-numeric-key issues:\n"
+                    f"  python3 tools/playbook_condition_lint.py {pack} --fix\n"
+                    "Other findings (broken interpolations, AND-impossible conditions,\n"
+                    "broken task refs, duplicate content) require manual review — see\n"
+                    "the tool output above for file paths and offending lines."
+                ),
             ))
 
         # ── Step 3: pack_prep ─────────────────────────────────────────────────
@@ -374,6 +426,15 @@ def main() -> None:
             f"pack_prep — {pack.name}",
             [sys.executable, "tools/pack_prep.py", str(pack)],
             args.ci,
+            remediation=(
+                "pack_prep chains several checks (rule ID normalization, JSON\n"
+                "validity, dependency versions, xsoar_config preflight, SDK validate).\n"
+                "Review the output above for which sub-step failed and its specific\n"
+                "error. The SDK validate output is written to:\n"
+                "  output/sdk_errors.txt\n"
+                "Auto-fixes for common BA101/BA106/PA128 errors:\n"
+                "  python3 tools/fix_errors.py output/sdk_errors.txt"
+            ),
         ))
 
         # ── Step 4: fix_errors (report only) ──────────────────────────────────
@@ -396,6 +457,14 @@ def main() -> None:
             f"check_contracts — {pack.name}",
             [sys.executable, "tools/check_contracts.py", "--input", str(pack)],
             args.ci,
+            remediation=(
+                "check_contracts validates SOC Framework layer contracts: EP vs\n"
+                "Lifecycle, Foundation vs Workflow, context key namespaces. Review\n"
+                "the output above — it names the specific playbook and contract\n"
+                "violation. Fix by editing the playbook to match the expected\n"
+                "namespace or call pattern, then re-run:\n"
+                f"  python3 tools/check_contracts.py --input {pack}"
+            ),
         ))
 
     # ── Step 6: validate_shadow_mode (once, --all) ────────────────────────────
@@ -409,6 +478,16 @@ def main() -> None:
         "validate_shadow_mode --all",
         [sys.executable, "tools/validate_shadow_mode.py", "--all"],
         args.ci,
+        remediation=(
+            "Shadow mode is the PoV safety contract — actions must be gated.\n"
+            "Output above names the playbook and task where an action runs with\n"
+            "shadow_mode=false outside the approved policy exemptions. Fix options:\n"
+            "  • set shadow_mode: true for the action in SOCFrameworkActions_V3\n"
+            "  • add the action to shadow_mode_policy.json with a documented reason\n"
+            "    (only for genuinely read-only or sandbox-only actions)\n"
+            "Re-run:\n"
+            "  python3 tools/validate_shadow_mode.py --all"
+        ),
     ))
 
     # ── Gate: abort before upload if any validation failed ────────────────────

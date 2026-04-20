@@ -416,6 +416,14 @@ def check_mislocation(path: Path) -> Optional[str]:
     Only fires when the two disagree — if we can't determine the type from
     content, we give the contributor the benefit of the doubt and proceed.
     """
+    # _data.json files are the data half of the two-file list structure that
+    # already lives in Lists/<ListName>/. By definition their placement is
+    # correct, and content_type_from_path() returns None for them (line 344),
+    # which would otherwise trigger a false-positive MISLOCATION below when
+    # content_type_from_content() correctly identifies them as lists.
+    if path.stem.endswith("_data"):
+        return None
+
     dir_type     = content_type_from_path(path)
     content_type = content_type_from_content(path)
 
