@@ -176,10 +176,24 @@ def main():
     rules = find_rules(path)
     pack_path = path if path.is_dir() else path.parent.parent
 
+    # Early-out: if the pack has no correlation rules, there is nothing for this
+    # tool to validate. Script validation is orthogonal — pack_prep (SDK validate)
+    # covers scripts. Running script validation here was scope creep that caused
+    # this tool to fail on packs that don't ship correlation rules at all
+    # (e.g. soc-framework-manager). The tool's name is its contract: correlation
+    # rule preflight. If there are no rules, there is no preflight to do.
+    if not rules and path.is_dir():
+        print(f"  No correlation rules found in {path} — skipping preflight")
+        print(f"  PASSED (no-op)")
+        return
+
     total_errors = 0
     total_warnings = 0
 
-    # Check scripts for empty .py files
+    # Check scripts for empty .py files — only when the pack actually ships
+    # correlation rules. The real risk this guards against is a correlation rule
+    # whose referenced script is an empty file, which causes SDK unification to
+    # fail silently. That risk doesn't exist on packs with no correlation rules.
     script_errors = check_scripts(pack_path)
     if script_errors:
         print(f"\n  Scripts:")
