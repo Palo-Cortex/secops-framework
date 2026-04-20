@@ -894,7 +894,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '2'
+      - '91'
     scriptarguments:
       append:
         simple: 'false'
@@ -1006,7 +1006,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '2'
+      - '91'
     scriptarguments:
       append:
         simple: 'false'
@@ -1020,6 +1020,60 @@ tasks:
     continueonerror: true
     continueonerrortype: ''
     view: '{ "position": { "x": 50, "y": 3515 } }'
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '91':
+    id: '91'
+    taskid: 2e892744-da0e-459a-8ef0-bef060a9cba4
+    type: regular
+    task:
+      id: 2e892744-da0e-459a-8ef0-bef060a9cba4
+      version: -1
+      name: Mark Analysis Complete — MTTI Anchor
+      description: |-
+        Writes a single 'analysis_complete' marker row to xsiam_socfw_ir_execution_raw
+        via the socfw_ir_execution HTTP Collector instance (System XQL HTTP Collector).
+        This anchors MTTI (alert event time → analysis_complete _insert_time) for the
+        Value Metrics dashboard.
+
+        Call pattern matches SOCCommandWrapper.post_dataset_payload() in the Foundation
+        pack so the row schema is consistent with existing wrapper writes and the
+        dashboard can union-scan without branching on row type.
+
+        Payload uses ONLY fields already in the dataset schema (those the wrapper
+        writes) so XQL widget queries can run without schema-unknown field blocks.
+        Verdict / confidence / response recommendation are intentionally omitted —
+        MTTI needs only the timestamp anchor and incident link.
+
+        Non-blocking: continueonerror=true ensures a missing HTTP Collector instance or
+        tenant-side config gap never breaks the Analysis chain. The row is purely
+        observational — Containment gating does not depend on it.
+      script: '|||xql-post-to-dataset'
+      type: regular
+      iscommand: true
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '2'
+    scriptarguments:
+      using:
+        simple: socfw_ir_execution
+      using-brand:
+        simple: System XQL HTTP Collector
+      JSON:
+        simple: >-
+          {"event_type":"analysis_complete","phase":"Analysis","lifecycle":"NIST_IR","lifecycle_version":3,"incident_id":"${incident.id}","alert_name":"${alert.name}","alert_category":"${Analysis.case_category}","action_actor":"automation","timestamp":"${.=new Date().toISOString()}"}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: '{ "position": { "x": 275, "y": 4100 } }'
     note: false
     timertriggers: []
     ignoreworker: false
