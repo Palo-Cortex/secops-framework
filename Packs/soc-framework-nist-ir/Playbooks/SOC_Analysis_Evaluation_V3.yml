@@ -1069,7 +1069,7 @@ tasks:
         simple: System XQL HTTP Collector
       JSON:
         simple: >-
-          {"event_type":"analysis_complete","phase":"Analysis","lifecycle":"NIST_IR","lifecycle_version":3,"incident_id":"${incident.id}","alert_name":"${alert.name}","alert_category":"${Analysis.case_category}","action_actor":"automation","timestamp":"${.=new Date().toISOString()}"}
+          {"event_type":"analysis_complete","phase":"analysis","lifecycle":"NIST_IR","lifecycle_version":3,"execution_mode":"${inputs.ExecutionMode}","incident_id":"${issue.id}","alert_name":"${alert.name}","alert_category":"${Analysis.case_category}","action_actor":"automation","timestamp":"${.=new Date().toISOString()}"}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -1222,6 +1222,12 @@ inputs:
     simple: ${SOCFramework.Mitre.Tactic}
   required: false
   description: ''
+  playbookInputQuery: null
+- key: ExecutionMode
+  value:
+    simple: shadow
+  required: false
+  description: 'Execution mode tag for xsiam_socfw_ir_execution_raw rows. "shadow" during PoV, "production" after PS handoff. Single-flip surface for dashboard Shadow/Production split.'
   playbookInputQuery: null
 outputs:
 - contextPath: Analysis.case_score
