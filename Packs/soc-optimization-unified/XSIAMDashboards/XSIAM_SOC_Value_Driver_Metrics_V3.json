@@ -1,15 +1,15 @@
 {
   "dashboards_data": [
     {
-      "name": "XSIAM SOC Value Driver Metrics V2",
-      "description": "XSIAM SOC Value Driver Metrics V2 \u2014 Command of the Message aligned.",
+      "name": "XSIAM SOC Value Driver Metrics V3",
+      "description": "XSIAM SOC Value Driver Metrics V3 - adds MTTD/MTTI/MTTC/MTTE/MTTR to V2.",
       "status": "ENABLED",
       "layout": [
         {
           "id": "row-1",
           "data": [
             {
-              "key": "xql_1776715714970",
+              "key": "xql_1776910000005",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
@@ -40,7 +40,7 @@
               }
             },
             {
-              "key": "xql_1776715714971",
+              "key": "xql_1776910000002",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
@@ -76,12 +76,12 @@
           "id": "row-2",
           "data": [
             {
-              "key": "xql_1776716275192",
+              "key": "xql_1776910000007",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
+                "phrase": "dataset = alerts\n| filter uppercase(severity) = \"CRITICAL\" or uppercase(severity) = \"HIGH\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
                 "time_frame": {
                   "relativeTime": 604800000
                 },
@@ -107,7 +107,7 @@
               }
             },
             {
-              "key": "xql_1776716275194",
+              "key": "xql_1776910000009",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
@@ -143,7 +143,7 @@
           "id": "row-3",
           "data": [
             {
-              "key": "xql_1776716275188",
+              "key": "xql_1776910000003",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
@@ -174,7 +174,7 @@
               }
             },
             {
-              "key": "xql_1776716275190",
+              "key": "xql_1776910000001",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
@@ -210,7 +210,7 @@
           "id": "row-4",
           "data": [
             {
-              "key": "xql_1776716275189",
+              "key": "xql_1776910000004",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
@@ -255,12 +255,12 @@
               }
             },
             {
-              "key": "xql_1776716275193",
+              "key": "xql_1776910000006",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as critical_alerts by data_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = critical_alerts ",
+                "phrase": "dataset = alerts\n| filter uppercase(severity) = \"CRITICAL\" or uppercase(severity) = \"HIGH\"\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as critical_alerts by data_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = critical_alerts ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -305,7 +305,7 @@
           "id": "row-5",
           "data": [
             {
-              "key": "xql_1776716275191",
+              "key": "xql_1776910000008",
               "data": {
                 "type": "Custom XQL",
                 "width": 30,
@@ -336,7 +336,7 @@
               }
             },
             {
-              "key": "xql_1776720084844",
+              "key": "xql_1776910000010",
               "data": {
                 "type": "Custom XQL",
                 "width": 70,
@@ -352,10 +352,169 @@
               }
             }
           ]
+        },
+        {
+          "id": "row-6",
+          "data": [
+            {
+              "key": "xql_1776910000011",
+              "data": {
+                "type": "Custom XQL",
+                "width": 20,
+                "height": 400,
+                "phrase": "dataset = alerts\n| alter event_ts = arrayindex(event_timestamp, 0)\n| filter event_ts != null\n| alter event_ms = to_integer(event_ts)\n| alter alert_ms = to_epoch(_time, \"millis\")\n| alter mttd_ms = subtract(alert_ms, event_ms)\n| filter mttd_ms >= 0 and mttd_ms < 86400000\n| alter mttd_seconds = divide(mttd_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard yaxis = avg_mttd_sec",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mttd_sec"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "xql_1776910000012",
+              "data": {
+                "type": "Custom XQL",
+                "width": 20,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter mtti_ms = subtract(verdict_ms, first_ms)\n| filter mtti_ms > 0\n| alter mtti_minutes = divide(mtti_ms, 60000)\n| comp avg(mtti_minutes) as avg_mtti_min\n| view graph type = single subtype = standard yaxis = avg_mtti_min",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mtti_min"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "xql_1776910000013",
+              "data": {
+                "type": "Custom XQL",
+                "width": 20,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_contain = if(phase = \"containment\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_contain) as contain_ms by incident_id\n| filter contain_ms != null\n| alter mttc_ms = subtract(contain_ms, first_ms)\n| filter mttc_ms > 0\n| alter mttc_minutes = divide(mttc_ms, 60000)\n| comp avg(mttc_minutes) as avg_mttc_min\n| view graph type = single subtype = standard yaxis = avg_mttc_min",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mttc_min"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "xql_1776910000014",
+              "data": {
+                "type": "Custom XQL",
+                "width": 20,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_erad = if(phase = \"eradication\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_erad) as erad_ms by incident_id\n| filter erad_ms != null\n| alter mtte_ms = subtract(erad_ms, first_ms)\n| filter mtte_ms > 0\n| alter mtte_minutes = divide(mtte_ms, 60000)\n| comp avg(mtte_minutes) as avg_mtte_min\n| view graph type = single subtype = standard yaxis = avg_mtte_min",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mtte_min"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "xql_1776910000015",
+              "data": {
+                "type": "Custom XQL",
+                "width": 20,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_rec = if(phase = \"recovery\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_rec) as rec_ms by incident_id\n| filter rec_ms != null\n| alter mttr_ms = subtract(rec_ms, first_ms)\n| filter mttr_ms > 0\n| alter mttr_minutes = divide(mttr_ms, 60000)\n| comp avg(mttr_minutes) as avg_mttr_min\n| view graph type = single subtype = standard yaxis = avg_mttr_min",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mttr_min"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
         }
       ],
-      "default_dashboard_id": 1,
-      "global_id": "5f52e836e5bc491c809ae96ff91341f8",
+      "global_id": "f7c1f9a2d5834c5999b00d362272b92a",
       "metadata": {
         "params": []
       }
@@ -363,14 +522,14 @@
   ],
   "widgets_data": [
     {
-      "widget_key": "xql_1776715714970",
-      "title": "Total Cases",
-      "creation_time": 1776715714970,
+      "widget_key": "xql_1776910000001",
+      "title": "Total Manual Cases",
+      "creation_time": 1776770375262,
       "description": "",
       "data": {
-        "phrase": "dataset = cases  \n| comp count_distinct(xdm.case.id) as total_cases  \n| sort desc total_cases\n\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
+        "phrase": "dataset = cases  \n| filter xdm.case.status_progress = \"NEW\"  or xdm.case.status_progress  = \"UNDER_INVESTIGATION\"\n| comp count_distinct(xdm.case.id) as total_cases\n| sort desc total_cases\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
         "time_frame": {
-          "relativeTime": 2592000000
+          "relativeTime": 604800000
         },
         "viewOptions": {
           "type": "single",
@@ -404,9 +563,9 @@
       "is_predefined": false
     },
     {
-      "widget_key": "xql_1776715714971",
+      "widget_key": "xql_1776910000002",
       "title": "Total Starred Manual Cases",
-      "creation_time": 1776715714971,
+      "creation_time": 1776770373675,
       "description": "",
       "data": {
         "phrase": "dataset = cases  \n| filter xdm.case.status_progress = \"NEW\"  or xdm.case.status_progress  = \"UNDER_INVESTIGATION\"\n| filter xdm.case.starred = true\n| comp count_distinct(xdm.case.id) as total_cases  \n| sort desc total_cases\n\n\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
@@ -445,9 +604,9 @@
       "is_predefined": false
     },
     {
-      "widget_key": "xql_1776716275188",
+      "widget_key": "xql_1776910000003",
       "title": "Cases Auto Resolved",
-      "creation_time": 1776716275188,
+      "creation_time": 1776770373139,
       "description": "This includes deduping (Palo SOC Framework), auto triage, and auto-resolution by XSIAM",
       "data": {
         "phrase": "dataset = cases   \n| filter xdm.case.status_progress = \"RESOLVED\" and (xdm.case.status.resolution_comment  = \"Resolved by the Auto Triage Job\" or xdm.case.status.resolution_comment = \"Auto-resolved by Cortex XSIAM because all of the alerts contained in this incident are excluded or resolved\")\n| comp count_distinct(xdm.case.id) as total_cases  \n| sort desc total_cases\n\n| view graph type = single subtype = standard yaxis = total_cases ",
@@ -486,9 +645,9 @@
       "is_predefined": false
     },
     {
-      "widget_key": "xql_1776716275189",
+      "widget_key": "xql_1776910000004",
       "title": "Total Alerts By Source",
-      "creation_time": 1776716275189,
+      "creation_time": 1776770374972,
       "description": "Alert count grouped by vendor data source (DS: tag).",
       "data": {
         "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as total_alerts by data_source\n| sort desc total_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = total_alerts ",
@@ -541,14 +700,14 @@
       "is_predefined": false
     },
     {
-      "widget_key": "xql_1776716275190",
-      "title": "Total Manual Cases",
-      "creation_time": 1776716275190,
+      "widget_key": "xql_1776910000005",
+      "title": "Total Cases",
+      "creation_time": 1776770374331,
       "description": "",
       "data": {
-        "phrase": "dataset = cases  \n| filter xdm.case.status_progress = \"NEW\"  or xdm.case.status_progress  = \"UNDER_INVESTIGATION\"\n| comp count_distinct(xdm.case.id) as total_cases\n| sort desc total_cases\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
+        "phrase": "dataset = cases  \n| comp count_distinct(xdm.case.id) as total_cases  \n| sort desc total_cases\n\n\n\n\n| view graph type = single subtype = standard yaxis = total_cases ",
         "time_frame": {
-          "relativeTime": 604800000
+          "relativeTime": 2592000000
         },
         "viewOptions": {
           "type": "single",
@@ -582,94 +741,12 @@
       "is_predefined": false
     },
     {
-      "widget_key": "xql_1776716275191",
-      "title": "Avg Alert Ingestion Lag (sec)",
-      "creation_time": 1776716275191,
-      "description": "Average delay (seconds) from event capture (_time) to alert record creation (alert_arrival_timestamp), across all DS-tagged sources.",
-      "data": {
-        "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter time_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, time_ms)\n| filter lag_ms >= 0 and lag_ms < 86400000\n| comp avg(lag_ms) as avg_lag_ms\n| alter avg_lag_seconds = divide(avg_lag_ms, 1000)\n| view graph type = single subtype = standard yaxis = avg_lag_seconds ",
-        "time_frame": {
-          "relativeTime": 86400000
-        },
-        "viewOptions": {
-          "type": "single",
-          "commands": [
-            {
-              "command": {
-                "op": "=",
-                "name": "subtype",
-                "value": "standard"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "yaxis",
-                "value": "avg_lag_seconds"
-              }
-            }
-          ]
-        }
-      },
-      "support_time_range": true,
-      "additional_info": {
-        "query_tables": [
-          "alerts"
-        ],
-        "query_uses_library": false
-      },
-      "creator_mail": "N/A",
-      "is_public": true,
-      "is_predefined": false
-    },
-    {
-      "widget_key": "xql_1776716275192",
-      "title": "Critical & High Alerts",
-      "creation_time": 1776716275192,
-      "description": "Severity critical+high alert count",
-      "data": {
-        "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
-        "time_frame": {
-          "relativeTime": 604800000
-        },
-        "viewOptions": {
-          "type": "single",
-          "commands": [
-            {
-              "command": {
-                "op": "=",
-                "name": "subtype",
-                "value": "standard"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "yaxis",
-                "value": "critical_alerts"
-              }
-            }
-          ]
-        }
-      },
-      "support_time_range": true,
-      "additional_info": {
-        "query_tables": [
-          "alerts"
-        ],
-        "query_uses_library": false
-      },
-      "creator_mail": "N/A",
-      "is_public": true,
-      "is_predefined": false
-    },
-    {
-      "widget_key": "xql_1776716275193",
+      "widget_key": "xql_1776910000006",
       "title": "Critical Alerts by Source",
-      "creation_time": 1776716275193,
+      "creation_time": 1776770373410,
       "description": "Critical+High severity alerts grouped by vendor data source (DS: tag).",
       "data": {
-        "phrase": "dataset = alerts\n| filter severity = \"CRITICAL\" or severity = \"HIGH\"\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as critical_alerts by data_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = critical_alerts ",
+        "phrase": "dataset = alerts\n| filter uppercase(severity) = \"CRITICAL\" or uppercase(severity) = \"HIGH\"\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(alert_id) as critical_alerts by data_source\n| sort desc critical_alerts\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = data_source yaxis = critical_alerts ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -719,9 +796,91 @@
       "is_predefined": false
     },
     {
-      "widget_key": "xql_1776716275194",
+      "widget_key": "xql_1776910000007",
+      "title": "Critical & High Alerts",
+      "creation_time": 1776770373520,
+      "description": "Severity critical+high alert count",
+      "data": {
+        "phrase": "dataset = alerts\n| filter uppercase(severity) = \"CRITICAL\" or uppercase(severity) = \"HIGH\"\n| comp count_distinct(alert_id) as critical_alerts\n| view graph type = single subtype = standard yaxis = critical_alerts ",
+        "time_frame": {
+          "relativeTime": 604800000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "critical_alerts"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "alerts"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776910000008",
+      "title": "Avg Alert Ingestion Lag (sec)",
+      "creation_time": 1776770373957,
+      "description": "Average delay (seconds) from event capture (_time) to alert record creation (alert_arrival_timestamp), across all DS-tagged sources.",
+      "data": {
+        "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter time_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, time_ms)\n| filter lag_ms >= 0 and lag_ms < 86400000\n| comp avg(lag_ms) as avg_lag_ms\n| alter avg_lag_seconds = divide(avg_lag_ms, 1000)\n| view graph type = single subtype = standard yaxis = avg_lag_seconds ",
+        "time_frame": {
+          "relativeTime": 86400000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_lag_seconds"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "alerts"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776910000009",
       "title": "Security Tools Integrated",
-      "creation_time": 1776716275194,
+      "creation_time": 1776770374701,
       "description": "Distinct vendor data sources (DS: tags) emitting alerts.",
       "data": {
         "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| comp count_distinct(data_source) as security_tools\n| view graph type = single subtype = standard yaxis = security_tools ",
@@ -760,9 +919,9 @@
       "is_predefined": false
     },
     {
-      "widget_key": "xql_1776720084844",
+      "widget_key": "xql_1776910000010",
       "title": "Top 20 Slowest Data Sources",
-      "creation_time": 1776720084844,
+      "creation_time": 1776770375609,
       "description": "Twenty slowest data sources by average alert ingestion lag. Columns: data_source, alert_count, avg_lag_seconds.",
       "data": {
         "phrase": "dataset = alerts\n| alter ds_tags = arrayfilter(original_tags, \"@element\" contains \"DS:\")\n| alter ds_raw = arrayindex(ds_tags, 0)\n| alter data_source = replace(ds_raw, \"DS:\", \"\")\n| filter data_source != null\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter time_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, time_ms)\n| filter lag_ms >= 0 and lag_ms < 86400000\n| comp count(alert_id) as alert_count, avg(lag_ms) as avg_lag_ms by data_source\n| alter avg_lag_seconds = divide(avg_lag_ms, 1000)\n| fields data_source, alert_count, avg_lag_seconds\n| sort desc avg_lag_seconds\n| limit 20",
@@ -784,9 +943,211 @@
       "creator_mail": "N/A",
       "is_public": true,
       "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776910000011",
+      "title": "MTTD (sec)",
+      "creation_time": 1776900000000,
+      "description": "Mean Time to Detect - source event (event_timestamp) -> alert record creation (_time). Alerts-native, no framework dependency. Seconds.",
+      "data": {
+        "phrase": "dataset = alerts\n| alter event_ts = arrayindex(event_timestamp, 0)\n| filter event_ts != null\n| alter event_ms = to_integer(event_ts)\n| alter alert_ms = to_epoch(_time, \"millis\")\n| alter mttd_ms = subtract(alert_ms, event_ms)\n| filter mttd_ms >= 0 and mttd_ms < 86400000\n| alter mttd_seconds = divide(mttd_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard yaxis = avg_mttd_sec",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mttd_sec"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "alerts"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776910000012",
+      "title": "MTTI (min)",
+      "creation_time": 1776900000001,
+      "description": "Mean Time to Investigate - framework first touch -> analysis_complete write per incident. Requires xql-post-to-dataset task in Analysis Evaluation playbooks. Minutes.",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter mtti_ms = subtract(verdict_ms, first_ms)\n| filter mtti_ms > 0\n| alter mtti_minutes = divide(mtti_ms, 60000)\n| comp avg(mtti_minutes) as avg_mtti_min\n| view graph type = single subtype = standard yaxis = avg_mtti_min",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mtti_min"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "xsiam_socfw_ir_execution_raw"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776910000013",
+      "title": "MTTC (min)",
+      "creation_time": 1776900000002,
+      "description": "Mean Time to Contain - framework first touch -> first containment action per incident. Validated at ~28 sec on brumxdr. Minutes.",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_contain = if(phase = \"containment\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_contain) as contain_ms by incident_id\n| filter contain_ms != null\n| alter mttc_ms = subtract(contain_ms, first_ms)\n| filter mttc_ms > 0\n| alter mttc_minutes = divide(mttc_ms, 60000)\n| comp avg(mttc_minutes) as avg_mttc_min\n| view graph type = single subtype = standard yaxis = avg_mttc_min",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mttc_min"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "xsiam_socfw_ir_execution_raw"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776910000014",
+      "title": "MTTE (min)",
+      "creation_time": 1776900000003,
+      "description": "Mean Time to Eradicate - framework first touch -> first eradication action per incident. Minutes.",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_erad = if(phase = \"eradication\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_erad) as erad_ms by incident_id\n| filter erad_ms != null\n| alter mtte_ms = subtract(erad_ms, first_ms)\n| filter mtte_ms > 0\n| alter mtte_minutes = divide(mtte_ms, 60000)\n| comp avg(mtte_minutes) as avg_mtte_min\n| view graph type = single subtype = standard yaxis = avg_mtte_min",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mtte_min"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "xsiam_socfw_ir_execution_raw"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "xql_1776910000015",
+      "title": "MTTR (min)",
+      "creation_time": 1776900000004,
+      "description": "Mean Time to Recover - framework first touch -> first recovery action per incident. Minutes.",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_rec = if(phase = \"recovery\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_rec) as rec_ms by incident_id\n| filter rec_ms != null\n| alter mttr_ms = subtract(rec_ms, first_ms)\n| filter mttr_ms > 0\n| alter mttr_minutes = divide(mttr_ms, 60000)\n| comp avg(mttr_minutes) as avg_mttr_min\n| view graph type = single subtype = standard yaxis = avg_mttr_min",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mttr_min"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "xsiam_socfw_ir_execution_raw"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     }
-  ],
-  "id": "5f52e836e5bc491c809ae96ff91341f8",
-  "name": "XSIAM SOC Value Driver Metrics V2",
-  "fromVersion": "6.10.0"
+  ]
 }
