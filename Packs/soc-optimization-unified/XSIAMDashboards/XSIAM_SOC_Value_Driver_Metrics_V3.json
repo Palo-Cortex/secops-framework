@@ -393,7 +393,7 @@
                 "type": "Custom XQL",
                 "width": 20,
                 "height": 400,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter mtti_ms = subtract(verdict_ms, first_ms)\n| filter mtti_ms > 0\n| alter mtti_minutes = divide(mtti_ms, 60000)\n| comp avg(mtti_minutes) as avg_mtti_min\n| view graph type = single subtype = standard yaxis = avg_mtti_min",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_first = if(event_type = \"command\" and uppercase(phase) = \"ANALYSIS\", t_ms, null)\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp max(t_first) as first_ms, max(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null and first_ms != null\n| alter mtti_ms = subtract(verdict_ms, first_ms)\n| filter mtti_ms > 0\n| alter mtti_minutes = divide(mtti_ms, 60000)\n| comp avg(mtti_minutes) as avg_mtti_min\n| view graph type = single subtype = standard yaxis = avg_mtti_min",
                 "time_frame": {
                   "relativeTime": 2592000000
                 },
@@ -991,7 +991,7 @@
       "creation_time": 1776900000001,
       "description": "Mean Time to Investigate - framework first touch -> analysis_complete write per incident. Requires xql-post-to-dataset task in Analysis Evaluation playbooks. Minutes.",
       "data": {
-        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter mtti_ms = subtract(verdict_ms, first_ms)\n| filter mtti_ms > 0\n| alter mtti_minutes = divide(mtti_ms, 60000)\n| comp avg(mtti_minutes) as avg_mtti_min\n| view graph type = single subtype = standard yaxis = avg_mtti_min",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_first = if(event_type = \"command\" and uppercase(phase) = \"ANALYSIS\", t_ms, null)\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp max(t_first) as first_ms, max(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null and first_ms != null\n| alter mtti_ms = subtract(verdict_ms, first_ms)\n| filter mtti_ms > 0\n| alter mtti_minutes = divide(mtti_ms, 60000)\n| comp avg(mtti_minutes) as avg_mtti_min\n| view graph type = single subtype = standard yaxis = avg_mtti_min",
         "time_frame": {
           "relativeTime": 2592000000
         },
