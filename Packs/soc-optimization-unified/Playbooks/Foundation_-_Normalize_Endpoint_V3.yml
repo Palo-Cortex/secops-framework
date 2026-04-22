@@ -1271,11 +1271,11 @@ tasks:
       id: 8a94789a-7dcb-4f5d-ba93-549718a96c50
       version: -1
       name: Set Artifacts.Hash alias
-      description: Alias SOCFramework.Artifacts.Hash from SOCFramework.Endpoint.file_sha256
-        with fallback to process_sha256. Consumed by SOCFrameworkActions_V3 soc-enrich-file
-        (core-get-hash-analytics-prevalence requires sha256 argument) and EndPoint
-        Spread Evaluation. This alias closes the gap where native XDR Agent alerts
-        populate file_sha256 but downstream UC actions look for Artifacts.Hash.
+      description: Alias SOCFramework.Artifacts.Hash from issue.filesha256 (the target
+        file hash, i.e. the malicious DLL/binary the process acted upon). Previously
+        read from issue.initiatorsha256 which is the running process hash - wrong
+        artifact for malware eradication. Consumed by SOCFrameworkActions_V3 soc-enrich-file
+        and downstream UC actions that need the SHA256 of the actual malicious file.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -1291,7 +1291,7 @@ tasks:
       key:
         simple: SOCFramework.Artifacts.Hash
       value:
-        simple: ${issue.initiatorsha256.[0]}
+        simple: ${issue.filesha256.[0]}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -1317,9 +1317,10 @@ tasks:
       id: 234c25c4-25f3-4c2e-9a1f-5b1e8d54fec0
       version: -1
       name: Set Artifacts.File alias
-      description: Alias SOCFramework.Artifacts.File from SOCFramework.Endpoint.file_sha256
-        with fallback to process_sha256. Consumed by Foundation Enrichment gate and
-        SOC EndPoint Spread Evaluation SHA256 input.
+      description: Alias SOCFramework.Artifacts.File from issue.filesha256 (the target
+        file hash). Previously read from issue.initiatorsha256 which is the running
+        process hash - wrong artifact for malware eradication. Consumed by Foundation
+        Enrichment gate and SOC EndPoint Spread Evaluation SHA256 input.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -1335,7 +1336,7 @@ tasks:
       key:
         simple: SOCFramework.Artifacts.File
       value:
-        simple: ${issue.initiatorsha256.[0]}
+        simple: ${issue.filesha256.[0]}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -1405,9 +1406,12 @@ tasks:
       id: 7a9f6015-469f-4c3c-b7dd-eb3772db9a2e
       version: -1
       name: Set Artifacts.FilePath alias
-      description: Alias SOCFramework.Artifacts.FilePath from SOCFramework.Endpoint.file_path
-        with fallback to issue.initiator_path for native XDR Agent alerts. Consumed
-        by SOCFrameworkActions_V3 soc-file-exists, soc-quarantine-file, soc-detonate-file.
+      description: Alias SOCFramework.Artifacts.FilePath from issue.filepath (the
+        target file path, i.e. the malicious DLL/binary location). Previously read
+        from issue.initiatorpath which is the running process path - wrong artifact
+        for malware eradication and dangerous when the initiator is a system binary
+        like svchost.exe. Consumed by SOCFrameworkActions_V3 soc-file-exists, soc-quarantine-file,
+        soc-detonate-file.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -1416,14 +1420,14 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "38"
+      - "50"
     scriptarguments:
       append:
         simple: "false"
       key:
         simple: SOCFramework.Artifacts.FilePath
       value:
-        simple: ${issue.initiatorpath.[0]}
+        simple: ${issue.filepath.[0]}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -1441,13 +1445,1483 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  "50":
+    id: "50"
+    taskid: c3a1b0d5-aaaa-0050-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0050-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.PID alias
+      description: PID of the initiator process. Required for soc-kill-process and for analyst approval prompt context.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "51"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.PID
+      value:
+        simple: ${issue.initiatorpid.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 5510
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "51":
+    id: "51"
+    taskid: c3a1b0d5-aaaa-0051-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0051-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Name alias
+      description: Image name of the initiator process. For analyst approval prompts and case story narrative.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "52"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Name
+      value:
+        simple: ${issue.initiatedby.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 5660
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "52":
+    id: "52"
+    taskid: c3a1b0d5-aaaa-0052-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0052-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Path alias
+      description: Full path of the initiator process executable.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "53"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Path
+      value:
+        simple: ${issue.initiatorpath.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 5810
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "53":
+    id: "53"
+    taskid: c3a1b0d5-aaaa-0053-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0053-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.SHA256 alias
+      description: SHA256 of the initiator process binary. Distinct from Artifacts.Target.SHA256 - process is what is running, target is what was acted upon.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "54"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.SHA256
+      value:
+        simple: ${issue.initiatorsha256.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 5960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "54":
+    id: "54"
+    taskid: c3a1b0d5-aaaa-0054-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0054-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.MD5 alias
+      description: MD5 of the initiator process binary.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "55"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.MD5
+      value:
+        simple: ${issue.initiatormd5.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 6110
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "55":
+    id: "55"
+    taskid: c3a1b0d5-aaaa-0055-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0055-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.CommandLine alias
+      description: Full command line of the initiator process. Critical context for analyst approval - reveals service name, args, suspicious flags.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "56"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.CommandLine
+      value:
+        simple: ${issue.initiatorcmd.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 6260
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "56":
+    id: "56"
+    taskid: c3a1b0d5-aaaa-0056-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0056-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Signer alias
+      description: Signing entity of the initiator binary. Legitimacy signal.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "57"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Signer
+      value:
+        simple: ${issue.initiatorsigner.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 6410
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "57":
+    id: "57"
+    taskid: c3a1b0d5-aaaa-0057-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0057-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Signature alias
+      description: Signature status of the initiator binary. Combined with Process.Signer, this is the legitimacy assessment.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "58"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Signature
+      value:
+        simple: ${issue.initiatorsignature.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 6560
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "58":
+    id: "58"
+    taskid: c3a1b0d5-aaaa-0058-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0058-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Verdict alias (TBD)
+      description: TODO - Per-artifact source verdict on the initiator binary. Field name in issue.* TBD - visible in layout. Investigate XDM verdict fields. Empty until source field confirmed.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "59"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Verdict
+      value:
+        simple: ""
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 6710
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "59":
+    id: "59"
+    taskid: c3a1b0d5-aaaa-0059-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0059-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Parent.PID alias
+      description: OS parent PID of the initiator process. Critical for legitimacy assessment - svchost-from-services-good vs svchost-from-winword-bad.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "60"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Parent.PID
+      value:
+        simple: ${issue.osparentid.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 6860
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "60":
+    id: "60"
+    taskid: c3a1b0d5-aaaa-0060-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0060-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Parent.Signature alias
+      description: Signature status of the OS parent process.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "61"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Parent.Signature
+      value:
+        simple: ${issue.osparentsignature.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 7010
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "61":
+    id: "61"
+    taskid: c3a1b0d5-aaaa-0061-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0061-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Causality.ID alias
+      description: Cortex causality root identifier - links all events in the same execution chain.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "62"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Causality.ID
+      value:
+        simple: ${issue.xdmsourceprocesscausalityid.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 7160
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "62":
+    id: "62"
+    taskid: c3a1b0d5-aaaa-0062-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0062-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Process.Causality.InstanceID alias
+      description: Cortex actor process instance identifier.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "63"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Process.Causality.InstanceID
+      value:
+        simple: ${issue.actorprocessinstanceid.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 7310
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "63":
+    id: "63"
+    taskid: c3a1b0d5-aaaa-0063-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0063-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Target.File alias
+      description: Filename of the target file the initiator process acted upon. This is the artifact malware eradication should target - NOT the initiator process.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "64"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Target.File
+      value:
+        simple: ${issue.filename.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 7460
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "64":
+    id: "64"
+    taskid: c3a1b0d5-aaaa-0064-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0064-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Target.Path alias
+      description: Full path of the target file. Consumed by soc-delete-file, soc-quarantine-files.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "65"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Target.Path
+      value:
+        simple: ${issue.filepath.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 7610
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "65":
+    id: "65"
+    taskid: c3a1b0d5-aaaa-0065-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0065-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Target.SHA256 alias
+      description: SHA256 of the target file. This is the malicious hash - distinct from Process.SHA256 which is the running process binary.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "66"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Target.SHA256
+      value:
+        simple: ${issue.filesha256.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 7760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "66":
+    id: "66"
+    taskid: c3a1b0d5-aaaa-0066-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0066-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Target.SignatureStatus alias
+      description: Signature status of the target file. SIGNATURE_UNAVAILABLE on the target combined with SIGNATURE_SIGNED on the initiator is the canonical Turla DLL-sideload pattern.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "67"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Target.SignatureStatus
+      value:
+        simple: ${issue.xdmtargetprocessexecutablesignaturestatus.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 7910
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "67":
+    id: "67"
+    taskid: c3a1b0d5-aaaa-0067-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0067-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Target.Verdict alias (TBD)
+      description: TODO - Per-artifact source verdict on the target file. Field name in issue.* TBD - visible in layout. Investigate XDM verdict fields. Empty until source field confirmed.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "68"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Target.Verdict
+      value:
+        simple: ""
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 8060
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "68":
+    id: "68"
+    taskid: c3a1b0d5-aaaa-0068-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0068-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Endpoint.AgentID alias
+      description: EDR agent identifier for the affected endpoint. Mirrors Artifacts.EndPointID for backward compat.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "69"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Endpoint.AgentID
+      value:
+        simple: ${issue.agentid}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 8210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "69":
+    id: "69"
+    taskid: c3a1b0d5-aaaa-0069-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0069-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Endpoint.Hostname alias
+      description: Human-readable hostname. For layout display and approval prompt context.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "70"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Endpoint.Hostname
+      value:
+        simple: ${issue.hostname}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 8360
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "70":
+    id: "70"
+    taskid: c3a1b0d5-aaaa-0070-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0070-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Endpoint.FQDN alias
+      description: Fully-qualified domain name.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "71"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Endpoint.FQDN
+      value:
+        simple: ${issue.hostfqdn}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 8510
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "71":
+    id: "71"
+    taskid: c3a1b0d5-aaaa-0071-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0071-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Endpoint.OS alias
+      description: OS family. For vendor-command routing decisions.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "72"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Endpoint.OS
+      value:
+        simple: ${issue.hostos}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 8660
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "72":
+    id: "72"
+    taskid: c3a1b0d5-aaaa-0072-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0072-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Endpoint.OSVersion alias
+      description: OS version string. Analyst context.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "73"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Endpoint.OSVersion
+      value:
+        simple: ${issue.agentossubtype}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 8810
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "73":
+    id: "73"
+    taskid: c3a1b0d5-aaaa-0073-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0073-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Endpoint.Domain alias
+      description: AD domain the endpoint is joined to.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "74"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Endpoint.Domain
+      value:
+        simple: ${issue.domain}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 8960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "74":
+    id: "74"
+    taskid: c3a1b0d5-aaaa-0074-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0074-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Endpoint.MACAddress alias
+      description: MAC address of the endpoint.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "75"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Endpoint.MACAddress
+      value:
+        simple: ${issue.hostmacaddress}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 9110
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "75":
+    id: "75"
+    taskid: c3a1b0d5-aaaa-0075-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0075-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Network.IP alias
+      description: IP address of the affected endpoint. New artifact - IP exists in the case but was not previously surfaced under Artifacts namespace.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "76"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Network.IP
+      value:
+        simple: ${issue.hostip.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 9260
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "76":
+    id: "76"
+    taskid: c3a1b0d5-aaaa-0076-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0076-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.User alias
+      description: Actor effective username. For Identity correlation and approval prompt actor context.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "77"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.User
+      value:
+        simple: ${issue.username.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 9410
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "77":
+    id: "77"
+    taskid: c3a1b0d5-aaaa-0077-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0077-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Source.Module alias
+      description: Detection module. Tells Analysis what kind of detection produced the alert.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "78"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Source.Module
+      value:
+        simple: ${issue.module.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 9560
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "78":
+    id: "78"
+    taskid: c3a1b0d5-aaaa-0078-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0078-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Source.AlertDomain alias
+      description: Alert domain.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "79"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Source.AlertDomain
+      value:
+        simple: ${issue.alert_domain}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 9710
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "79":
+    id: "79"
+    taskid: c3a1b0d5-aaaa-0079-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0079-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.Source.Action alias
+      description: What the agent did natively. Important for understanding native response baseline before SOC Framework acts.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "80"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.Source.Action
+      value:
+        simple: ${issue.action.[0]}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 9860
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "80":
+    id: "80"
+    taskid: c3a1b0d5-aaaa-0080-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0080-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.MITRE.Tactic alias
+      description: MITRE tactic name. Empty for XDR Agent native cases - XDR uses categoryname instead. See Artifacts.MITRE.Category for fallback.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "81"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.MITRE.Tactic
+      value:
+        simple: ${issue.mitretacticname}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 10010
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "81":
+    id: "81"
+    taskid: c3a1b0d5-aaaa-0081-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0081-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.MITRE.TacticID alias
+      description: MITRE tactic ID. Lifecycle gates may consume this.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "82"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.MITRE.TacticID
+      value:
+        simple: ${issue.mitretacticid}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 10160
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "82":
+    id: "82"
+    taskid: c3a1b0d5-aaaa-0082-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0082-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.MITRE.Technique alias
+      description: MITRE technique name.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "83"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.MITRE.Technique
+      value:
+        simple: ${issue.mitretechniquename}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 10310
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "83":
+    id: "83"
+    taskid: c3a1b0d5-aaaa-0083-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0083-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.MITRE.TechniqueID alias
+      description: MITRE technique ID. Existing Containment task 164/166 gates on this.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "84"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.MITRE.TechniqueID
+      value:
+        simple: ${issue.mitretechniqueid}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 10460
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "84":
+    id: "84"
+    taskid: c3a1b0d5-aaaa-0084-bbbb-aabbccddeeff
+    type: regular
+    task:
+      id: c3a1b0d5-aaaa-0084-bbbb-aabbccddeeff
+      version: -1
+      name: Set Artifacts.MITRE.Category alias
+      description: XDR-native category name. Fallback when MITRE Tactic/Technique are not populated - XDR Agent native cases use this.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "38"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SOCFramework.Artifacts.MITRE.Category
+      value:
+        simple: ${issue.categoryname}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 10610
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
 system: true
 view: |-
   {
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 5330,
+        "height": 11000,
         "width": 380,
         "x": 480,
         "y": 50
