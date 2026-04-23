@@ -1,0 +1,439 @@
+adopted: true
+fromversion: 5.0.0
+id: SOC Approval Gate_V3
+version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.0.0
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOC Approval Gate_V3
+description: |
+  Reusable approval gate for SOC Framework Universal Command actions. Reads
+  requires_approval from the action entry in SOCFrameworkActions_V3. If false,
+  auto-approves immediately. If true, raises a manual collection task with rich
+  artifact context, waits for analyst response, and returns the decision.
+
+  Outputs (written to shared parent context):
+    - Approval.decision: "approved" | "denied" | "auto-approved"
+  Responder identity and decision timestamp are captured in the XSIAM case
+  audit log on the collection task itself; no Approval.actor or
+  Approval.decided_at context keys are written.
+
+  Caller pattern: invoke this sub-playbook with action_name (and optional
+  context inputs), then read ${Approval.decision} immediately after the call
+  to route the next step. The wrapper call that follows should pass
+  approval_decision=${Approval.decision} so the wrapper records it in the
+  dataset.
+tags:
+- SOC
+- SOC_Framework_Unified
+- Approval
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: a1111111-0000-0000-0000-000000000000
+    type: start
+    task:
+      id: a1111111-0000-0000-0000-000000000000
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      description: ''
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: a1111111-0000-0000-0000-000000000001
+    type: condition
+    task:
+      id: a1111111-0000-0000-0000-000000000001
+      version: -1
+      name: Does this action require approval?
+      description: |
+        Reads requires_approval from the action entry in SOCFrameworkActions_V3.
+        If false (or absent), auto-approves immediately. If true, routes to the
+        collection task to ask the analyst.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "10"
+      Yes:
+      - "20"
+    separatecontext: false
+    conditions:
+    - label: Yes
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: lists
+                accessor: SOCFrameworkActions_V3
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: ${inputs.action_name}
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: requires_approval
+            iscontext: true
+          right:
+            value:
+              simple: "true"
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 200
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: a1111111-0000-0000-0000-000000000010
+    type: regular
+    task:
+      id: a1111111-0000-0000-0000-000000000010
+      version: -1
+      name: Set Approval.decision = auto-approved
+      description: |
+        Action does not require approval. Set Approval.decision to
+        "auto-approved". Caller proceeds directly to the wrapper call.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Approval.decision
+      value:
+        simple: auto-approved
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 230,
+          "y": 380
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: a1111111-0000-0000-0000-000000000020
+    type: collection
+    task:
+      id: a1111111-0000-0000-0000-000000000020
+      version: -1
+      name: ApproveAction
+      description: |
+        Manual approval required for this Universal Command action. Review the
+        action, the affected artifact, and the case context before deciding.
+        Approve to allow execution (subject to Shadow Mode setting). Deny to
+        skip execution and record a deny-story in the case.
+      type: collection
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "30"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 730,
+          "y": 380
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+    message:
+      to: null
+      subject: null
+      body: null
+      methods: []
+      format: ""
+      bcc: null
+      cc: null
+      timings:
+        retriescount: 0
+        retriesinterval: 0
+        completeafterreplies: 1
+        completeafterv2: true
+        completeaftersla: false
+    form:
+      questions:
+      - id: "0"
+        label: Action
+        labelarg:
+          simple: ${inputs.action_name}
+        required: false
+        gridcolumns: []
+        defaultrows: []
+        type: shortText
+        options: []
+        optionsarg: []
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: Universal Command being requested
+        readonly: true
+      - id: "1"
+        label: Phase
+        labelarg:
+          simple: ${inputs.phase}
+        required: false
+        gridcolumns: []
+        defaultrows: []
+        type: shortText
+        options: []
+        optionsarg: []
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: NIST IR phase
+        readonly: true
+      - id: "2"
+        label: Affected artifact
+        labelarg:
+          simple: ${inputs.artifact_summary}
+        required: false
+        gridcolumns: []
+        defaultrows: []
+        type: longText
+        options: []
+        optionsarg: []
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: The Artifacts.* value the action will operate on
+        readonly: true
+      - id: "3"
+        label: Case context
+        labelarg:
+          simple: ${inputs.context_summary}
+        required: false
+        gridcolumns: []
+        defaultrows: []
+        type: longText
+        options: []
+        optionsarg: []
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: Compromise level, score, signal type, MITRE
+        readonly: true
+      - id: "4"
+        label: Decision
+        labelarg:
+          simple: Approve or deny this action
+        required: true
+        gridcolumns: []
+        defaultrows: []
+        type: singleSelect
+        options:
+        - approved
+        - denied
+        optionsarg:
+        - simple: approved
+        - simple: denied
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: ""
+        readonly: false
+      sender: ""
+      title: SOC Framework - Action Approval Required
+      description: |
+        A SOC Framework Universal Command action requires analyst approval
+        before execution. Review the affected artifact and case context, then
+        approve or deny.
+      totalanswers: 0
+  "30":
+    id: "30"
+    taskid: a1111111-0000-0000-0000-000000000030
+    type: regular
+    task:
+      id: a1111111-0000-0000-0000-000000000030
+      version: -1
+      name: Capture Approval.decision from response
+      description: |
+        Read the analyst's decision from the collection task response and
+        write to Approval.decision.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Approval.decision
+      value:
+        simple: ${ApproveAction.Answers.4}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 730,
+          "y": 530
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "99":
+    id: "99"
+    taskid: a1111111-0000-0000-0000-000000000099
+    type: title
+    task:
+      id: a1111111-0000-0000-0000-000000000099
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      description: ''
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 850
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 900,
+        "width": 700,
+        "x": 230,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: action_name
+  value:
+    simple: ""
+  required: true
+  description: |
+    The soc-* action name being gated, e.g. "soc-kill-process". Used to look
+    up requires_approval and prompt_artifact in SOCFrameworkActions_V3, and
+    displayed in the approval prompt.
+  playbookInputQuery: null
+- key: phase
+  value:
+    simple: ""
+  required: false
+  description: |
+    NIST IR phase context, e.g. "Containment" / "Eradication" / "Recovery".
+    Displayed in the approval prompt.
+  playbookInputQuery: null
+- key: artifact_summary
+  value:
+    simple: ""
+  required: false
+  description: |
+    Pre-resolved string showing the affected artifact for the prompt, e.g.
+    "Process.PID = 5092 (svchost.exe)". The caller composes this from
+    SOCFramework.Artifacts.* values for clarity.
+  playbookInputQuery: null
+- key: context_summary
+  value:
+    simple: ""
+  required: false
+  description: |
+    Pre-resolved string showing case context for the prompt, e.g. "Compromise:
+    likely_compromised, Score: 92, Signal: file_malware". Caller composes from
+    Analysis.* values.
+  playbookInputQuery: null
+outputs:
+- contextPath: Approval.decision
+  description: '"approved" | "denied" | "auto-approved" — the gate decision'
+  type: string

@@ -6,7 +6,7 @@ contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
     packName: SOC Framework NIST IR (800-61)
-    itemVersion: 1.4.5
+    itemVersion: 4.0.0
     fromServerVersion: 5.0.0
     toServerVersion: ""
     definitionid: ""
@@ -14,39 +14,63 @@ contentitemexportablefields:
     isoverridable: false
     supportedModules: []
 name: SOC EndPoint Eradication_V3
-description: |-
-  Primary owners: Alert responders, platform engineers.
+description: |
+  Endpoint category Eradication playbook (NIST IR 800-61 Phase 3: Eradication).
 
-  Analyst role: Provide forensic details (malware hash, registry paths, C2 domains) to guide eradication efforts.
+  Design:
+    1. Phase Entry Gate. Reads CompromiseLevel via inputs. Skips the entire
+       phase if the alert was evaluated as not_compromised or empty, writing
+       a skip-story to Eradication.story.
+    2. Three gated actions: remove-file, quarantine-files, remove-persistence.
+       File-based actions artifact-gate on Target.* first (the malicious
+       object), falling back to Process.* (the initiator process) when Target
+       is empty. Each action is approval-gated via SOC_Approval_Gate_V3
+       sub-playbook.
+    3. SOCCommandWrapper handles Shadow Mode and writes Eradication.Execution[]
+       per action.
+    4. One Eradication.story write at the end.
+
+  Reads (via inputs):
+    - Analysis.Endpoint.compromise_level / .confidence / .signal_type
+    - SOCFramework.Artifacts.Endpoint.AgentID / .Hostname
+    - SOCFramework.Artifacts.Target.SHA256 / Target.Path (primary)
+    - SOCFramework.Artifacts.Process.SHA256 / Process.Path (fallback)
+    - SOCFramework.Artifacts.Process.Name
+
+  Writes:
+    - Approval.decision(per-call, via gate sub-playbook)
+    - Eradication.Execution[] (per-action, via SOCCommandWrapper)
+    - Eradication.story (single summary at phase end)
+
+  Caller: SOC Eradication_V3 parent orchestrator routes to this playbook when
+  inputs.ProductCategory = "Endpoint".
 tags:
 - SOC
-- SOC_Framework_Unified
-- NIST 800-61
+- SOC_Framework_NIST_IR
 - Eradication
-- EndPoint
+- Endpoint
 starttaskid: "0"
 tasks:
   "0":
     id: "0"
-    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
+    taskid: c3333333-0000-0000-0000-000000000000
     type: start
     task:
-      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
+      id: c3333333-0000-0000-0000-000000000000
       version: -1
       name: ""
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+      description: ''
     nexttasks:
       '#none#':
-      - "4"
+      - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 162.5,
+          "x": 480,
           "y": 50
         }
       }
@@ -57,43 +81,18 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "2":
-    id: "2"
-    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
-    type: title
-    task:
-      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
-      version: -1
-      name: Done
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 285,
-          "y": 4585
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "4":
-    id: "4"
-    taskid: 79485cb1-1161-4779-ab4e-e01f23800d91
+  "1":
+    id: "1"
+    taskid: c3333333-0000-0000-0000-000000000001
     type: condition
     task:
-      id: 79485cb1-1161-4779-ab4e-e01f23800d91
+      id: c3333333-0000-0000-0000-000000000001
       version: -1
-      name: Recommended Response?
+      name: Phase Entry Gate - compromise level warrants eradication?
+      description: |
+        Reads inputs.CompromiseLevel (defaults to
+        ${Analysis.Endpoint.compromise_level}). If not likely_compromised or
+        suspicious, skip the entire Eradication phase.
       type: condition
       iscommand: false
       brand: ""
@@ -101,143 +100,29 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "13"
-      "yes":
-      - "5"
+      - "90"
+      Proceed:
+      - "10"
     separatecontext: false
     conditions:
-    - label: "yes"
+    - label: Proceed
       condition:
-      - - operator: isTrue
+      - - operator: inList
           left:
             value:
               complex:
-                root: inputs.Analysis
-                accessor: response_recommended
-                transformers:
-                - operator: toLowerCase
+                root: inputs.CompromiseLevel
             iscontext: true
           right:
-            value: {}
+            value:
+              simple: likely_compromised,suspicious
+          ignorecase: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 162.5,
-          "y": 220
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "5":
-    id: "5"
-    taskid: e7f37085-fc33-4767-a4bf-f6a6f7623e4f
-    type: title
-    task:
-      id: e7f37085-fc33-4767-a4bf-f6a6f7623e4f
-      version: -1
-      name: Compromise Level
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "400"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 940,
-          "y": 405
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "8":
-    id: "8"
-    taskid: cf1e2e93-63f3-4a89-8707-197d8121d603
-    type: condition
-    task:
-      id: cf1e2e93-63f3-4a89-8707-197d8121d603
-      version: -1
-      name: Compromised Level?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "13"
-      Isolated Signal:
-      - "42"
-      Likely Compromisied:
-      - "55"
-      Suspicious & Executed:
-      - "56"
-    separatecontext: false
-    conditions:
-    - label: Likely Compromisied
-      condition:
-      - - operator: notContainsGeneral
-          left:
-            value:
-              complex:
-                root: inputs.Analysis
-                accessor: compromised_level
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: likely_compromised
-    - label: Suspicious & Executed
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Analysis
-                accessor: compromised_level
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: suspicious_execution
-    - label: Isolated Signal
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Analysis
-                accessor: compromised_level
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: isolated_signal
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 152.5,
-          "y": 760
+          "x": 480,
+          "y": 200
         }
       }
     note: false
@@ -249,12 +134,16 @@ tasks:
     isautoswitchedtoquietmode: false
   "10":
     id: "10"
-    taskid: 9eeab378-40ec-4813-87bd-2979604ab80d
+    taskid: c3333333-0000-0000-0000-000000000010
     type: condition
     task:
-      id: 9eeab378-40ec-4813-87bd-2979604ab80d
+      id: c3333333-0000-0000-0000-000000000010
       version: -1
-      name: Persistence Detected?
+      name: Action 1 - File path present (Target OR Process)?
+      description: |
+        Skip soc-remove-file if no file path is in context. Check Target.Path
+        first (the declared target of the action); fall back to Process.Path
+        (the initiator process's file path) when Target is empty.
       type: condition
       iscommand: false
       brand: ""
@@ -262,27 +151,31 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "28"
-      "yes":
-      - "26"
+      - "20"
+      Present:
+      - "11"
     separatecontext: false
     conditions:
-    - label: "yes"
+    - label: Present
       condition:
-      - - operator: containsGeneral
+      - - operator: isNotEmpty
           left:
             value:
-              simple: inputs.Analysis.mitre_tactic
+              complex:
+                root: inputs.TargetPath
             iscontext: true
-          right:
+        - operator: isNotEmpty
+          left:
             value:
-              simple: persistence
+              complex:
+                root: inputs.ProcessPath
+            iscontext: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 817.5,
-          "y": 2965
+          "x": 480,
+          "y": 360
         }
       }
     note: false
@@ -294,45 +187,46 @@ tasks:
     isautoswitchedtoquietmode: false
   "11":
     id: "11"
-    taskid: a3799d76-15cb-434e-b5e0-685172775785
-    type: regular
+    taskid: c3333333-0000-0000-0000-000000000011
+    type: playbook
     task:
-      id: a3799d76-15cb-434e-b5e0-685172775785
+      id: c3333333-0000-0000-0000-000000000011
       version: -1
-      name: Set Eradication Not Attempted
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
+      name: Gate - soc-remove-file
+      description: |
+        Call SOC Approval Gate_V3 for soc-remove-file.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "46"
+      - "12"
     scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.attempted
-      value:
-        simple: "false"
+      action_name:
+        simple: soc-remove-file
+      phase:
+        simple: Eradication
+      artifact_summary:
+        simple: "File path: ${inputs.TargetPath}${inputs.ProcessPath} on ${inputs.Hostname}"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 162.5,
-          "y": 1855
+          "x": 480,
+          "y": 520
         }
       }
     note: false
@@ -344,47 +238,44 @@ tasks:
     isautoswitchedtoquietmode: false
   "12":
     id: "12"
-    taskid: 582e2da2-d7f0-43ee-9798-3f3cdcf19d84
-    type: regular
+    taskid: c3333333-0000-0000-0000-000000000012
+    type: condition
     task:
-      id: 582e2da2-d7f0-43ee-9798-3f3cdcf19d84
+      id: c3333333-0000-0000-0000-000000000012
       version: -1
-      name: Set No Eradication Story
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
+      name: Action 1 - Approved?
+      description: |
+        Route to wrapper only if approved or auto-approved.
+      type: condition
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
-      '#none#':
-      - "2"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.story
-      value:
-        simple: "No Malware Artifacts Confirmed.  \nSHA256: ${SOCFramework.Artifacts.File.[0]}\nEndPoint:
-          ${inputs.Analysis.entity_name.[0]}\nEndPoint ID: ${inputs.Analysis.primary_entity_id.[0]}\nUserName:
-          ${inputs.Analysis.primary_entity_user.[0]}"
+      '#default#':
+      - "20"
+      Allow:
+      - "13"
     separatecontext: false
-    continueonerror: true
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 162.5,
-          "y": 2225
+          "x": 480,
+          "y": 680
         }
       }
     note: false
@@ -396,52 +287,15 @@ tasks:
     isautoswitchedtoquietmode: false
   "13":
     id: "13"
-    taskid: 8071ef83-83c7-4e79-939e-775e5aa7780d
-    type: title
-    task:
-      id: 8071ef83-83c7-4e79-939e-775e5aa7780d
-      version: -1
-      name: No Eradication Required
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "44"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 1500
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "14":
-    id: "14"
-    taskid: 4ffd15a9-4d6e-4f42-a8e4-495be61f6831
+    taskid: c3333333-0000-0000-0000-000000000013
     type: regular
     task:
-      id: 4ffd15a9-4d6e-4f42-a8e4-495be61f6831
+      id: c3333333-0000-0000-0000-000000000013
       version: -1
-      name: Set File Was Removed
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
+      name: Wrapper - soc-remove-file
+      description: |
+        Call SOCCommandWrapper for soc-remove-file.
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
       brand: ""
@@ -449,24 +303,20 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "10"
+      - "20"
     scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.file_removed
-      value:
-        simple: "true"
+      action:
+        simple: soc-remove-file
+      phase:
+        simple: Eradication
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 705,
-          "y": 2780
+          "x": 480,
+          "y": 840
         }
       }
     note: false
@@ -476,29 +326,100 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "17":
-    id: "17"
-    taskid: 0bb296b7-5153-431c-ab0f-9432eee10875
-    type: title
+  "20":
+    id: "20"
+    taskid: c3333333-0000-0000-0000-000000000020
+    type: condition
     task:
-      id: 0bb296b7-5153-431c-ab0f-9432eee10875
+      id: c3333333-0000-0000-0000-000000000020
       version: -1
-      name: File Does Not Exist
-      type: title
+      name: Action 2 - File hash present (Target OR Process)?
+      description: |
+        Skip soc-quarantine-files if no SHA256 is in context. Check
+        Target.SHA256 first; fall back to Process.SHA256.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "30"
+      Present:
+      - "21"
+    separatecontext: false
+    conditions:
+    - label: Present
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.TargetHash
+            iscontext: true
+        - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.ProcessHash
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1000
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "21":
+    id: "21"
+    taskid: c3333333-0000-0000-0000-000000000021
+    type: playbook
+    task:
+      id: c3333333-0000-0000-0000-000000000021
+      version: -1
+      name: Gate - soc-quarantine-files
+      description: |
+        Call SOC Approval Gate_V3 for soc-quarantine-files.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "18"
+      - "22"
+    scriptarguments:
+      action_name:
+        simple: soc-quarantine-files
+      phase:
+        simple: Eradication
+      artifact_summary:
+        simple: "Hash: ${inputs.TargetHash}${inputs.ProcessHash} on ${inputs.Hostname}"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1135,
-          "y": 2602.5
+          "x": 480,
+          "y": 1160
         }
       }
     note: false
@@ -508,104 +429,66 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "18":
-    id: "18"
-    taskid: 1120df2c-867d-470c-ae05-a9cbae60816f
+  "22":
+    id: "22"
+    taskid: c3333333-0000-0000-0000-000000000022
+    type: condition
+    task:
+      id: c3333333-0000-0000-0000-000000000022
+      version: -1
+      name: Action 2 - Approved?
+      type: condition
+      iscommand: false
+      brand: ""
+      description: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "30"
+      Allow:
+      - "23"
+    separatecontext: false
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1320
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: c3333333-0000-0000-0000-000000000023
     type: regular
     task:
-      id: 1120df2c-867d-470c-ae05-a9cbae60816f
+      id: c3333333-0000-0000-0000-000000000023
       version: -1
-      name: Set Persistence Was Not Removed
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
+      name: Wrapper - soc-quarantine-files
+      description: |
+        Call SOCCommandWrapper for soc-quarantine-files.
+      script: SOCCommandWrapper
       type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "10"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.persistence_removed
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1135,
-          "y": 2780
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "26":
-    id: "26"
-    taskid: 068b3bc3-be4a-4794-bafd-ce3d6e427073
-    type: title
-    task:
-      id: 068b3bc3-be4a-4794-bafd-ce3d6e427073
-      version: -1
-      name: Remove Persistence
-      description: |-
-        Scheduled task
-        registry run key
-        vmi subscription
-        service
-        startup folder
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "53"
-      - "54"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 930,
-          "y": 3150
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "28":
-    id: "28"
-    taskid: 68a82759-6e2c-43b1-aedf-fcfa689e3c35
-    type: title
-    task:
-      id: 68a82759-6e2c-43b1-aedf-fcfa689e3c35
-      version: -1
-      name: Eradication Attempted
-      type: title
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
@@ -613,13 +496,19 @@ tasks:
     nexttasks:
       '#none#':
       - "30"
+    scriptarguments:
+      action:
+        simple: soc-quarantine-files
+      phase:
+        simple: Eradication
     separatecontext: false
+    continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 817.5,
-          "y": 3675
+          "x": 480,
+          "y": 1480
         }
       }
     note: false
@@ -631,45 +520,91 @@ tasks:
     isautoswitchedtoquietmode: false
   "30":
     id: "30"
-    taskid: 33799804-33be-45f0-b2d9-c037796fee0c
-    type: regular
+    taskid: c3333333-0000-0000-0000-000000000030
+    type: condition
     task:
-      id: 33799804-33be-45f0-b2d9-c037796fee0c
+      id: c3333333-0000-0000-0000-000000000030
       version: -1
-      name: Set Not Recommend Re-Image
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
+      name: Action 3 - AgentID present?
+      description: |
+        Skip soc-remove-persistence if no Endpoint.AgentID is in context.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "80"
+      Present:
+      - "31"
+    separatecontext: false
+    conditions:
+    - label: Present
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.AgentID
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1640
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "31":
+    id: "31"
+    taskid: c3333333-0000-0000-0000-000000000031
+    type: playbook
+    task:
+      id: c3333333-0000-0000-0000-000000000031
+      version: -1
+      name: Gate - soc-remove-persistence
+      description: |
+        Call SOC Approval Gate_V3 for soc-remove-persistence.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "43"
+      - "32"
     scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.reimage_required
-      value:
-        simple: "false"
+      action_name:
+        simple: soc-remove-persistence
+      phase:
+        simple: Eradication
+      artifact_summary:
+        simple: "Persistence cleanup on ${inputs.Hostname} targeting ${inputs.ProcessName}"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 817.5,
-          "y": 3845
+          "x": 480,
+          "y": 1800
         }
       }
     note: false
@@ -681,45 +616,43 @@ tasks:
     isautoswitchedtoquietmode: false
   "32":
     id: "32"
-    taskid: f50a3209-3f83-4f8a-8346-93fc8b80bca2
-    type: regular
+    taskid: c3333333-0000-0000-0000-000000000032
+    type: condition
     task:
-      id: f50a3209-3f83-4f8a-8346-93fc8b80bca2
+      id: c3333333-0000-0000-0000-000000000032
       version: -1
-      name: Set Eradication Success
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
+      name: Action 3 - Approved?
+      type: condition
       iscommand: false
       brand: ""
+      description: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
-      '#none#':
+      '#default#':
+      - "80"
+      Allow:
       - "33"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.success
-      value:
-        simple: "true"
     separatecontext: false
-    continueonerror: true
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 817.5,
-          "y": 4215
+          "x": 480,
+          "y": 1960
         }
       }
     note: false
@@ -731,19 +664,57 @@ tasks:
     isautoswitchedtoquietmode: false
   "33":
     id: "33"
-    taskid: b8f7f36c-ffc3-49db-9ecd-4aca821192b0
+    taskid: c3333333-0000-0000-0000-000000000033
     type: regular
     task:
-      id: b8f7f36c-ffc3-49db-9ecd-4aca821192b0
+      id: c3333333-0000-0000-0000-000000000033
       version: -1
-      name: Set Eradication Story
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      name: Wrapper - soc-remove-persistence
+      description: |
+        Call SOCCommandWrapper for soc-remove-persistence.
+      script: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "80"
+    scriptarguments:
+      action:
+        simple: soc-remove-persistence
+      phase:
+        simple: Eradication
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "80":
+    id: "80"
+    taskid: c3333333-0000-0000-0000-000000000080
+    type: regular
+    task:
+      id: c3333333-0000-0000-0000-000000000080
+      version: -1
+      name: Write Eradication.story (executed)
+      description: |
+        Write a single Eradication.story summarizing that the phase ran.
+        Per-action detail lives in Eradication.Execution[] (written by the
+        wrapper) and in the XSIAM case audit log.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -752,7 +723,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "2"
+      - "99"
     scriptarguments:
       append:
         simple: "false"
@@ -761,28 +732,15 @@ tasks:
       key:
         simple: Eradication.story
       value:
-        simple: |-
-          Host: ${inputs.Analysis.primary_entity_name}
-          User: ${inputs.Analysis.primary_entity_user}
-
-          Compromise Level: ${inputs.Analysis.compromised_level}
-          Compromise Decision:${inputs.Analysis.compromise_decision}
-          Spread Level: ${inputs.Analysis.spread_level}
-
-          Persistence Detected: ${inputs.Analysis.persistence_detected}
-          Persistence Type: ${inputs.Analysis.persistence_type}
-
-          Files Removed: ${Eradication.files_removed}
-          Persistence Removed: ${Eradication.persistence_removed}
-          Re-Image Required: ${Eradication.reimage_required}
+        simple: "Eradication phase executed for ${inputs.CompromiseLevel} alert. See Eradication.Execution[] for per-action outcomes and the case audit log for analyst approval decisions."
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 817.5,
-          "y": 4400
+          "x": 480,
+          "y": 2280
         }
       }
     note: false
@@ -792,275 +750,18 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "35":
-    id: "35"
-    taskid: fdb7b32b-d605-43e1-b21f-91a5704c5dcc
-    type: title
-    task:
-      id: fdb7b32b-d605-43e1-b21f-91a5704c5dcc
-      version: -1
-      name: Spread Level
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "36"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1145,
-          "y": 1137.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "36":
-    id: "36"
-    taskid: 2298ad72-18d8-4a72-8175-c8812c732aff
-    type: condition
-    task:
-      id: 2298ad72-18d8-4a72-8175-c8812c732aff
-      version: -1
-      name: Spread Multi Entity?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "13"
-      Limited or Single Entity:
-      - "47"
-      Multi Entity:
-      - "37"
-    separatecontext: false
-    conditions:
-    - label: Multi Entity
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Analysis
-                accessor: spread_level
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: multi_entity
-    - label: Limited or Single Entity
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Analysis
-                accessor: spread_level
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: limited_entity
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Analysis
-                accessor: spread_level
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: single_entity
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 695,
-          "y": 1315
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "37":
-    id: "37"
-    taskid: 597138f0-d50c-4a2a-89db-583c3d7c87e7
-    type: title
-    task:
-      id: 597138f0-d50c-4a2a-89db-583c3d7c87e7
-      version: -1
-      name: Re-Image Actions
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "41"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1565,
-          "y": 1500
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "38":
-    id: "38"
-    taskid: b59f2502-0db0-43e6-ba53-8848b2f209b7
-    type: condition
-    task:
-      id: b59f2502-0db0-43e6-ba53-8848b2f209b7
-      version: -1
-      name: Malware Execution?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "58"
-      "yes":
-      - "39"
-    separatecontext: false
-    conditions:
-    - label: "yes"
-      condition:
-      - - operator: notContainsGeneral
-          left:
-            value:
-              complex:
-                root: inputs.Analysis
-                accessor: compromise_decision
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: malicious_and_executed
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 817.5,
-          "y": 1670
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "39":
-    id: "39"
-    taskid: cacd053d-cca1-456d-9371-f3877ff5f05f
-    type: title
-    task:
-      id: cacd053d-cca1-456d-9371-f3877ff5f05f
-      version: -1
-      name: 'Executed:  Kill Process & Remove'
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "63"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1135,
-          "y": 1862.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "40":
-    id: "40"
-    taskid: 4f4f3b65-df80-4ed2-a58b-f8b5a65435e0
-    type: title
-    task:
-      id: 4f4f3b65-df80-4ed2-a58b-f8b5a65435e0
-      version: -1
-      name: File Not Found
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "64"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 705,
-          "y": 2417.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "41":
-    id: "41"
-    taskid: 9226d8a6-1849-477f-82e0-d107e17bdfe0
+  "90":
+    id: "90"
+    taskid: c3333333-0000-0000-0000-000000000090
     type: regular
     task:
-      id: 9226d8a6-1849-477f-82e0-d107e17bdfe0
+      id: c3333333-0000-0000-0000-000000000090
       version: -1
-      name: Set File Was Not Removed
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
+      name: Write Eradication.story (skipped)
+      description: |
+        Phase entry gate closed. Write a skip-story so downstream consumers
+        (Recovery, dashboard, case layout) can tell the phase was
+        deliberately skipped versus errored out.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -1069,418 +770,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "52"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.file_removed
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1565,
-          "y": 1670
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "42":
-    id: "42"
-    taskid: c863200f-dae8-464c-a373-e7eb1b8254a9
-    type: title
-    task:
-      id: c863200f-dae8-464c-a373-e7eb1b8254a9
-      version: -1
-      name: Isolated Signal
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "13"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1322.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "43":
-    id: "43"
-    taskid: b8e15b3d-fada-4c0f-8c8a-d56a5ea4b471
-    type: regular
-    task:
-      id: b8e15b3d-fada-4c0f-8c8a-d56a5ea4b471
-      version: -1
-      name: Set Eradication Attempted
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "32"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.attempted
-      value:
-        simple: "true"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 817.5,
-          "y": 4030
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "44":
-    id: "44"
-    taskid: 36509522-18df-490b-be44-0e37d4cf9380
-    type: regular
-    task:
-      id: 36509522-18df-490b-be44-0e37d4cf9380
-      version: -1
-      name: Set Not Recommend Re-Image
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "11"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.reimage_required
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 1670
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "46":
-    id: "46"
-    taskid: 35468cc2-cf1b-42b0-88dc-d65634515c23
-    type: regular
-    task:
-      id: 35468cc2-cf1b-42b0-88dc-d65634515c23
-      version: -1
-      name: Set Eradication Success False
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "12"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.success
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 2040
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "47":
-    id: "47"
-    taskid: 9481c91c-a49c-4ab8-a1db-336240093686
-    type: title
-    task:
-      id: 9481c91c-a49c-4ab8-a1db-336240093686
-      version: -1
-      name: Single or Limited Entity Spread
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "38"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 817.5,
-          "y": 1500
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "48":
-    id: "48"
-    taskid: 927d40ce-7c8b-4601-85d9-1fc9b45db55f
-    type: regular
-    task:
-      id: 927d40ce-7c8b-4601-85d9-1fc9b45db55f
-      version: -1
-      name: Set Recommend Re-Image
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "49"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.reimage_required
-      value:
-        simple: "true"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1565,
-          "y": 2040
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "49":
-    id: "49"
-    taskid: 68a7fc2d-22b6-47cf-973f-05a6786b3768
-    type: regular
-    task:
-      id: 68a7fc2d-22b6-47cf-973f-05a6786b3768
-      version: -1
-      name: Set Eradication Attempted
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "50"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.attempted
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1565,
-          "y": 2225
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "50":
-    id: "50"
-    taskid: 680609f2-4e0d-4dad-85b5-a87eb1cfe6af
-    type: regular
-    task:
-      id: 680609f2-4e0d-4dad-85b5-a87eb1cfe6af
-      version: -1
-      name: Set Eradication Success
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "51"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.success
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1565,
-          "y": 2410
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "51":
-    id: "51"
-    taskid: d0b5b4e6-2e8a-4dec-aedd-0c5c0d770bd0
-    type: regular
-    task:
-      id: d0b5b4e6-2e8a-4dec-aedd-0c5c0d770bd0
-      version: -1
-      name: Set Eradication Story
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+      - "99"
     scriptarguments:
       append:
         simple: "false"
@@ -1489,31 +779,15 @@ tasks:
       key:
         simple: Eradication.story
       value:
-        simple: |-
-          Host: ${inputs.Analysis.primary_entity_name}
-          User: ${inputs.Analysis.primary_entity_user}
-
-          Compromise Level: ${inputs.Analysis.compromised_level}
-          Compromise Decision: {inputs.Analysis.compromise_decision}
-          Spread Level: ${inputs.Analysis.spread_level}
-
-          Persistence Detected: ${inputs.Analysis.persistence_detected}
-          Persistence Type: ${inputs.Analysis.persistence_type}
-
-          Files Removed: ${Eradication.files_removed}
-          Persistence Removed: ${Eradication.persistence_removed}
-          Reimage Required: ${Eradication.reimage_required}
-    nexttasks:
-      '#none#':
-      - "2"
+        simple: "Eradication skipped. CompromiseLevel = ${inputs.CompromiseLevel} did not warrant eradication actions."
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1565,
-          "y": 2595
+          "x": 150,
+          "y": 360
         }
       }
     note: false
@@ -1523,793 +797,25 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "52":
-    id: "52"
-    taskid: 8a33a90c-4226-4581-8d0c-9c2098c46640
+  "99":
+    id: "99"
+    taskid: c3333333-0000-0000-0000-000000000099
     type: title
     task:
-      id: 8a33a90c-4226-4581-8d0c-9c2098c46640
+      id: c3333333-0000-0000-0000-000000000099
       version: -1
-      name: 'Re-Imaging Recommended '
+      name: Done
       type: title
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "48"
+      description: ''
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1565,
-          "y": 1862.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "53":
-    id: "53"
-    taskid: e3d60f1d-7665-44c3-83db-7dd4cf5a1702
-    type: title
-    task:
-      id: e3d60f1d-7665-44c3-83db-7dd4cf5a1702
-      version: -1
-      name: Persistence Removed?
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "60"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 930,
-          "y": 3320
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "54":
-    id: "54"
-    taskid: fe6708d2-989a-4e20-87b2-d0499a940aee
-    type: title
-    task:
-      id: fe6708d2-989a-4e20-87b2-d0499a940aee
-      version: -1
-      name: Persistence Not Removed
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "59"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1360,
-          "y": 3320
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "55":
-    id: "55"
-    taskid: 0b6478aa-1592-4136-b6d4-ba76c8ac3a92
-    type: title
-    task:
-      id: 0b6478aa-1592-4136-b6d4-ba76c8ac3a92
-      version: -1
-      name: Likely Compromised
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "36"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 377.5,
-          "y": 1137.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "56":
-    id: "56"
-    taskid: e0c689df-798f-415e-a9b4-83ff8eb865d8
-    type: title
-    task:
-      id: e0c689df-798f-415e-a9b4-83ff8eb865d8
-      version: -1
-      name: Suspicious & Executed
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "35"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1145,
-          "y": 952.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "58":
-    id: "58"
-    taskid: 2f2dd960-9b2e-4c71-8b96-20a74750d660
-    type: title
-    task:
-      id: 2f2dd960-9b2e-4c71-8b96-20a74750d660
-      version: -1
-      name: 'Not Executed: Remove File'
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "62"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 705,
-          "y": 2047.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "59":
-    id: "59"
-    taskid: 9aca4a2d-ce0f-4b3d-b377-9a7e2c8c814c
-    type: regular
-    task:
-      id: 9aca4a2d-ce0f-4b3d-b377-9a7e2c8c814c
-      version: -1
-      name: Set Persistence Was Not Removed
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "28"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.persistence_removed
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1360,
-          "y": 3490
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "60":
-    id: "60"
-    taskid: 7aa8bc92-f0b0-44e8-a110-91a4779b5c77
-    type: regular
-    task:
-      id: 7aa8bc92-f0b0-44e8-a110-91a4779b5c77
-      version: -1
-      name: Set Persistence Was Removed
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "28"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.persistence_removed
-      value:
-        simple: "true"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 930,
-          "y": 3490
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "62":
-    id: "62"
-    taskid: 5c963e8b-8139-432c-8f1c-897f09ce6e6b
-    type: regular
-    task:
-      id: 5c963e8b-8139-432c-8f1c-897f09ce6e6b
-      version: -1
-      name: Check for  File Existence - Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "40"
-      - "17"
-    scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Eradication
-      action:
-        simple: soc-file-exists
-      output_key:
-        simple: Eradication.Execution
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 817.5,
-          "y": 2225
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "63":
-    id: "63"
-    taskid: 05ee45fe-2ab1-441b-bc16-1128ce681642
-    type: regular
-    task:
-      id: 05ee45fe-2ab1-441b-bc16-1128ce681642
-      version: -1
-      name: Kill Process - Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "62"
-    scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Eradication
-      action:
-        simple: soc-kill-process
-      output_key:
-        simple: Eradication.Execution
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1135,
-          "y": 2040
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "64":
-    id: "64"
-    taskid: 8329cb82-b4c5-4827-a7ae-07254f615cb4
-    type: regular
-    task:
-      id: 8329cb82-b4c5-4827-a7ae-07254f615cb4
-      version: -1
-      name: Delete File From Endpoint - Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "14"
-    scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Eradication
-      action:
-        simple: soc-delete-file
-      output_key:
-        simple: Eradication.Execution
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 705,
-          "y": 2595
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "400":
-    id: "400"
-    taskid: ca4a534c-d4e5-451f-b6af-ba4a61e08bcc
-    type: condition
-    task:
-      id: ca4a534c-d4e5-451f-b6af-ba4a61e08bcc
-      version: -1
-      name: Signal Type — Targeted Eradication Path?
-      description: Routes behavioral signals to credential scope check and process
-        kill. Routes process_execution to targeted process/artifact cleanup. File
-        malware falls through to existing delete-file path.
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "8"
-      Behavioral:
-      - "401"
-      Process Execution:
-      - "405"
-    separatecontext: false
-    conditions:
-    - label: Behavioral
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              simple: Analysis.Endpoint.signal_type
-            iscontext: true
-          right:
-            value:
-              simple: behavior_memory
-    - label: Process Execution
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              simple: Analysis.Endpoint.signal_type
-            iscontext: true
-          right:
-            value:
-              simple: process_execution
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 940,
-          "y": 575
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "401":
-    id: "401"
-    taskid: 4414e2aa-cda3-4717-8132-445bd047880f
-    type: condition
-    task:
-      id: 4414e2aa-cda3-4717-8132-445bd047880f
-      version: -1
-      name: Credential Access Tactics Detected?
-      description: If T1003 (Credential Dumping), T1550 (Pass the Ticket), or T1558
-        (Kerberoasting) are in the case MITRE tactics, treat as credential compromise
-        — trigger token revocation.
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "403"
-      Credential Access:
-      - "402"
-    separatecontext: false
-    conditions:
-    - label: Credential Access
-      condition:
-      - - operator: containsString
-          left:
-            value:
-              simple: inputs.case_mitre_tactics
-            iscontext: true
-          right:
-            value:
-              simple: TA0006
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1585,
-          "y": 760
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "402":
-    id: "402"
-    taskid: 512d5978-5eba-4618-8380-d87ea9cae5b9
-    type: regular
-    task:
-      id: 512d5978-5eba-4618-8380-d87ea9cae5b9
-      version: -1
-      name: Revoke Tokens — Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "403"
-    scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Eradication
-      action:
-        simple: soc-revoke-tokens
-      entity:
-        simple: ${SOCFramework.Primary.EntityValue}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1697.5,
-          "y": 945
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "403":
-    id: "403"
-    taskid: 42e72858-62ae-4acf-aff8-7c7fb946a4c2
-    type: regular
-    task:
-      id: 42e72858-62ae-4acf-aff8-7c7fb946a4c2
-      version: -1
-      name: Kill Malicious Process — Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "404"
-    scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Eradication
-      action:
-        simple: soc-kill-process
-      entity:
-        simple: ${SOCFramework.Artifacts.ProcessName}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1585,
-          "y": 1130
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "404":
-    id: "404"
-    taskid: bcc6fd3c-4117-4911-81cb-e45e6bf5af78
-    type: regular
-    task:
-      id: bcc6fd3c-4117-4911-81cb-e45e6bf5af78
-      version: -1
-      name: Set Behavioral Eradication Story
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "13"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.story
-      value:
-        simple: 'Behavioral eradication: malicious process killed. Credential access
-          tactics (T1003/T1550) detected — OAuth tokens revoked and sessions terminated
-          for affected user. No dropped malware file to remove. Persistence removal
-          handled via persistence branch.'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1585,
-          "y": 1315
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "405":
-    id: "405"
-    taskid: d5283e06-4188-4d08-be77-b850a714a184
-    type: regular
-    task:
-      id: d5283e06-4188-4d08-be77-b850a714a184
-      version: -1
-      name: Kill Initiator Process — Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "406"
-    scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Eradication
-      action:
-        simple: soc-kill-process
-      entity:
-        simple: ${SOCFramework.Artifacts.ProcessName}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 2127.5,
-          "y": 945
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "406":
-    id: "406"
-    taskid: 7ccedfc9-4f5f-4db3-8249-ae94d55ac913
-    type: regular
-    task:
-      id: 7ccedfc9-4f5f-4db3-8249-ae94d55ac913
-      version: -1
-      name: Check Process Artifact File Existence — Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "407"
-    scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Eradication
-      action:
-        simple: soc-file-exists
-      entity:
-        simple: ${SOCFramework.Artifacts.FilePath}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 2127.5,
-          "y": 1130
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "407":
-    id: "407"
-    taskid: df19710e-0116-4edc-98b4-17932f505858
-    type: regular
-    task:
-      id: df19710e-0116-4edc-98b4-17932f505858
-      version: -1
-      name: Set Process Execution Eradication Story
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "13"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Eradication.story
-      value:
-        simple: 'Process execution eradication: initiator process killed. Process
-          artifacts checked for file residue. Parent process tree evaluated for secondary
-          persistence.'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 2127.5,
-          "y": 1315
+          "x": 480,
+          "y": 2440
         }
       }
     note: false
@@ -2325,44 +831,113 @@ view: |-
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 4595,
-        "width": 2457.5,
-        "x": 50,
+        "height": 2450,
+        "width": 600,
+        "x": 150,
         "y": 50
       }
     }
   }
 inputs:
-- key: Analysis
+- key: ProductCategory
   value:
-    simple: ${Analysis}
+    simple: Endpoint
   required: false
-  description: ""
+  description: |
+    Product category passed by SOC Eradication_V3 parent orchestrator.
   playbookInputQuery: null
-- key: case_mitre_techniques
+- key: CompromiseLevel
   value:
-    simple: ${parentIncidentFields.mitre_techniques_ids_and_names}
+    complex:
+      root: Analysis.Endpoint.compromise_level
   required: false
-  description: MITRE techniques from parent case for credential access detection
+  description: |
+    Endpoint compromise level. Drives the phase-entry gate.
   playbookInputQuery: null
-- key: case_mitre_tactics
+- key: Confidence
   value:
-    simple: ${parentIncidentFields.mitre_tactic_id_and_name}
+    complex:
+      root: Analysis.Endpoint.confidence
   required: false
-  description: MITRE tactics from parent case for credential access detection (TA0006)
+  description: |
+    Analysis confidence score. Shown in the approval prompt context.
+  playbookInputQuery: null
+- key: SignalType
+  value:
+    complex:
+      root: Analysis.Endpoint.signal_type
+  required: false
+  description: |
+    Endpoint signal classification. Shown in the approval prompt.
+  playbookInputQuery: null
+- key: AgentID
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Endpoint.AgentID
+  required: false
+  description: |
+    EDR agent identifier for the affected host. Required for
+    soc-remove-persistence. If empty, that action is skipped.
+  playbookInputQuery: null
+- key: Hostname
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Endpoint.Hostname
+  required: false
+  description: |
+    Hostname of the affected endpoint. Used in approval prompts.
+  playbookInputQuery: null
+- key: TargetHash
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Target.SHA256
+  required: false
+  description: |
+    SHA256 hash of the malicious file target (primary). Resolves from
+    ${SOCFramework.Artifacts.Target.SHA256}. Checked first; if empty,
+    ProcessHash is used as fallback for soc-quarantine-files.
+  playbookInputQuery: null
+- key: ProcessHash
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Process.SHA256
+  required: false
+  description: |
+    SHA256 hash of the initiator process (fallback). Resolves from
+    ${SOCFramework.Artifacts.Process.SHA256}. Used when Target.SHA256 is
+    not populated.
+  playbookInputQuery: null
+- key: TargetPath
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Target.Path
+  required: false
+  description: |
+    File path of the malicious target (primary). Resolves from
+    ${SOCFramework.Artifacts.Target.Path}. Checked first for soc-remove-file.
+  playbookInputQuery: null
+- key: ProcessPath
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Process.Path
+  required: false
+  description: |
+    File path of the initiator process (fallback). Resolves from
+    ${SOCFramework.Artifacts.Process.Path}. Used when Target.Path is empty.
+  playbookInputQuery: null
+- key: ProcessName
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Process.Name
+  required: false
+  description: |
+    Process name for approval-prompt context and persistence cleanup
+    parameters.
   playbookInputQuery: null
 outputs:
-- contextPath: Eradication.success
-  type: unknown
-- contextPath: Eradication.escalate_to_reimage
-  type: unknown
-- contextPath: Eradication.reimage_required
-  type: unknown
-- contextPath: Eradication.persistence_removed
-  type: unknown
-- contextPath: Eradication.files_removed
-  type: unknown
 - contextPath: Eradication.story
-  type: unknown
-- contextPath: Eradication.attempted
+  description: One-line summary of what this phase did (or why it was skipped)
+  type: string
+- contextPath: Eradication.Execution
+  description: Per-action execution records written by SOCCommandWrapper
   type: unknown
