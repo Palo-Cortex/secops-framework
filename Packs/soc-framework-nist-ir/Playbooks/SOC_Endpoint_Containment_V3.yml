@@ -6,7 +6,7 @@ contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
     packName: SOC Framework NIST IR (800-61)
-    itemVersion: 1.5.3
+    itemVersion: 4.0.0
     fromServerVersion: 5.0.0
     toServerVersion: ""
     definitionid: ""
@@ -14,39 +14,62 @@ contentitemexportablefields:
     isoverridable: false
     supportedModules: []
 name: SOC Endpoint Containment_V3
-description: |-
-  Primary owners: Alert responders, automation, endpoint/network teams.
+description: |
+  Endpoint category Containment playbook (NIST IR 800-61 Phase 3: Containment).
 
-  Analyst role: May initiate or recommend containment actions (isolate host, disable account, block IP), often via playbook automation or escalation.
+  Design:
+    1. Phase Entry Gate. Reads Analysis.Endpoint.compromise_level. Skips the
+       entire phase if the alert was evaluated as not_compromised, writing a
+       skip-story to Containment.story.
+    2. Three gated actions in sequence: isolate endpoint, kill process,
+       block file hash. Each action is independently artifact-gated (skip if
+       the artifact is absent) and approval-gated via SOC_Approval_Gate_V3
+       sub-playbook (skip the wrapper call if the analyst denies).
+    3. SOCCommandWrapper handles Shadow Mode and writes Containment.Execution[]
+       per action. The playbook never reads or writes shadow_mode state.
+    4. One Containment.story write at the end summarizing what happened.
+
+  Reads:
+    - SOCFramework.Artifacts.Endpoint.AgentID / .Hostname (host context)
+    - SOCFramework.Artifacts.Process.PID / .Name (process-initiator context)
+    - SOCFramework.Artifacts.Target.SHA256 (malicious-file context)
+    - Analysis.Endpoint.compromise_level / .confidence / .signal_type
+    - lists.SOCFrameworkActions_V3 (via SOC_Approval_Gate_V3 sub-playbook)
+
+  Writes:
+    - Approval.decision(per-call, via gate sub-playbook)
+    - Containment.Execution[] (per-action, via SOCCommandWrapper)
+    - Containment.story (single summary at phase end)
+
+  Caller: SOC Containment_V3 parent orchestrator routes to this playbook when
+  inputs.ProductCategory = "Endpoint".
 tags:
 - SOC
-- SOC_Framework_Unified
+- SOC_Framework_NIST_IR
 - Containment
-- NIST 800-61
-- EndPoint
+- Endpoint
 starttaskid: "0"
 tasks:
   "0":
     id: "0"
-    taskid: 8b859cdc-d653-40d8-88b5-856b497221a5
+    taskid: b2222222-0000-0000-0000-000000000000
     type: start
     task:
-      id: 8b859cdc-d653-40d8-88b5-856b497221a5
+      id: b2222222-0000-0000-0000-000000000000
       version: -1
       name: ""
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+      description: ''
     nexttasks:
       '#none#':
-      - "305"
+      - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1125,
+          "x": 480,
           "y": 50
         }
       }
@@ -57,29 +80,150 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "48":
-    id: "48"
-    taskid: 8045b57e-2682-498b-a1a2-a0d9834b52a2
-    type: title
+  "1":
+    id: "1"
+    taskid: b2222222-0000-0000-0000-000000000001
+    type: condition
     task:
-      id: 8045b57e-2682-498b-a1a2-a0d9834b52a2
+      id: b2222222-0000-0000-0000-000000000001
       version: -1
-      name: Immediate Isolation
-      type: title
+      name: Phase Entry Gate - compromise level warrants containment?
+      description: |
+        Reads Analysis.Endpoint.compromise_level. If the alert was evaluated
+        as not_compromised (or no value is set), skip the entire Containment
+        phase and write a skip-story. Otherwise proceed to the gated action
+        chain.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "90"
+      Proceed:
+      - "10"
+    separatecontext: false
+    conditions:
+    - label: Proceed
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: inputs.CompromiseLevel
+            iscontext: true
+          right:
+            value:
+              simple: likely_compromised,suspicious
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 200
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: b2222222-0000-0000-0000-000000000010
+    type: condition
+    task:
+      id: b2222222-0000-0000-0000-000000000010
+      version: -1
+      name: Action 1 - AgentID present?
+      description: |
+        Skip soc-isolate-endpoint if no Endpoint.AgentID is in context. No
+        artifact means nothing to act on; the action is skipped without
+        raising an approval prompt.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "20"
+      Present:
+      - "11"
+    separatecontext: false
+    conditions:
+    - label: Present
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.AgentID
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 360
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: b2222222-0000-0000-0000-000000000011
+    type: playbook
+    task:
+      id: b2222222-0000-0000-0000-000000000011
+      version: -1
+      name: Gate - soc-isolate-endpoint
+      description: |
+        Call SOC Approval Gate_V3 for soc-isolate-endpoint. Reads
+        requires_approval from the action entry. If true, raises an analyst
+        approval prompt; if false, auto-approves. Writes Approval.decision
+        into shared context.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "172"
+      - "12"
+    scriptarguments:
+      action_name:
+        simple: soc-isolate-endpoint
+      phase:
+        simple: Containment
+      artifact_summary:
+        simple: "Endpoint: ${inputs.Hostname} (agent_id: ${inputs.AgentID})"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1452.5,
-          "y": 1300
+          "x": 480,
+          "y": 520
         }
       }
     note: false
@@ -89,26 +233,48 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "50":
-    id: "50"
-    taskid: 1cc8a082-9506-43d3-86ed-50836d2be721
-    type: title
+  "12":
+    id: "12"
+    taskid: b2222222-0000-0000-0000-000000000012
+    type: condition
     task:
-      id: 1cc8a082-9506-43d3-86ed-50836d2be721
+      id: b2222222-0000-0000-0000-000000000012
       version: -1
-      name: Quarantine File
-      type: title
+      name: Action 1 - Approved?
+      description: |
+        Read Approval.decision set by the gate sub-playbook. Only call the
+        wrapper if the decision is approved or auto-approved. Denied skips
+        the action silently (the deny is captured in the case audit log).
+      type: condition
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "20"
+      Allow:
+      - "13"
     separatecontext: false
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 910,
-          "y": 945
+          "x": 480,
+          "y": 680
         }
       }
     note: false
@@ -118,30 +284,41 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "147":
-    id: "147"
-    taskid: 2650e088-8043-49d8-8db8-4d7e66d31ce9
-    type: title
+  "13":
+    id: "13"
+    taskid: b2222222-0000-0000-0000-000000000013
+    type: regular
     task:
-      id: 2650e088-8043-49d8-8db8-4d7e66d31ce9
+      id: b2222222-0000-0000-0000-000000000013
       version: -1
-      name: Prepare
-      type: title
+      name: Wrapper - soc-isolate-endpoint
+      description: |
+        Call SOCCommandWrapper with the canonical action name. Wrapper reads
+        the vendor-specific command and args from SOCFrameworkActions_V3,
+        applies Shadow Mode per the action entry, writes the execution
+        record to Containment.Execution[] and xsiam_socfw_ir_execution_raw.
+      script: SOCCommandWrapper
+      type: regular
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "50"
-      - "184"
+      - "20"
+    scriptarguments:
+      action:
+        simple: soc-isolate-endpoint
+      phase:
+        simple: Containment
     separatecontext: false
+    continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1125,
-          "y": 775
+          "x": 480,
+          "y": 840
         }
       }
     note: false
@@ -151,510 +328,490 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "148":
-    id: "148"
-    taskid: 48ad472b-5301-4524-899a-41e29d38151d
+  "20":
+    id: "20"
+    taskid: b2222222-0000-0000-0000-000000000020
+    type: condition
+    task:
+      id: b2222222-0000-0000-0000-000000000020
+      version: -1
+      name: Action 2 - Process.PID present?
+      description: |
+        Skip soc-kill-process if no Process.PID is in context. Kill-process
+        only applies when we have an identified initiator process.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "30"
+      Present:
+      - "21"
+    separatecontext: false
+    conditions:
+    - label: Present
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.ProcessPID
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1000
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "21":
+    id: "21"
+    taskid: b2222222-0000-0000-0000-000000000021
+    type: playbook
+    task:
+      id: b2222222-0000-0000-0000-000000000021
+      version: -1
+      name: Gate - soc-kill-process
+      description: |
+        Call SOC Approval Gate_V3 for soc-kill-process.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "22"
+    scriptarguments:
+      action_name:
+        simple: soc-kill-process
+      phase:
+        simple: Containment
+      artifact_summary:
+        simple: "Process: ${inputs.ProcessName} (PID: ${inputs.ProcessPID}) on ${inputs.Hostname}"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
+    separatecontext: false
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1160
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "22":
+    id: "22"
+    taskid: b2222222-0000-0000-0000-000000000022
+    type: condition
+    task:
+      id: b2222222-0000-0000-0000-000000000022
+      version: -1
+      name: Action 2 - Approved?
+      type: condition
+      iscommand: false
+      brand: ""
+      description: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "30"
+      Allow:
+      - "23"
+    separatecontext: false
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1320
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: b2222222-0000-0000-0000-000000000023
+    type: regular
+    task:
+      id: b2222222-0000-0000-0000-000000000023
+      version: -1
+      name: Wrapper - soc-kill-process
+      description: |
+        Call SOCCommandWrapper for soc-kill-process.
+      script: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "30"
+    scriptarguments:
+      action:
+        simple: soc-kill-process
+      phase:
+        simple: Containment
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1480
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "30":
+    id: "30"
+    taskid: b2222222-0000-0000-0000-000000000030
+    type: condition
+    task:
+      id: b2222222-0000-0000-0000-000000000030
+      version: -1
+      name: Action 3 - Target.SHA256 present?
+      description: |
+        Skip soc-block-indicators if no Target.SHA256 is in context.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "80"
+      Present:
+      - "31"
+    separatecontext: false
+    conditions:
+    - label: Present
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.TargetHash
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1640
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "31":
+    id: "31"
+    taskid: b2222222-0000-0000-0000-000000000031
+    type: playbook
+    task:
+      id: b2222222-0000-0000-0000-000000000031
+      version: -1
+      name: Gate - soc-block-indicators
+      description: |
+        Call SOC Approval Gate_V3 for soc-block-indicators.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "32"
+    scriptarguments:
+      action_name:
+        simple: soc-block-indicators
+      phase:
+        simple: Containment
+      artifact_summary:
+        simple: "Hash: ${inputs.TargetHash}"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
+    separatecontext: false
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1800
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "32":
+    id: "32"
+    taskid: b2222222-0000-0000-0000-000000000032
+    type: condition
+    task:
+      id: b2222222-0000-0000-0000-000000000032
+      version: -1
+      name: Action 3 - Approved?
+      type: condition
+      iscommand: false
+      brand: ""
+      description: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "80"
+      Allow:
+      - "33"
+    separatecontext: false
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "33":
+    id: "33"
+    taskid: b2222222-0000-0000-0000-000000000033
+    type: regular
+    task:
+      id: b2222222-0000-0000-0000-000000000033
+      version: -1
+      name: Wrapper - soc-block-indicators
+      description: |
+        Call SOCCommandWrapper for soc-block-indicators.
+      script: SOCCommandWrapper
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "80"
+    scriptarguments:
+      action:
+        simple: soc-block-indicators
+      phase:
+        simple: Containment
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "80":
+    id: "80"
+    taskid: b2222222-0000-0000-0000-000000000080
+    type: regular
+    task:
+      id: b2222222-0000-0000-0000-000000000080
+      version: -1
+      name: Write Containment.story (executed)
+      description: |
+        Write a single Containment.story summarizing that the phase ran.
+        Per-action detail lives in Containment.Execution[] (written by the
+        wrapper) and in the XSIAM case audit log (approval decisions).
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Containment.story
+      value:
+        simple: "Containment phase executed for ${inputs.CompromiseLevel} alert. See Containment.Execution[] for per-action outcomes and the case audit log for analyst approval decisions."
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2280
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "90":
+    id: "90"
+    taskid: b2222222-0000-0000-0000-000000000090
+    type: regular
+    task:
+      id: b2222222-0000-0000-0000-000000000090
+      version: -1
+      name: Write Containment.story (skipped)
+      description: |
+        Phase entry gate closed. Write a skip-story so downstream consumers
+        (Recovery, dashboard, case layout) can tell the phase was
+        deliberately skipped versus errored out.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Containment.story
+      value:
+        simple: "Containment skipped. CompromiseLevel = ${inputs.CompromiseLevel} did not warrant containment actions."
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": 360
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "99":
+    id: "99"
+    taskid: b2222222-0000-0000-0000-000000000099
     type: title
     task:
-      id: 48ad472b-5301-4524-899a-41e29d38151d
+      id: b2222222-0000-0000-0000-000000000099
       version: -1
       name: Done
       type: title
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+      description: ''
     separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 695,
-          "y": 3475
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "171":
-    id: "171"
-    taskid: 7089d969-7dfa-45b2-9ef6-6cb4efd4d61f
-    type: condition
-    task:
-      id: 7089d969-7dfa-45b2-9ef6-6cb4efd4d61f
-      version: -1
-      name: Should we Contain (Verdict + Confidence)?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "300"
-      Potentially Contain:
-      - "48"
-    separatecontext: false
-    conditions:
-    - label: Potentially Contain
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Verdict
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: malicious
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Verdict
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: suspicious
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: high
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: medium
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1340,
-          "y": 1115
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "172":
-    id: "172"
-    taskid: 315caf83-ff56-4690-8f3d-fd69dc886af1
-    type: condition
-    task:
-      id: 315caf83-ff56-4690-8f3d-fd69dc886af1
-      version: -1
-      name: Should This Be Isolated Immediately?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "174"
-      Isolate Now:
-      - "185"
-    separatecontext: false
-    conditions:
-    - label: Isolate Now
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Verdict
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: malicious
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: high
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.ExecutionConfirmed
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: malicious_and_executed
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1452.5,
-          "y": 1470
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "174":
-    id: "174"
-    taskid: f3bdafbd-f638-4fd7-8a33-f09a43af388c
-    type: title
-    task:
-      id: f3bdafbd-f638-4fd7-8a33-f09a43af388c
-      version: -1
-      name: Hard Containment — Isolate
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "175"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1237.5,
-          "y": 1655
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "175":
-    id: "175"
-    taskid: 1bf1230a-4efc-4b7c-b398-deddc4cc105e
-    type: condition
-    task:
-      id: 1bf1230a-4efc-4b7c-b398-deddc4cc105e
-      version: -1
-      name: Hard containment / isolate?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "177"
-      Isolate:
-      - "190"
-    separatecontext: false
-    conditions:
-    - label: Isolate
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.CompromiseLevel
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: likely_compromised
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: high
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: medium
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1237.5,
-          "y": 1825
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "177":
-    id: "177"
-    taskid: 803d08f5-8bcf-45e7-8885-78d6b4b06645
-    type: title
-    task:
-      id: 803d08f5-8bcf-45e7-8885-78d6b4b06645
-      version: -1
-      name: Escalate Containment
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "178"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1022.5,
-          "y": 2010
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "178":
-    id: "178"
-    taskid: eddf5636-2d53-48cb-9ef6-caa8e7e0cad0
-    type: condition
-    task:
-      id: eddf5636-2d53-48cb-9ef6-caa8e7e0cad0
-      version: -1
-      name: Escalate containment due to blast radius?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "180"
-      Isolate:
-      - "189"
-    separatecontext: false
-    conditions:
-    - label: Isolate
-      condition:
-      - - operator: greaterThanOrEqual
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: "70"
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: high
-        - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: medium
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.CompromiseLevel
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: not_compromised
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1022.5,
-          "y": 2180
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "180":
-    id: "180"
-    taskid: c13c1384-d52b-4c2c-ac76-b62aebc866a3
-    type: condition
-    task:
-      id: c13c1384-d52b-4c2c-ac76-b62aebc866a3
-      version: -1
-      name: Soft containment / monitor?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "182"
-      Isolate:
-      - "191"
-    separatecontext: false
-    conditions:
-    - label: Isolate
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: medium
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.CompromiseLevel
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: suspicious
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 807.5,
-          "y": 2365
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "182":
-    id: "182"
-    taskid: b810b967-a2e1-46d5-a23a-236ff88632f6
-    type: condition
-    task:
-      id: b810b967-a2e1-46d5-a23a-236ff88632f6
-      version: -1
-      name: No containment?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "300"
-      No Containment:
-      - "193"
-    separatecontext: false
-    conditions:
-    - label: No Containment
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.Confidence
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: low
-      - - operator: isEqualString
-          left:
-            value:
-              complex:
-                root: inputs.CompromiseLevel
-                transformers:
-                - operator: toLowerCase
-            iscontext: true
-          right:
-            value:
-              simple: not_compromised
     continueonerrortype: ""
     view: |-
       {
         "position": {
           "x": 480,
-          "y": 2550
+          "y": 2440
         }
       }
     note: false
@@ -664,1004 +821,113 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "184":
-    id: "184"
-    taskid: d8369b56-d30c-4849-ba6b-be5f853a3cba
-    type: title
-    task:
-      id: d8369b56-d30c-4849-ba6b-be5f853a3cba
-      version: -1
-      name: Isolate EndPoint
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "171"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1340,
-          "y": 945
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "185":
-    id: "185"
-    taskid: 56aa4ab0-147d-49a6-8b6f-5b66ea80b607
-    type: regular
-    task:
-      id: 56aa4ab0-147d-49a6-8b6f-5b66ea80b607
-      version: -1
-      name: Isolate Endpoint - Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "192"
-    scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Containment
-      action:
-        simple: soc-isolate-endpoint
-      output_key:
-        simple: Containment.Execution
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 2425,
-          "y": 2550
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "189":
-    id: "189"
-    taskid: d19cc347-0c1b-4b4a-82a6-6302c518c1e2
-    type: regular
-    task:
-      id: d19cc347-0c1b-4b4a-82a6-6302c518c1e2
-      version: -1
-      name: Isolate Endpoint - Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "192"
-    scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Containment
-      action:
-        simple: soc-isolate-endpoint
-      output_key:
-        simple: Containment.Execution
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1565,
-          "y": 2550
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "190":
-    id: "190"
-    taskid: 0c9a585b-1c06-4586-b5c7-ed18c77c24ef
-    type: regular
-    task:
-      id: 0c9a585b-1c06-4586-b5c7-ed18c77c24ef
-      version: -1
-      name: Isolate Endpoint - Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "192"
-      - "148"
-    scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Containment
-      action:
-        simple: soc-isolate-endpoint
-      output_key:
-        simple: Containment.Execution
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1995,
-          "y": 2550
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "191":
-    id: "191"
-    taskid: 7f8f1c22-edff-4874-aca1-d3bd453f3e71
-    type: regular
-    task:
-      id: 7f8f1c22-edff-4874-aca1-d3bd453f3e71
-      version: -1
-      name: Isolate Endpoint - Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "192"
-    scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Containment
-      action:
-        simple: soc-isolate-endpoint
-      output_key:
-        simple: Containment.Execution
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1135,
-          "y": 2550
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "192":
-    id: "192"
-    taskid: ae0d80ff-3974-400e-a29f-ed2aea4847be
-    type: regular
-    task:
-      id: ae0d80ff-3974-400e-a29f-ed2aea4847be
-      version: -1
-      name: Set Containment Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "194"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.required
-      value:
-        simple: "true"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1360,
-          "y": 2735
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "193":
-    id: "193"
-    taskid: fe0cd24b-6b6a-482e-b8aa-2e5a983417cd
-    type: regular
-    task:
-      id: fe0cd24b-6b6a-482e-b8aa-2e5a983417cd
-      version: -1
-      name: Set Containment Not Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "300"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.required
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 705,
-          "y": 2735
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "194":
-    id: "194"
-    taskid: 7b68e91e-7e96-4260-9ae5-d7688698baa3
-    type: regular
-    task:
-      id: 7b68e91e-7e96-4260-9ae5-d7688698baa3
-      version: -1
-      name: Set Containment Isolate Host
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "195"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.action
-      value:
-        simple: isolate_host
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1360,
-          "y": 2920
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "195":
-    id: "195"
-    taskid: 5a68e886-d0c5-4149-a220-1c91f7cbfa1f
-    type: regular
-    task:
-      id: 5a68e886-d0c5-4149-a220-1c91f7cbfa1f
-      version: -1
-      name: Set Containment Story
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "148"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.story
-      value:
-        simple: |-
-          Malware execution confirmed on ${Analysis.Endpoint.host_count} host(s).
-          Spread level assessed as ${Analysis.Endpoint.spread_level}.
-          Compromise level: ${Analysis.Endpoint.compromise_level}.
-          Case risk score: ${Analysis.Endpoint.case_score}.
-          Containment action taken: ${Containment.action}.
-          Hosts isolated: ${Containment.isolated_hosts}.
-          Users disabled: ${Containment.disabled_users}.
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1360,
-          "y": 3105
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "196":
-    id: "196"
-    taskid: 54143dd2-b70d-4c4d-bdcd-e9cc04308df6
-    type: regular
-    task:
-      id: 54143dd2-b70d-4c4d-bdcd-e9cc04308df6
-      version: -1
-      name: Set Containment Story
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "148"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.story
-      value:
-        simple: |-
-          No Containment: Low confidence and analysis did not meet containment threshold.
-          Spread level assessed as ${Analysis.Endpoint.spread_level}.
-          Compromise level: ${Analysis.Endpoint.compromise_level}.
-          Case risk score: ${Analysis.Endpoint.case_score}.
-          Containment action taken: ${Containment.action}.
-          Hosts isolated: ${Containment.isolated_hosts}.
-          Users disabled: ${Containment.disabled_users}.
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 3290
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "197":
-    id: "197"
-    taskid: 95263603-82c6-49c2-9fd6-edc327f55415
-    type: regular
-    task:
-      id: 95263603-82c6-49c2-9fd6-edc327f55415
-      version: -1
-      name: Set Containment Isolate Host
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "196"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.action
-      value:
-        simple: monitor
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 3105
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "300":
-    id: "300"
-    taskid: ec4d4a33-d161-4e56-b072-b7d5829e09b2
-    type: condition
-    task:
-      id: ec4d4a33-d161-4e56-b072-b7d5829e09b2
-      version: -1
-      name: Signal Type — Behavioral or Process Execution?
-      description: Routes behavioral/process_execution signals to targeted containment
-        actions (block hash, kill process) rather than full host isolation. Preserves
-        isolation path for file_malware.
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "148"
-      Behavioral:
-      - "301"
-      Process Execution:
-      - "303"
-    separatecontext: false
-    conditions:
-    - label: Behavioral
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              simple: Analysis.Endpoint.signal_type
-            iscontext: true
-          right:
-            value:
-              simple: behavior_memory
-    - label: Process Execution
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              simple: Analysis.Endpoint.signal_type
-            iscontext: true
-          right:
-            value:
-              simple: process_execution
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 2920
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "301":
-    id: "301"
-    taskid: 57be8324-f21f-4835-a377-34867d726a4e
-    type: regular
-    task:
-      id: 57be8324-f21f-4835-a377-34867d726a4e
-      version: -1
-      name: Block Initiator Hash — Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "302"
-    scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Containment
-      action:
-        simple: soc-block-indicators
-      entity:
-        simple: ${SOCFramework.Artifacts.File}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 3105
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "302":
-    id: "302"
-    taskid: 4f48ef56-d101-4f2e-b4e4-233ac777639b
-    type: regular
-    task:
-      id: 4f48ef56-d101-4f2e-b4e4-233ac777639b
-      version: -1
-      name: Set Behavioral Containment Story
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "148"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.story
-      value:
-        simple: 'Behavioral containment: initiator hash blocked via EDR policy. Host
-          isolation not required — signal is memory/injection based with no dropped
-          file persistence detected. Credential access tactics detected — Identity
-          Containment recommended.'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 3290
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "303":
-    id: "303"
-    taskid: 7102a0ab-44d2-4caf-b051-2a2ce069cc0d
-    type: regular
-    task:
-      id: 7102a0ab-44d2-4caf-b051-2a2ce069cc0d
-      version: -1
-      name: Kill Malicious Process — Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "304"
-    scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Containment
-      action:
-        simple: soc-kill-process
-      entity:
-        simple: ${SOCFramework.Artifacts.ProcessName}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 920,
-          "y": 3105
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "304":
-    id: "304"
-    taskid: cd2fb3d5-c8a6-4840-9647-5be014a62c69
-    type: regular
-    task:
-      id: cd2fb3d5-c8a6-4840-9647-5be014a62c69
-      version: -1
-      name: Set Process Execution Containment Story
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "148"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.story
-      value:
-        simple: 'Process execution containment: malicious process killed. Initiator
-          command blocked. Host isolation deferred pending spread evaluation.'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 920,
-          "y": 3290
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "305":
-    id: "305"
-    taskid: c3a1b0d5-1111-4001-a101-de7a11700001
-    type: regular
-    task:
-      id: c3a1b0d5-1111-4001-a101-de7a11700001
-      version: -1
-      name: Set Containment Default — required
-      description: Write default Containment.required=false at phase start so every
-        run leaves evidence of the Containment lifecycle in context, even if no decision
-        gate fires downstream. Force:true so actual decisions overwrite.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "306"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.required
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1125,
-          "y": 220
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "306":
-    id: "306"
-    taskid: c3a1b0d5-1111-4001-a102-de7a11700002
-    type: regular
-    task:
-      id: c3a1b0d5-1111-4001-a102-de7a11700002
-      version: -1
-      name: Set Containment Default — action
-      description: Default Containment.action=none at phase start.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "307"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.action
-      value:
-        simple: none
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1125,
-          "y": 405
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "307":
-    id: "307"
-    taskid: c3a1b0d5-1111-4001-a103-de7a11700003
-    type: regular
-    task:
-      id: c3a1b0d5-1111-4001-a103-de7a11700003
-      version: -1
-      name: Set Containment Default — story
-      description: Default Containment.story at phase start so dashboards and the
-        warroom summary always have a string. Overwritten if a decision fires.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "147"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Containment.story
-      value:
-        simple: Containment phase entered. No containment action taken; no decision
-          gate matched or required.
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1125,
-          "y": 590
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
+system: true
 view: |-
   {
-    "linkLabelsPosition": {
-      "178_189_Isolate": 0.81,
-      "182_193_No Containment": 0.9
-    },
+    "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 3485,
-        "width": 2755,
-        "x": 50,
+        "height": 2450,
+        "width": 600,
+        "x": 150,
         "y": 50
       }
     }
   }
 inputs:
-- key: AutoContainment
+- key: ProductCategory
   value:
-    simple: "False"
+    simple: Endpoint
   required: false
-  description: |-
-    Whether to execute containment plan (except isolation) automatically.
-    The specific containment playbook inputs should also be set to 'True'.
-  playbookInputQuery: null
-- key: FileRemediation
-  value:
-    simple: Quarantine
-  required: false
-  description: "Choose 'Quarantine' or 'Delete'  to avoid file remediation conflicts.
-    \nFor example, choosing 'Quarantine' ignores the 'Delete file' task under the
-    eradication playbook and will execute only file quarantine."
-  playbookInputQuery: null
-- key: FeaturedHost
-  value:
-    simple: "False"
-  required: false
-  description: Is this a Featured Host?
-  playbookInputQuery: null
-- key: Verdict
-  value:
-    complex:
-      root: Analysis
-      accessor: verdict
-      transformers:
-      - operator: toLowerCase
-  required: false
-  description: File Verdict from Enrichment
-  playbookInputQuery: null
-- key: SourceBrand
-  value:
-    simple: ${SOCFramework.Product.response}
-  required: false
-  description: This is the Source Brand for the Integration.  Set in the SOCProductCategoryMap_V3
-    List.
-  playbookInputQuery: null
-- key: Confidence
-  value:
-    simple: ${Analysis.confidence}
-  required: false
-  description: ""
-  playbookInputQuery: null
-- key: ExecutionConfirmed
-  value:
-    simple: ${Analysis.compromise_decision}
-  required: false
-  description: ""
+  description: |
+    Product category passed by SOC Containment_V3 parent orchestrator. Used
+    for routing by the parent; not consumed here.
   playbookInputQuery: null
 - key: CompromiseLevel
   value:
     complex:
-      root: Analysis
-      accessor: compromise_level
-      transformers:
-      - operator: toLowerCase
+      root: Analysis.Endpoint.compromise_level
   required: false
-  description: ""
+  description: |
+    Endpoint compromise level from Analysis. Resolves from
+    ${Analysis.Endpoint.compromise_level} unless overridden by the parent.
+    Drives the phase-entry gate — only "likely_compromised" and "suspicious"
+    proceed; everything else skips with a story.
   playbookInputQuery: null
-- key: CaseScore
+- key: Confidence
   value:
-    simple: ${Analysis.incident_score}
+    complex:
+      root: Analysis.Endpoint.confidence
   required: false
-  description: ""
+  description: |
+    Analysis confidence score (low / medium / high). Resolves from
+    ${Analysis.Endpoint.confidence} unless overridden by the parent. Shown
+    in the approval prompt context summary.
+  playbookInputQuery: null
+- key: SignalType
+  value:
+    complex:
+      root: Analysis.Endpoint.signal_type
+  required: false
+  description: |
+    Endpoint signal classification (file_malware / behavior_memory /
+    process_execution). Resolves from ${Analysis.Endpoint.signal_type}
+    unless overridden by the parent. Shown in the approval prompt context.
+  playbookInputQuery: null
+- key: AgentID
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Endpoint.AgentID
+  required: false
+  description: |
+    EDR agent identifier for the affected host. Resolves from
+    ${SOCFramework.Artifacts.Endpoint.AgentID} unless overridden. If empty,
+    soc-isolate-endpoint is skipped with no approval prompt raised.
+  playbookInputQuery: null
+- key: Hostname
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Endpoint.Hostname
+  required: false
+  description: |
+    Hostname of the affected endpoint. Resolves from
+    ${SOCFramework.Artifacts.Endpoint.Hostname}. Used in approval prompt
+    artifact summary only.
+  playbookInputQuery: null
+- key: ProcessPID
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Process.PID
+  required: false
+  description: |
+    Initiator process PID. Resolves from
+    ${SOCFramework.Artifacts.Process.PID} unless overridden. If empty,
+    soc-kill-process is skipped with no approval prompt raised.
+  playbookInputQuery: null
+- key: ProcessName
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Process.Name
+  required: false
+  description: |
+    Initiator process name. Resolves from
+    ${SOCFramework.Artifacts.Process.Name}. Used in approval prompt
+    artifact summary only.
+  playbookInputQuery: null
+- key: TargetHash
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Target.SHA256
+  required: false
+  description: |
+    SHA256 hash of the malicious file target. Resolves from
+    ${SOCFramework.Artifacts.Target.SHA256} unless overridden. If empty,
+    soc-block-indicators is skipped with no approval prompt raised.
   playbookInputQuery: null
 outputs:
-- contextPath: Containment.status
-  description: What was the outcome of Containment
-  type: unknown
-- contextPath: Containment.isolated_hosts
-  type: unknown
-- contextPath: Containment.required
-  description: Whether containment action was required ('true' or 'false'). Default
-    'false'; overwritten by decision gates.
-  type: unknown
-- contextPath: Containment.action
-  description: The containment action taken (e.g. isolate_host, block_hash, kill_process,
-    monitor, none)
-  type: unknown
 - contextPath: Containment.story
-  description: Narrative summary of the containment decision and actions taken
-  type: unknown
+  description: One-line summary of what this phase did (or why it was skipped)
+  type: string
 - contextPath: Containment.Execution
-  description: Execution mode (shadow or production) — used for dashboard filtering
-  type: unknown
-- contextPath: Containment.disabled_users
-  description: List of users disabled during containment
+  description: Per-action execution records written by SOCCommandWrapper
   type: unknown

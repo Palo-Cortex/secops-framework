@@ -6,7 +6,7 @@ contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
     packName: SOC Framework NIST IR (800-61)
-    itemVersion: 1.4.5
+    itemVersion: 4.0.0
     fromServerVersion: 5.0.0
     toServerVersion: ""
     definitionid: ""
@@ -14,40 +14,71 @@ contentitemexportablefields:
     isoverridable: false
     supportedModules: []
 name: SOC EndPoint Recovery_V3
-description: |-
-  Primary owners: IT Ops, IR leads.
+description: |
+  Endpoint category Recovery playbook (NIST IR 800-61 Phase 3: Recovery).
 
-  Analyst role: Verify that systems are restored, monitor for recurrence, and close out alert documentation.
+  Design:
+    1. Phase Entry Gate. Reads CompromiseLevel via inputs. Skips the entire
+       phase if not warranted.
+    2. Each Recovery action is gated on TWO conditions:
+       a. The corresponding artifact is still populated (AgentID, User)
+       b. Containment attempted the inverse action (Containment.Execution
+          contains an entry for the forward action)
+
+       This prevents spurious undos such as de-isolating a host that was
+       never isolated. That bug was observed in the previous Recovery
+       implementation and is the primary motivation for this gate pattern.
+
+    3. Two gated actions:
+       - soc-deisolate-endpoint (gated on Containment.Execution contains
+         soc-isolate-endpoint)
+       - soc-enable-user (gated on Containment.Execution contains
+         soc-disable-user)
+
+    4. Each action is approval-gated via SOC_Approval_Gate_V3 sub-playbook.
+    5. SOCCommandWrapper writes Recovery.Execution[] per action.
+    6. One Recovery.story write at the end.
+
+  Reads (via inputs):
+    - Analysis.Endpoint.compromise_level / .confidence / .signal_type
+    - SOCFramework.Artifacts.Endpoint.AgentID / .Hostname
+    - SOCFramework.Artifacts.User
+    - Containment.Execution filtered by action name (for undo gate)
+
+  Writes:
+    - Approval.decision(per-call, via gate sub-playbook)
+    - Recovery.Execution[] (per-action, via SOCCommandWrapper)
+    - Recovery.story (single summary at phase end)
+
+  Caller: SOC Recovery_V3 parent orchestrator routes to this playbook when
+  inputs.ProductCategory = "Endpoint".
 tags:
 - SOC
-- SOC_Framework_Unified
-- NIST 800-61
+- SOC_Framework_NIST_IR
 - Recovery
-- EndPoint
+- Endpoint
 starttaskid: "0"
 tasks:
   "0":
     id: "0"
-    taskid: 7e6a701e-667b-4a70-8a74-14564da75fc7
+    taskid: d4444444-0000-0000-0000-000000000000
     type: start
     task:
-      id: 7e6a701e-667b-4a70-8a74-14564da75fc7
+      id: d4444444-0000-0000-0000-000000000000
       version: -1
       name: ""
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
+      description: ''
     nexttasks:
       '#none#':
-      - "3"
-      - "2"
+      - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 920,
+          "x": 480,
           "y": 50
         }
       }
@@ -58,43 +89,17 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "2":
-    id: "2"
-    taskid: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
-    type: title
-    task:
-      id: 6944e944-2ade-4f6d-b6e0-0f6b8e2c3253
-      version: -1
-      name: Done
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 695,
-          "y": 2625
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "3":
-    id: "3"
-    taskid: a6658784-01e1-4c77-bf18-e7f97b8fa11d
+  "1":
+    id: "1"
+    taskid: d4444444-0000-0000-0000-000000000001
     type: condition
     task:
-      id: a6658784-01e1-4c77-bf18-e7f97b8fa11d
+      id: d4444444-0000-0000-0000-000000000001
       version: -1
-      name: Did Execution Happen?
+      name: Phase Entry Gate - compromise level warrants recovery?
+      description: |
+        Reads inputs.CompromiseLevel. Recovery only runs when Analysis
+        confirmed compromise; otherwise there is nothing to undo.
       type: condition
       iscommand: false
       brand: ""
@@ -102,329 +107,29 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "4"
-      "Yes":
-      - "7"
-    separatecontext: false
-    conditions:
-    - label: "Yes"
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              simple: ${inputs.compromise_decision}
-            iscontext: true
-          right:
-            value:
-              simple: malicious_and_executed
-        - operator: isEqualString
-          left:
-            value:
-              simple: ${inputs.compromise_decision}
-            iscontext: true
-          right:
-            value:
-              simple: execution_strong_tactics
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 592.5,
-          "y": 220
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "4":
-    id: "4"
-    taskid: 46b355fd-2cd0-47b4-8724-b349a3060f09
-    type: regular
-    task:
-      id: 46b355fd-2cd0-47b4-8724-b349a3060f09
-      version: -1
-      name: Set Recovery Status
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "5"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.status
-      value:
-        simple: blocked
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1145
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "5":
-    id: "5"
-    taskid: 8bb6d5b2-5a0a-437e-bccb-1766b2183b43
-    type: regular
-    task:
-      id: 8bb6d5b2-5a0a-437e-bccb-1766b2183b43
-      version: -1
-      name: Set Recovery Monitoring Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "6"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.monitoring_required
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1330
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "6":
-    id: "6"
-    taskid: e19f5d21-5116-425f-9842-42875ba312ce
-    type: regular
-    task:
-      id: e19f5d21-5116-425f-9842-42875ba312ce
-      version: -1
-      name: Set Recovery Restore Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "18"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.restore_required
-      value:
-        simple: "false"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1515
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "7":
-    id: "7"
-    taskid: 4f76b011-89a1-4446-b128-b9de418d66cf
-    type: condition
-    task:
-      id: 4f76b011-89a1-4446-b128-b9de418d66cf
-      version: -1
-      name: Was Eradication Complete?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "8"
-      "yes":
-      - "11"
-    separatecontext: false
-    conditions:
-    - label: "yes"
-      condition:
-      - - operator: isTrue
-          left:
-            value:
-              simple: ${Eradication.status}
-            iscontext: true
-          right:
-            value: {}
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 807.5,
-          "y": 405
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "8":
-    id: "8"
-    taskid: 5a4b6571-e25c-4074-85d5-f205c4214004
-    type: regular
-    task:
-      id: 5a4b6571-e25c-4074-85d5-f205c4214004
-      version: -1
-      name: Set Recovery Status
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "9"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.status
-      value:
-        simple: not_required
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 1145
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "9":
-    id: "9"
-    taskid: 9be348fa-b54e-43a7-97a7-76181b3e1d68
-    type: regular
-    task:
-      id: 9be348fa-b54e-43a7-97a7-76181b3e1d68
-      version: -1
-      name: Set Recovery Monitoring Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
+      - "90"
+      Proceed:
       - "10"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.monitoring_required
-      value:
-        simple: "true"
     separatecontext: false
-    continueonerror: true
+    conditions:
+    - label: Proceed
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: inputs.CompromiseLevel
+            iscontext: true
+          right:
+            value:
+              simple: likely_compromised,suspicious
+          ignorecase: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
           "x": 480,
-          "y": 1330
+          "y": 200
         }
       }
     note: false
@@ -436,45 +141,52 @@ tasks:
     isautoswitchedtoquietmode: false
   "10":
     id: "10"
-    taskid: d5b1f619-fcb5-4201-9b8f-9338807d17c3
-    type: regular
+    taskid: d4444444-0000-0000-0000-000000000010
+    type: condition
     task:
-      id: d5b1f619-fcb5-4201-9b8f-9338807d17c3
+      id: d4444444-0000-0000-0000-000000000010
       version: -1
-      name: Set Recovery Restore Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
+      name: Action 1 - Eligible to deisolate (AgentID + Containment isolated)?
+      description: |
+        Two-part AND gate:
+          1. Endpoint.AgentID still populated (we know which host to act on)
+          2. Containment.Execution contains a soc-isolate-endpoint entry
+             (i.e. Containment actually attempted isolation; nothing to undo
+             if it did not)
+
+        If either fails, skip soc-deisolate-endpoint. No approval prompt.
+      type: condition
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
-      '#none#':
-      - "18"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.restore_required
-      value:
-        simple: "false"
+      '#default#':
+      - "20"
+      Eligible:
+      - "11"
     separatecontext: false
-    continueonerror: true
+    conditions:
+    - label: Eligible
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.AgentID
+            iscontext: true
+      - - operator: isNotEmpty
+          left:
+            value:
+              complex:
+                root: inputs.ContainmentIsolated
+            iscontext: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
           "x": 480,
-          "y": 1515
+          "y": 360
         }
       }
     note: false
@@ -486,37 +198,46 @@ tasks:
     isautoswitchedtoquietmode: false
   "11":
     id: "11"
-    taskid: b53bc5a1-e6bb-478f-bae7-4526ee517cc6
-    type: condition
+    taskid: d4444444-0000-0000-0000-000000000011
+    type: playbook
     task:
-      id: b53bc5a1-e6bb-478f-bae7-4526ee517cc6
+      id: d4444444-0000-0000-0000-000000000011
       version: -1
-      name: Was Re-Imaging Complete?
-      type: condition
+      name: Gate - soc-deisolate-endpoint
+      description: |
+        Call SOC Approval Gate_V3 for soc-deisolate-endpoint.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
-      '#default#':
-      - "17"
-      "yes":
+      '#none#':
       - "12"
+    scriptarguments:
+      action_name:
+        simple: soc-deisolate-endpoint
+      phase:
+        simple: Recovery
+      artifact_summary:
+        simple: "Endpoint: ${inputs.Hostname} (agent_id: ${inputs.AgentID}) — Containment previously attempted isolation"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
-    conditions:
-    - label: "yes"
-      condition:
-      - - operator: isTrue
-          left:
-            value:
-              simple: ${Eradication.reimage_required}
-            iscontext: true
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 920,
-          "y": 590
+          "x": 480,
+          "y": 520
         }
       }
     note: false
@@ -528,45 +249,44 @@ tasks:
     isautoswitchedtoquietmode: false
   "12":
     id: "12"
-    taskid: c118273c-b429-40c0-ad70-2d55b398460d
-    type: regular
+    taskid: d4444444-0000-0000-0000-000000000012
+    type: condition
     task:
-      id: c118273c-b429-40c0-ad70-2d55b398460d
+      id: d4444444-0000-0000-0000-000000000012
       version: -1
-      name: Set Rebuild Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
+      name: Action 1 - Approved?
+      description: |
+        Route to wrapper only if approved or auto-approved.
+      type: condition
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
-      '#none#':
+      '#default#':
+      - "20"
+      Allow:
       - "13"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.status
-      value:
-        simple: rebuild_required
     separatecontext: false
-    continueonerror: true
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1237.5,
-          "y": 775
+          "x": 480,
+          "y": 680
         }
       }
     note: false
@@ -578,328 +298,14 @@ tasks:
     isautoswitchedtoquietmode: false
   "13":
     id: "13"
-    taskid: 6b264695-e239-481b-be92-cc7310f3976f
+    taskid: d4444444-0000-0000-0000-000000000013
     type: regular
     task:
-      id: 6b264695-e239-481b-be92-cc7310f3976f
+      id: d4444444-0000-0000-0000-000000000013
       version: -1
-      name: Set Recovery Monitoring Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "14"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.monitoring_required
-      value:
-        simple: "true"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1237.5,
-          "y": 960
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "14":
-    id: "14"
-    taskid: 3041962f-5f21-463d-a8bf-ab51de9e0a7f
-    type: regular
-    task:
-      id: 3041962f-5f21-463d-a8bf-ab51de9e0a7f
-      version: -1
-      name: Set Recovery Restore Required
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "15"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.restore_required
-      value:
-        simple: "true"
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1237.5,
-          "y": 1145
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "15":
-    id: "15"
-    taskid: 03c15a0b-54f8-4ac9-84eb-785c291f7b36
-    type: regular
-    task:
-      id: 03c15a0b-54f8-4ac9-84eb-785c291f7b36
-      version: -1
-      name: Set  Restore Method
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "16"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.restore_method
-      value:
-        simple: reimage
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1237.5,
-          "y": 1330
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "16":
-    id: "16"
-    taskid: ae49e53f-6129-44ce-a854-7c2bea90250d
-    type: regular
-    task:
-      id: ae49e53f-6129-44ce-a854-7c2bea90250d
-      version: -1
-      name: Set  Monitoring Scope
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "18"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.monitoring_scope
-      value:
-        simple: host
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 1237.5,
-          "y": 1515
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "17":
-    id: "17"
-    taskid: cbf22085-cf15-43b3-b8f9-ce6ae9b7f806
-    type: condition
-    task:
-      id: cbf22085-cf15-43b3-b8f9-ce6ae9b7f806
-      version: -1
-      name: Malware Removed Without Reimage?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: false
-    conditions:
-    - label: "yes"
-      condition:
-      - - operator: isTrue
-          left:
-            value:
-              simple: ${Eradication.malware_removed}
-            iscontext: true
-          right:
-            value: {}
-      - - operator: isFalse
-          left:
-            value:
-              simple: ${Eradication.reimage_required}
-            iscontext: true
-    nexttasks:
-      '#default#':
-      - "18"
-      "yes":
-      - "18"
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 807.5,
-          "y": 775
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "18":
-    id: "18"
-    taskid: b18d83fe-999b-4b8f-8f31-2004d2ad38c2
-    type: regular
-    task:
-      id: b18d83fe-999b-4b8f-8f31-2004d2ad38c2
-      version: -1
-      name: Set  Recovery Story
-      description: "Set a value in context under the key you entered. If no value
-        is entered, the script doesn't do anything.\n\nThis automation runs using
-        the default Limited User role, unless you explicitly change the permissions.\nFor
-        more information, see the section about permissions here:\n- For Cortex XSOAR
-        6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations
-        \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n-
-        For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "500"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.story
-      value:
-        simple: |
-          Recovery Assessment
-
-          Analysis confirmed malicious activity: ${Analysis.compromise_decision}.
-
-          Eradication status: ${Eradication.status}.
-          Malware removed: ${Eradication.malware_removed}.
-          System rebuild required: ${Eradication.reimage_required}.
-          Accounts secured: ${Eradication.accounts_secured}.
-
-          Recovery status: ${Recovery.status}.
-
-          System restoration method: ${Recovery.restore_method}.
-          Monitoring required: ${Recovery.monitoring_required}.
-          Monitoring scope: ${Recovery.monitoring_scope}.
-
-          If restoration actions are required, systems should be validated before returning to normal operations. Continued monitoring is recommended to ensure no further malicious activity occurs.
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 1700
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "200":
-    id: "200"
-    taskid: d03e6f9a-11f9-4aa0-8f21-9eb1ed3d5651
-    type: regular
-    task:
-      id: d03e6f9a-11f9-4aa0-8f21-9eb1ed3d5651
-      version: -1
-      name: De-isolate Endpoint — Universal Command
-      description: 'Universal Command: soc-deisolate-endpoint'
+      name: Wrapper - soc-deisolate-endpoint
+      description: |
+        Call SOCCommandWrapper for soc-deisolate-endpoint.
       script: SOCCommandWrapper
       type: regular
       iscommand: false
@@ -908,28 +314,20 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "2"
+      - "20"
     scriptarguments:
-      Action_Actor:
-        simple: automation
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Recovery
       action:
         simple: soc-deisolate-endpoint
-      list_name:
-        simple: SOCFrameworkActions_V3
-      output_key:
-        simple: Recovery.Execution
+      phase:
+        simple: Recovery
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 162.5,
-          "y": 2440
+          "x": 480,
+          "y": 840
         }
       }
     note: false
@@ -939,17 +337,20 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "500":
-    id: "500"
-    taskid: 656acfa1-f453-4ace-aa32-f03cd7aae373
+  "20":
+    id: "20"
+    taskid: d4444444-0000-0000-0000-000000000020
     type: condition
     task:
-      id: 656acfa1-f453-4ace-aa32-f03cd7aae373
+      id: d4444444-0000-0000-0000-000000000020
       version: -1
-      name: Signal Type — Recovery Path?
-      description: Behavioral and process_execution signals do not need deisolation
-        (host was never isolated). Instead validate credentials and re-enable user
-        accounts that were disabled during containment.
+      name: Action 2 - Eligible to re-enable user (User + Containment disabled)?
+      description: |
+        Two-part AND gate:
+          1. User still populated
+          2. Containment.Execution contains a soc-disable-user entry
+
+        If either fails, skip soc-enable-user. No approval prompt.
       type: condition
       iscommand: false
       brand: ""
@@ -957,39 +358,31 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "200"
-      Behavioral:
-      - "501"
-      Process Execution:
-      - "504"
+      - "80"
+      Eligible:
+      - "21"
     separatecontext: false
     conditions:
-    - label: Behavioral
+    - label: Eligible
       condition:
-      - - operator: isEqualString
+      - - operator: isNotEmpty
           left:
             value:
-              simple: Analysis.Endpoint.signal_type
+              complex:
+                root: inputs.User
             iscontext: true
-          right:
-            value:
-              simple: behavior_memory
-    - label: Process Execution
-      condition:
-      - - operator: isEqualString
+      - - operator: isNotEmpty
           left:
             value:
-              simple: Analysis.Endpoint.signal_type
+              complex:
+                root: inputs.ContainmentDisabledUser
             iscontext: true
-          right:
-            value:
-              simple: process_execution
     continueonerrortype: ""
     view: |-
       {
         "position": {
           "x": 480,
-          "y": 1885
+          "y": 1000
         }
       }
     note: false
@@ -999,14 +392,115 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "501":
-    id: "501"
-    taskid: 0417baed-4fef-411d-9c72-ead8889ac84d
+  "21":
+    id: "21"
+    taskid: d4444444-0000-0000-0000-000000000021
+    type: playbook
+    task:
+      id: d4444444-0000-0000-0000-000000000021
+      version: -1
+      name: Gate - soc-enable-user
+      description: |
+        Call SOC Approval Gate_V3 for soc-enable-user.
+      playbookName: SOC Approval Gate_V3
+      playbookId: SOC Approval Gate_V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "22"
+    scriptarguments:
+      action_name:
+        simple: soc-enable-user
+      phase:
+        simple: Recovery
+      artifact_summary:
+        simple: "User: ${inputs.User} — Containment previously disabled this account"
+      context_summary:
+        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
+    separatecontext: false
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1160
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "22":
+    id: "22"
+    taskid: d4444444-0000-0000-0000-000000000022
+    type: condition
+    task:
+      id: d4444444-0000-0000-0000-000000000022
+      version: -1
+      name: Action 2 - Approved?
+      type: condition
+      iscommand: false
+      brand: ""
+      description: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "80"
+      Allow:
+      - "23"
+    separatecontext: false
+    conditions:
+    - label: Allow
+      condition:
+      - - operator: inList
+          left:
+            value:
+              complex:
+                root: Approval.decision
+            iscontext: true
+          right:
+            value:
+              simple: approved,auto-approved
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1320
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: d4444444-0000-0000-0000-000000000023
     type: regular
     task:
-      id: 0417baed-4fef-411d-9c72-ead8889ac84d
+      id: d4444444-0000-0000-0000-000000000023
       version: -1
-      name: Re-enable User — Universal Command
+      name: Wrapper - soc-enable-user
+      description: |
+        Call SOCCommandWrapper for soc-enable-user.
       script: SOCCommandWrapper
       type: regular
       iscommand: false
@@ -1015,158 +509,20 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "502"
+      - "80"
     scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
-        simple: Recovery
       action:
         simple: soc-enable-user
-      entity:
-        simple: ${SOCFramework.Primary.EntityValue}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 592.5,
-          "y": 2070
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "502":
-    id: "502"
-    taskid: 84983d51-abe1-41bb-8618-21388f8e2df1
-    type: regular
-    task:
-      id: 84983d51-abe1-41bb-8618-21388f8e2df1
-      version: -1
-      name: Set Behavioral Recovery Monitoring Scope
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "503"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.monitoring_scope
-      value:
-        simple: 'Monitor for re-compromise: watch for lateral movement re-attempts,
-          new Kerberos ticket requests from affected user, and EDR behavioral alerts
-          on same host for 72 hours post-recovery.'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 592.5,
-          "y": 2255
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "503":
-    id: "503"
-    taskid: dead778a-112f-412b-8cbc-8fbfe493de3e
-    type: regular
-    task:
-      id: dead778a-112f-412b-8cbc-8fbfe493de3e
-      version: -1
-      name: Set Behavioral Recovery Story
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "2"
-    scriptarguments:
-      append:
-        simple: "false"
-      force:
-        simple: "true"
-      key:
-        simple: Recovery.story
-      value:
-        simple: 'Behavioral recovery complete. User account re-enabled after credential
-          rotation confirmed. Host was not isolated (behavioral signal — no dropped
-          malware). Continued monitoring enabled for 72 hours. Validate: no new C2
-          callbacks, no new lateral movement attempts.'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 592.5,
-          "y": 2440
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "504":
-    id: "504"
-    taskid: d6b7177c-d9e9-45fd-974a-d611f1180bf9
-    type: regular
-    task:
-      id: d6b7177c-d9e9-45fd-974a-d611f1180bf9
-      version: -1
-      name: Validate Process Artifacts Removed — Universal Command
-      script: SOCCommandWrapper
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "505"
-    scriptarguments:
-      LifeCycle:
-        simple: NIST_IR
-      Phase:
+      phase:
         simple: Recovery
-      action:
-        simple: soc-file-exists
-      entity:
-        simple: ${SOCFramework.Artifacts.FilePath}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1237.5,
-          "y": 2255
+          "x": 480,
+          "y": 1480
         }
       }
     note: false
@@ -1176,14 +532,18 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "505":
-    id: "505"
-    taskid: 860c0ce5-5b98-49ab-8d13-78699ba440e0
+  "80":
+    id: "80"
+    taskid: d4444444-0000-0000-0000-000000000080
     type: regular
     task:
-      id: 860c0ce5-5b98-49ab-8d13-78699ba440e0
+      id: d4444444-0000-0000-0000-000000000080
       version: -1
-      name: Set Process Execution Recovery Story
+      name: Write Recovery.story (executed)
+      description: |
+        Write a single Recovery.story summarizing that the phase ran.
+        Per-action detail lives in Recovery.Execution[] (written by the
+        wrapper) and in the XSIAM case audit log.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
@@ -1192,7 +552,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "2"
+      - "99"
     scriptarguments:
       append:
         simple: "false"
@@ -1201,17 +561,89 @@ tasks:
       key:
         simple: Recovery.story
       value:
-        simple: 'Process execution recovery: process artifacts validated as removed.
-          Parent process tree clean. Host deisolation not required (host was not isolated
-          for this signal type). Monitor for re-execution of same process lineage.'
+        simple: "Recovery phase executed for ${inputs.CompromiseLevel} alert. Each Recovery action was gated on the corresponding Containment action having been attempted. See Recovery.Execution[] for per-action outcomes."
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 1237.5,
-          "y": 2440
+          "x": 480,
+          "y": 1640
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "90":
+    id: "90"
+    taskid: d4444444-0000-0000-0000-000000000090
+    type: regular
+    task:
+      id: d4444444-0000-0000-0000-000000000090
+      version: -1
+      name: Write Recovery.story (skipped)
+      description: |
+        Phase entry gate closed. Write a skip-story so downstream consumers
+        can tell the phase was deliberately skipped versus errored out.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "99"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Recovery.story
+      value:
+        simple: "Recovery skipped. CompromiseLevel = ${inputs.CompromiseLevel} did not warrant recovery actions."
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": 360
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "99":
+    id: "99"
+    taskid: d4444444-0000-0000-0000-000000000099
+    type: title
+    task:
+      id: d4444444-0000-0000-0000-000000000099
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      description: ''
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1800
         }
       }
     note: false
@@ -1227,30 +659,114 @@ view: |-
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 2635,
-        "width": 1567.5,
-        "x": 50,
+        "height": 1810,
+        "width": 600,
+        "x": 150,
         "y": 50
       }
     }
   }
 inputs:
-- key: compromise_decision
+- key: ProductCategory
   value:
-    simple: ${Analysis.compromise_decision}
+    simple: Endpoint
   required: false
-  description: ""
+  description: |
+    Product category passed by SOC Recovery_V3 parent orchestrator.
+  playbookInputQuery: null
+- key: CompromiseLevel
+  value:
+    complex:
+      root: Analysis.Endpoint.compromise_level
+  required: false
+  description: |
+    Endpoint compromise level. Drives the phase-entry gate.
+  playbookInputQuery: null
+- key: Confidence
+  value:
+    complex:
+      root: Analysis.Endpoint.confidence
+  required: false
+  description: |
+    Analysis confidence score. Shown in the approval prompt context.
+  playbookInputQuery: null
+- key: SignalType
+  value:
+    complex:
+      root: Analysis.Endpoint.signal_type
+  required: false
+  description: |
+    Endpoint signal classification. Shown in the approval prompt.
+  playbookInputQuery: null
+- key: AgentID
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Endpoint.AgentID
+  required: false
+  description: |
+    EDR agent identifier for the affected host. Required to call
+    soc-deisolate-endpoint.
+  playbookInputQuery: null
+- key: Hostname
+  value:
+    complex:
+      root: SOCFramework.Artifacts.Endpoint.Hostname
+  required: false
+  description: |
+    Hostname of the affected endpoint. Used in approval prompt artifact
+    summary.
+  playbookInputQuery: null
+- key: User
+  value:
+    complex:
+      root: SOCFramework.Artifacts.User
+  required: false
+  description: |
+    Affected user account. Required to call soc-enable-user.
+  playbookInputQuery: null
+- key: ContainmentIsolated
+  value:
+    complex:
+      root: Containment.Execution
+      filters:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Containment.Execution.action
+            iscontext: true
+          right:
+            value:
+              simple: soc-isolate-endpoint
+  required: false
+  description: |
+    Filter of Containment.Execution[] where action = soc-isolate-endpoint.
+    Non-empty means Containment attempted isolation and soc-deisolate-endpoint
+    is eligible to run. Empty means there is nothing to un-isolate; the
+    Recovery action for deisolate is skipped.
+  playbookInputQuery: null
+- key: ContainmentDisabledUser
+  value:
+    complex:
+      root: Containment.Execution
+      filters:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Containment.Execution.action
+            iscontext: true
+          right:
+            value:
+              simple: soc-disable-user
+  required: false
+  description: |
+    Filter of Containment.Execution[] where action = soc-disable-user.
+    Non-empty means Containment disabled the user and soc-enable-user is
+    eligible. Empty means there is nothing to re-enable.
   playbookInputQuery: null
 outputs:
-- contextPath: Recovery.status
-  type: unknown
 - contextPath: Recovery.story
-  type: unknown
-- contextPath: Recovery.monitoring_required
-  type: unknown
-- contextPath: Recovery.monitoring_scope
-  type: unknown
-- contextPath: Recovery.restore_required
-  type: unknown
-- contextPath: Recovery.restore_method
+  description: One-line summary of what this phase did (or why it was skipped)
+  type: string
+- contextPath: Recovery.Execution
+  description: Per-action execution records written by SOCCommandWrapper
   type: unknown
