@@ -31,8 +31,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Endpoint.AgentID"
+    "requires_approval": true
   },
   "soc-deisolate-endpoint": {
     "responses": {
@@ -56,8 +55,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Endpoint.AgentID"
+    "requires_approval": true
   },
   "soc-kill-process": {
     "responses": {
@@ -92,8 +90,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Process.PID"
+    "requires_approval": true
   },
   "soc-remove-file": {
     "responses": {
@@ -101,14 +98,14 @@
         "command": "core-run-script-delete-file",
         "inline_args": {
           "endpoint_id": "${SOCFramework.Artifacts.EndPointID}",
-          "file_path": "${SOCFramework.Artifacts.Process.Path}"
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
           "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "file_hashes": "${SOCFramework.Artifacts.Process.SHA256}"
+          "file_hashes": "${SOCFramework.Artifacts.File}"
         }
       },
       "CrowdStrike Falcon": {
@@ -116,13 +113,12 @@
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
           "command_type": "runscript",
-          "full_command": "runscript -Raw=```Remove-Item -Path '${SOCFramework.Artifacts.Process.Path}' -Force -ErrorAction SilentlyContinue```"
+          "full_command": "runscript -Raw=```Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue```"
         }
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Target.Path"
+    "requires_approval": true
   },
   "soc-remove-persistence": {
     "responses": {
@@ -131,7 +127,7 @@
         "inline_args": {
           "endpoint_ids": "${SOCFramework.Artifacts.EndPointID}",
           "script_name": "remove_persistence",
-          "parameters": "${SOCFramework.Artifacts.Process.Path}"
+          "parameters": "${SOCFramework.Artifacts.FilePath}"
         }
       },
       "CrowdStrike Falcon": {
@@ -146,13 +142,12 @@
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
           "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "file_hashes": "${SOCFramework.Artifacts.Process.SHA256}"
+          "file_hashes": "${SOCFramework.Artifacts.File}"
         }
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Endpoint.AgentID"
+    "requires_approval": true
   },
   "soc-delete-file": {
     "responses": {
@@ -160,7 +155,7 @@
         "command": "core-run-script-delete-file",
         "inline_args": {
           "endpoint_id": "${SOCFramework.Artifacts.EndPointID}",
-          "file_path": "${SOCFramework.Artifacts.Process.Path}"
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
       "CrowdStrike Falcon": {
@@ -168,21 +163,20 @@
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
           "command_type": "runscript",
-          "full_command": "runscript -Raw=```Remove-Item -Path '${SOCFramework.Artifacts.Process.Path}' -Force -ErrorAction SilentlyContinue```"
+          "full_command": "runscript -Raw=```Remove-Item -Path '${SOCFramework.Artifacts.FilePath}' -Force -ErrorAction SilentlyContinue```"
         }
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Target.Path"
+    "requires_approval": true
   },
   "soc-file-exists": {
     "responses": {
       "Cortex Core - IR": {
         "command": "core-run-script-file-exists",
         "inline_args": {
-          "endpoint_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "file_path": "${SOCFramework.Artifacts.Process.Path}"
+          "endpoint_id": "${SOCFramework.Artifacts.EndPointID}",
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
       "CrowdStrike Falcon": {
@@ -190,20 +184,19 @@
         "inline_args": {
           "host_ids": "${SOCFramework.Artifacts.EndPointID}",
           "command_type": "runscript",
-          "full_command": "runscript -Raw=```Test-Path -Path '${SOCFramework.Artifacts.Process.Path}'```"
+          "full_command": "runscript -Raw=```Test-Path -Path '${SOCFramework.Artifacts.FilePath}'```"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-live-response-get-file",
         "inline_args": {
           "machine_id": "${SOCFramework.Artifacts.EndPointID}",
-          "path": "${SOCFramework.Artifacts.Process.Path}"
+          "path": "${SOCFramework.Artifacts.FilePath}"
         }
       }
     },
     "shadow_mode": false,
-    "requires_approval": false,
-    "prompt_artifact": "Target.Path"
+    "requires_approval": false
   },
   "soc-quarantine-files": {
     "responses": {
@@ -211,21 +204,20 @@
         "command": "core-quarantine-files",
         "inline_args": {
           "endpoint_id_list": "${SOCFramework.Artifacts.EndPointID}",
-          "file_hash": "${SOCFramework.Artifacts.Process.SHA256}",
-          "file_path": "${SOCFramework.Artifacts.Process.Path}"
+          "file_hash": "${SOCFramework.Artifacts.File}",
+          "file_path": "${SOCFramework.Artifacts.FilePath}"
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
           "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "file_hashes": "${SOCFramework.Artifacts.Process.SHA256}"
+          "file_hashes": "${SOCFramework.Artifacts.File}"
         }
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Target.SHA256"
+    "requires_approval": true
   },
   "soc-disable-user": {
     "responses": {
@@ -263,8 +255,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "User"
+    "requires_approval": true
   },
   "soc-clear-sessions": {
     "responses": {
@@ -276,8 +267,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "User"
+    "requires_approval": true
   },
   "soc-reset-password": {
     "responses": {
@@ -296,8 +286,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "User"
+    "requires_approval": true
   },
   "soc-revoke-tokens": {
     "responses": {
@@ -315,8 +304,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "User"
+    "requires_approval": true
   },
   "soc-enable-user": {
     "responses": {
@@ -334,8 +322,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "User"
+    "requires_approval": true
   },
   "soc-enrich-user": {
     "responses": {
@@ -432,7 +419,7 @@
       "Cortex Core - IR": {
         "command": "core-get-hash-analytics-prevalence",
         "inline_args": {
-          "sha256": "${SOCFramework.Artifacts.Process.SHA256}"
+          "sha256": "${SOCFramework.Artifacts.Hash}"
         },
         "output_map": {
           "UC.Enrich.File.hash_prevalence_count": "Core.AnalyticsPrevalence.Hash.data.global_prevalence.value",
@@ -443,7 +430,7 @@
       "WildFire": {
         "command": "wildfire-get-verdict",
         "inline_args": {
-          "hash": "${SOCFramework.Artifacts.Process.SHA256}"
+          "hash": "${SOCFramework.Artifacts.Hash}"
         },
         "output_map": {
           "UC.Enrich.File.verdict": "WildFire.Report.verdict",
@@ -453,7 +440,7 @@
       "VirusTotal (Private API)": {
         "command": "vt-private-get-file-report",
         "inline_args": {
-          "resource": "${SOCFramework.Artifacts.Process.SHA256}"
+          "resource": "${SOCFramework.Artifacts.Hash}"
         },
         "output_map": {
           "UC.Enrich.File.verdict": "VirusTotal.File.Verdict",
@@ -543,7 +530,7 @@
       "Cortex Core - IR": {
         "command": "core-get-hash-analytics-prevalence",
         "inline_args": {
-          "sha256": "${SOCFramework.Artifacts.Process.SHA256}"
+          "sha256": "${SOCFramework.Artifacts.Hash}"
         }
       },
       "Recorded Future": {
@@ -556,7 +543,37 @@
       "Proofpoint TAP v2": {
         "command": "proofpoint-get-forensics",
         "inline_args": {
-          "threatId": "${SOCFramework.Artifacts.Process.SHA256}"
+          "threatId": "${SOCFramework.Artifacts.Hash}"
+        }
+      }
+    },
+    "shadow_mode": false,
+    "requires_approval": false
+  },
+  "soc-get-email-clicks": {
+    "responses": {
+      "Microsoft Graph Security": {
+        "command": "msg-advanced-hunting",
+        "inline_args": {
+          "query": "${SOCFramework.Email.ClicksPermittedQuery}"
+        },
+        "output_map": {
+          "UC.Email.ClickEvents": "MsGraph.Hunt"
+        }
+      }
+    },
+    "shadow_mode": false,
+    "requires_approval": false
+  },
+  "soc-get-email-messages": {
+    "responses": {
+      "Microsoft Graph Security": {
+        "command": "msg-advanced-hunting",
+        "inline_args": {
+          "query": "${SOCFramework.Email.MessagesDeliveredQuery}"
+        },
+        "output_map": {
+          "UC.Email.DeliveryEvents": "MsGraph.Hunt"
         }
       }
     },
@@ -647,8 +664,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Email.MessageID"
+    "requires_approval": true
   },
   "soc-quarantine-email": {
     "responses": {
@@ -676,8 +692,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Email.MessageID"
+    "requires_approval": true
   },
   "soc-block-sender": {
     "responses": {
@@ -708,8 +723,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Email.From"
+    "requires_approval": true
   },
   "soc-unblock-sender": {
     "responses": {
@@ -735,8 +749,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "Email.From"
+    "requires_approval": true
   },
   "soc-audit-inbox-rules": {
     "responses": {
@@ -781,8 +794,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "User"
+    "requires_approval": true
   },
   "soc-detonate-file": {
     "shadow_mode": false,
@@ -791,38 +803,38 @@
       "Cortex Core - IR": {
         "command": "core-get-hash-analytics-prevalence",
         "inline_args": {
-          "sha256": "${SOCFramework.Artifacts.Process.SHA256}"
+          "sha256": "${SOCFramework.Artifacts.Hash}"
         }
       },
       "WildFire v2": {
         "command": "wildfire-upload-file",
         "inline_args": {
-          "upload": "${SOCFramework.Artifacts.Process.Path}",
+          "upload": "${SOCFramework.Artifacts.FilePath}",
           "format": "auto"
         }
       },
       "WildFire v2 (hash)": {
         "command": "wildfire-get-verdict",
         "inline_args": {
-          "hash": "${SOCFramework.Artifacts.Process.SHA256}"
+          "hash": "${SOCFramework.Artifacts.Hash}"
         }
       },
       "VirusTotal (Private API)": {
         "command": "vt-private-get-file-report",
         "inline_args": {
-          "resource": "${SOCFramework.Artifacts.Process.SHA256}"
+          "resource": "${SOCFramework.Artifacts.Hash}"
         }
       },
       "Joe Security": {
         "command": "joe-analysis-submit-sample",
         "inline_args": {
-          "sample": "${SOCFramework.Artifacts.Process.Path}"
+          "sample": "${SOCFramework.Artifacts.FilePath}"
         }
       },
       "CrowdStrike Falcon Sandbox v2": {
         "command": "cs-fx-submit-uploaded-file",
         "inline_args": {
-          "sha256": "${SOCFramework.Artifacts.Process.SHA256}",
+          "sha256": "${SOCFramework.Artifacts.Hash}",
           "environment_id": "160"
         }
       }
@@ -843,8 +855,7 @@
       }
     },
     "shadow_mode": true,
-    "requires_approval": true,
-    "prompt_artifact": "User"
+    "requires_approval": true
   },
   "soc-search-and-delete-email": {
     "shadow_mode": true,
@@ -859,8 +870,7 @@
         }
       }
     },
-    "requires_approval": true,
-    "prompt_artifact": "Email.Subject"
+    "requires_approval": true
   },
   "soc-block-indicators": {
     "shadow_mode": true,
@@ -878,7 +888,7 @@
         "command": "cs-falcon-upload-custom-ioc",
         "inline_args": {
           "ioc_type": "sha256",
-          "value": "${SOCFramework.Artifacts.Process.SHA256}",
+          "value": "${SOCFramework.Artifacts.File}",
           "action": "prevent",
           "platforms": "windows",
           "severity": "high",
@@ -891,7 +901,7 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-sc-indicator-create",
         "inline_args": {
-          "indicator_value": "${SOCFramework.Artifacts.Process.SHA256}",
+          "indicator_value": "${SOCFramework.Artifacts.File}",
           "indicator_type": "FileSha256",
           "action": "AlertAndBlock",
           "title": "SOCFramework Block",
@@ -899,7 +909,6 @@
         }
       }
     },
-    "requires_approval": true,
-    "prompt_artifact": "Target.SHA256"
+    "requires_approval": true
   }
 }
