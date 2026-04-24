@@ -183,14 +183,14 @@ tasks:
     task:
       id: a1111111-0000-0000-0000-000000000020
       version: -1
-      name: ApproveAction
-      description: |
-        ${inputs.action_name} (${inputs.phase}) — ${inputs.artifact_summary}
+      name: 'Approve: ${inputs.action_name} on ${inputs.artifact_summary}'
+      description: |-
+        Phase: ${inputs.phase} | Action: ${inputs.action_name}
+        Target: ${inputs.artifact_summary}
+        Context: ${inputs.context_summary}
 
-        Manual approval required for this Universal Command action. Review
-        the action, the affected artifact, and the case context before
-        deciding. Approve to allow execution (subject to Shadow Mode
-        setting). Deny to skip and record a deny-story in the case.
+        APPROVE  -> execute (honors shadow_mode in SOCFrameworkActions_V3)
+        DENY     -> skip and record decision in xsiam_socfw_ir_execution_raw
       type: collection
       iscommand: false
       brand: ""
@@ -217,8 +217,19 @@ tasks:
     isautoswitchedtoquietmode: false
     message:
       to: null
-      subject: null
-      body: null
+      subject:
+        simple: '${inputs.action_name} on ${inputs.artifact_summary} (${inputs.phase})'
+      body:
+        simple: |-
+          **${inputs.action_name}** is requested during **${inputs.phase}**.
+
+          **Target:** ${inputs.artifact_summary}
+          **Case context:** ${inputs.context_summary}
+
+          ---
+          **APPROVE** -> the SOC Framework will execute `${inputs.action_name}` (subject to the `shadow_mode` flag for this action in `SOCFrameworkActions_V3` -- shadow logs to warroom + dataset only; production calls the vendor).
+
+          **DENY** -> the action is skipped, the decision is recorded in `xsiam_socfw_ir_execution_raw`, and the lifecycle continues.
       methods: []
       format: ""
       bcc: null
@@ -232,7 +243,7 @@ tasks:
     form:
       questions:
       - id: "0"
-        label: Action
+        label: 'Action: {0}'
         labelarg:
           simple: ${inputs.action_name}
         required: false
@@ -246,7 +257,7 @@ tasks:
         tooltip: Universal Command being requested
         readonly: true
       - id: "1"
-        label: Phase
+        label: 'Phase: {0}'
         labelarg:
           simple: ${inputs.phase}
         required: false
@@ -260,7 +271,7 @@ tasks:
         tooltip: NIST IR phase
         readonly: true
       - id: "2"
-        label: Affected artifact
+        label: 'Affected artifact: {0}'
         labelarg:
           simple: ${inputs.artifact_summary}
         required: false
@@ -274,7 +285,7 @@ tasks:
         tooltip: The Artifacts.* value the action will operate on
         readonly: true
       - id: "3"
-        label: Case context
+        label: 'Case context: {0}'
         labelarg:
           simple: ${inputs.context_summary}
         required: false
@@ -306,11 +317,14 @@ tasks:
         tooltip: ""
         readonly: false
       sender: ""
-      title: SOC Framework - Action Approval Required
-      description: |
-        A SOC Framework Universal Command action requires analyst approval
-        before execution. Review the affected artifact and case context, then
-        approve or deny.
+      title: 'Approve ${inputs.action_name} (${inputs.phase})'
+      description: |-
+        ${inputs.action_name} is requested during ${inputs.phase}.
+        Target: ${inputs.artifact_summary}
+        Context: ${inputs.context_summary}
+
+        Approve to execute (subject to shadow_mode in SOCFrameworkActions_V3).
+        Deny to skip and record the decision in xsiam_socfw_ir_execution_raw.
       totalanswers: 0
   "30":
     id: "30"
