@@ -51,14 +51,6 @@ inputs:
   description: MailboxCount at or above this value promotes spread_level to multi_entity.
     Default 3 — aligns with Endpoint high_host_count_per_case default.
   playbookInputQuery: null
-inputSections:
-- inputs:
-  - RecipientScope
-  - MailboxCount
-  - Recipient
-  - multi_user_threshold
-  name: Spread Evaluation Inputs
-  description: Inputs derived from Exposure Evaluation and TAP artifact context.
 tasks:
   '0':
     id: '0'
@@ -186,7 +178,7 @@ tasks:
       name: Set Spread Level — multi_entity
       description: Set a value in context under the key you entered. If no value is
         entered, the script doesn't do anything.
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -225,7 +217,7 @@ tasks:
       name: Set Spread Level — limited_entity
       description: Set a value in context under the key you entered. If no value is
         entered, the script doesn't do anything.
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -264,7 +256,7 @@ tasks:
       name: Set Spread Level — single_entity
       description: Set a value in context under the key you entered. If no value is
         entered, the script doesn't do anything.
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -324,14 +316,14 @@ tasks:
     taskid: 9e372b36-bd55-48df-abc0-0d9ca706339d
     type: regular
     task:
-      id: f99b75d2-6640-49ce-a3e0-433417b7b934
+      id: 9e372b36-bd55-48df-abc0-0d9ca706339d
       version: -1
       name: soc-audit-inbox-rules
       description: 'Universal Command — audit recipient mailbox for suspicious inbox
         rules created post-delivery. Looks for forwarding, auto-delete, or move-to-folder
         rules as Turla Carbon C2 persistence indicators. In Shadow Mode: logs to warroom
         and dataset, does not execute vendor command.'
-      scriptName: SOCCommandWrapper
+      script: SOCCommandWrapper
       type: regular
       iscommand: false
       brand: ''
@@ -374,7 +366,7 @@ tasks:
         Inbox rule creation detected post-delivery. This maps to the persistence_type
         contract parallel to Analysis.Endpoint.persistence_type, and should be evaluated
         by Eradication for inbox rule removal via soc-remove-inbox-rule (SOCFrameworkActions_V3).'
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -413,7 +405,7 @@ tasks:
       name: Set Persistence — no_persistence_detected
       description: Set a value in context under the key you entered. If no value is
         entered, the script doesn't do anything.
-      scriptName: SetAndHandleEmpty
+      script: SetAndHandleEmpty
       type: regular
       iscommand: false
       brand: ''
@@ -471,7 +463,7 @@ tasks:
     taskid: bbf0d33e-997e-4277-8fb7-24e6a2bef3e3
     type: condition
     task:
-      id: bcd60001-3e19-4540-886b-ec7477715486
+      id: bbf0d33e-997e-4277-8fb7-24e6a2bef3e3
       version: -1
       name: Suspicious inbox rule found?
       description: Evaluates the output of soc-audit-inbox-rules. If the UC returned
@@ -518,14 +510,6 @@ outputs:
     Requires Eradication via soc-remove-inbox-rule. no_persistence_detected — no inbox
     rule evidence found.
   type: string
-outputSections:
-- outputs:
-  - Analysis.Email.spread_level
-  - Analysis.Email.persistence_type
-  name: Spread Evaluation Contract
-  description: Passed to Analysis Evaluation and Containment phase. spread_level drives
-    Containment scope (single mailbox vs. tenant-wide purge). persistence_type gates
-    Eradication inbox rule removal task.
 view: '{"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 1520, "width":
   380, "x": 50, "y": 50}}}'
 contentitemexportablefields:
@@ -535,8 +519,7 @@ contentitemexportablefields:
     isoverridable: false
     itemVersion: 3.0.0
     packID: soc-framework-nist-ir
-    packName: SOC Framework NIST IR
+    packName: SOC Framework NIST IR (800-61)
     prevname: ''
     supportedModules: []
     toServerVersion: ''
-dirtyInputs: false
