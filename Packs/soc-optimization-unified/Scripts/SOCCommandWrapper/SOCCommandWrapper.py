@@ -381,6 +381,63 @@ def default_schema_entries():
     ]
 
 
+def _action_fingerprint(action, entity_value):
+    """
+    Case-scoped action fingerprint. The action+entity tuple IS the dedup key —
+    case scope is implicit because state lives on parentIncidentContext, which
+    is per-case by definition.
+
+    Returns None if action or entity_value is empty. An empty entity means we
+    have no real target to dedup against (e.g. a generic enrichment action),
+    so skip dedup entirely and let the action proceed.
+    """
+    if not action or not entity_value:
+        return None
+    import hashlib
+    return hashlib.sha1(f"{action}:{entity_value}".encode("utf-8")).hexdigest()
+
+
+def _read_action_log():
+    """
+    Read prior action records from the parent case's SOCFramework.ActionFingerprints
+    array. Returns a list of {fp, action, entity, run_id, ts} dicts.
+
+    Returns an empty list when there is no parent case (playground/debug, or an
+    issue that fired before being grouped into a case). That's the correct
+    behavior — without a case, there are no siblings to dedup against.
+    """
+    fresh_ctx = demisto.context()
+    log = demisto.get(fresh_ctx, "parentIncidentContext.SOCFramework.ActionFingerprints")
+    if not isinstance(log, list):
+        return []
+    return log
+
+
+def _record_action(record, prior_log):
+    """
+    Append `record` to the case's action log and write it back via
+    setParentIncidentContext.
+
+    Note on atomicity: setParentIncidentContext is read-modify-write at the
+    script layer — there is no CAS primitive on parent context. Two concurrent
+    sibling investigations that both read an empty log will both write,
+    overwriting each other's append. Worst case under heavy burst arrival is a
+    handful of duplicates instead of the original N. The dataset still records
+    the truth either way.
+
+    Best-effort: in playground/debug there is no parent case, the command
+    no-ops, and that's fine — dedup just doesn't apply there.
+    """
+    new_log = list(prior_log) + [record]
+    try:
+        demisto.executeCommand("setParentIncidentContext", {
+            "key": "SOCFramework.ActionFingerprints",
+            "value": new_log
+        })
+    except Exception as e:
+        demisto.debug(f"setParentIncidentContext failed (ok in playground/debug): {e}")
+
+
 def resolve_schema_payload(schema_entries, ctx):
     payload = {}
 
@@ -720,6 +777,104 @@ def main():
         schema_entries = default_schema_entries()
 
     issue = get_issue_data()
+
+    # ── Action-level idempotency (case-scoped) ────────────────────────────────
+    # Solves the "N issues -> N identical actions" problem where a Case
+    # contains substantively-different alerts (Execution + C&C + Shared Modules)
+    # that all target the same entity (agent_id, user, etc.) and therefore all
+    # want to fire the same containment/eradication action.
+    #
+    # Foundation_-_Dedup_V3 cannot catch this — those alerts legitimately are
+    # NOT duplicates at the alert level. Each one has unique enrichment to do.
+    # The duplication is at the ACTION level, and that's the only layer where
+    # action+entity is fully resolved. Hence the wrapper.
+    #
+    # State lives ONLY on the case via setParentIncidentContext. No new list,
+    # no dataset query, no extra integration. The case context becomes its own
+    # audit trail of attempted actions, readable in the case context inspector.
+    #
+    # Behavior:
+    #   - Empty entity_value: skip dedup, proceed (no meaningful target).
+    #   - No parent case (playground/debug, ungrouped issue): skip dedup, proceed.
+    #   - Fingerprint already on case: log skipped row to dataset, set UC.*
+    #     sentinels, return without executing.
+    #   - Fingerprint not seen: append it to the case log, fall through to the
+    #     normal shadow/execute branch.
+    # ─────────────────────────────────────────────────────────────────────────
+    entity_value = demisto.get(ctx, "SOCFramework.Primary.EntityValue") or ""
+    fp = _action_fingerprint(action, entity_value)
+    prior_log = _read_action_log() if fp else []
+    duplicate = (
+        next((r for r in prior_log if isinstance(r, dict) and r.get("fp") == fp), None)
+        if fp else None
+    )
+
+    if duplicate:
+        base_payload = resolve_schema_payload(schema_entries, ctx)
+
+        wrapper_values = {
+            "timestamp": timestamp,
+            "event_type": "command",
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "action_status": "skipped_duplicate",
+            "action_actor": normalize_action_actor(args.get("Action_Actor"), shadow_mode),
+            "execution_mode": "deduped",
+            "shadow_mode_state": "deduped",
+            "has_error": False,
+            "error_type": "",
+            "error_message": "",
+            # Time-saved was already counted by the original run that wrote
+            # this fingerprint. Counting again would double-count in dashboards.
+            "action_time_minutes": 0,
+            "action_time_category": action_time_category
+        }
+
+        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+        # Schema-on-read field — links this skipped row to the original execution.
+        dataset_payload["deduped_against_run_id"] = duplicate.get("run_id", "")
+        post_dataset_payload(dataset_payload, tags)
+
+        # Set UC.* sentinels so downstream playbook conditions still resolve.
+        # Reuse the shadow-mode sentinel value — semantically identical: command
+        # was not executed, downstream isExists(UC.*) gates see the sentinel and
+        # skip vendor-result handling.
+        output_map = vendor_data.get("output_map", {})
+        fresh_ctx = demisto.context()
+        apply_output_map(output_map, fresh_ctx, shadow_mode=True)
+
+        warroom_log(
+            "SOC Framework - Action Skipped (Duplicate)",
+            {
+                "run_id": run_id,
+                "action": action,
+                "entity_value": entity_value,
+                "deduped_against_run_id": duplicate.get("run_id", ""),
+                "deduped_against_ts": duplicate.get("ts", ""),
+                "case_actions_recorded": len(prior_log)
+            },
+            tags
+        )
+
+        return_results(
+            f"Action skipped (duplicate within case): {action} on {entity_value} "
+            f"— previously executed in run {duplicate.get('run_id', '')}"
+        )
+        return
+
+    # No duplicate. Record the fingerprint on the case BEFORE executing so
+    # concurrent siblings see it. Race window is minimal but real — see
+    # _record_action docstring.
+    if fp:
+        _record_action({
+            "fp": fp,
+            "action": action,
+            "entity": entity_value,
+            "run_id": run_id,
+            "ts": timestamp
+        }, prior_log)
 
     warroom_log(
         "SOC Framework - Universal Command Resolved",
