@@ -381,58 +381,104 @@ def default_schema_entries():
     ]
 
 
-def _action_fingerprint(action, entity_value):
+def _action_fingerprint(action, vendor, command, inline_args):
     """
-    Case-scoped action fingerprint. The action+entity tuple IS the dedup key —
-    case scope is implicit because state lives on parentIncidentContext, which
-    is per-case by definition.
+    Case-scoped action fingerprint. Hashes the action plus the *resolved*
+    vendor command and arguments — that is, what would actually execute
+    against the target. Two siblings whose playbooks both resolve to
+    `core-isolate-endpoint endpoint_id_list=87ef...` produce identical
+    fingerprints regardless of which alert type triggered them.
 
-    Returns None if action or entity_value is empty. An empty entity means we
-    have no real target to dedup against (e.g. a generic enrichment action),
-    so skip dedup entirely and let the action proceed.
+    Why not use SOCFramework.Primary.EntityValue: that key is part of the
+    Identity contract and is not populated by Endpoint or Email playbooks
+    that predate it. inline_args is always available because the wrapper
+    needs it to execute the command anyway.
+
+    Returns None if action or command is missing — dedup degrades gracefully
+    (action proceeds normally, no fingerprint recorded).
     """
-    if not action or not entity_value:
+    if not action or not command:
+        return None
+    try:
+        args_canonical = json.dumps(inline_args or {}, sort_keys=True, default=str)
+    except Exception:
         return None
     import hashlib
-    return hashlib.sha1(f"{action}:{entity_value}".encode("utf-8")).hexdigest()
+    payload = f"{action}|{vendor}|{command}|{args_canonical}"
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
-def _read_action_log():
+def _fp_key_path(fp):
     """
-    Read prior action records from the parent case's SOCFramework.ActionFingerprints
-    array. Returns a list of {fp, action, entity, run_id, ts} dicts.
-
-    Returns an empty list when there is no parent case (playground/debug, or an
-    issue that fired before being grouped into a case). That's the correct
-    behavior — without a case, there are no siblings to dedup against.
+    Build the case-context path for a fingerprint. First 16 hex chars of sha1
+    is plenty for case scope (collision-safe vs the few hundred actions a
+    case could plausibly accumulate). Prefix with 'fp_' so the leading
+    character is always a letter — keeps demisto.get's dotted path traversal
+    unambiguous even if the hash happens to start with a digit.
     """
+    return f"SOCFramework.ActionFingerprints.fp_{fp[:16]}"
+
+
+def _check_action_fingerprint(fp):
+    """
+    Look up a fingerprint on the parent case. Returns the prior record dict
+    if this action+args was already attempted, None otherwise.
+
+    Uses a scoped leaf key (one key per fingerprint) instead of a growing
+    array. setParentIncidentContext appends-to-array on repeated writes to
+    the same key — that broke an earlier list-based design. Per-fp keys
+    sidestep that behavior entirely: each unique action gets its own key,
+    each duplicate hits an existing key.
+    """
+    if not fp:
+        return None
+
     fresh_ctx = demisto.context()
-    log = demisto.get(fresh_ctx, "parentIncidentContext.SOCFramework.ActionFingerprints")
-    if not isinstance(log, list):
-        return []
-    return log
+    existing = demisto.get(fresh_ctx, f"parentIncidentContext.{_fp_key_path(fp)}")
+
+    if not existing:
+        return None
+
+    # Normal case: stored as a JSON-stringified record.
+    if isinstance(existing, str):
+        try:
+            return json.loads(existing)
+        except Exception:
+            return {"run_id": "unknown"}
+
+    # Accumulation under race: same key written by two concurrent siblings.
+    # Either way, the action is a duplicate — return the first record we can parse.
+    if isinstance(existing, list) and existing:
+        first = existing[0]
+        if isinstance(first, str):
+            try:
+                return json.loads(first)
+            except Exception:
+                return {"run_id": "unknown"}
+        if isinstance(first, dict):
+            return first
+
+    if isinstance(existing, dict):
+        return existing
+
+    return {"run_id": "unknown"}
 
 
-def _record_action(record, prior_log):
+def _record_action_fingerprint(fp, record):
     """
-    Append `record` to the case's action log and write it back via
-    setParentIncidentContext.
+    Write a single fingerprint record under its scoped key on the parent
+    case. Scalar value (JSON-stringified record), not a list — avoids
+    setParentIncidentContext's array-accumulation behavior.
 
-    Note on atomicity: setParentIncidentContext is read-modify-write at the
-    script layer — there is no CAS primitive on parent context. Two concurrent
-    sibling investigations that both read an empty log will both write,
-    overwriting each other's append. Worst case under heavy burst arrival is a
-    handful of duplicates instead of the original N. The dataset still records
-    the truth either way.
-
-    Best-effort: in playground/debug there is no parent case, the command
-    no-ops, and that's fine — dedup just doesn't apply there.
+    Best-effort: in playground/debug there is no parent case; the command
+    no-ops and dedup just doesn't apply there.
     """
-    new_log = list(prior_log) + [record]
+    if not fp:
+        return
     try:
         demisto.executeCommand("setParentIncidentContext", {
-            "key": "SOCFramework.ActionFingerprints",
-            "value": new_log
+            "key": _fp_key_path(fp),
+            "value": json.dumps(record)
         })
     except Exception as e:
         demisto.debug(f"setParentIncidentContext failed (ok in playground/debug): {e}")
@@ -787,27 +833,29 @@ def main():
     # Foundation_-_Dedup_V3 cannot catch this — those alerts legitimately are
     # NOT duplicates at the alert level. Each one has unique enrichment to do.
     # The duplication is at the ACTION level, and that's the only layer where
-    # action+entity is fully resolved. Hence the wrapper.
+    # action+vendor+command+args is fully resolved. Hence the wrapper.
     #
-    # State lives ONLY on the case via setParentIncidentContext. No new list,
-    # no dataset query, no extra integration. The case context becomes its own
-    # audit trail of attempted actions, readable in the case context inspector.
+    # State lives ONLY on the case via setParentIncidentContext. One scoped
+    # leaf key per unique fingerprint at:
+    #     parentIncidentContext.SOCFramework.ActionFingerprints.fp_<short>
+    # Per-fp keys sidestep setParent's array-accumulation behavior (which
+    # broke an earlier single-list design — each repeated write to the same
+    # array-shaped key appended a new entry rather than replacing).
+    #
+    # SCOPE: this dedup catches duplicate VENDOR EXECUTIONS at the wrapper.
+    # It does NOT catch duplicate APPROVAL TASKS — those are created by the
+    # Action playbook BEFORE the wrapper runs. Approval-level dedup needs
+    # to live in the Action playbook layer (or higher).
     #
     # Behavior:
-    #   - Empty entity_value: skip dedup, proceed (no meaningful target).
+    #   - No fingerprint inputs (action/command empty): skip dedup, proceed.
     #   - No parent case (playground/debug, ungrouped issue): skip dedup, proceed.
-    #   - Fingerprint already on case: log skipped row to dataset, set UC.*
-    #     sentinels, return without executing.
-    #   - Fingerprint not seen: append it to the case log, fall through to the
-    #     normal shadow/execute branch.
+    #   - Fingerprint key already on case: log skipped row to dataset, set
+    #     UC.* sentinels, return without executing.
+    #   - Fingerprint key not seen: write it, fall through to shadow/execute.
     # ─────────────────────────────────────────────────────────────────────────
-    entity_value = demisto.get(ctx, "SOCFramework.Primary.EntityValue") or ""
-    fp = _action_fingerprint(action, entity_value)
-    prior_log = _read_action_log() if fp else []
-    duplicate = (
-        next((r for r in prior_log if isinstance(r, dict) and r.get("fp") == fp), None)
-        if fp else None
-    )
+    fp = _action_fingerprint(action, vendor, command, inline_args)
+    duplicate = _check_action_fingerprint(fp)
 
     if duplicate:
         base_payload = resolve_schema_payload(schema_entries, ctx)
@@ -850,31 +898,32 @@ def main():
             {
                 "run_id": run_id,
                 "action": action,
-                "entity_value": entity_value,
+                "vendor": vendor,
+                "command": command,
                 "deduped_against_run_id": duplicate.get("run_id", ""),
-                "deduped_against_ts": duplicate.get("ts", ""),
-                "case_actions_recorded": len(prior_log)
+                "deduped_against_ts": duplicate.get("ts", "")
             },
             tags
         )
 
         return_results(
-            f"Action skipped (duplicate within case): {action} on {entity_value} "
+            f"Action skipped (duplicate within case): {action} via {vendor} "
             f"— previously executed in run {duplicate.get('run_id', '')}"
         )
         return
 
     # No duplicate. Record the fingerprint on the case BEFORE executing so
     # concurrent siblings see it. Race window is minimal but real — see
-    # _record_action docstring.
+    # _record_action_fingerprint docstring.
     if fp:
-        _record_action({
+        _record_action_fingerprint(fp, {
             "fp": fp,
             "action": action,
-            "entity": entity_value,
+            "vendor": vendor,
+            "command": command,
             "run_id": run_id,
             "ts": timestamp
-        }, prior_log)
+        })
 
     warroom_log(
         "SOC Framework - Universal Command Resolved",
