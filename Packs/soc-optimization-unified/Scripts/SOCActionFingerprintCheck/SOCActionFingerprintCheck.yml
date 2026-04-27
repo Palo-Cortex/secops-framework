@@ -1,0 +1,61 @@
+adopted: true
+fromversion: 6.10.0
+commonfields:
+  id: SOCActionFingerprintCheck
+  version: -1
+name: SOCActionFingerprintCheck
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.12.5490952
+enabled: true
+system: true
+tags:
+  - SOC
+  - SOC_Framework_Unified
+  - dedup
+comment: |
+  Action-level idempotency check for the SOC Framework. Call as the FIRST
+  task in a SOC Action playbook (e.g. SOC_Action_Isolate_Endpoint_V3),
+  BEFORE the approval task. Computes a fingerprint of (action, entity),
+  checks the parent case's SOCFramework.ActionFingerprints namespace, and
+  writes a 'pending_approval' record if absent. Returns IsDuplicate so the
+  playbook can route around the approval + wrapper flow when an earlier
+  sibling on the same case is already handling this action+entity. Shares
+  the parentIncidentContext.SOCFramework.ActionFingerprints.fp_<short>
+  namespace with SOCCommandWrapper.
+args:
+  - name: action
+    description: SOC Framework action name (e.g. soc-isolate-endpoint, soc-disable-user).
+    required: true
+  - name: entity
+    description: Target entity value used as the dedup key (e.g. agent_id, username, file hash, IP). Caller normalizes (case, whitespace).
+    required: true
+  - name: phase
+    description: NIST IR phase for audit (Containment, Eradication, Recovery). Optional.
+  - name: lifecycle
+    description: Lifecycle identifier for audit. Optional.
+outputs:
+  - contextPath: SOCFramework.Dedup.IsDuplicate
+    description: '"true" if this action+entity was already recorded on the parent case, "false" otherwise.'
+    type: String
+  - contextPath: SOCFramework.Dedup.Fingerprint
+    description: Short fingerprint hash (16 hex chars) for audit and correlation.
+    type: String
+  - contextPath: SOCFramework.Dedup.PriorRunId
+    description: When IsDuplicate is true, the run_id of the original attempt.
+    type: String
+  - contextPath: SOCFramework.Dedup.PriorTs
+    description: When IsDuplicate is true, the timestamp of the original attempt.
+    type: String
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified
+    itemVersion: 3.7.4
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
