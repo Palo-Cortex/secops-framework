@@ -36,6 +36,14 @@ alert_fields:
   fw_email_recipient: recipient
   fw_email_sender: sender
   fw_email_subject: subject
+  # cleaned_url (scheme + www. stripped) for downstream URL correlation
+  # against proxy/firewall traffic logs (e.g. Zscaler ZPA). Distinct from
+  # fw_url_domain which is the registered-domain extraction.
+  clickedurls: cleaned_url
+  # linkedCount surfaces the number of links in a delivered message — used
+  # by Email_Analysis_V3 as an outbound-compromise scoring signal even when
+  # rule-level inbound/outbound branching is handled by Issue Exclusions.
+  linkedcount: linkedCount
 
   # -- SOC Framework email fields -- read by Foundation_-_Normalize_Email_V3 --
   socfwemaildeliveryaction: delivery_action
@@ -107,9 +115,9 @@ lookup_mapping: []
 mapping_strategy: CUSTOM
 mitre_defs:
   TA0001 - Initial Access:
-  - T1566 - Phishing
+    - T1566 - Phishing
   TA0009 - Collection:
-  - T1114 - Email Collection
+    - T1114 - Email Collection
 name: SOC Proofpoint TAP - Threat Detected
 search_window: null
 severity: User Defined
@@ -142,7 +150,7 @@ simple_schedule: null
 suppression_duration: 24 hours
 suppression_enabled: true
 suppression_fields:
-- GUID
+  - GUID
 timezone: null
 user_defined_category: alert_category
 user_defined_severity: alert_severity
@@ -150,7 +158,14 @@ xql_query: |
   /*
   Title:   SOC Proofpoint TAP - Threat Detected
   Dataset: proofpoint_tap_v2_generic_alert_raw
-  Version: 1.4.0
+  Version: 1.5.0
+  Changes v1.5.0:
+    - Added cleaned_url alter + clickedurls alert_field for cross-product URL
+      correlation (Zscaler ZPA, NGFW logs) — restores the Zscaler pivot lost
+      when consolidating from prod 1.0.4
+    - Added linkedCount alter + linkedcount alert_field for Email_Analysis_V3
+      outbound-compromise scoring. Rule fires neutrally; inbound/outbound
+      directionality filtering moved to Issue Exclusions
   Changes v1.4.0:
     - Added bc_* XQL alters: first-element extractions from threatsInfoMap matching
       old 1.0.4 rule behavior (threatsInfoMap -> [0].field syntax)
@@ -231,6 +246,17 @@ xql_query: |
   | alter
       domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
       dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")
+
+  // cleaned_url for cross-product URL correlation (Zscaler ZPA, NGFW logs).
+  // Strips scheme + leading www. from the threat URL or sender link so the
+  // value matches the URL form other proxies/firewalls log.
+  | alter cleaned_url = ltrim(replex(coalesce(threat_indicators, url), "^https?://", ""), "www.")
+
+  // linkedCount: number of links Proofpoint observed in a delivered message.
+  // Surfaced as an alert field for Email_Analysis_V3 outbound-compromise
+  // scoring. Inbound/outbound directionality filtering itself is handled
+  // by Issue Exclusions — the rule fires neutrally.
+  | alter linkedCount = to_integer(_alert_data -> linkedCount)
 
   // Legacy BC: first-element extractions matching old 1.0.4 rule behavior.
   // Old rules used threatsInfoMap -> [0].field to get scalars and the first element object.
