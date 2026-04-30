@@ -23,13 +23,13 @@ alert_fields:
   filehash: proofpointsha256
 
   # -- Network indicators -----------------------------------------------------
-  action_remote_ip: senderIP
+  action_remote_ip: senderip
   dns_query_name: dns_name
   fw_url_domain: domain
 
   # -- Email fields -----------------------------------------------------------
-  emailmessageid: messageID
-  emailsenderip: senderIP
+  emailmessageid: messageid
+  emailsenderip: senderip
   emailsource: sender
   vendor: vendor_name
   product: product_name
@@ -53,37 +53,37 @@ alert_fields:
   socfwemailthreatstatus: threat_statuses
   socfwemailthreatid: threat_ids
   socfwemailclassification: classification_all
-  socfwemailphishscore: phishScore
-  socfwemailmalwarescore: malwareScore
-  socfwemailcampaignid: campaignId
-  socfwemailclickip: clickIP
-  socfwemailclicktime: clickTime
+  socfwemailphishscore: phishscore
+  socfwemailmalwarescore: malwarescore
+  socfwemailcampaignid: campaignid
+  socfwemailclickip: clickip
+  socfwemailclicktime: clicktime
 
   # -- Legacy proofpointtap* fields -------------------------------------------
   # Supports soc-phishing-investigation-1.0.5 playbooks and Proofpoint TAP layouts.
   # Remove when old phishing pack is decommissioned from all tenants.
   #
   # Sourced from raw dataset fields:
-  proofpointtapcampaignid:     campaignId
-  proofpointtapclickip:        clickIP
-  proofpointtapclicktime:      clickTime
-  proofpointtapguid:           GUID
-  proofpointtapheadersfrom:    headerFrom
-  proofpointtapheadersreplyto: headerReplyTo
+  proofpointtapcampaignid:     campaignid
+  proofpointtapclickip:        clickip
+  proofpointtapclicktime:      clicktime
+  proofpointtapguid:           guid
+  proofpointtapheadersfrom:    headerfrom
+  proofpointtapheadersreplyto: headerreplyto
   proofpointtapid:             id
-  proofpointtapimposterscore:  impostorScore
-  proofpointtapmalwarescore:   malwareScore
-  proofpointtapmessageid:      messageID
-  proofpointtapmessageparts:   messageParts
-  proofpointtapmessagesize:    messageSize
-  proofpointtapphishingscore:  phishScore
-  proofpointtapreplytoaddress: replyToAddress
-  proofpointtapsenderip:       senderIP
+  proofpointtapimposterscore:  impostorscore
+  proofpointtapmalwarescore:   malwarescore
+  proofpointtapmessageid:      messageid
+  proofpointtapmessageparts:   messageparts
+  proofpointtapmessagesize:    messagesize
+  proofpointtapphishingscore:  phishscore
+  proofpointtapreplytoaddress: replytoaddress
+  proofpointtapsenderip:       senderip
   proofpointtapsmtpsender:     sender
-  proofpointtapspamscore:      spamScore
+  proofpointtapspamscore:      spamscore
   proofpointtapsubject:        subject
-  proofpointtapthreatstatus:   threatStatus
-  proofpointtapthreattime:     threatTime
+  proofpointtapthreatstatus:   threatstatus
+  proofpointtapthreattime:     threattime
   proofpointtaptype:           type
   proofpointtapxmailer:        xmailer
   #
@@ -158,32 +158,7 @@ xql_query: |
   /*
   Title:   SOC Proofpoint TAP - Threat Detected
   Dataset: proofpoint_tap_v2_generic_alert_raw
-  Version: 1.5.0
-  Changes v1.5.0:
-    - Added cleaned_url alter + clickedurls alert_field for cross-product URL
-      correlation (Zscaler ZPA, NGFW logs) — restores the Zscaler pivot lost
-      when consolidating from prod 1.0.4
-    - Added linkedCount alter + linkedcount alert_field for Email_Analysis_V3
-      outbound-compromise scoring. Rule fires neutrally; inbound/outbound
-      directionality filtering moved to Issue Exclusions
-  Changes v1.4.0:
-    - Added bc_* XQL alters: first-element extractions from threatsInfoMap matching
-      old 1.0.4 rule behavior (threatsInfoMap -> [0].field syntax)
-    - Added full proofpointtap* alert_fields block (27 fields) to support legacy
-      soc-phishing-investigation-1.0.5 playbooks and Proofpoint TAP layouts
-    - bc_threatinfomap uses json_extract (not scalar) to return parsed object,
-      enabling .threat and .threatType sub-key access from old playbooks
-    - All additions purely additive; no existing mappings changed
-    - Decommission path: remove bc_* alter block + proofpointtap* alert_fields
-      when soc-phishing-investigation-1.0.5 retired from all tenants
-  Changes v1.3.0:
-    - Set is_enabled: true for side-by-side testing
-  Changes v1.2.1:
-    - Removed to_json_string() double-encoding bug
-    - Suppression changed to GUID/24hr
-  Changes v1.0.10 (initial):
-    - Consolidated 1.0.4 two-rule split into single rule
-    - Replaced proofpointtap* classifier/mapper with socfw* alert_fields
+  Version: 1.5.3
   */
   dataset = proofpoint_tap_v2_generic_alert_raw
 
@@ -194,18 +169,21 @@ xql_query: |
   | filter type in ("messages delivered", "clicks permitted")
 
   // Gate 2: actionable threats only
-  | alter threatsInfoMap_str = threatsInfoMap
+  | alter threatsInfoMap_str = threatsinfomap
   | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
   | filter (
       first_threat_status in ("active", "malicious")
-      or threatStatus in ("active", "malicious")
+      or threatstatus in ("active", "malicious")
   )
 
   // Alert identity and naming
   | alter
-      alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
-      alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
-      alert_description = coalesce(_alert_data -> alert_description, concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", GUID)),
+      alert_severity    = if(_alert_data -> severity != null and _alert_data -> severity != "",
+                             _alert_data -> severity,
+                             "SEV_030_MEDIUM"),
+      alert_category    = if(_alert_data -> alert_category != null and _alert_data -> alert_category != "",
+                             _alert_data -> alert_category,
+                             "Email Security"),
       alert_name = if(
           type = "clicks permitted",
           concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -238,31 +216,19 @@ xql_query: |
 
   // Attachment fields (all parts)
   | alter
-      proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
-      proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
-      proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
+      proofpointsha256   = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
+      proofpointmd5      = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
+      proofpointfilename = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
 
   // Domain extraction
   | alter
       domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
       dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")
 
-  // cleaned_url for cross-product URL correlation (Zscaler ZPA, NGFW logs).
-  // Strips scheme + leading www. from the threat URL or sender link so the
-  // value matches the URL form other proxies/firewalls log.
   | alter cleaned_url = ltrim(replex(coalesce(threat_indicators, url), "^https?://", ""), "www.")
 
-  // linkedCount: number of links Proofpoint observed in a delivered message.
-  // Surfaced as an alert field for Email_Analysis_V3 outbound-compromise
-  // scoring. Inbound/outbound directionality filtering itself is handled
-  // by Issue Exclusions — the rule fires neutrally.
   | alter linkedCount = to_integer(_alert_data -> linkedCount)
 
-  // Legacy BC: first-element extractions matching old 1.0.4 rule behavior.
-  // Old rules used threatsInfoMap -> [0].field to get scalars and the first element object.
-  // bc_threatinfomap uses json_extract (not json_extract_scalar) to return a parsed object
-  // so old playbooks can access .threat and .threatType as sub-keys, exactly as before.
-  // Remove this block when soc-phishing-investigation-1.0.5 is decommissioned.
   | alter
       bc_threatid       = json_extract_scalar(threatsInfoMap_str, "$[0].threatID"),
       bc_classification = json_extract_scalar(threatsInfoMap_str, "$[0].classification"),
@@ -271,3 +237,5 @@ xql_query: |
           json_extract_scalar(threatsInfoMap_str, "$[0].threatURL")
       ),
       bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
+
+  | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)

@@ -1,0 +1,45 @@
+// Proofpoint TAP Modeling Rule
+// Maps proofpoint_tap_v2_generic_alert_raw -> xdm.email + xdm.source
+//
+// v2.0 — corrects the XDM schema. Previous versions had three classes of bug:
+//   1. Used `model=Email` in the MODEL directive — that parameter does not
+//      exist. MODEL only accepts `dataset` and `content_id`.
+//   2. Used XDM paths that aren't in the schema:
+//        XDM.Email.original_event_id
+//        XDM.Email.Server.host.ipv4_addresses
+//        XDM.Email.Client.host.ipv4_addresses
+//        XDM.Email.threat.original_threat_id
+//        XDM.Email.threat.subcategory
+//        XDM.Email.observation_timestamp
+//      None of these exist. xdm.email has no `Server`, `Client`, or `threat`
+//      compounds, and only `delivery_timestamp` / `origination_timestamp` for
+//      time fields.
+//   3. Mapped multiple attachment parts as comma-joined strings into
+//      xdm.email.attachment.* — those XDM fields are scalar (and md5/sha256
+//      are typed hashes). Only the first message part is mapped now.
+//
+// Verified against the canonical schema:
+//   docs-cortex.paloaltonetworks.com/r/Cortex-XSIAM/
+//     Data-Model-Schema-Guide-for-Cortex-XSIAM/xdm.email
+//
+// Raw fields with no clean XDM home (kept in the raw dataset, surfaced by
+// the correlation rule's alert_fields):
+//   guid, threatsinfomap, threatid, threattime, threaturl, threatstatus,
+//   classification, clickip, clicktime, campaignid, phishscore, malwarescore
+//
+// Lowercased raw column refs to match the dataset (XSIAM-inferred schema is
+// lowercase). JSON path keys ($.filename, $.md5, $.sha256) stay camelCase —
+// those are keys inside the JSON value, not column names.
+[MODEL: dataset=proofpoint_tap_v2_generic_alert_raw]
+alter
+xdm.email.cc = json_extract_array(ccaddresses, "$."),
+xdm.email.recipients = json_extract_array(recipient, "$."),
+xdm.email.sender = arrayindex(json_extract_array(fromaddress, "$."), 0),
+xdm.email.return_path = sender,
+xdm.email.subject = subject,
+xdm.email.message_id = messageid,
+xdm.email.delivery_timestamp = messagetime,
+xdm.email.attachment.filename = json_extract_scalar(messageparts, "$[0].filename"),
+xdm.email.attachment.md5 = json_extract_scalar(messageparts, "$[0].md5"),
+xdm.email.attachment.sha256 = json_extract_scalar(messageparts, "$[0].sha256"),
+xdm.source.ipv4 = senderip;
