@@ -222,6 +222,12 @@ SKIP_CONTENT_DIRS: set[str] = {
     "ReleaseNotes",
     "Automations",
     "Lookup",
+    # Framework infrastructure directories — JSON schema documents and
+    # policy files used by validators at runtime, not XSIAM content.
+    # Without these here, content_type_from_content() classifies any
+    # parseable .json dict as a "list" and reports a false MISLOCATION.
+    "schemas",
+    "policies",
 }
 
 # Suffix patterns stripped from playbook name and id fields.
@@ -816,7 +822,7 @@ def _renumber_alphanumeric_task_ids(text: str) -> tuple[str, bool]:
         decl_re = re.compile(
             r"^(  )['\"]?" + escaped + r"['\"]?(\s*:)",
             re.MULTILINE,
-        )
+            )
         result, n = decl_re.subn(r"\g<1>'" + new_id + r"'\2", result)
         if n:
             changed = True
@@ -825,7 +831,7 @@ def _renumber_alphanumeric_task_ids(text: str) -> tuple[str, bool]:
         inner_id_re = re.compile(
             r"^(    id:\s*)['\"]?" + escaped + r"['\"]?\s*$",
             re.MULTILINE,
-        )
+            )
         result, n = inner_id_re.subn(r"\g<1>" + new_id, result)
         if n:
             changed = True
@@ -895,10 +901,10 @@ def _ensure_fromversion_playbook(text: str) -> tuple[str, bool]:
 
 
 def normalize_playbook(
-    text: str,
-    pack_id: str,
-    pack_name: str,
-    override_name: Optional[str] = None,
+        text: str,
+        pack_id: str,
+        pack_name: str,
+        override_name: Optional[str] = None,
 ) -> tuple[str, list[str]]:
     """
     Apply all normalisation steps to a playbook YAML string.
@@ -1083,10 +1089,10 @@ def resolve_output_path(input_path: Path, out_dir: Optional[Path]) -> Path:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def process_file(
-    path: Path,
-    override_name: Optional[str],
-    out_dir: Optional[Path],
-    dry_run: bool,
+        path: Path,
+        override_name: Optional[str],
+        out_dir: Optional[Path],
+        dry_run: bool,
 ) -> tuple[bool, bool]:
     """
     Normalise a single file.
@@ -1336,7 +1342,7 @@ def process_file(
                 data_path.write_text(
                     json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8",
-                )
+                    )
                 print(f"    {OK('→')} {data_path}  (data)")
                 if path.resolve() != data_path.resolve():
                     path.unlink()
@@ -1365,13 +1371,13 @@ def process_file(
                 desc_path.write_text(
                     json.dumps(descriptor, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8",
-                )
+                    )
                 print(f"    {OK('→')} {desc_path}  (descriptor)")
 
             data_path.write_text(
                 json.dumps(data_out, indent=2, ensure_ascii=False) + "\n",
                 encoding="utf-8",
-            )
+                )
             print(f"    {OK('→')} {data_path}  (data)")
 
             if path.resolve() != desc_path.resolve() and path.resolve() != data_path.resolve():
