@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "soc-framework://contracts/Artifacts.Endpoint.schema.json",
+  "title": "SOCFramework.Artifacts.Endpoint",
+  "description": "Endpoint category normalization contract. Declares the shape of the SOCFramework.Artifacts.* tree produced by Foundation_-_Normalize_Endpoint_V3 when an alert routes to category Endpoint via SOCProductCategoryMap_V3. Lifecycle and Workflow playbooks read from this contract; vendor correlation and modeling rules must populate the issue.* fields listed in x-source-field to satisfy it.",
+
+  "x-soc-framework": {
+    "category": "Endpoint",
+    "namespace_root": "SOCFramework.Artifacts",
+    "produced_by": "Foundation_-_Normalize_Endpoint_V3",
+    "input_surface": "issue.* (canonical XSIAM alert read surface)",
+    "consumed_by": [
+      "Foundation_-_Enrichment_V3",
+      "SOC_Endpoint_Analysis_V3",
+      "SOC_Endpoint_Containment_V3",
+      "SOC_Endpoint_Eradication_V3",
+      "SOC_Endpoint_Recovery_V3"
+    ],
+    "vendor_sources": {
+      "ds_panw_xdr_agent":                            { "type": "EDR", "coverage_default": "native" },
+      "ds_crowdstrike_falcon_event":                  { "type": "EDR", "coverage_default": "requires_vendor_pack_modeling_rule" },
+      "ds_sentinelone_event":                         { "type": "EDR", "coverage_default": "requires_vendor_pack_modeling_rule" },
+      "ds_msft_defenderxdr":                          { "type": "EDR", "coverage_default": "requires_vendor_pack_modeling_rule" },
+      "ds_msft_graph_security_alerts":                { "type": "EDR", "coverage_default": "requires_vendor_pack_modeling_rule" },
+      "ds_trend_micro_vision_one_v3_generic_alert":   { "type": "EDR", "coverage_default": "requires_vendor_pack_modeling_rule" }
+    },
+    "coverage_states": {
+      "native":                            "Vendor delivers via Cortex XDR Agent; issue.* field populates without additional rule work.",
+      "requires_vendor_pack_modeling_rule": "Vendor pack must ship a modeling rule that maps the vendor-native field to the listed issue.* path.",
+      "requires_correlation_rule_alert_field": "Vendor pack correlation rule must include the listed issue.* path in alert_fields.",
+      "unavailable":                       "Vendor does not carry this concept; consumers must handle empty.",
+      "contract_pending":                  "Field exists in the normalizer but the vendor mapping has not been validated against a real alert."
+    },
+    "namespace_convention": "Namespace segments PascalCase; leaf values PascalCase within Artifacts.* tree (intentional exception to the snake_case leaf convention used elsewhere in SOCFramework.*).",
+    "backward_compat_aliases": {
+      "Artifacts.File":     "Target file SHA256 (semantic-corrected from earlier 'initiator hash' meaning).",
+      "Artifacts.Hash":     "Target file SHA256.",
+      "Artifacts.FilePath": "Target file path.",
+      "Artifacts.EndPointID": "Endpoint agent identifier.",
+      "Artifacts.User":      "Username from the alert."
+    }
+  },
+
+  "type": "object",
+  "additionalProperties": false,
+
+  "properties": {
+
+    "Hash":     { "$ref": "#/$defs/SHA256",       "description": "Target file SHA256 (backward-compat alias for Target.SHA256).", "x-source-field": "issue.filesha256[0]", "x-lifecycle-phase": ["Analysis","Containment","Eradication"] },
+    "File":     { "$ref": "#/$defs/SHA256",       "description": "Target file SHA256 (backward-compat alias).",                    "x-source-field": "issue.filesha256[0]", "x-lifecycle-phase": ["Analysis","Eradication"] },
+    "FilePath": { "type": "string",               "description": "Target file path (backward-compat alias for Target.Path).",       "x-source-field": "issue.filepath[0]",   "x-lifecycle-phase": ["Eradication"] },
+    "EndPointID": { "type": "string",             "description": "Endpoint agent ID (backward-compat alias for Endpoint.AgentID).", "x-source-field": "issue.agentid",       "x-lifecycle-phase": ["Containment","Recovery"] },
+    "User":     { "type": "string",               "description": "Username from alert (backward-compat alias).",                    "x-source-field": "issue.username[0]",   "x-lifecycle-phase": ["Analysis","Containment"] },
+
+    "Process": {
+      "type": "object", "additionalProperties": false,
+      "description": "Initiator process — the process that performed the action that triggered the alert.",
+      "properties": {
+        "PID":         { "type": ["integer","string","null"], "description": "Initiator process ID.",                             "x-source-field": "issue.initiatorpid[0]",        "x-lifecycle-phase": ["Analysis"] },
+        "Name":        { "type": "string",                    "description": "Initiator process name (basename of executable).", "x-source-field": "issue.initiatedby[0]",         "x-lifecycle-phase": ["Analysis","Eradication"] },
+        "Path":        { "type": "string",                    "description": "Initiator process executable path.",               "x-source-field": "issue.initiatorpath[0]",       "x-lifecycle-phase": ["Eradication"] },
+        "SHA256":      { "$ref": "#/$defs/SHA256",            "description": "Initiator process SHA256.",                        "x-source-field": "issue.initiatorsha256[0]",     "x-lifecycle-phase": ["Analysis","Eradication"] },
+        "MD5":         { "$ref": "#/$defs/MD5",               "description": "Initiator process MD5.",                           "x-source-field": "issue.initiatormd5[0]",        "x-lifecycle-phase": ["Analysis"] },
+        "CommandLine": { "type": "string",                    "description": "Initiator command line.",                          "x-source-field": "issue.initiatorcmd[0]",        "x-lifecycle-phase": ["Analysis"] },
+        "Signer":      { "type": "string",                    "description": "Initiator code-signing signer name.",              "x-source-field": "issue.initiatorsigner[0]",     "x-lifecycle-phase": ["Analysis"] },
+        "Signature":   { "type": "string",                    "description": "Initiator code-signing status string.",            "x-source-field": "issue.initiatorsignature[0]",  "x-lifecycle-phase": ["Analysis"] },
+        "Verdict":     { "type": ["string","null"],           "description": "TBD — analyst or enrichment verdict on the initiator. Currently unset.", "x-source-field": null, "x-status": "TBD" },
+
+        "Parent": {
+          "type": "object", "additionalProperties": false,
+          "description": "Parent of the initiator process (process tree context).",
+          "properties": {
+            "PID":       { "type": ["integer","string","null"], "description": "Parent process ID.",                "x-source-field": "issue.osparentid[0]",       "x-lifecycle-phase": ["Analysis"] },
+            "Signature": { "type": "string",                    "description": "Parent code-signing status string.","x-source-field": "issue.osparentsignature[0]","x-lifecycle-phase": ["Analysis"] }
+          }
+        },
+
+        "Causality": {
+          "type": "object", "additionalProperties": false,
+          "description": "XDM causality chain identifiers — used for cross-alert process tree reconstruction.",
+          "properties": {
+            "ID":         { "type": "string", "description": "Causality chain ID (XDM canonical).",                   "x-source-field": "issue.xdmsourceprocesscausalityid[0]", "x-lifecycle-phase": ["Analysis"] },
+            "InstanceID": { "type": "string", "description": "Actor process instance ID (per-execution identifier).", "x-source-field": "issue.actorprocessinstanceid[0]",     "x-lifecycle-phase": ["Analysis"] }
+          }
+        }
+      }
+    },
+
+    "Target": {
+      "type": "object", "additionalProperties": false,
+      "description": "Target file — the file the initiator process acted upon (read, wrote, dropped, executed, modified).",
+      "properties": {
+        "File":            { "type": "string",         "description": "Target file basename.",                       "x-source-field": "issue.filename[0]",                                "x-lifecycle-phase": ["Analysis","Eradication"] },
+        "Path":            { "type": "string",         "description": "Target file full path.",                      "x-source-field": "issue.filepath[0]",                                "x-lifecycle-phase": ["Eradication"] },
+        "SHA256":          { "$ref": "#/$defs/SHA256", "description": "Target file SHA256.",                         "x-source-field": "issue.filesha256[0]",                              "x-lifecycle-phase": ["Analysis","Eradication"] },
+        "SignatureStatus": { "type": "string",         "description": "Target executable code-signing status.",      "x-source-field": "issue.xdmtargetprocessexecutablesignaturestatus[0]","x-lifecycle-phase": ["Analysis"] },
+        "Verdict":         { "type": ["string","null"],"description": "TBD — analyst or enrichment verdict on the target. Currently unset.", "x-source-field": null, "x-status": "TBD" }
+      }
+    },
+
+    "Endpoint": {
+      "type": "object", "additionalProperties": false,
+      "description": "Endpoint host identity and posture.",
+      "properties": {
+        "AgentID":    { "type": "string", "description": "Cortex agent ID — primary handle for soc-isolate-endpoint and soc-deisolate.", "x-source-field": "issue.agentid",        "x-lifecycle-phase": ["Containment","Recovery"] },
+        "Hostname":   { "type": "string", "description": "Endpoint short hostname.",                                                      "x-source-field": "issue.hostname",       "x-lifecycle-phase": ["Analysis","Containment"] },
+        "FQDN":       { "type": "string", "description": "Endpoint FQDN.",                                                                "x-source-field": "issue.hostfqdn",       "x-lifecycle-phase": ["Analysis"] },
+        "OS":         { "type": "string", "description": "OS family (Windows / macOS / Linux).",                                          "x-source-field": "issue.hostos",         "x-lifecycle-phase": ["Analysis","Eradication"] },
+        "OSVersion":  { "type": "string", "description": "OS sub-type / version detail.",                                                 "x-source-field": "issue.agentossubtype", "x-lifecycle-phase": ["Analysis"] },
+        "Domain":     { "type": "string", "description": "AD / Workgroup domain.",                                                        "x-source-field": "issue.domain",         "x-lifecycle-phase": ["Analysis"] },
+        "MACAddress": { "type": "string", "description": "Primary NIC MAC address.",                                                      "x-source-field": "issue.hostmacaddress", "x-lifecycle-phase": ["Analysis"] }
+      }
+    },
+
+    "Network": {
+      "type": "object", "additionalProperties": false,
+      "description": "Endpoint network identity at the time of alert.",
+      "properties": {
+        "IP": { "type": "string", "description": "Endpoint IP address (host primary IP).", "x-source-field": "issue.hostip[0]", "x-lifecycle-phase": ["Analysis","Containment"] }
+      }
+    },
+
+    "Source": {
+      "type": "object", "additionalProperties": false,
+      "description": "Detection-source context — what module on what agent flagged this alert.",
+      "properties": {
+        "Module":      { "type": "string", "description": "Detection module / engine name.",            "x-source-field": "issue.module[0]",   "x-lifecycle-phase": ["Analysis"] },
+        "AlertDomain": { "type": "string", "description": "Detection domain (e.g., Malware, BTP, XDR).","x-source-field": "issue.alert_domain","x-lifecycle-phase": ["Analysis"] },
+        "Action":      { "type": "string", "description": "Action the agent took (detected/prevented).","x-source-field": "issue.action[0]",   "x-lifecycle-phase": ["Analysis"] }
+      }
+    },
+
+    "MITRE": {
+      "type": "object", "additionalProperties": false,
+      "description": "MITRE ATT&CK mapping. Native XDR Agent alerts often lack these fields; Category falls back to issue.categoryname when tactic/technique unset.",
+      "properties": {
+        "Tactic":      { "type": "string", "description": "ATT&CK tactic name.",                                     "x-source-field": "issue.mitretacticname",     "x-lifecycle-phase": ["Analysis"] },
+        "TacticID":    { "$ref": "#/$defs/MITRE_TacticID",    "description": "ATT&CK tactic ID (TAxxxx).",          "x-source-field": "issue.mitretacticid",       "x-lifecycle-phase": ["Analysis"] },
+        "Technique":   { "type": "string", "description": "ATT&CK technique name.",                                  "x-source-field": "issue.mitretechniquename",  "x-lifecycle-phase": ["Analysis"] },
+        "TechniqueID": { "$ref": "#/$defs/MITRE_TechniqueID", "description": "ATT&CK technique ID (Txxxx[.xxx]).",  "x-source-field": "issue.mitretechniqueid",    "x-lifecycle-phase": ["Analysis"] },
+        "Category":    { "type": "string", "description": "Fallback category from XDR Agent native alerts (e.g., 'Malware') when MITRE fields are absent. Resolved via SOCFrameworkCategoryToTacticMap_V3.", "x-source-field": "issue.categoryname", "x-lifecycle-phase": ["Analysis"] }
+      }
+    }
+  },
+
+  "$defs": {
+    "SHA256":           { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "MD5":              { "type": "string", "pattern": "^[a-fA-F0-9]{32}$" },
+    "MITRE_TacticID":   { "type": "string", "pattern": "^TA[0-9]{4}$" },
+    "MITRE_TechniqueID":{ "type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$" }
+  }
+}

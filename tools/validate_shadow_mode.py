@@ -43,7 +43,7 @@ Usage:
     python3 tools/validate_shadow_mode.py --all
     python3 tools/validate_shadow_mode.py --all \\
         --actions-list Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json \\
-        --policy Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/shadow_mode_policy.json
+        --policy policies/shadow_mode_policy.json
 """
 
 import sys
@@ -57,7 +57,7 @@ DEFAULT_ACTIONS_LIST = (
     'SOCFrameworkActions_V3_data.json'
 )
 DEFAULT_POLICY = (
-    'Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/'
+    'policies/'
     'shadow_mode_policy.json'
 )
 
@@ -163,16 +163,16 @@ def check_file(filepath, actions_map, policy):
         sa = task.get('scriptarguments', {})
 
         is_wrapper = (
-            'SOCCommandWrapper' in t.get('scriptName', '') or
-            'SOCCommandWrapper' in t.get('script', '')
+                'SOCCommandWrapper' in t.get('scriptName', '') or
+                'SOCCommandWrapper' in t.get('script', '')
         )
         if not is_wrapper:
             continue
 
         # Resolve action name
         action = (
-            sa.get('action', {}).get('simple')
-            or sa.get('action', {}).get('complex', {}).get('root', None)
+                sa.get('action', {}).get('simple')
+                or sa.get('action', {}).get('complex', {}).get('root', None)
         )
 
         # Check 2: must NOT pass shadow_mode / ShadowMode as a script argument
