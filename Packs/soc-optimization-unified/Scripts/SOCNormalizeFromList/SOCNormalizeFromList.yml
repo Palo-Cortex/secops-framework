@@ -1,0 +1,79 @@
+commonfields:
+  id: SOCNormalizeFromList
+  version: -1
+name: SOCNormalizeFromList
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.12.5490952
+runas: DBotWeakRole
+runonce: false
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+sourcescripid: SOCNormalizeFromList
+pswd: ''
+signature: ''
+scripttarget: 0
+comment: |
+  Data-driven SOC Framework normalizer. Reads SOCFrameworkNormalizeMap_V3
+  and applies the per-category contract (mappings, stamps, mirrors)
+  replacing the static Foundation_-_Normalize_<Category>_V3 task chains.
+  Edit the schema YAML to change normalization behavior — never edit
+  this script for per-field changes.
+args:
+  - name: category
+    description: Product category section to apply (endpoint, email, identity, ...)
+    required: true
+    auto: PREDEFINED
+    predefined:
+      - endpoint
+      - email
+      - identity
+    supportedModules: []
+  - name: list_name
+    description: List name to read. Defaults to SOCFrameworkNormalizeMap_V3.
+    defaultValue: SOCFrameworkNormalizeMap_V3
+    supportedModules: []
+  - name: normalization_source
+    description: |
+      Disambiguator for branched stamps. When the schema declares more than
+      one stamp value for the same target (e.g. email's normalization_source
+      may be 'email' or 'mail_listener' depending on alert source), the
+      caller passes the desired branch here.
+    supportedModules: []
+outputs:
+  - contextPath: SOCFramework.NormalizeFromList.category
+    description: Category section that was applied.
+    type: string
+  - contextPath: SOCFramework.NormalizeFromList.list_name
+    description: List the contract was loaded from.
+    type: string
+  - contextPath: SOCFramework.NormalizeFromList.writes_applied
+    description: Number of context writes applied (mappings + stamps + mirrors).
+    type: number
+  - contextPath: SOCFramework.NormalizeFromList.skipped_empty_count
+    description: Number of mappings or mirrors skipped due to empty source.
+    type: number
+  - contextPath: SOCFramework.NormalizeFromList.skipped_filtered_count
+    description: Number of branched stamps skipped due to no matching normalization_source.
+    type: number
+tags:
+  - SOC
+  - SOC_Framework
+  - Foundation
+  - Normalize
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified
+    itemVersion: 3.7.24
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
+system: true
