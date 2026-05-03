@@ -1,35 +1,4 @@
 rule_id: 0
-# ============================================================
-# SOC CrowdStrike Falcon - Endpoint Alerts
-# Version: 2.0.1  (SOC Framework)
-#
-#
-# CHANGELOG vs 2.0.0:
-#   ADDED:    sourceInstance field — multi-instance attribution parity
-#             with prod 1.0.14 per-tactic rules
-#
-# CHANGELOG vs 1.0.14:
-#   BREAKING: Consolidated 15 per-tactic rules -> single rule
-#             (XSIAM GUI multi-tactic filter now supported)
-#   FIXED:    Schema -- id/ruleid fields required by SDK + platform
-#   FIXED:    fromversion 6.10.0 -> 8.0.0 (correlation rule minimum)
-#   FIXED:    Removed rule_id: 0 (caused SDK to resolve id as null)
-#   FIXED:    userid: user_name -> user_principal (restored 1.0.14 BC)
-#   ADDED:    alert_category: User Defined + user_defined_category: tactic
-#             (replaces 15 hardcoded categories -- dynamically maps tactic)
-#   ADDED:    Suppression on composite_id / 1hr (prevents duplicate ingestion)
-#   ADDED:    Rich alert_name and alert_description (computed in XQL)
-#   ADDED:    MITRE defs covering all 12 tactics (was one per rule)
-#   ADDED:    network_accesses, dns_requests, files_written, pattern_disposition_details
-#   ADDED:    Grandparent process fields (explicit mapping)
-#   RESTORED (from 1.0.14):
-#     - causality_actor_process_command_line: cgo_cmd
-#     - causality_actor_process_image_name:  cgo_name
-#     - causality_actor_process_image_path:  cgo_path
-#     - deviceou: device_ou_arr  (+ XQL alter restored)
-#     - filehash: sha256
-# ============================================================
-
 fromversion: 6.10.0
 tags:
   - SOCFramework
@@ -41,154 +10,104 @@ alert_category: User Defined
 alert_description: $alert_description
 alert_domain: DOMAIN_SECURITY
 alert_fields:
-  _device_id: device_id
-  action_file_path: filepath
-  action_file_sha256: sha256
-  action_local_ip: local_ip
-  action_process_image_sha256: sha256
-  action_remote_ip: remote_ips
-  actor_effective_username: user_name
-  actor_process_command_line: cmdline
-  actor_process_image_name: filename
-  actor_process_image_path: filepath
-  actor_process_image_sha256: sha256
-  actor_process_os_pid: local_process_id
-  additionalindicators: ioc_value
-  agent_device_domain: domain
-  agent_hostname: hostname
-  agent_id: agent_id
-  vendor: vendor_name
-  product: product_name
+  vendor: vendor
+  product: product
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
   alert_description: alert_description
-  alertaction: pattern_disposition_description
-  causality_actor_causality_id: aggregate_id
-  causality_actor_process_command_line: cgo_cmd         # restored from 1.0.14
-  causality_actor_process_image_name: cgo_name          # restored from 1.0.14
-  causality_actor_process_image_path: cgo_path          # restored from 1.0.14
-  causality_actor_process_image_sha256: grandparent_process_sha256
-  detectionid: template_instance_id
-  deviceexternalips: external_ip
-  deviceou: device_ou_arr                               # restored from 1.0.14
-  dns_query_name: dns_queries
-  dns_requests: dns_requests
-  eventaction: ioc_source
-  external_pivot_url: falcon_host_link
-  externalconfidence: confidence
-  externallink: falcon_host_link
-  externalseverity: severity
-  filehash: sha256                                      # restored from 1.0.14
-  files_written: files_written
-  grandparentprocesscmd: grandparent_process_cmd
-  grandparentprocessid: grandparent_local_process_id
-  grandparentprocessname: grandparent_process_name
-  grandparentprocesspath: grandparent_process_path
-  grandparentprocesssha256: grandparent_process_sha256
+  severity: severity
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  agent_device_domain: agent_device_domain
+  actor_effective_username: actor_effective_username
+  actor_process_image_name: actor_process_image_name
+  actor_process_image_path: actor_process_image_path
+  actor_process_image_sha256: actor_process_image_sha256
+  actor_process_command_line: actor_process_command_line
+  actor_process_os_pid: actor_process_os_pid
+  causality_actor_process_image_name: causality_actor_process_image_name
+  causality_actor_process_image_path: causality_actor_process_image_path
+  causality_actor_process_image_sha256: causality_actor_process_image_sha256
+  action_file_name: action_file_name
+  action_file_path: action_file_path
+  action_file_sha256: action_file_sha256
+  action_local_ip: action_local_ip
+  action_remote_ip: action_remote_ip
+  _device_id: device_id
   mac: mac_address
-  mitretacticid: mitre_tactic_id
-  mitretacticname: mitre_tactic
-  mitretechniqueid: mitre_ids_str
-  mitretechniquename: mitre_ids_str
-  network_accesses: network_accesses
-  objective: objective
-  originalalertid: composite_id
-  originalalertname: alert_name
-  originaldescription: alert_description
-  parentprocesscmd: parent_process_cmd
-  parentprocessid: parent_local_process_id
-  parentprocessids: parent_local_process_id
+  prenatsourceip: local_ip
+  postnatdestinationip: remote_ips
+  deviceexternalips: external_ip
+  deviceou: device_ou_arr
+  userid: user_name
+  user_principal: user_principal
+  usersid: user_id
+  action_process_image_sha256: sha256
+  filehash: sha256
+  processmd5: md5
+  processcreationtime: process_start_time
   parentprocessname: parent_process_name
+  parentprocesscmd: parent_process_cmd
   parentprocesspath: parent_process_path
   parentprocesssha256: parent_process_sha256
-  pattern_disposition_details: pattern_disposition_details
-  postnatdestinationip: remote_ips
-  prenatsourceip: local_ip
-  processcreationtime: process_start_time
+  parentprocessid: parent_local_process_id
+  parentprocessids: parent_local_process_id
+  grandparentprocessname: grandparent_process_name
+  grandparentprocesscmd: grandparent_process_cmd
+  grandparentprocesspath: grandparent_process_path
+  grandparentprocesssha256: grandparent_process_sha256
+  grandparentprocessid: grandparent_local_process_id
   processid: grandparent_local_process_id
-  processmd5: md5
-  scenario: scenario
-  severity: severity_name
+  causality_actor_causality_id: aggregate_id
+  causality_actor_process_command_line: cgo_cmd
   sourceid: aggregate_id
-  # sourceInstance preserves multi-instance attribution from prod rules —
-  # surfaces which CrowdStrike integration instance generated the alert
-  # when more than one is configured on a tenant.
-  sourceInstance: sourceInstance
+  dns_query_name: dns_queries
+  dns_requests: dns_requests
+  network_accesses: network_accesses
+  files_written: files_written
+  additionalindicators: ioc_value
   tim_main_indicator: ioc_value
-  user_principal: user_principal
-  userid: user_name                                     # restored from 1.0.14
-  usersid: user_id
+  eventaction: ioc_source
+  originaldescription: alert_description
+  detectionid: template_instance_id
+  alertaction: pattern_disposition_description
+  pattern_disposition_details: pattern_disposition_details
+  external_pivot_url: falcon_host_link
+  externalconfidence: confidence
+  externalseverity: severity_int_raw
+  scenario: scenario
+  objective: objective
+  sourceInstance: sourceInstance
 alert_name: SOC CrowdStrike Falcon - $alert_name
 alert_type: null
 crontab: null
 dataset: alerts
 name: SOC CrowdStrike Falcon - Endpoint Alerts
 description: >-
-  Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection event.
-  Consolidates 15 per-tactic rules from v1.0.14 into one rule using MITRE tactic
-  as the User Defined alert category. Backwards compatible with alert field mappings
-  from all 1.0.14 per-tactic rules.
+  Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection
+  event. Consolidates 15 per-tactic rules from v1.0.14 into one rule using MITRE
+  tactic as the User Defined alert category. Backwards compatible with alert
+  field mappings from all 1.0.14 per-tactic rules.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC CrowdStrike Falcon - Endpoint Alerts
 investigation_query_link: |-
-  // All (stitched) activity from host - assuming raw telemetry is being collected
   dataset = xdr_data
   | filter agent_hostname = $hostname
   | fields *
 is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-mitre_defs:
-  TA0001 - Initial Access:
-  - T1566 - Phishing
-  - T1204 - User Execution
-  TA0002 - Execution:
-  - T1059 - Command and Scripting Interpreter
-  - T1129 - Shared Modules
-  - T1204 - User Execution
-  TA0003 - Persistence:
-  - T1547 - Boot or Logon Autostart Execution
-  - T1574 - Hijack Execution Flow
-  TA0004 - Privilege Escalation:
-  - T1547 - Boot or Logon Autostart Execution
-  - T1574 - Hijack Execution Flow
-  TA0005 - Defense Evasion:
-  - T1036 - Masquerading
-  - T1055 - Process Injection
-  - T1574 - Hijack Execution Flow
-  TA0006 - Credential Access:
-  - T1003 - OS Credential Dumping
-  - T1558 - Steal or Forge Kerberos Tickets
-  TA0007 - Discovery:
-  - T1033 - System Owner/User Discovery
-  TA0008 - Lateral Movement:
-  - T1021 - Remote Services
-  - T1550 - Use Alternate Authentication Material
-  TA0009 - Collection:
-  - T1005 - Data from Local System
-  - T1056 - Input Capture
-  TA0010 - Exfiltration:
-  - T1041 - Exfiltration Over C2 Channel
-  - T1048 - Exfiltration Over Alternative Protocol
-  TA0011 - Command and Control:
-  - T1071 - Application Layer Protocol
-  - T1105 - Ingress Tool Transfer
-  TA0040 - Impact:
-  - T1486 - Data Encrypted for Impact
-  - T1490 - Inhibit System Recovery
+mitre_defs: {}
 search_window: null
 severity: User Defined
 simple_schedule: null
-# -- Suppression: composite_id / 1 hour -------------------------------------
-# composite_id is CrowdStrike Falcon's unique identifier per detection event.
-# Suppressing on composite_id scopes deduplication to a single detection only.
-# Two different detections on the same host have different composite_id values
-# and each fire an alert independently -- there is no blast-radius risk.
-# 1-hour window: the CrowdStrike integration polls for detections on a cycle.
-# The same detection can be returned across consecutive polling windows before
-# it is acknowledged. 1 hour prevents duplicate alerts from back-to-back polls
-# returning the same composite_id without suppressing any distinct detection.
-# Note: all 15 old 1.0.14 rules had suppression_enabled: false -- no
-# deduplication at all. This is a net improvement introduced in v2.0.0.
 suppression_duration: 1 hours
 suppression_enabled: true
 suppression_fields:
@@ -197,40 +116,13 @@ timezone: null
 user_defined_category: tactic
 user_defined_severity: severity_name
 xql_query: |
-  /*
-  Title:       SOC CrowdStrike Falcon - Endpoint Alerts
-  Description: Single consolidated rule for all CrowdStrike Falcon Endpoint Detection
-               events. Replaces 15 per-tactic rules from v1.0.14.
-               alert_category is dynamically set from the MITRE tactic field via
-               user_defined_category: tactic.
-  Dataset:     crowdstrike_falcon_event_raw
-               (may differ depending on integration config -- CrowdStrike Falcon vs
-                CrowdStrike Platform/Event Stream API)
-  Dependencies: CrowdStrike Falcon automation integration
-  Note:         Will NOT fire for alerts ingested via the "CrowdStrike Platform"
-                (Event Stream API) integration.
-  Version:     2.0.0 (SOC Framework)
-  Changes v2.0.0:
-    - Consolidated 15 per-tactic rules into one
-    - Restored device_ou_arr alter (required for deviceou field mapping)
-    - MITRE field aliasing: tactic->mitre_tactic, tactic_id->mitre_tactic_id, etc.
-    - Un-nulled network_accesses, dns_requests (available in most deployments)
-    - Rich alert_name and alert_description computed inline
-    - Added files_written, pattern_disposition_details, user_principal fields
-  Changes v1.1.0:
-    - Un-nulled network_accesses and dns_requests
-    - Added user_principal, pattern_disposition_details, files_written
-  */
   dataset = crowdstrike_falcon_event_raw
-
-  // Vendor / product (required for SOCProductCategoryMap routing)
   | alter vendor_name = "CrowdStrike", product_name = "Falcon"
 
-  // Filter to EPP detection events only
   | filter product = "epp"
 
-  // XSIAM MITRE Normalization
-  // Map "Malware" (CrowdStrike internal) -> "Execution" for MITRE alignment
+  | alter severity_int_raw = severity
+
   | alter
           tactic                 = if(tactic = "Malware", "Execution", tactic),
           mitre_tactic           = if(tactic = "Malware", "Execution", tactic),
@@ -238,38 +130,33 @@ xql_query: |
           mitre_technique        = technique,
           mitre_technique_id     = technique_id
 
-  // Combined technique string for mitretechniqueid/mitretechniquename alert_fields
   | alter mitre_ids_str = if(
       technique_id != null and technique != null,
       concat(technique_id, " - ", technique),
       coalesce(technique_id, technique)
     )
 
-  // Extract fields from nested objects
   | alter
-          hostname                    = device->hostname,
-          domain                      = device->machine_domain,
-          local_ip                    = device->local_ip,
-          external_ip                 = device->external_ip,
-          mac_address                 = device->mac_address,
-          device_id                   = device->device_id,
-          device_ou                   = device->ou[],
-          parent_process_name         = parent_details->filename,
-          parent_process_cmd          = parent_details->cmdline,
-          parent_process_path         = parent_details->filepath,
-          parent_process_sha256       = parent_details->sha256,
-          parent_local_process_id     = parent_details->local_process_id,
-          grandparent_process_name    = grandparent_details->filename,
-          grandparent_process_cmd     = grandparent_details->cmdline,
-          grandparent_process_path    = grandparent_details->filepath,
-          grandparent_process_sha256  = grandparent_details->sha256,
+          hostname                     = device->hostname,
+          domain                       = device->machine_domain,
+          local_ip                     = device->local_ip,
+          external_ip                  = device->external_ip,
+          mac_address                  = device->mac_address,
+          device_id                    = device->device_id,
+          device_ou                    = device->ou[],
+          parent_process_name          = parent_details->filename,
+          parent_process_cmd           = parent_details->cmdline,
+          parent_process_path          = parent_details->filepath,
+          parent_process_sha256        = parent_details->sha256,
+          parent_local_process_id      = parent_details->local_process_id,
+          grandparent_process_name     = grandparent_details->filename,
+          grandparent_process_cmd      = grandparent_details->cmdline,
+          grandparent_process_path     = grandparent_details->filepath,
+          grandparent_process_sha256   = grandparent_details->sha256,
           grandparent_local_process_id = grandparent_details->local_process_id
 
-  // Clean OU array formatting (strip embedded quotes) -- required for deviceou mapping
   | alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
 
-  // CGO Normalization
-  // Skips common root system processes to avoid over-grouping on wininit/userinit
   | alter cgo_name = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
                         grandparent_process_name,
                         coalesce(parent_process_name, filename)),
@@ -280,12 +167,9 @@ xql_query: |
                         grandparent_process_cmd,
                         coalesce(parent_process_cmd, cmdline))
 
-  // Network enrichment fields
-  // Comment out if not present in your CrowdStrike deployment
-  | alter dns_queries   = dns_requests
-  | alter remote_ips    = network_accesses
+  | alter dns_queries = dns_requests
+  | alter remote_ips  = network_accesses
 
-  // Compute rich alert name: [Endpoint] <user or host> - <tactic>: <technique or name>
   | alter alert_name = concat(
       "[Endpoint] ",
       coalesce(user_name, hostname, "Unknown"),
@@ -295,7 +179,6 @@ xql_query: |
       coalesce(technique, name)
     )
 
-  // Compute rich alert description for layout display and originaldescription mapping
   | alter alert_description = concat(
       coalesce(description, name),
       " | Host: ",  coalesce(hostname, "Unknown"),
@@ -303,25 +186,35 @@ xql_query: |
       " | Severity: ", coalesce(severity_name, "Unknown")
     )
 
-  // Final field ordering -- leading fields drive alert table and grouping
+  | alter
+          vendor                              = vendor_name,
+          product                             = product_name,
+          originalalertid                     = composite_id,
+          originalalertname                   = alert_name,
+          originalalertsource                 = "CrowdStrike Falcon",
+          externallink                        = falcon_host_link,
+          alert_description                   = alert_description,
+          severity                            = severity_name,
+          mitretacticid                       = mitre_tactic_id,
+          mitretacticname                     = mitre_tactic,
+          mitretechniqueid                    = mitre_technique_id,
+          mitretechniquename                  = mitre_technique,
+          agent_hostname                      = hostname,
+          agent_id                            = agent_id,
+          agent_device_domain                 = domain,
+          actor_effective_username            = user_name,
+          actor_process_image_name            = filename,
+          actor_process_image_path            = filepath,
+          actor_process_image_sha256          = sha256,
+          actor_process_command_line          = cmdline,
+          actor_process_os_pid                = local_process_id,
+          causality_actor_process_image_name  = cgo_name,
+          causality_actor_process_image_path  = cgo_path,
+          causality_actor_process_image_sha256 = grandparent_process_sha256,
+          action_file_name                    = filename,
+          action_file_path                    = filepath,
+          action_file_sha256                  = sha256,
+          action_local_ip                     = local_ip,
+          action_remote_ip                    = remote_ips
   | fields
-      device_id, local_ip, user_name, user_principal, cmdline,
-      sha256, domain, hostname, agent_id,
-      pattern_disposition_description, pattern_disposition_details,
-      cgo_cmd, cgo_name, cgo_path,
-      template_instance_id, external_ip, falcon_host_link, mac_address,
-      mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique,
-      mitre_ids_str,
-      tactic_id, tactic, technique_id, technique,
-      objective, composite_id,
-      parent_process_cmd, parent_process_name, parent_local_process_id,
-      parent_process_path, parent_process_sha256,
-      grandparent_process_name, grandparent_process_cmd,
-      grandparent_process_path, grandparent_process_sha256,
-      grandparent_local_process_id,
-      device_ou_arr,
-      process_start_time, local_process_id, md5, scenario,
-      severity_name, aggregate_id, indicator_id,
-      alert_name, alert_description,
-      network_accesses, dns_requests, files_written,
-      *
+      device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, *
