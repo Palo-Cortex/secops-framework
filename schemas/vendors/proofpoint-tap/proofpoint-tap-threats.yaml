@@ -1,0 +1,456 @@
+# ============================================================================
+# Proofpoint TAP — Threat Detection Events (Messages Delivered + Clicks Permitted)
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Source-of-truth contract for the SOC Framework's pack content generator.
+# The generator reads this file and emits:
+#   - ModelingRules/<id>/<id>.xif + .yml + _schema.json   (from modeling_rule)
+#   - CorrelationRules/<name>.yml                          (one per correlation_rules entry)
+#
+# Lifecycle-neutral: this file describes vendor → XDM → issue.* normalization.
+# Lifecycle-specific Artifacts schemas (NIST IR / Posture / Vuln / Threat Hunt)
+# consume the normalized output. One vendor mapping serves every lifecycle.
+# ============================================================================
+vendor: proofpoint-tap
+product: TAP
+data_source: proofpoint_tap_v2_generic_alert_raw
+category: Email
+
+raw_schema:
+
+  # Fields declared in shipped _schema.json
+  ccaddresses:    {type: string,   is_array: true}
+  fromaddress:    {type: string,   is_array: true}
+  guid:           {type: string,   is_array: false}
+  messageid:      {type: string,   is_array: false}
+  messageparts:   {type: string,   is_array: true,  json_subfields: [filename, md5, sha256]}
+  messagetime:    {type: datetime, is_array: false}
+  recipient:      {type: string,   is_array: true}
+  sender:         {type: string,   is_array: false}
+  senderip:       {type: string,   is_array: false}
+  subject:        {type: string,   is_array: false}
+  threatsinfomap: {type: string,   is_array: true,  json_subfields: [threatID, classification, threatType, threatStatus, threatUrl, threatURL, threat]}
+  clickip:        {type: string,   is_array: false}
+  clicktime:      {type: datetime, is_array: false}
+
+  # Fields referenced in the correlation rule but missing from shipped _schema.json
+  # (DRIFT — same pattern as CrowdStrike. The vendor integration writes these
+  # to the dataset; the modeling rule's _schema.json is incomplete.)
+  type:           {type: string,   is_array: false, status: inferred_from_correlation}
+  threatstatus:   {type: string,   is_array: false, status: inferred_from_correlation}
+  url:            {type: string,   is_array: false, status: inferred_from_correlation}
+  campaignid:     {type: string,   is_array: false, status: inferred_from_correlation}
+  phishscore:     {type: int,      is_array: false, status: inferred_from_correlation}
+  malwarescore:   {type: int,      is_array: false, status: inferred_from_correlation}
+  spamscore:      {type: int,      is_array: false, status: inferred_from_correlation}
+  impostorscore:  {type: int,      is_array: false, status: inferred_from_correlation}
+  threattime:     {type: datetime, is_array: false, status: inferred_from_correlation}
+  headerfrom:     {type: string,   is_array: false, status: inferred_from_correlation}
+  headerreplyto:  {type: string,   is_array: false, status: inferred_from_correlation}
+  replytoaddress: {type: string,   is_array: false, status: inferred_from_correlation}
+  messagesize:    {type: int,      is_array: false, status: inferred_from_correlation}
+  xmailer:        {type: string,   is_array: false, status: inferred_from_correlation}
+  id:             {type: string,   is_array: false, status: inferred_from_correlation}
+  _alert_data:    {type: json,     is_array: false, status: inferred_from_correlation, json_subfields: [severity, alert_category, linkedCount]}
+
+modeling_rule:
+  fromversion: "6.10.0"
+  modeling_rule_id: ProofpointTAP_modeling_rule
+  modeling_rule_name: ProofpointTAP Modeling Rule
+  directory_name: ProofpointTAPModelingRules
+
+  fields:
+
+    # ------ Email envelope ------
+
+    - xdm_path: xdm.email.cc
+      expression: 'json_extract_array(ccaddresses, "$.")'
+      sources: [ccaddresses]
+      issue_field: emailcc
+
+    - xdm_path: xdm.email.recipients
+      expression: 'json_extract_array(recipient, "$.")'
+      sources: [recipient]
+      issue_field: emailrecipients
+
+    - xdm_path: xdm.email.sender
+      expression: 'arrayindex(json_extract_array(fromaddress, "$."), 0)'
+      sources: [fromaddress]
+      issue_field: emailsender
+      notes: |
+        fromaddress is array-typed in the raw dataset. xdm.email.sender is
+        scalar — first element only. Other addresses preserved in
+        xdm.email.cc / xdm.email.recipients.
+
+    - xdm_path: xdm.email.return_path
+      expression: sender
+      sources: [sender]
+      issue_field: emailreturnpath
+
+    - xdm_path: xdm.email.subject
+      expression: subject
+      sources: [subject]
+      issue_field: emailsubject
+
+    - xdm_path: xdm.email.message_id
+      expression: messageid
+      sources: [messageid]
+      issue_field: emailmessageid
+
+    - xdm_path: xdm.email.delivery_timestamp
+      expression: 'parse_timestamp("%Y-%m-%dT%H:%M:%E*SZ", messagetime)'
+      sources: [messagetime]
+      issue_field: emaildeliverytimestamp
+      notes: |
+        TAP's messageTime is ISO 8601 string. XDM.email.delivery_timestamp is
+        typed `date`. Use parse_timestamp() — to_timestamp() only accepts
+        numeric epochs. Format string %E*S matches seconds with optional
+        fractional component, final Z is literal. Without this cast install
+        fails: "Field xdm.email.delivery_timestamp for model xdm is invalid.
+        Expected date but received string."
+
+    # ------ Attachment (first message part only — XDM scalar fields) ------
+
+    - xdm_path: xdm.email.attachment.filename
+      expression: 'json_extract_scalar(messageparts, "$[0].filename")'
+      sources: [messageparts]
+      issue_field: emailattachmentfilename
+      notes: |
+        xdm.email.attachment.filename is scalar; only the first message part
+        is mapped here. All parts are surfaced via the correlation rule's
+        proofpointfilename / proofpointsha256 / proofpointmd5 alert_fields
+        (comma-joined arraystrings).
+
+    - xdm_path: xdm.email.attachment.md5
+      expression: 'json_extract_scalar(messageparts, "$[0].md5")'
+      sources: [messageparts]
+      issue_field: emailattachmentmd5
+
+    - xdm_path: xdm.email.attachment.sha256
+      expression: 'json_extract_scalar(messageparts, "$[0].sha256")'
+      sources: [messageparts]
+      issue_field: emailattachmentsha256
+
+    # ------ Source ------
+
+    - xdm_path: xdm.source.ipv4
+      expression: senderip
+      sources: [senderip]
+      issue_field: emailsenderip
+
+  # Coverage commitment — Artifacts category fields this modeling rule populates.
+  # Lifecycle-neutral: every consuming lifecycle's Artifacts.Email schema
+  # joins against this list to compute its coverage report.
+  contributes:
+    - Email.Sender
+    - Email.Recipients
+    - Email.CC
+    - Email.Subject
+    - Email.MessageID
+    - Email.DeliveryTimestamp
+    - Email.ReturnPath
+    - Email.Attachment.Filename       # first part only
+    - Email.Attachment.MD5             # first part only
+    - Email.Attachment.SHA256          # first part only
+    - Network.SenderIP
+
+correlation_rules:
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC Proofpoint TAP - Threat Detected'
+    name: 'SOC Proofpoint TAP - Threat Detected'
+    description: >-
+      Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted.
+      Fires on active or malicious threat status only. Suppression is per GUID to preserve
+      full blast-radius visibility for lateral risk detection.
+      Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter.
+      Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy
+      soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields).
+      Legacy fields marked for removal when old phishing pack is decommissioned.
+    tags:
+      - SOCFramework
+      - Detection
+      - Email
+      - ProofpointTAP
+      - T1566
+      - T1114
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: REAL_TIME
+      mapping_strategy: CUSTOM
+      user_defined_category: alert_category
+      user_defined_severity: alert_severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    alert_name: '$alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 24 hours
+      fields: [GUID]
+      notes: |
+        GUID is assigned per individual email delivery event in Proofpoint TAP.
+        A mass email to N recipients generates N distinct GUIDs. Suppressing on
+        GUID scopes deduplication to a single delivery event only — zero effect
+        on any other recipient's alert. 24-hour window covers the full TAP
+        replay window (TAP delivers events in batches and can replay the same
+        event across multiple cycles).
+
+    pre_alter: |
+      // Vendor / product (required for SOCProductCategoryMap routing)
+      | alter vendor_name = "Proofpoint", product_name = "TAP"
+
+      // Gate 1: event type
+      | filter type in ("messages delivered", "clicks permitted")
+
+      // Gate 2: actionable threats only
+      | alter threatsInfoMap_str = threatsinfomap
+      | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
+      | filter (
+          first_threat_status in ("active", "malicious")
+          or threatstatus in ("active", "malicious")
+      )
+
+      // Alert identity and naming
+      | alter
+          alert_severity    = if(_alert_data -> severity != null and _alert_data -> severity != "",
+                                 _alert_data -> severity,
+                                 "SEV_030_MEDIUM"),
+          alert_category    = if(_alert_data -> alert_category != null and _alert_data -> alert_category != "",
+                                 _alert_data -> alert_category,
+                                 "Email Security"),
+          alert_name = if(
+              type = "clicks permitted",
+              concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Malicious Link Clicked"),
+              concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Threat Email Delivered")
+          ),
+          alert_type = if(
+              type = "clicks permitted",
+              "Proofpoint TAP - Click Permitted",
+              "Proofpoint TAP - Message Delivered"
+          )
+
+      // SOC Framework: delivery action and direction
+      | alter delivery_action = if(
+          type = "messages delivered", "delivered",
+          type = "clicks permitted",   "click_permitted",
+          type = "messages blocked",   "blocked",
+          type = "clicks blocked",     "click_blocked",
+          type
+      )
+      | alter direction = "inbound"
+
+      // SOC Framework: all threats as multi-value comma-separated strings
+      | alter
+          threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
+          classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
+          threat_types       = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatType")), ", "),
+          threat_statuses    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatStatus")), ", "),
+          threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), coalesce(json_extract_scalar("@element", "$.threatUrl"), json_extract_scalar("@element", "$.threatURL"))), ", "),
+          threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+
+      // Attachment fields (all parts)
+      | alter
+          proofpointsha256   = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
+          proofpointmd5      = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
+          proofpointfilename = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
+
+      // Domain extraction
+      | alter
+          domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
+          dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")
+
+      | alter cleaned_url = ltrim(replex(coalesce(threat_indicators, url), "^https?://", ""), "www.")
+
+      | alter linkedCount = to_integer(_alert_data -> linkedCount)
+
+      // Backwards-compat alters (first-element extractions for legacy fields)
+      | alter
+          bc_threatid       = json_extract_scalar(threatsInfoMap_str, "$[0].threatID"),
+          bc_classification = json_extract_scalar(threatsInfoMap_str, "$[0].classification"),
+          bc_threaturl      = coalesce(
+              json_extract_scalar(threatsInfoMap_str, "$[0].threatUrl"),
+              json_extract_scalar(threatsInfoMap_str, "$[0].threatURL")
+          ),
+          bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
+
+      | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)
+
+      // ============================================================
+      // CANONICAL CORE NORMALIZATION
+      // Produces the 29 canonical core columns every vendor pack must
+      // expose. Column names match issue field names in alert_fields.
+      // Foundation, Universal Command, and SOC Framework dashboards
+      // all read from this normalized surface.
+      //
+      // TAP is email-only — host/process/network-host fields are null.
+      // MITRE is hardcoded: TAP fires on phishing detections (messages
+      // delivered with active/malicious threat status, clicks permitted).
+      // Both event types map to T1566 Phishing under TA0001 Initial Access.
+      // ============================================================
+      | alter
+              vendor                              = vendor_name,
+              product                             = product_name,
+              originalalertid                     = guid,
+              originalalertname                   = alert_name,
+              originalalertsource                 = "Proofpoint TAP",
+              externallink                        = null,
+              alert_description                   = description,
+              severity                            = alert_severity,
+              mitretacticid                       = "TA0001",
+              mitretacticname                     = "Initial Access",
+              mitretechniqueid                    = "T1566",
+              mitretechniquename                  = "Phishing",
+              agent_hostname                      = null,
+              agent_id                            = null,
+              agent_device_domain                 = domain,
+              actor_effective_username            = recipient,
+              actor_process_image_name            = null,
+              actor_process_image_path            = null,
+              actor_process_image_sha256          = null,
+              actor_process_command_line          = null,
+              actor_process_os_pid                = null,
+              causality_actor_process_image_name  = null,
+              causality_actor_process_image_path  = null,
+              causality_actor_process_image_sha256 = null,
+              action_file_name                    = proofpointfilename,
+              action_file_path                    = null,
+              action_file_sha256                  = proofpointsha256,
+              action_local_ip                     = null,
+              action_remote_ip                    = senderip
+
+    alert_fields:
+
+      # === CANONICAL CORE — identical across every vendor pack ===
+      # LHS = issue field (what Foundation reads)
+      # RHS = pre_alter column with the matching canonical name
+      - {issue_field: vendor, source: vendor, bucket: computed}
+      - {issue_field: product, source: product, bucket: computed}
+      - {issue_field: originalalertid, source: originalalertid, bucket: computed}
+      - {issue_field: originalalertname, source: originalalertname, bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink, source: externallink, bucket: computed}
+      - {issue_field: alert_description, source: alert_description, bucket: computed}
+      - {issue_field: severity, source: severity, bucket: computed}
+      - {issue_field: mitretacticid, source: mitretacticid, bucket: computed}
+      - {issue_field: mitretacticname, source: mitretacticname, bucket: computed}
+      - {issue_field: mitretechniqueid, source: mitretechniqueid, bucket: computed}
+      - {issue_field: mitretechniquename, source: mitretechniquename, bucket: computed}
+      - {issue_field: agent_hostname, source: agent_hostname, bucket: computed}
+      - {issue_field: agent_id, source: agent_id, bucket: computed}
+      - {issue_field: agent_device_domain, source: agent_device_domain, bucket: computed}
+      - {issue_field: actor_effective_username, source: actor_effective_username, bucket: computed}
+      - {issue_field: actor_process_image_name, source: actor_process_image_name, bucket: computed}
+      - {issue_field: actor_process_image_path, source: actor_process_image_path, bucket: computed}
+      - {issue_field: actor_process_image_sha256, source: actor_process_image_sha256, bucket: computed}
+      - {issue_field: actor_process_command_line, source: actor_process_command_line, bucket: computed}
+      - {issue_field: actor_process_os_pid, source: actor_process_os_pid, bucket: computed}
+      - {issue_field: causality_actor_process_image_name, source: causality_actor_process_image_name, bucket: computed}
+      - {issue_field: causality_actor_process_image_path, source: causality_actor_process_image_path, bucket: computed}
+      - {issue_field: causality_actor_process_image_sha256, source: causality_actor_process_image_sha256, bucket: computed}
+      - {issue_field: action_file_name, source: action_file_name, bucket: computed}
+      - {issue_field: action_file_path, source: action_file_path, bucket: computed}
+      - {issue_field: action_file_sha256, source: action_file_sha256, bucket: computed}
+      - {issue_field: action_local_ip, source: action_local_ip, bucket: computed}
+      - {issue_field: action_remote_ip, source: action_remote_ip, bucket: computed}
+
+      # === VENDOR-SPECIFIC TAIL — preserved as shipped ===
+      # XSIAM email-class issue fields and TAP-specific surfacing.
+
+      # Additional file/network fields beyond canonical
+      - {issue_field: action_file_md5, source: proofpointmd5, bucket: computed}
+      - {issue_field: filehash, source: proofpointsha256, bucket: computed}
+      - {issue_field: dns_query_name, source: dns_name, bucket: computed}
+      - {issue_field: fw_url_domain, source: domain, bucket: computed}
+
+      # XSIAM email-class issue fields
+      - {issue_field: emailmessageid, source: messageid, bucket: raw}
+      - {issue_field: emailsenderip, source: senderip, bucket: raw}
+      - {issue_field: emailsource, source: sender, bucket: raw}
+      - {issue_field: fw_email_recipient, source: recipient, bucket: raw}
+      - {issue_field: fw_email_sender, source: sender, bucket: raw}
+      - {issue_field: fw_email_subject, source: subject, bucket: raw}
+      - {issue_field: clickedurls, source: cleaned_url, bucket: computed, notes: 'Cleaned URL for downstream proxy/firewall correlation'}
+      - {issue_field: linkedcount, source: linkedCount, bucket: computed, notes: 'Outbound-compromise scoring signal in Email_Analysis_V3'}
+
+      # SOC Framework email fields — read by Foundation_-_Normalize_Email_V3
+      - {issue_field: socfwemaildeliveryaction, source: delivery_action, bucket: computed}
+      - {issue_field: socfwemaildirection, source: direction, bucket: computed}
+      - {issue_field: socfwemailthreaturl, source: threat_urls, bucket: computed}
+      - {issue_field: socfwemailthreattype, source: threat_types, bucket: computed}
+      - {issue_field: socfwemailthreatstatus, source: threat_statuses, bucket: computed}
+      - {issue_field: socfwemailthreatid, source: threat_ids, bucket: computed}
+      - {issue_field: socfwemailclassification, source: classification_all, bucket: computed}
+      - {issue_field: socfwemailphishscore, source: phishscore, bucket: raw}
+      - {issue_field: socfwemailmalwarescore, source: malwarescore, bucket: raw}
+      - {issue_field: socfwemailcampaignid, source: campaignid, bucket: raw}
+      - {issue_field: socfwemailclickip, source: clickip, bucket: raw}
+      - {issue_field: socfwemailclicktime, source: clicktime, bucket: raw}
+
+      # Legacy proofpointtap* fields — soc-phishing-investigation-1.0.5 playbooks/layouts
+      # Remove when old phishing pack is decommissioned from all tenants.
+      - {issue_field: proofpointtapcampaignid, source: campaignid, bucket: raw}
+      - {issue_field: proofpointtapclickip, source: clickip, bucket: raw}
+      - {issue_field: proofpointtapclicktime, source: clicktime, bucket: raw}
+      - {issue_field: proofpointtapguid, source: guid, bucket: raw}
+      - {issue_field: proofpointtapheadersfrom, source: headerfrom, bucket: raw}
+      - {issue_field: proofpointtapheadersreplyto, source: headerreplyto, bucket: raw}
+      - {issue_field: proofpointtapid, source: id, bucket: raw}
+      - {issue_field: proofpointtapimposterscore, source: impostorscore, bucket: raw}
+      - {issue_field: proofpointtapmalwarescore, source: malwarescore, bucket: raw}
+      - {issue_field: proofpointtapmessageid, source: messageid, bucket: raw}
+      - {issue_field: proofpointtapmessageparts, source: messageparts, bucket: raw}
+      - {issue_field: proofpointtapmessagesize, source: messagesize, bucket: raw}
+      - {issue_field: proofpointtapphishingscore, source: phishscore, bucket: raw}
+      - {issue_field: proofpointtapreplytoaddress, source: replytoaddress, bucket: raw}
+      - {issue_field: proofpointtapsenderip, source: senderip, bucket: raw}
+      - {issue_field: proofpointtapsmtpsender, source: sender, bucket: raw}
+      - {issue_field: proofpointtapspamscore, source: spamscore, bucket: raw}
+      - {issue_field: proofpointtapsubject, source: subject, bucket: raw}
+      - {issue_field: proofpointtapthreatstatus, source: threatstatus, bucket: raw}
+      - {issue_field: proofpointtapthreattime, source: threattime, bucket: raw}
+      - {issue_field: proofpointtaptype, source: type, bucket: raw}
+      - {issue_field: proofpointtapxmailer, source: xmailer, bucket: raw}
+
+      # Legacy fields sourced from bc_* XQL alters (first-element extractions)
+      - {issue_field: proofpointtapthreatid, source: bc_threatid, bucket: computed}
+      - {issue_field: proofpointtapclassification, source: bc_classification, bucket: computed}
+      - {issue_field: proofpointtapsuspiciousurl, source: bc_threaturl, bucket: computed}
+      - {issue_field: proofpointtapthreaturl, source: bc_threaturl, bucket: computed}
+      - {issue_field: proofpointtapthreatinfomap, source: bc_threatinfomap, bucket: computed}
+
+    # mitre_defs populated for analyst reporting. TAP doesn't ship MITRE
+    # per-alert, so per-alert routing isn't possible — coverage block is the
+    # right place for the rule's intended TTP scope.
+    mitre_defs:
+      TA0001 - Initial Access: [T1566 - Phishing]
+      TA0009 - Collection:     [T1114 - Email Collection]
+
+    investigation_query_link: ''
+
+    # Coverage commitment — Email artifact fields this correlation rule populates
+    # that the modeling rule does not.
+    contributes:
+      - Email.Threat.URL                    # via socfwemailthreaturl
+      - Email.Threat.Type                   # via socfwemailthreattype
+      - Email.Threat.Status                 # via socfwemailthreatstatus
+      - Email.Threat.ID                     # via socfwemailthreatid
+      - Email.Threat.Classification         # via socfwemailclassification
+      - Email.Threat.PhishScore             # via socfwemailphishscore
+      - Email.Threat.MalwareScore           # via socfwemailmalwarescore
+      - Email.Threat.CampaignID             # via socfwemailcampaignid
+      - Email.Threat.ClickIP                # via socfwemailclickip
+      - Email.Threat.ClickTime              # via socfwemailclicktime
+      - Email.DeliveryAction                # via socfwemaildeliveryaction
+      - Email.Direction                     # via socfwemaildirection
+      - Email.GUID                          # via proofpointtapguid (legacy)
+      - Email.Attachment.AllFilenames       # via action_file_name (comma-joined)
+      - Email.Attachment.AllSHA256          # via action_file_sha256 (comma-joined)
+      - Email.Attachment.AllMD5             # via action_file_md5 (comma-joined)

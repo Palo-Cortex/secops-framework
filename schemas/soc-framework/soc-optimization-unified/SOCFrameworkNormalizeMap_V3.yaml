@@ -1,0 +1,223 @@
+# ============================================================================
+# SOC Framework Normalize Map — soc-optimization-unified
+# Ground-truth contract for the per-category Foundation normalizer playbooks
+# ============================================================================
+# Source-of-truth for the SOC Framework content generator. The generator
+# (tools/generate_soc_framework_content.py) reads this file and emits:
+#   - Packs/soc-optimization-unified/Lists/SOCFrameworkNormalizeMap_V3/<name>.json
+#   - Packs/soc-optimization-unified/Lists/SOCFrameworkNormalizeMap_V3/<name>_data.json
+#
+# This schema documents EXACTLY what the existing
+# Foundation_-_Normalize_<Category>_V3 playbooks write today, parsed
+# directly from the playbook YAML. Every entry here is verifiable by
+# extraction; drift means a playbook change without a schema PR.
+#
+# Three kinds of writes are modeled:
+#
+#   mappings:  issue.<source> → SOCFramework.<target>
+#              Passthrough from incident fields. Source string is verbatim,
+#              including XSOAR DT array-index syntax `.[0]` where the
+#              playbook uses it.
+#
+#   stamps:    literal_value → SOCFramework.<target>
+#              Constant-value writes. Used for normalizer self-attribution
+#              ('normalization_source: endpoint') and explicit empty-init
+#              ('Artifacts.Process.Verdict: empty string').
+#
+#   mirrors:   SOCFramework.<source> → SOCFramework.<target>
+#              Internal copies after the mappings phase. The structured
+#              Artifacts.Email.* tree is populated by mirroring the flat
+#              Email.* writes — the data-driven script must run mappings
+#              before mirrors.
+#
+# SCOPE — current build:
+#   In scope: endpoint, email, identity
+#   Future:   network, cloud, generic, workload, saas, pam, data, agentic_endpoint
+#
+# DRIFT (asymmetric):
+#   Schema category not in SOCProductCategoryMap_V3 → ERROR
+#   Map category not in schema                       → INFO
+# ============================================================================
+
+pack: soc-optimization-unified
+list_name: SOCFrameworkNormalizeMap_V3
+description: Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps and mirrors
+
+# ============================================================================
+# Categories — must be a SUBSET of SOCProductCategoryMap_V3 distinct values
+# ============================================================================
+categories:
+  endpoint:
+    status: complete
+    shape: peer
+    source_playbook: Foundation_-_Normalize_Endpoint_V3
+  email:
+    status: partial
+    shape: namespaced
+    source_playbook: Foundation_-_Normalize_Email_V3
+  identity:
+    status: flat-only
+    shape: namespaced
+    source_playbook: Foundation_-_Normalize_Identity_V3
+
+# ============================================================================
+# Mappings — passthrough from issue.<field>
+# ============================================================================
+# `issue_field` is verbatim from the playbook value expression. Where the
+# playbook reads ${issue.X.[0]}, the schema records 'X.[0]' (quoted because
+# brackets are YAML flow-style metacharacters). The data-driven normalizer
+# parses the .[N] suffix as an XSOAR DT array index.
+# ============================================================================
+mappings:
+
+  # ------ endpoint ------
+
+  - { category: endpoint, target: Endpoint.alert_action                 , issue_field: alertaction                                    , shape: flat       }
+  - { category: endpoint, target: Endpoint.containment_status           , issue_field: endpointstatus                                 , shape: flat       }
+  - { category: endpoint, target: Endpoint.dns_queries                  , issue_field: dns_query_name                                 , shape: flat       }
+  - { category: endpoint, target: Endpoint.domain                       , issue_field: agent_device_domain                            , shape: flat       }
+  - { category: endpoint, target: Endpoint.endpoint_id                  , issue_field: agent_id                                       , shape: flat       }
+  - { category: endpoint, target: Endpoint.external_ip                  , issue_field: deviceexternalips                              , shape: flat       }
+  - { category: endpoint, target: Endpoint.file_path                    , issue_field: action_file_path                               , shape: flat       }
+  - { category: endpoint, target: Endpoint.file_sha256                  , issue_field: action_file_sha256                             , shape: flat       }
+  - { category: endpoint, target: Endpoint.hostname                     , issue_field: agent_hostname                                 , shape: flat       }
+  - { category: endpoint, target: Endpoint.ip_address                   , issue_field: action_local_ip                                , shape: flat       }
+  - { category: endpoint, target: Endpoint.mac_address                  , issue_field: mac                                            , shape: flat       }
+  - { category: endpoint, target: Endpoint.network_accesses             , issue_field: network_accesses                               , shape: flat       }
+  - { category: endpoint, target: Endpoint.os                           , issue_field: ostype                                         , shape: flat       }
+  - { category: endpoint, target: Endpoint.parent_process_cmd           , issue_field: parentprocesscmd                               , shape: flat       }
+  - { category: endpoint, target: Endpoint.parent_process_name          , issue_field: parentprocessname                              , shape: flat       }
+  - { category: endpoint, target: Endpoint.parent_process_sha256        , issue_field: parentprocesssha256                            , shape: flat       }
+  - { category: endpoint, target: Endpoint.process_cmd                  , issue_field: actor_process_command_line                     , shape: flat       }
+  - { category: endpoint, target: Endpoint.process_name                 , issue_field: actor_process_image_name                       , shape: flat       }
+  - { category: endpoint, target: Endpoint.process_path                 , issue_field: actor_process_image_path                       , shape: flat       }
+  - { category: endpoint, target: Endpoint.process_pid                  , issue_field: actor_process_os_pid                           , shape: flat       }
+  - { category: endpoint, target: Endpoint.process_sha256               , issue_field: actor_process_image_sha256                     , shape: flat       }
+  - { category: endpoint, target: Endpoint.tactic                       , issue_field: mitretacticname                                , shape: flat       }
+  - { category: endpoint, target: Endpoint.tactic_id                    , issue_field: mitretacticid                                  , shape: flat       }
+  - { category: endpoint, target: Endpoint.technique                    , issue_field: mitretechniquename                             , shape: flat       }
+  - { category: endpoint, target: Endpoint.technique_id                 , issue_field: mitretechniqueid                               , shape: flat       }
+  - { category: endpoint, target: Endpoint.user_principal               , issue_field: user_principal                                 , shape: flat       }
+  - { category: endpoint, target: Endpoint.username                     , issue_field: actor_effective_username                       , shape: flat       }
+
+  - { category: endpoint, target: Artifacts.EndPointID                  , issue_field: agentid                                        , shape: structured }
+  - { category: endpoint, target: Artifacts.Endpoint.AgentID            , issue_field: agentid                                        , shape: structured }
+  - { category: endpoint, target: Artifacts.Endpoint.Domain             , issue_field: domain                                         , shape: structured }
+  - { category: endpoint, target: Artifacts.Endpoint.FQDN               , issue_field: hostfqdn                                       , shape: structured }
+  - { category: endpoint, target: Artifacts.Endpoint.Hostname           , issue_field: hostname                                       , shape: structured }
+  - { category: endpoint, target: Artifacts.Endpoint.MACAddress         , issue_field: hostmacaddress                                 , shape: structured }
+  - { category: endpoint, target: Artifacts.Endpoint.OS                 , issue_field: hostos                                         , shape: structured }
+  - { category: endpoint, target: Artifacts.Endpoint.OSVersion          , issue_field: agentossubtype                                 , shape: structured }
+  - { category: endpoint, target: Artifacts.File                        , issue_field: 'filesha256.[0]'                               , shape: structured }
+  - { category: endpoint, target: Artifacts.FilePath                    , issue_field: 'filepath.[0]'                                 , shape: structured }
+  - { category: endpoint, target: Artifacts.Hash                        , issue_field: 'filesha256.[0]'                               , shape: structured }
+  - { category: endpoint, target: Artifacts.MITRE.Category              , issue_field: categoryname                                   , shape: structured }
+  - { category: endpoint, target: Artifacts.MITRE.Tactic                , issue_field: mitretacticname                                , shape: structured }
+  - { category: endpoint, target: Artifacts.MITRE.TacticID              , issue_field: mitretacticid                                  , shape: structured }
+  - { category: endpoint, target: Artifacts.MITRE.Technique             , issue_field: mitretechniquename                             , shape: structured }
+  - { category: endpoint, target: Artifacts.MITRE.TechniqueID           , issue_field: mitretechniqueid                               , shape: structured }
+  - { category: endpoint, target: Artifacts.Network.IP                  , issue_field: 'hostip.[0]'                                   , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Causality.ID        , issue_field: 'xdmsourceprocesscausalityid.[0]'              , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Causality.InstanceID, issue_field: 'actorprocessinstanceid.[0]'                   , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.CommandLine         , issue_field: 'initiatorcmd.[0]'                             , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.MD5                 , issue_field: 'initiatormd5.[0]'                             , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Name                , issue_field: 'initiatedby.[0]'                              , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.PID                 , issue_field: 'initiatorpid.[0]'                             , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Parent.PID          , issue_field: 'osparentid.[0]'                               , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Parent.Signature    , issue_field: 'osparentsignature.[0]'                        , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Path                , issue_field: 'initiatorpath.[0]'                            , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.SHA256              , issue_field: 'initiatorsha256.[0]'                          , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Signature           , issue_field: 'initiatorsignature.[0]'                       , shape: structured }
+  - { category: endpoint, target: Artifacts.Process.Signer              , issue_field: 'initiatorsigner.[0]'                          , shape: structured }
+  - { category: endpoint, target: Artifacts.Source.Action               , issue_field: 'action.[0]'                                   , shape: structured }
+  - { category: endpoint, target: Artifacts.Source.AlertDomain          , issue_field: alert_domain                                   , shape: structured }
+  - { category: endpoint, target: Artifacts.Source.Module               , issue_field: 'module.[0]'                                   , shape: structured }
+  - { category: endpoint, target: Artifacts.Target.File                 , issue_field: 'filename.[0]'                                 , shape: structured }
+  - { category: endpoint, target: Artifacts.Target.Path                 , issue_field: 'filepath.[0]'                                 , shape: structured }
+  - { category: endpoint, target: Artifacts.Target.SHA256               , issue_field: 'filesha256.[0]'                               , shape: structured }
+  - { category: endpoint, target: Artifacts.Target.SignatureStatus      , issue_field: 'xdmtargetprocessexecutablesignaturestatus.[0]', shape: structured }
+  - { category: endpoint, target: Artifacts.User                        , issue_field: 'username.[0]'                                 , shape: structured }
+
+  # ------ email ------
+
+  - { category: email   , target: Email.attachment_name  , issue_field: action_file_name        , shape: flat       }
+  - { category: email   , target: Email.attachment_sha256, issue_field: action_file_sha256      , shape: flat       }
+  - { category: email   , target: Email.campaign_id      , issue_field: socfwemailcampaignid    , shape: flat       }
+  - { category: email   , target: Email.classification   , issue_field: socfwemailclassification, shape: flat       }
+  - { category: email   , target: Email.click_ip         , issue_field: socfwemailclickip       , shape: flat       }
+  - { category: email   , target: Email.click_time       , issue_field: socfwemailclicktime     , shape: flat       }
+  - { category: email   , target: Email.delivery_action  , issue_field: socfwemaildeliveryaction, shape: flat       }
+  - { category: email   , target: Email.direction        , issue_field: socfwemaildirection     , shape: flat       }
+  - { category: email   , target: Email.malware_score    , issue_field: socfwemailmalwarescore  , shape: flat       }
+  - { category: email   , target: Email.message_id       , issue_field: emailmessageid          , shape: flat       }
+  - { category: email   , target: Email.phish_score      , issue_field: socfwemailphishscore    , shape: flat       }
+  - { category: email   , target: Email.recipient        , issue_field: emailrecipient          , shape: flat       }
+  - { category: email   , target: Email.reported_by      , issue_field: reporteremailaddress    , shape: flat       }
+  - { category: email   , target: Email.sender           , issue_field: emailsender             , shape: flat       }
+  - { category: email   , target: Email.sender_ip        , issue_field: emailsenderip           , shape: flat       }
+  - { category: email   , target: Email.subject          , issue_field: emailsubject            , shape: flat       }
+  - { category: email   , target: Email.threat_id        , issue_field: socfwemailthreatid      , shape: flat       }
+  - { category: email   , target: Email.threat_status    , issue_field: socfwemailthreatstatus  , shape: flat       }
+  - { category: email   , target: Email.threat_type      , issue_field: socfwemailthreattype    , shape: flat       }
+  - { category: email   , target: Email.threat_url       , issue_field: socfwemailthreaturl     , shape: flat       }
+
+  # ------ identity ------
+
+  - { category: identity, target: Identity.auth_source      , issue_field: authsource     , shape: flat       }
+  - { category: identity, target: Identity.client_ip        , issue_field: sourceip       , shape: flat       }
+  - { category: identity, target: Identity.country          , issue_field: sourcecountry  , shape: flat       }
+  - { category: identity, target: Identity.device_id        , issue_field: deviceid       , shape: flat       }
+  - { category: identity, target: Identity.event_type       , issue_field: eventtype      , shape: flat       }
+  - { category: identity, target: Identity.logon_type       , issue_field: logontype      , shape: flat       }
+  - { category: identity, target: Identity.mfa_method       , issue_field: mfamethod      , shape: flat       }
+  - { category: identity, target: Identity.outcome          , issue_field: eventoutcome   , shape: flat       }
+  - { category: identity, target: Identity.risk_level       , issue_field: userrisk       , shape: flat       }
+  - { category: identity, target: Identity.session_id       , issue_field: sessionid      , shape: flat       }
+  - { category: identity, target: Identity.source_hostname  , issue_field: sourcehostname , shape: flat       }
+  - { category: identity, target: Identity.target_resource  , issue_field: targetresource , shape: flat       }
+  - { category: identity, target: Identity.user_agent       , issue_field: useragent      , shape: flat       }
+  - { category: identity, target: Identity.user_display_name, issue_field: userdisplayname, shape: flat       }
+  - { category: identity, target: Identity.user_email       , issue_field: useremail      , shape: flat       }
+  - { category: identity, target: Identity.user_id          , issue_field: userid         , shape: flat       }
+  - { category: identity, target: Identity.username         , issue_field: username       , shape: flat       }
+
+# ============================================================================
+# Stamps — literal-value writes
+# ============================================================================
+# Constant values the normalizer writes for self-attribution or explicit
+# empty-init. Where a single SOCFramework target receives different stamps
+# in different branches (e.g. email's normalization_source = 'email' vs
+# 'mail_listener'), all variants are listed and the consuming script must
+# choose based on routing context (out of scope for this static contract).
+# ============================================================================
+stamps:
+
+  # ------ endpoint ------
+  - { category: endpoint, target: Endpoint.normalization_source, value: endpoint }
+  - { category: endpoint, target: Artifacts.Process.Verdict    , value: ''       }
+  - { category: endpoint, target: Artifacts.Target.Verdict     , value: ''       }
+
+  # ------ email ------
+  - { category: email   , target: Email.normalization_source, value: email         }
+  - { category: email   , target: Email.normalization_source, value: mail_listener }
+
+  # ------ identity ------
+  - { category: identity, target: Identity.normalization_source, value: identity }
+
+# ============================================================================
+# Mirrors — internal SOCFramework.X → SOCFramework.Y copies
+# ============================================================================
+# Run AFTER mappings. The structured Artifacts.Email.* tree is populated
+# entirely by mirroring the flat Email.* writes — keeping the schema honest
+# requires capturing this dependency rather than pretending Artifacts.Email.*
+# fields are direct issue.* reads.
+# ============================================================================
+mirrors:
+
+  # ------ email ------
+  - { category: email   , target: Artifacts.Email.From      , source: Email.sender      }
+  - { category: email   , target: Artifacts.Email.To        , source: Email.recipient   }
+  - { category: email   , target: Artifacts.Email.Subject   , source: Email.subject     }
+  - { category: email   , target: Artifacts.Email.MessageID , source: Email.message_id  }
+  - { category: email   , target: Artifacts.Email.ThreatType, source: Email.threat_type }
+  - { category: email   , target: Artifacts.Email.ThreatURL , source: Email.threat_url  }

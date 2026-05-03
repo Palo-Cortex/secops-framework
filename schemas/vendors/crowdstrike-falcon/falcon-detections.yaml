@@ -1,0 +1,509 @@
+# ============================================================================
+# CrowdStrike Falcon — EPP Detection Events
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Source-of-truth contract for the SOC Framework's pack content generator.
+# The generator reads this file and emits:
+#   - ModelingRules/<id>/<id>.xif + .yml + _schema.json   (from modeling_rule)
+#   - CorrelationRules/<name>.yml                          (one per correlation_rules entry)
+#
+# Lifecycle-neutral: this file describes vendor → XDM → issue.* normalization.
+# Lifecycle-specific Artifacts schemas (NIST IR / Posture / Vuln / Threat Hunt)
+# consume the normalized output. One vendor mapping serves every lifecycle.
+# ============================================================================
+vendor: crowdstrike-falcon
+product: Falcon
+data_source: crowdstrike_falcon_event_raw
+category: Endpoint
+raw_schema:
+
+  # Fields currently declared in shipped _schema.json
+  product: {type: string, is_array: false}
+  severity: {type: int, is_array: false}
+  severity_name: {type: string, is_array: false}
+  incident_type: {type: string, is_array: false}
+  description: {type: string, is_array: false}
+  parent_process_id: {type: string, is_array: false, status: declared_unused}
+  user_name: {type: string, is_array: false}
+  device: {type: json, is_array: false, json_subfields: [hostname, machine_domain, os_version, local_ip, groups, mac_address, device_id, ou, external_ip]}
+  parent_details: {type: json, is_array: false, json_subfields: [filename, filepath, cmdline, sha256, local_process_id]}
+
+  # Fields referenced in xif/correlation but missing from shipped _schema.json
+  # (DRIFT — must be added to _schema.json before next pack release)
+  local_process_id: {type: string, is_array: false, status: used_undeclared}
+  agent_id:                        {type: string, is_array: false, status: inferred_from_correlation}
+  user_principal:                  {type: string, is_array: false, status: inferred_from_correlation}
+  user_id:                         {type: string, is_array: false, status: inferred_from_correlation}
+  cmdline:                         {type: string, is_array: false, status: inferred_from_correlation}
+  filename:                        {type: string, is_array: false, status: inferred_from_correlation}
+  filepath:                        {type: string, is_array: false, status: inferred_from_correlation}
+  sha256:                          {type: string, is_array: false, status: inferred_from_correlation}
+  md5:                             {type: string, is_array: false, status: inferred_from_correlation}
+  process_start_time:              {type: string, is_array: false, status: inferred_from_correlation}
+  aggregate_id:                    {type: string, is_array: false, status: inferred_from_correlation}
+  composite_id:                    {type: string, is_array: false, status: inferred_from_correlation}
+  template_instance_id:            {type: string, is_array: false, status: inferred_from_correlation}
+  pattern_disposition_description: {type: string, is_array: false, status: inferred_from_correlation}
+  pattern_disposition_details:     {type: json,   is_array: false, status: inferred_from_correlation}
+  falcon_host_link:                {type: string, is_array: false, status: inferred_from_correlation}
+  confidence:                      {type: int,    is_array: false, status: inferred_from_correlation}
+  scenario:                        {type: string, is_array: false, status: inferred_from_correlation}
+  objective:                       {type: string, is_array: false, status: inferred_from_correlation}
+  sourceInstance:                  {type: string, is_array: false, status: inferred_from_correlation}
+  ioc_value:                       {type: string, is_array: false, status: inferred_from_correlation}
+  ioc_source:                      {type: string, is_array: false, status: inferred_from_correlation}
+  dns_requests:                    {type: json,   is_array: true,  status: inferred_from_correlation}
+  network_accesses:                {type: json,   is_array: true,  status: inferred_from_correlation}
+  files_written:                   {type: json,   is_array: true,  status: inferred_from_correlation}
+
+modeling_rule:
+  fromversion: "8.3.1"
+  modeling_rule_id: SOC_CrowdStrikeFalcon_ModelingRule
+  modeling_rule_name: SOC CrowdStrike Falcon Modeling Rule
+  # Pack ships under the plural 'Rules' folder name; explicit override
+  # so the generator targets the existing path instead of creating a
+  # duplicate sibling.
+  directory_name: SOCCrowdStrikeFalconModelingRules
+  filter:
+    expression: 'product = "epp"'
+    notes: |
+      Restricts the rule to EPP detection events. Other Falcon products
+      (CSPM, Identity Protection, etc.) ride other product values on the
+      same dataset and are out of scope for the Endpoint category.
+
+  fields:
+
+    # ------ Alert metadata ------
+
+    - xdm_path: xdm.alert.severity
+      expression: 'concat(to_string(severity), " - ", severity_name)'
+      sources: [severity, severity_name]
+      issue_field: severity
+      notes: Composite — vendor int + name pair joined for analyst readability.
+
+    - xdm_path: xdm.event.original_event_type
+      expression: incident_type
+      sources: [incident_type]
+      issue_field: original_event_type
+
+    - xdm_path: xdm.event.type
+      expression: incident_type
+      sources: [incident_type]
+      issue_field: event_type
+      notes: Same source as original_event_type — duplicate mapping, intentional.
+
+    - xdm_path: xdm.event.description
+      expression: description
+      sources: [description]
+      issue_field: alert_description
+
+    # ------ Host ------
+
+    - xdm_path: xdm.source.host.hostname
+      expression: 'device->hostname'
+      sources: [device]
+      issue_field: hostname
+
+    - xdm_path: xdm.source.host.fqdn
+      expression: 'device->machine_domain'
+      sources: [device]
+      issue_field: hostfqdn
+      notes: |
+        machine_domain is being mapped to fqdn here AND to user.domain below.
+        In Falcon's schema it's the AD domain — fqdn would be hostname + machine_domain
+        concatenated. Flag for review.
+
+    - xdm_path: xdm.source.host.os_family
+      expression: 'device->os_version'
+      sources: [device]
+      issue_field: hostos
+      notes: |
+        os_version is the OS version string (e.g., "Windows 10 Pro"); os_family
+        should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain.
+
+    - xdm_path: xdm.source.ipv4
+      expression: 'device->local_ip'
+      sources: [device]
+      issue_field: hostip
+
+    # ------ User ------
+
+    - xdm_path: xdm.source.user.username
+      expression: user_name
+      sources: [user_name]
+      issue_field: username
+
+    - xdm_path: xdm.source.user.domain
+      expression: 'device->machine_domain'
+      sources: [device]
+      issue_field: userdomain
+
+    - xdm_path: xdm.source.user.groups
+      expression: 'device->groups[]'
+      sources: [device]
+      issue_field: usergroups
+
+    # ------ Process (ALL come from parent_details — semantic mismatch) ------
+
+    - xdm_path: xdm.source.process.pid
+      expression: 'to_integer(local_process_id)'
+      sources: [local_process_id]
+      issue_field: initiatorpid
+
+    - xdm_path: xdm.source.process.name
+      expression: 'parent_details->filename'
+      sources: [parent_details]
+      issue_field: initiatedby
+      notes: Currently mapping PARENT process name into source.process slot.
+
+    - xdm_path: xdm.source.process.executable.path
+      expression: 'parent_details->filepath'
+      sources: [parent_details]
+      issue_field: initiatorpath
+
+    - xdm_path: xdm.source.process.executable.sha256
+      expression: 'parent_details->sha256'
+      sources: [parent_details]
+      issue_field: initiatorsha256
+
+    - xdm_path: xdm.source.process.command_line
+      expression: 'parent_details->cmdline'
+      sources: [parent_details]
+      issue_field: initiatorcmd
+
+  # Coverage commitment — Artifacts category fields this modeling rule populates.
+  # Lifecycle-neutral: every consuming lifecycle's Artifacts.Endpoint schema
+  # joins against this list to compute its coverage report.
+  contributes:
+    - Endpoint.Hostname
+    - Endpoint.FQDN
+    - Endpoint.OSFamily
+    - Network.IP
+    - User
+    - Process.PID
+    - Process.Name
+    - Process.Path
+    - Process.SHA256
+    - Process.CommandLine
+
+correlation_rules:
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC CrowdStrike Falcon - Endpoint Alerts'
+    name: 'SOC CrowdStrike Falcon - Endpoint Alerts'
+    description: >-
+      Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection event.
+      Consolidates 15 per-tactic rules from v1.0.14 into one rule using MITRE tactic
+      as the User Defined alert category. Backwards compatible with alert field mappings
+      from all 1.0.14 per-tactic rules.
+    tags:
+      - SOCFramework
+      - Passthrough
+      - Endpoint
+      - CrowdStrike
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: REAL_TIME
+      mapping_strategy: CUSTOM
+      user_defined_category: tactic
+      user_defined_severity: severity_name
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+    alert_name: 'SOC CrowdStrike Falcon - $alert_name'
+    alert_description: '$alert_description'
+    suppression:
+      enabled: true
+      duration: 1 hours
+      fields: [composite_id]
+      notes: |
+        composite_id is CrowdStrike Falcon's unique identifier per detection event.
+    pre_alter: |
+      // Vendor / product (required for SOCProductCategoryMap routing)
+      | alter vendor_name = "CrowdStrike", product_name = "Falcon"
+
+      // Filter to EPP detection events only
+      | filter product = "epp"
+
+      // Preserve the raw integer severity BEFORE downstream stages reassign
+      // 'severity' to the readable string. externalseverity issue field reads this.
+      | alter severity_int_raw = severity
+
+      // XSIAM MITRE Normalization
+      | alter
+              tactic                 = if(tactic = "Malware", "Execution", tactic),
+              mitre_tactic           = if(tactic = "Malware", "Execution", tactic),
+              mitre_tactic_id        = tactic_id,
+              mitre_technique        = technique,
+              mitre_technique_id     = technique_id
+
+      | alter mitre_ids_str = if(
+          technique_id != null and technique != null,
+          concat(technique_id, " - ", technique),
+          coalesce(technique_id, technique)
+        )
+
+      | alter
+              hostname                     = device->hostname,
+              domain                       = device->machine_domain,
+              local_ip                     = device->local_ip,
+              external_ip                  = device->external_ip,
+              mac_address                  = device->mac_address,
+              device_id                    = device->device_id,
+              device_ou                    = device->ou[],
+              parent_process_name          = parent_details->filename,
+              parent_process_cmd           = parent_details->cmdline,
+              parent_process_path          = parent_details->filepath,
+              parent_process_sha256        = parent_details->sha256,
+              parent_local_process_id      = parent_details->local_process_id,
+              grandparent_process_name     = grandparent_details->filename,
+              grandparent_process_cmd      = grandparent_details->cmdline,
+              grandparent_process_path     = grandparent_details->filepath,
+              grandparent_process_sha256   = grandparent_details->sha256,
+              grandparent_local_process_id = grandparent_details->local_process_id
+
+      | alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
+
+      | alter cgo_name = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
+                            grandparent_process_name,
+                            coalesce(parent_process_name, filename)),
+              cgo_path = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
+                            grandparent_process_path,
+                            coalesce(parent_process_path, filepath)),
+              cgo_cmd  = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
+                            grandparent_process_cmd,
+                            coalesce(parent_process_cmd, cmdline))
+
+      | alter dns_queries = dns_requests
+      | alter remote_ips  = network_accesses
+
+      | alter alert_name = concat(
+          "[Endpoint] ",
+          coalesce(user_name, hostname, "Unknown"),
+          " - ",
+          coalesce(tactic, "Detection"),
+          ": ",
+          coalesce(technique, name)
+        )
+
+      | alter alert_description = concat(
+          coalesce(description, name),
+          " | Host: ",  coalesce(hostname, "Unknown"),
+          " | User: ",  coalesce(user_name, "Unknown"),
+          " | Severity: ", coalesce(severity_name, "Unknown")
+        )
+
+      // ============================================================
+      // CANONICAL CORE NORMALIZATION
+      // Produces the 29 canonical core columns every vendor pack must
+      // expose. Column names match issue field names in alert_fields.
+      // Foundation, Universal Command, and SOC Framework dashboards
+      // all read from this normalized surface.
+      // ============================================================
+      | alter
+              vendor                              = vendor_name,
+              product                             = product_name,
+              originalalertid                     = composite_id,
+              originalalertname                   = alert_name,
+              originalalertsource                 = "CrowdStrike Falcon",
+              externallink                        = falcon_host_link,
+              alert_description                   = alert_description,
+              severity                            = severity_name,
+              mitretacticid                       = mitre_tactic_id,
+              mitretacticname                     = mitre_tactic,
+              mitretechniqueid                    = mitre_technique_id,
+              mitretechniquename                  = mitre_technique,
+              agent_hostname                      = hostname,
+              agent_id                            = agent_id,
+              agent_device_domain                 = domain,
+              actor_effective_username            = user_name,
+              actor_process_image_name            = filename,
+              actor_process_image_path            = filepath,
+              actor_process_image_sha256          = sha256,
+              actor_process_command_line          = cmdline,
+              actor_process_os_pid                = local_process_id,
+              causality_actor_process_image_name  = cgo_name,
+              causality_actor_process_image_path  = cgo_path,
+              causality_actor_process_image_sha256 = grandparent_process_sha256,
+              action_file_name                    = filename,
+              action_file_path                    = filepath,
+              action_file_sha256                  = sha256,
+              action_local_ip                     = local_ip,
+              action_remote_ip                    = remote_ips
+    final_projection:
+      - device_id
+      - local_ip
+      - user_name
+      - user_principal
+      - cmdline
+      - sha256
+      - domain
+      - hostname
+      - agent_id
+      - pattern_disposition_description
+      - pattern_disposition_details
+      - cgo_cmd
+      - cgo_name
+      - cgo_path
+      - template_instance_id
+      - external_ip
+      - falcon_host_link
+      - mac_address
+      - mitre_tactic_id
+      - mitre_tactic
+      - mitre_technique_id
+      - mitre_technique
+      - mitre_ids_str
+      - tactic_id
+      - tactic
+      - technique_id
+      - technique
+      - objective
+      - composite_id
+      - parent_process_cmd
+      - parent_process_name
+      - parent_local_process_id
+      - parent_process_path
+      - parent_process_sha256
+      - grandparent_process_name
+      - grandparent_process_cmd
+      - grandparent_process_path
+      - grandparent_process_sha256
+      - grandparent_local_process_id
+      - device_ou_arr
+      - process_start_time
+      - local_process_id
+      - md5
+      - scenario
+      - severity_name
+      - aggregate_id
+      - indicator_id
+      - alert_name
+      - alert_description
+      - network_accesses
+      - dns_requests
+      - files_written
+      - "*"
+    alert_fields:
+
+      # === CANONICAL CORE — identical across every vendor pack ===
+      # LHS = issue field (what Foundation reads)
+      # RHS = pre_alter column with the matching canonical name
+      - {issue_field: vendor, source: vendor, bucket: computed}
+      - {issue_field: product, source: product, bucket: computed}
+      - {issue_field: originalalertid, source: originalalertid, bucket: computed}
+      - {issue_field: originalalertname, source: originalalertname, bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink, source: externallink, bucket: computed}
+      - {issue_field: alert_description, source: alert_description, bucket: computed}
+      - {issue_field: severity, source: severity, bucket: computed}
+      - {issue_field: mitretacticid, source: mitretacticid, bucket: computed}
+      - {issue_field: mitretacticname, source: mitretacticname, bucket: computed}
+      - {issue_field: mitretechniqueid, source: mitretechniqueid, bucket: computed}
+      - {issue_field: mitretechniquename, source: mitretechniquename, bucket: computed}
+      - {issue_field: agent_hostname, source: agent_hostname, bucket: computed}
+      - {issue_field: agent_id, source: agent_id, bucket: computed}
+      - {issue_field: agent_device_domain, source: agent_device_domain, bucket: computed}
+      - {issue_field: actor_effective_username, source: actor_effective_username, bucket: computed}
+      - {issue_field: actor_process_image_name, source: actor_process_image_name, bucket: computed}
+      - {issue_field: actor_process_image_path, source: actor_process_image_path, bucket: computed}
+      - {issue_field: actor_process_image_sha256, source: actor_process_image_sha256, bucket: computed}
+      - {issue_field: actor_process_command_line, source: actor_process_command_line, bucket: computed}
+      - {issue_field: actor_process_os_pid, source: actor_process_os_pid, bucket: computed}
+      - {issue_field: causality_actor_process_image_name, source: causality_actor_process_image_name, bucket: computed}
+      - {issue_field: causality_actor_process_image_path, source: causality_actor_process_image_path, bucket: computed}
+      - {issue_field: causality_actor_process_image_sha256, source: causality_actor_process_image_sha256, bucket: computed}
+      - {issue_field: action_file_name, source: action_file_name, bucket: computed}
+      - {issue_field: action_file_path, source: action_file_path, bucket: computed}
+      - {issue_field: action_file_sha256, source: action_file_sha256, bucket: computed}
+      - {issue_field: action_local_ip, source: action_local_ip, bucket: computed}
+      - {issue_field: action_remote_ip, source: action_remote_ip, bucket: computed}
+
+      # === VENDOR-SPECIFIC TAIL — CrowdStrike Falcon fields beyond canonical ===
+      # Preserves XSIAM XDR fields and Falcon-specific surfacing shipped to date.
+      # No 1.x legacy (V3-native pack — never had a vendor-prefixed namespace).
+      - {issue_field: _device_id, source: device_id, bucket: computed}
+      - {issue_field: mac, source: mac_address, bucket: computed}
+      - {issue_field: prenatsourceip, source: local_ip, bucket: computed}
+      - {issue_field: postnatdestinationip, source: remote_ips, bucket: computed}
+      - {issue_field: deviceexternalips, source: external_ip, bucket: computed}
+      - {issue_field: deviceou, source: device_ou_arr, bucket: computed}
+      - {issue_field: userid, source: user_name, bucket: raw}
+      - {issue_field: user_principal, source: user_principal, bucket: raw}
+      - {issue_field: usersid, source: user_id, bucket: raw}
+      - {issue_field: action_process_image_sha256, source: sha256, bucket: raw}
+      - {issue_field: filehash, source: sha256, bucket: raw}
+      - {issue_field: processmd5, source: md5, bucket: raw}
+      - {issue_field: processcreationtime, source: process_start_time, bucket: raw}
+      - {issue_field: parentprocessname, source: parent_process_name, bucket: computed}
+      - {issue_field: parentprocesscmd, source: parent_process_cmd, bucket: computed}
+      - {issue_field: parentprocesspath, source: parent_process_path, bucket: computed}
+      - {issue_field: parentprocesssha256, source: parent_process_sha256, bucket: computed}
+      - {issue_field: parentprocessid, source: parent_local_process_id, bucket: computed}
+      - {issue_field: parentprocessids, source: parent_local_process_id, bucket: computed}
+      - {issue_field: grandparentprocessname, source: grandparent_process_name, bucket: computed}
+      - {issue_field: grandparentprocesscmd, source: grandparent_process_cmd, bucket: computed}
+      - {issue_field: grandparentprocesspath, source: grandparent_process_path, bucket: computed}
+      - {issue_field: grandparentprocesssha256, source: grandparent_process_sha256, bucket: computed}
+      - {issue_field: grandparentprocessid, source: grandparent_local_process_id, bucket: computed}
+      - {issue_field: processid, source: grandparent_local_process_id, bucket: computed}
+      - {issue_field: causality_actor_causality_id, source: aggregate_id, bucket: raw}
+      - {issue_field: causality_actor_process_command_line, source: cgo_cmd, bucket: computed}
+      - {issue_field: sourceid, source: aggregate_id, bucket: raw}
+      - {issue_field: dns_query_name, source: dns_queries, bucket: computed}
+      - {issue_field: dns_requests, source: dns_requests, bucket: raw}
+      - {issue_field: network_accesses, source: network_accesses, bucket: raw}
+      - {issue_field: files_written, source: files_written, bucket: raw}
+      - {issue_field: additionalindicators, source: ioc_value, bucket: raw}
+      - {issue_field: tim_main_indicator, source: ioc_value, bucket: raw}
+      - {issue_field: eventaction, source: ioc_source, bucket: raw}
+      - {issue_field: originaldescription, source: alert_description, bucket: computed}
+      - {issue_field: detectionid, source: template_instance_id, bucket: raw}
+      - {issue_field: alertaction, source: pattern_disposition_description, bucket: raw}
+      - {issue_field: pattern_disposition_details, source: pattern_disposition_details, bucket: raw}
+      - {issue_field: external_pivot_url, source: falcon_host_link, bucket: raw}
+      - {issue_field: externalconfidence, source: confidence, bucket: raw}
+      - {issue_field: externalseverity, source: severity_int_raw, bucket: computed}
+      - {issue_field: scenario, source: scenario, bucket: raw}
+      - {issue_field: objective, source: objective, bucket: raw}
+      - {issue_field: sourceInstance, source: sourceInstance, bucket: raw}
+    mitre_defs: {}
+    legacy_mitre_defs_for_reference:
+      TA0001 - Initial Access: [T1566 - Phishing, T1204 - User Execution]
+      TA0002 - Execution: [T1059 - Command and Scripting Interpreter, T1129 - Shared Modules, T1204 - User Execution]
+      TA0003 - Persistence: [T1547 - Boot or Logon Autostart Execution, T1574 - Hijack Execution Flow]
+      TA0004 - Privilege Escalation: [T1547 - Boot or Logon Autostart Execution, T1574 - Hijack Execution Flow]
+      TA0005 - Defense Evasion: [T1036 - Masquerading, T1055 - Process Injection, T1574 - Hijack Execution Flow]
+      TA0006 - Credential Access: [T1003 - OS Credential Dumping, T1558 - Steal or Forge Kerberos Tickets]
+      TA0007 - Discovery: [T1033 - System Owner/User Discovery]
+      TA0008 - Lateral Movement: [T1021 - Remote Services, T1550 - Use Alternate Authentication Material]
+      TA0009 - Collection: [T1005 - Data from Local System, T1056 - Input Capture]
+      TA0010 - Exfiltration: [T1041 - Exfiltration Over C2 Channel, T1048 - Exfiltration Over Alternative Protocol]
+      TA0011 - Command and Control: [T1071 - Application Layer Protocol, T1105 - Ingress Tool Transfer]
+      TA0040 - Impact: [T1486 - Data Encrypted for Impact, T1490 - Inhibit System Recovery]
+    investigation_query_link: |-
+      // All (stitched) activity from host - assuming raw telemetry is being collected
+      dataset = xdr_data
+      | filter agent_hostname = $hostname
+      | fields *
+    contributes:
+      - Endpoint.AgentID
+      - Endpoint.MACAddress
+      - Endpoint.Domain
+      - Process.MD5
+      - Process.Causality.ID
+      - Process.Parent.PID
+      - Process.Parent.Name
+      - Process.Parent.Path
+      - Process.Parent.SHA256
+      - Process.Parent.CommandLine
+      - Target.File
+      - Target.Path
+      - Target.SHA256
+      - MITRE.Tactic
+      - MITRE.TacticID
+      - MITRE.Technique
+      - MITRE.TechniqueID
