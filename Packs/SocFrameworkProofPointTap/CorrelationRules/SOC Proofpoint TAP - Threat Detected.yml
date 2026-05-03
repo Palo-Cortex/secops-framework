@@ -12,40 +12,47 @@ alert_category: User Defined
 alert_description: $alert_description
 alert_domain: DOMAIN_SECURITY
 alert_fields:
-  # -- Core identity / actor --------------------------------------------------
-  actor_effective_username: recipient
-  agent_device_domain: domain
-
-  # -- File indicators --------------------------------------------------------
-  action_file_sha256: proofpointsha256
+  vendor: vendor
+  product: product
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  alert_description: alert_description
+  severity: severity
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  agent_device_domain: agent_device_domain
+  actor_effective_username: actor_effective_username
+  actor_process_image_name: actor_process_image_name
+  actor_process_image_path: actor_process_image_path
+  actor_process_image_sha256: actor_process_image_sha256
+  actor_process_command_line: actor_process_command_line
+  actor_process_os_pid: actor_process_os_pid
+  causality_actor_process_image_name: causality_actor_process_image_name
+  causality_actor_process_image_path: causality_actor_process_image_path
+  causality_actor_process_image_sha256: causality_actor_process_image_sha256
+  action_file_name: action_file_name
+  action_file_path: action_file_path
+  action_file_sha256: action_file_sha256
+  action_local_ip: action_local_ip
+  action_remote_ip: action_remote_ip
   action_file_md5: proofpointmd5
-  action_file_name: proofpointfilename
   filehash: proofpointsha256
-
-  # -- Network indicators -----------------------------------------------------
-  action_remote_ip: senderip
   dns_query_name: dns_name
   fw_url_domain: domain
-
-  # -- Email fields -----------------------------------------------------------
   emailmessageid: messageid
   emailsenderip: senderip
   emailsource: sender
-  vendor: vendor_name
-  product: product_name
   fw_email_recipient: recipient
   fw_email_sender: sender
   fw_email_subject: subject
-  # cleaned_url (scheme + www. stripped) for downstream URL correlation
-  # against proxy/firewall traffic logs (e.g. Zscaler ZPA). Distinct from
-  # fw_url_domain which is the registered-domain extraction.
   clickedurls: cleaned_url
-  # linkedCount surfaces the number of links in a delivered message — used
-  # by Email_Analysis_V3 as an outbound-compromise scoring signal even when
-  # rule-level inbound/outbound branching is handled by Issue Exclusions.
   linkedcount: linkedCount
-
-  # -- SOC Framework email fields -- read by Foundation_-_Normalize_Email_V3 --
   socfwemaildeliveryaction: delivery_action
   socfwemaildirection: direction
   socfwemailthreaturl: threat_urls
@@ -58,54 +65,47 @@ alert_fields:
   socfwemailcampaignid: campaignid
   socfwemailclickip: clickip
   socfwemailclicktime: clicktime
-
-  # -- Legacy proofpointtap* fields -------------------------------------------
-  # Supports soc-phishing-investigation-1.0.5 playbooks and Proofpoint TAP layouts.
-  # Remove when old phishing pack is decommissioned from all tenants.
-  #
-  # Sourced from raw dataset fields:
-  proofpointtapcampaignid:     campaignid
-  proofpointtapclickip:        clickip
-  proofpointtapclicktime:      clicktime
-  proofpointtapguid:           guid
-  proofpointtapheadersfrom:    headerfrom
+  proofpointtapcampaignid: campaignid
+  proofpointtapclickip: clickip
+  proofpointtapclicktime: clicktime
+  proofpointtapguid: guid
+  proofpointtapheadersfrom: headerfrom
   proofpointtapheadersreplyto: headerreplyto
-  proofpointtapid:             id
-  proofpointtapimposterscore:  impostorscore
-  proofpointtapmalwarescore:   malwarescore
-  proofpointtapmessageid:      messageid
-  proofpointtapmessageparts:   messageparts
-  proofpointtapmessagesize:    messagesize
-  proofpointtapphishingscore:  phishscore
+  proofpointtapid: id
+  proofpointtapimposterscore: impostorscore
+  proofpointtapmalwarescore: malwarescore
+  proofpointtapmessageid: messageid
+  proofpointtapmessageparts: messageparts
+  proofpointtapmessagesize: messagesize
+  proofpointtapphishingscore: phishscore
   proofpointtapreplytoaddress: replytoaddress
-  proofpointtapsenderip:       senderip
-  proofpointtapsmtpsender:     sender
-  proofpointtapspamscore:      spamscore
-  proofpointtapsubject:        subject
-  proofpointtapthreatstatus:   threatstatus
-  proofpointtapthreattime:     threattime
-  proofpointtaptype:           type
-  proofpointtapxmailer:        xmailer
-  #
-  # Sourced from bc_* XQL alters (first-element extractions):
-  proofpointtapthreatid:       bc_threatid
+  proofpointtapsenderip: senderip
+  proofpointtapsmtpsender: sender
+  proofpointtapspamscore: spamscore
+  proofpointtapsubject: subject
+  proofpointtapthreatstatus: threatstatus
+  proofpointtapthreattime: threattime
+  proofpointtaptype: type
+  proofpointtapxmailer: xmailer
+  proofpointtapthreatid: bc_threatid
   proofpointtapclassification: bc_classification
-  proofpointtapsuspiciousurl:  bc_threaturl
-  proofpointtapthreaturl:      bc_threaturl
-  proofpointtapthreatinfomap:  bc_threatinfomap
-
+  proofpointtapsuspiciousurl: bc_threaturl
+  proofpointtapthreaturl: bc_threaturl
+  proofpointtapthreatinfomap: bc_threatinfomap
 alert_name: $alert_name
 alert_type: null
 crontab: null
 dataset: alerts
+name: SOC Proofpoint TAP - Threat Detected
 description: >-
-  Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted.
-  Fires on active or malicious threat status only. Suppression is per GUID to preserve
-  full blast-radius visibility for lateral risk detection.
-  Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter.
-  Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy
-  soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields).
-  Legacy fields marked for removal when old phishing pack is decommissioned.
+  Unified Proofpoint TAP alert rule covering messages delivered and clicks
+  permitted. Fires on active or malicious threat status only. Suppression is per
+  GUID to preserve full blast-radius visibility for lateral risk detection.
+  Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status
+  filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and
+  legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via
+  proofpointtap* fields). Legacy fields marked for removal when old phishing
+  pack is decommissioned.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC Proofpoint TAP - Threat Detected
@@ -115,60 +115,25 @@ lookup_mapping: []
 mapping_strategy: CUSTOM
 mitre_defs:
   TA0001 - Initial Access:
-    - T1566 - Phishing
+  - T1566 - Phishing
   TA0009 - Collection:
-    - T1114 - Email Collection
-name: SOC Proofpoint TAP - Threat Detected
+  - T1114 - Email Collection
 search_window: null
 severity: User Defined
 simple_schedule: null
-# Suppression design: GUID / 24 hours
-# GUID is assigned per individual email delivery event in Proofpoint TAP.
-# A mass email to N recipients generates N distinct GUIDs. Suppressing on GUID
-# scopes deduplication to a single delivery event only -- it has zero effect on
-# any other recipient's alert. This solves the prior problem where suppression
-# on sender/recipient fields caused one bulk email to silence threat alerts for
-# all other recipients from the same sender for 1 hour.
-# 24-hour window: TAP delivers events in batches and can replay the same event
-# across multiple batch cycles. 24 hours covers the full TAP replay window and
-# prevents duplicate alerts from the same delivery event being re-ingested.
-# Old suppression (1.0.4): fromAddress + headerFrom + toAddresses + sender +
-# ccAddresses / 1 hour -- caused mass email blast-radius suppression.
-# -- Suppression: GUID / 24 hours -------------------------------------------
-# GUID is assigned per individual email delivery event in Proofpoint TAP.
-# A mass email to N recipients generates N distinct GUIDs. Suppressing on GUID
-# scopes deduplication to a single delivery event only -- zero effect on any
-# other recipient's alert. This solves the prior problem where suppressing on
-# sender/recipient fields caused one bulk marketing email to silence threat
-# alerts for every other recipient from the same sender for the full 1-hour
-# window. The rule was disabled because of this behavior.
-# 24-hour window: TAP delivers events in batches and can replay the same
-# event across multiple batch cycles. 24 hours covers the full TAP replay
-# window and prevents duplicate alerts from the same delivery event.
-# Prior suppression (1.0.4): fromAddress + headerFrom + toAddresses + sender
-# + ccAddresses / 1 hour -- caused mass-email blast-radius suppression.
 suppression_duration: 24 hours
 suppression_enabled: true
 suppression_fields:
-  - GUID
+- GUID
 timezone: null
 user_defined_category: alert_category
 user_defined_severity: alert_severity
 xql_query: |
-  /*
-  Title:   SOC Proofpoint TAP - Threat Detected
-  Dataset: proofpoint_tap_v2_generic_alert_raw
-  Version: 1.5.3
-  */
   dataset = proofpoint_tap_v2_generic_alert_raw
-
-  // Vendor / product (required for SOCProductCategoryMap routing)
   | alter vendor_name = "Proofpoint", product_name = "TAP"
 
-  // Gate 1: event type
   | filter type in ("messages delivered", "clicks permitted")
 
-  // Gate 2: actionable threats only
   | alter threatsInfoMap_str = threatsinfomap
   | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
   | filter (
@@ -176,7 +141,6 @@ xql_query: |
       or threatstatus in ("active", "malicious")
   )
 
-  // Alert identity and naming
   | alter
       alert_severity    = if(_alert_data -> severity != null and _alert_data -> severity != "",
                              _alert_data -> severity,
@@ -195,7 +159,6 @@ xql_query: |
           "Proofpoint TAP - Message Delivered"
       )
 
-  // SOC Framework: delivery action and direction
   | alter delivery_action = if(
       type = "messages delivered", "delivered",
       type = "clicks permitted",   "click_permitted",
@@ -205,7 +168,6 @@ xql_query: |
   )
   | alter direction = "inbound"
 
-  // SOC Framework: all threats as multi-value comma-separated strings
   | alter
       threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
       classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
@@ -214,13 +176,11 @@ xql_query: |
       threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), coalesce(json_extract_scalar("@element", "$.threatUrl"), json_extract_scalar("@element", "$.threatURL"))), ", "),
       threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
 
-  // Attachment fields (all parts)
   | alter
       proofpointsha256   = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
       proofpointmd5      = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
       proofpointfilename = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
 
-  // Domain extraction
   | alter
       domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
       dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")
@@ -239,3 +199,34 @@ xql_query: |
       bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
 
   | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)
+
+  | alter
+          vendor                              = vendor_name,
+          product                             = product_name,
+          originalalertid                     = guid,
+          originalalertname                   = alert_name,
+          originalalertsource                 = "Proofpoint TAP",
+          externallink                        = null,
+          alert_description                   = description,
+          severity                            = alert_severity,
+          mitretacticid                       = "TA0001",
+          mitretacticname                     = "Initial Access",
+          mitretechniqueid                    = "T1566",
+          mitretechniquename                  = "Phishing",
+          agent_hostname                      = null,
+          agent_id                            = null,
+          agent_device_domain                 = domain,
+          actor_effective_username            = recipient,
+          actor_process_image_name            = null,
+          actor_process_image_path            = null,
+          actor_process_image_sha256          = null,
+          actor_process_command_line          = null,
+          actor_process_os_pid                = null,
+          causality_actor_process_image_name  = null,
+          causality_actor_process_image_path  = null,
+          causality_actor_process_image_sha256 = null,
+          action_file_name                    = proofpointfilename,
+          action_file_path                    = null,
+          action_file_sha256                  = proofpointsha256,
+          action_local_ip                     = null,
+          action_remote_ip                    = senderip

@@ -197,16 +197,26 @@ jobs:
               print(f"No contract changes — bump level '{level}' is valid.")
           PY
 
-      - name: Enforce single-pack PR
-        # A single version label maps to a single bump level.
-        # Multiple packs in one PR makes the label ambiguous — the fix and the
-        # new feature would both get the same bump. Reject early with a clear
-        # message so contributors know to split the PR.
-        # Exception: changes only to shared repo-level files (tools/, .github/, etc.)
-        # that touch no pack content are allowed through unlabelled.
+      - name: Single-pack PR check (warning only)
+        # Historically a hard-block: the fear was that a single version label
+        # applied to a multi-pack PR was ambiguous. In practice, the post-merge
+        # bump loop in soc-packs-release.yml iterates every changed pack via
+        # bump_pack_version.py and applies the same level cleanly — so a
+        # version:patch label on a 2-pack PR bumps both packs by patch, which
+        # is the correct, unambiguous behavior.
+        #
+        # Multi-pack PRs are also load-bearing for the framework: contract
+        # changes, normalization sweeps, and contributor intake routinely span
+        # multiple vendor packs in one logical change. Forcing a split adds
+        # friction without adding safety.
+        #
+        # We still surface the signal as a ::warning:: so contributors notice
+        # when a PR has grown beyond a single pack, in case the bumps should
+        # actually differ — in which case they should split. The warning is
+        # informational, not blocking.
         run: |
           python - << 'PY'
-          import os, subprocess, sys
+          import os, subprocess
           from pathlib import Path
 
           base = subprocess.check_output(
@@ -227,15 +237,11 @@ jobs:
                       touched_packs.add(pack)
 
           if len(touched_packs) > 1:
-              print("::error::This PR touches multiple packs:")
-              for pack in sorted(touched_packs):
-                  print(f"  {pack}")
-              print()
-              print("Submit one PR per pack so version labels are unambiguous.")
-              print("Split this PR into separate branches — one per pack.")
-              sys.exit(1)
-
-          if touched_packs:
+              packs_list = ", ".join(sorted(touched_packs))
+              print(f"::warning::PR touches {len(touched_packs)} packs: {packs_list}")
+              print("::warning::The version label will be applied to all of them.")
+              print("::warning::Split the PR only if packs need different bump levels.")
+          elif touched_packs:
               print(f"Single-pack PR confirmed: {next(iter(touched_packs))}")
           else:
               print("No pack content changed — repo-level change, no pack version label required.")
