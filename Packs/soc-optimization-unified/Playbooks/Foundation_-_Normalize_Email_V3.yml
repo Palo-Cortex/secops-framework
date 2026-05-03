@@ -6,7 +6,7 @@ contentitemexportablefields:
   contentitemfields:
     packID: soc-optimization-unified
     packName: SOC Framework Unified
-    itemVersion: 3.7.60
+    itemVersion: 3.7.24
     fromServerVersion: 5.0.0
     toServerVersion: ""
     definitionid: ""
@@ -20,7 +20,7 @@ aclowner:
   name: ""
 name: Foundation - Normalize Email_V3
 description: Normalizes Email alert fields into the SOCFramework.Email.* contract.
-  Two paths — gateway SEG alerts (issue.fw_email_sender populated) and Mail Listener
+  Data-driven via SOCNormalizeFromList script — reads SOCFrameworkNormalizeMap_V3.
   user-reported phishing (issue.rawjson fallback). Routes based on field presence.
 tags:
 - SOC
@@ -31,25 +31,23 @@ starttaskid: "0"
 tasks:
   "0":
     id: "0"
-    taskid: 953ea6b8-ee26-4689-95b6-47504aece27a
+    taskid: e0000000-0000-4000-a000-000000000000
     type: start
     task:
-      id: 953ea6b8-ee26-4689-95b6-47504aece27a
+      id: e0000000-0000-4000-a000-000000000000
       version: -1
       name: ""
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "32"
+      - "1"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 265,
+          "x": 480,
           "y": 50
         }
       }
@@ -62,944 +60,27 @@ tasks:
     isautoswitchedtoquietmode: false
   "1":
     id: "1"
-    taskid: d44cb3c7-8d5a-4044-8f1a-0ab53924df9d
-    type: title
-    task:
-      id: d44cb3c7-8d5a-4044-8f1a-0ab53924df9d
-      version: -1
-      name: Set SOCFramework.Email Fields
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "10"
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 405
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "10":
-    id: "10"
-    taskid: 5681dbc7-b66c-4961-8933-947b83d5e54c
-    type: regular
-    task:
-      id: 5681dbc7-b66c-4961-8933-947b83d5e54c
-      version: -1
-      name: Set sender
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "11"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.sender
-      value:
-        simple: ${issue.emailsender}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 575
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "11":
-    id: "11"
-    taskid: 588d40c9-df43-44b6-ad74-680fbe907d6f
-    type: regular
-    task:
-      id: 588d40c9-df43-44b6-ad74-680fbe907d6f
-      version: -1
-      name: Set recipient
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "12"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.recipient
-      value:
-        simple: ${issue.emailrecipient}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 760
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "12":
-    id: "12"
-    taskid: ab402a22-03e1-4f4b-a4f2-5d9da489f39b
-    type: regular
-    task:
-      id: ab402a22-03e1-4f4b-a4f2-5d9da489f39b
-      version: -1
-      name: Set subject
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "13"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.subject
-      value:
-        simple: ${issue.emailsubject}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 945
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "13":
-    id: "13"
-    taskid: d6c59e30-0f2f-4825-869f-72fe0a60cc47
-    type: regular
-    task:
-      id: d6c59e30-0f2f-4825-869f-72fe0a60cc47
-      version: -1
-      name: Set message_id
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "14"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.message_id
-      value:
-        simple: ${issue.emailmessageid}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1130
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "14":
-    id: "14"
-    taskid: 59474540-2433-46ce-9b29-52a496eb8969
-    type: regular
-    task:
-      id: 59474540-2433-46ce-9b29-52a496eb8969
-      version: -1
-      name: Set sender_ip
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "15"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.sender_ip
-      value:
-        simple: ${issue.emailsenderip}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1315
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "15":
-    id: "15"
-    taskid: e9705879-d48e-4ca4-8797-ed4ac4fad569
-    type: regular
-    task:
-      id: e9705879-d48e-4ca4-8797-ed4ac4fad569
-      version: -1
-      name: Set reported_by
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "16"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.reported_by
-      value:
-        simple: ${issue.reporteremailaddress}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1500
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "16":
-    id: "16"
-    taskid: df2a4c4f-bcb2-4b5c-9d9b-5fa581e8cf20
-    type: regular
-    task:
-      id: df2a4c4f-bcb2-4b5c-9d9b-5fa581e8cf20
-      version: -1
-      name: Set threat_url
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "17"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.threat_url
-      value:
-        simple: ${issue.socfwemailthreaturl}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1685
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "17":
-    id: "17"
-    taskid: 2faa8f6a-3409-4f0d-a228-2016a82b1079
-    type: regular
-    task:
-      id: 2faa8f6a-3409-4f0d-a228-2016a82b1079
-      version: -1
-      name: Set threat_type
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "18"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.threat_type
-      value:
-        simple: ${issue.socfwemailthreattype}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 1870
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "18":
-    id: "18"
-    taskid: 3d97f0de-b191-411e-b519-6f32b5a59758
-    type: regular
-    task:
-      id: 3d97f0de-b191-411e-b519-6f32b5a59758
-      version: -1
-      name: Set threat_status
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "19"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.threat_status
-      value:
-        simple: ${issue.socfwemailthreatstatus}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 2055
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "19":
-    id: "19"
-    taskid: b8869d9e-2231-4d72-8a5a-5cfdf107b709
-    type: regular
-    task:
-      id: b8869d9e-2231-4d72-8a5a-5cfdf107b709
-      version: -1
-      name: Set threat_id
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "20"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.threat_id
-      value:
-        simple: ${issue.socfwemailthreatid}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 2240
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "20":
-    id: "20"
-    taskid: 521073fb-9004-4919-9d94-8a6b57a482fb
-    type: regular
-    task:
-      id: 521073fb-9004-4919-9d94-8a6b57a482fb
-      version: -1
-      name: Set classification
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "21"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.classification
-      value:
-        simple: ${issue.socfwemailclassification}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 2425
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "21":
-    id: "21"
-    taskid: 9eecbac3-834d-40ba-a60f-5dd8d5bb934c
-    type: regular
-    task:
-      id: 9eecbac3-834d-40ba-a60f-5dd8d5bb934c
-      version: -1
-      name: Set phish_score
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "22"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.phish_score
-      value:
-        simple: ${issue.socfwemailphishscore}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 2610
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "22":
-    id: "22"
-    taskid: 960b1635-ab00-4d99-a880-61618176357e
-    type: regular
-    task:
-      id: 960b1635-ab00-4d99-a880-61618176357e
-      version: -1
-      name: Set malware_score
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "23"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.malware_score
-      value:
-        simple: ${issue.socfwemailmalwarescore}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 2795
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "23":
-    id: "23"
-    taskid: c840b5ef-3fe9-4e4a-9ca8-9b759f2ccb8c
-    type: regular
-    task:
-      id: c840b5ef-3fe9-4e4a-9ca8-9b759f2ccb8c
-      version: -1
-      name: Set delivery_action
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "24"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.delivery_action
-      value:
-        simple: ${issue.socfwemaildeliveryaction}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 2980
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "24":
-    id: "24"
-    taskid: d0c5f4c6-8f40-4380-b780-57925fc098c0
-    type: regular
-    task:
-      id: d0c5f4c6-8f40-4380-b780-57925fc098c0
-      version: -1
-      name: Set direction
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "25"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.direction
-      value:
-        simple: ${issue.socfwemaildirection}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 3165
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "25":
-    id: "25"
-    taskid: bb60e6da-5c61-4ba3-94ed-1d2811c2ec94
-    type: regular
-    task:
-      id: bb60e6da-5c61-4ba3-94ed-1d2811c2ec94
-      version: -1
-      name: Set attachment_name
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "26"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.attachment_name
-      value:
-        simple: ${issue.action_file_name}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 3350
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "26":
-    id: "26"
-    taskid: 213076ed-c21e-4c6b-9e15-a8fa56eb8128
-    type: regular
-    task:
-      id: 213076ed-c21e-4c6b-9e15-a8fa56eb8128
-      version: -1
-      name: Set attachment_sha256
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "27"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.attachment_sha256
-      value:
-        simple: ${issue.action_file_sha256}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 3535
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "27":
-    id: "27"
-    taskid: f9647cc4-5870-494d-921d-7b3337d4bc43
-    type: regular
-    task:
-      id: f9647cc4-5870-494d-921d-7b3337d4bc43
-      version: -1
-      name: Set campaign_id
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "28"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.campaign_id
-      value:
-        simple: ${issue.socfwemailcampaignid}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 3720
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "28":
-    id: "28"
-    taskid: 5880c5fd-450c-406b-b425-6fe0bbf62c2f
-    type: regular
-    task:
-      id: 5880c5fd-450c-406b-b425-6fe0bbf62c2f
-      version: -1
-      name: Set click_ip
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "29"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.click_ip
-      value:
-        simple: ${issue.socfwemailclickip}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 3905
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "29":
-    id: "29"
-    taskid: 6e7ba831-35d5-4bc2-a755-98b1b8ea9636
-    type: regular
-    task:
-      id: 6e7ba831-35d5-4bc2-a755-98b1b8ea9636
-      version: -1
-      name: Set click_time
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "30"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.click_time
-      value:
-        simple: ${issue.socfwemailclicktime}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 4090
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "30":
-    id: "30"
-    taskid: eb16a5b1-310c-42a0-b201-f0d3fbd93ee4
-    type: regular
-    task:
-      id: eb16a5b1-310c-42a0-b201-f0d3fbd93ee4
-      version: -1
-      name: Set normalization_source
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "40"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.normalization_source
-      value:
-        simple: email
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 4275
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "31":
-    id: "31"
-    taskid: b28d324f-fc86-49c4-b2c9-7d816315bdf0
-    type: title
-    task:
-      id: b28d324f-fc86-49c4-b2c9-7d816315bdf0
-      version: -1
-      name: Done
-      type: title
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 265,
-          "y": 5570
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "32":
-    id: "32"
-    taskid: 9803b401-0b4e-4ce9-96e5-19718b1d1382
+    taskid: e0000000-0000-4000-a000-000000000001
     type: condition
     task:
-      id: 9803b401-0b4e-4ce9-96e5-19718b1d1382
+      id: e0000000-0000-4000-a000-000000000001
       version: -1
       name: Email Sender available?
+      description: |-
+        Branches the normalization_source stamp. When issue.emailsender is
+        populated this is a regular email alert (e.g. Proofpoint TAP,
+        Microsoft Defender for Email) and the stamp is 'email'. Empty means
+        a mail_listener-class ingestion and the stamp is 'mail_listener'.
+        Both branches call the same data-driven script — only the stamp
+        branch differs.
       type: condition
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "33"
+      - "3"
       "yes":
-      - "1"
+      - "2"
     separatecontext: false
     conditions:
     - label: "yes"
@@ -1015,8 +96,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 265,
-          "y": 220
+          "x": 480,
+          "y": 200
         }
       }
     note: false
@@ -1026,521 +107,107 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "33":
-    id: "33"
-    taskid: 00cee5c9-1345-4662-89ff-e6ae780d7363
+  "2":
+    id: "2"
+    taskid: e0000000-0000-4000-a000-000000000002
+    type: regular
+    task:
+      id: e0000000-0000-4000-a000-000000000002
+      version: -1
+      name: Apply Email normalize contract (sender available)
+      description: |-
+        Standard email path. Applies mappings, the 'email' stamp variant,
+        and mirrors flat Email.* into structured Artifacts.Email.*.
+      script: SOCNormalizeFromList
+      type: regular
+      iscommand: false
+      brand: ""
+    scriptarguments:
+      category:
+        simple: email
+      list_name:
+        simple: SOCFrameworkNormalizeMap_V3
+      normalization_source:
+        simple: email
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 270,
+          "y": 380
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: e0000000-0000-4000-a000-000000000003
+    type: regular
+    task:
+      id: e0000000-0000-4000-a000-000000000003
+      version: -1
+      name: Apply Email normalize contract (mail_listener)
+      description: |-
+        Mail-listener path. Same script, normalization_source stamp is
+        'mail_listener'. Most flat Email.* mappings will skip due to
+        empty sources — that matches the prior playbook behavior.
+      script: SOCNormalizeFromList
+      type: regular
+      iscommand: false
+      brand: ""
+    scriptarguments:
+      category:
+        simple: email
+      list_name:
+        simple: SOCFrameworkNormalizeMap_V3
+      normalization_source:
+        simple: mail_listener
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 700,
+          "y": 380
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: e0000000-0000-4000-a000-000000000004
     type: title
     task:
-      id: 00cee5c9-1345-4662-89ff-e6ae780d7363
+      id: e0000000-0000-4000-a000-000000000004
       version: -1
-      name: Evaluate Spread Level
+      name: Done
       type: title
       iscommand: false
       brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "35"
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
           "x": 480,
-          "y": 3357.5
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "35":
-    id: "35"
-    taskid: e8f1b11e-1108-434f-89eb-a1002d53cc46
-    type: regular
-    task:
-      id: e8f1b11e-1108-434f-89eb-a1002d53cc46
-      version: -1
-      name: Set recipient from rawJSON
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "36"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.recipient
-      value:
-        complex:
-          root: issue
-          accessor: rawjson
-          transformers:
-          - operator: ParseJSON
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: to
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 3535
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "36":
-    id: "36"
-    taskid: 9661004b-5ac4-49dc-9de1-b94c70363a28
-    type: regular
-    task:
-      id: 9661004b-5ac4-49dc-9de1-b94c70363a28
-      version: -1
-      name: Set subject from rawJSON
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "37"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.subject
-      value:
-        complex:
-          root: issue
-          accessor: rawjson
-          transformers:
-          - operator: ParseJSON
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: subject
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 3720
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "37":
-    id: "37"
-    taskid: 0eaf176a-1ff8-44a8-ab09-755de71d7c10
-    type: regular
-    task:
-      id: 0eaf176a-1ff8-44a8-ab09-755de71d7c10
-      version: -1
-      name: Set message_id from rawJSON
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "38"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.message_id
-      value:
-        complex:
-          root: issue
-          accessor: rawjson
-          transformers:
-          - operator: ParseJSON
-          - operator: getField
-            args:
-              field:
-                value:
-                  simple: Message-ID
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 3905
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "38":
-    id: "38"
-    taskid: 3c5a67fd-6d09-4b6f-870e-1e10117742dc
-    type: regular
-    task:
-      id: 3c5a67fd-6d09-4b6f-870e-1e10117742dc
-      version: -1
-      name: Set reported_by from alert
-      description: Mail Listener sets issue.reporteremailaddress — the user who forwarded
-        the suspicious email to the abuse mailbox.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "39"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.reported_by
-      value:
-        simple: ${issue.reporteremailaddress}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 4090
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "39":
-    id: "39"
-    taskid: 134eeb4c-8976-434a-a4a4-b4415bc5c05b
-    type: regular
-    task:
-      id: 134eeb4c-8976-434a-a4a4-b4415bc5c05b
-      version: -1
-      name: Set normalization_source (mail_listener)
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "40"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Email.normalization_source
-      value:
-        simple: mail_listener
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 480,
-          "y": 4275
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "40":
-    id: "40"
-    taskid: c9d0e1f2-a3b4-c5d6-e7f8-a9b0c1d2e3f4
-    type: regular
-    task:
-      id: c9d0e1f2-a3b4-c5d6-e7f8-a9b0c1d2e3f4
-      version: -1
-      name: Set Artifacts.Email.From alias
-      description: Alias SOCFramework.Artifacts.Email.From from SOCFramework.Email.sender.
-        Consumed by Signal Characterization, IOC Enrichment, and C/E/R warroom logs.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "41"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.Email.From
-      value:
-        simple: ${SOCFramework.Email.sender}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 265,
-          "y": 4460
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "41":
-    id: "41"
-    taskid: d0e1f2a3-b4c5-d6e7-f8a9-b0c1d2e3f4a5
-    type: regular
-    task:
-      id: d0e1f2a3-b4c5-d6e7-f8a9-b0c1d2e3f4a5
-      version: -1
-      name: Set Artifacts.Email.To alias
-      description: Alias SOCFramework.Artifacts.Email.To from SOCFramework.Email.recipient.
-        Consumed by Signal Characterization, IOC Enrichment, and C/E/R warroom logs.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "42"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.Email.To
-      value:
-        simple: ${SOCFramework.Email.recipient}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 265,
-          "y": 4645
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "42":
-    id: "42"
-    taskid: e1f2a3b4-c5d6-e7f8-a9b0-c1d2e3f4a5b6
-    type: regular
-    task:
-      id: e1f2a3b4-c5d6-e7f8-a9b0-c1d2e3f4a5b6
-      version: -1
-      name: Set Artifacts.Email.Subject alias
-      description: Alias SOCFramework.Artifacts.Email.Subject from SOCFramework.Email.subject.
-        Consumed by Signal Characterization, IOC Enrichment, and C/E/R warroom logs.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "43"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.Email.Subject
-      value:
-        simple: ${SOCFramework.Email.subject}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 265,
-          "y": 4830
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "43":
-    id: "43"
-    taskid: f2a3b4c5-d6e7-f8a9-b0c1-d2e3f4a5b6c7
-    type: regular
-    task:
-      id: f2a3b4c5-d6e7-f8a9-b0c1-d2e3f4a5b6c7
-      version: -1
-      name: Set Artifacts.Email.MessageID alias
-      description: Alias SOCFramework.Artifacts.Email.MessageID from SOCFramework.Email.message_id.
-        Consumed by Signal Characterization, IOC Enrichment, and C/E/R warroom logs.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "44"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.Email.MessageID
-      value:
-        simple: ${SOCFramework.Email.message_id}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 265,
-          "y": 5015
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "44":
-    id: "44"
-    taskid: a3b4c5d6-e7f8-a9b0-c1d2-e3f4a5b6c7d8
-    type: regular
-    task:
-      id: a3b4c5d6-e7f8-a9b0-c1d2-e3f4a5b6c7d8
-      version: -1
-      name: Set Artifacts.Email.ThreatType alias
-      description: Alias SOCFramework.Artifacts.Email.ThreatType from SOCFramework.Email.threat_type.
-        Consumed by Signal Characterization, IOC Enrichment, and C/E/R warroom logs.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "45"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.Email.ThreatType
-      value:
-        simple: ${SOCFramework.Email.threat_type}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 265,
-          "y": 5200
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "45":
-    id: "45"
-    taskid: b4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9
-    type: regular
-    task:
-      id: b4c5d6e7-f8a9-b0c1-d2e3-f4a5b6c7d8e9
-      version: -1
-      name: Set Artifacts.Email.ThreatURL alias
-      description: Alias SOCFramework.Artifacts.Email.ThreatURL from SOCFramework.Email.threat_url.
-        Consumed by Signal Characterization, IOC Enrichment, and C/E/R warroom logs.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "31"
-    scriptarguments:
-      append:
-        simple: "false"
-      key:
-        simple: SOCFramework.Artifacts.Email.ThreatURL
-      value:
-        simple: ${SOCFramework.Email.threat_url}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 265,
-          "y": 5385
+          "y": 560
         }
       }
     note: false
@@ -1556,9 +223,9 @@ view: |-
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 5580,
-        "width": 810,
-        "x": 50,
+        "height": 650,
+        "width": 380,
+        "x": 480,
         "y": 50
       }
     }
