@@ -1,0 +1,437 @@
+# ============================================================================
+# NIST IR Phase Contract — soc-framework-nist-ir
+# Registers the NIST IR app with the SOC Framework registry
+# ============================================================================
+# Source-of-truth for the SOC Framework content generator. The generator
+# (tools/generate_soc_framework_content.py) reads this file and emits:
+#   - Packs/soc-framework-nist-ir/Lists/SOCFrameworkPhaseContract_V3/
+#
+# NIST IR is an APP that registers with the SOC Framework. Its schema lives
+# in the framework registry (schemas/soc-framework/<pack>/) like every other
+# soc-framework module. NIST IR READS from the SOCFramework.* OS namespace
+# but does NOT WRITE to it — its outputs land in its own contract namespaces:
+# Analysis.*, Containment.*, Eradication.*, Recovery.*.
+#
+# Each phase tells a story for the next:
+#   analysis    → produces verdict / scope / recommendations
+#   containment → reads Analysis.*, produces containment status / actions
+#   eradication → reads Analysis.* + Containment.*, produces remediation results
+#   recovery    → reads upstream phases, produces restore / monitoring outputs
+#
+# This schema documents what the existing playbooks DO TODAY, parsed from
+# playbook YAML (orchestrator outputs, sub-playbook routing, observed
+# SOCFramework.* / upstream-phase reads). Drift from this contract = a
+# playbook change without a schema PR.
+#
+# DRIFT GATES (build-time):
+#   1. Categories ⊆ SOCProductCategoryMap_V3 in soc-optimization-unified
+#   2. Every (phase, category) routing target must exist as SOC_<Cat>_<Phase>_V3
+#      playbook in this pack
+#   3. Every reads_from_phases source must exist in upstream phase's writes
+# ============================================================================
+
+pack: soc-framework-nist-ir
+list_name: SOCFrameworkPhaseContract_V3
+description: NIST IR phase contract — what each phase reads, writes, and routes to
+
+# ============================================================================
+# Self-described validation — interpreted generically by the generator
+# ============================================================================
+# `required_blocks`     — top-level keys that must exist
+# `blocks`              — per-block structural rules (type + per-item required fields)
+# `drift_gates`         — runtime cross-checks against pack contents
+# All three are interpreted by tools/generate_soc_framework_content.py.
+# Adding a new soc-framework app = drop a YAML with its own validation block.
+# Generator does not change.
+# ============================================================================
+validation:
+  required_blocks: [phases, categories, routing, writes]
+  blocks:
+    phases:
+      type: mapping
+      item_required: [orchestrator, purpose]
+    routing:
+      type: list
+      item_required: [phase, category, sub_playbook]
+    reads_from_framework:
+      type: list
+      item_required: [phase, source]
+    reads_from_phases:
+      type: list
+      item_required: [phase, from_phase, source]
+    writes:
+      type: list
+      item_required: [phase, target, type, init]
+    writes_by_category:
+      type: list
+      item_required: [phase, category, target, type, init]
+  drift_gates:
+    - kind: categories_subset_of_product_map
+      source_block: categories
+    - kind: routing_playbooks_exist
+      block: routing
+      field: sub_playbook
+    - kind: cross_reference
+      from_block: reads_from_phases
+      from_field: source
+      partition_field: from_phase
+      to_block: writes
+      to_field: target
+      to_partition_field: phase
+
+# ============================================================================
+# Emit transforms — declarative payload reshaping
+# ============================================================================
+# Group routing/reads/writes by phase so consumers can fetch one phase's
+# contract in a single key lookup. Generator applies these in order.
+# ============================================================================
+emit:
+  group_by:
+    - { block: routing,              key: phase, into: routing_by_phase,              drop_key_in_items: true }
+    - { block: reads_from_framework, key: phase, into: reads_from_framework_by_phase, drop_key_in_items: true }
+    - { block: reads_from_phases,    key: phase, into: reads_from_phases_by_phase,    drop_key_in_items: true }
+    - { block: writes,               key: phase, into: writes_by_phase,               drop_key_in_items: true }
+    - { block: writes_by_category,  key: phase, into: writes_by_category_by_phase, drop_key_in_items: true }
+
+# ============================================================================
+# Phases — sequence and orchestrator metadata
+# ============================================================================
+# requires_phase declares the upstream dependency. EP_IR_NIST_(800-61)_V3
+# enforces the ordering at runtime; the schema captures it for the drift
+# gate that validates reads_from_phases references.
+# ============================================================================
+phases:
+  analysis:
+    orchestrator: SOC_Analysis_V3
+    requires_phase: ~
+    purpose: Determine verdict, confidence, scope, and recommended response from raw alerts and SOCFramework artifacts.
+  containment:
+    orchestrator: SOC_Containment_V3
+    requires_phase: analysis
+    purpose: Stop the spread — isolate hosts, block users, quarantine email.
+  eradication:
+    orchestrator: SOC_Eradication_V3
+    requires_phase: containment
+    purpose: Remove persistence and remediate compromised entities.
+  recovery:
+    orchestrator: SOC_Recovery_V3
+    requires_phase: eradication
+    purpose: Restore systems to known-good state and establish monitoring.
+
+# ============================================================================
+# Categories — per-product routing dimension
+# ============================================================================
+# Each phase orchestrator routes to one of these by SOCFramework.Product.category.
+# Must be a subset of SOCProductCategoryMap_V3 in soc-optimization-unified.
+# ============================================================================
+categories:
+  - endpoint
+  - email
+  - identity
+# ============================================================================
+# Routing — per (phase, category) sub-playbook
+# ============================================================================
+# Note: 'Endpoint' capitalization differs by phase (containment uses lowercase
+# 'Endpoint', other three phases use 'EndPoint'). This is preserved verbatim
+# from the playbook YAML — drift gate validates each name resolves to an
+# actual playbook file.
+# ============================================================================
+routing:
+
+  # ------ analysis ------
+  - { phase: analysis, category: endpoint, sub_playbook: SOC_EndPoint_Analysis_V3 }
+  - { phase: analysis, category: email   , sub_playbook: SOC_Email_Analysis_V3    }
+  - { phase: analysis, category: identity, sub_playbook: SOC_Identity_Analysis_V3 }
+
+  # ------ containment ------
+  - { phase: containment, category: endpoint, sub_playbook: SOC_Endpoint_Containment_V3 }
+  - { phase: containment, category: email   , sub_playbook: SOC_Email_Containment_V3    }
+  - { phase: containment, category: identity, sub_playbook: SOC_Identity_Containment_V3 }
+
+  # ------ eradication ------
+  - { phase: eradication, category: endpoint, sub_playbook: SOC_EndPoint_Eradication_V3 }
+  - { phase: eradication, category: email   , sub_playbook: SOC_Email_Eradication_V3    }
+  - { phase: eradication, category: identity, sub_playbook: SOC_Identity_Eradication_V3 }
+
+  # ------ recovery ------
+  - { phase: recovery, category: endpoint, sub_playbook: SOC_EndPoint_Recovery_V3 }
+  - { phase: recovery, category: email   , sub_playbook: SOC_Email_Recovery_V3    }
+  - { phase: recovery, category: identity, sub_playbook: SOC_Identity_Recovery_V3 }
+
+# ============================================================================
+# reads_from_framework — SOCFramework.* keys consumed by each phase
+# ============================================================================
+# Aggregated across orchestrator + all 7 per-category sub-playbooks. Lock-in
+# mode: only paths actually referenced in the YAML today.
+# ============================================================================
+reads_from_framework:
+
+  # ------ analysis (30 reads) ------
+  - { phase: analysis, source: SOCFramework.Artifacts                   }
+  - { phase: analysis, source: SOCFramework.Artifacts.CommandLine       }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email             }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.From        }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.Subject     }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.ThreatType  }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.ThreatURL   }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.To          }
+  - { phase: analysis, source: SOCFramework.Artifacts.EndPointID        }
+  - { phase: analysis, source: SOCFramework.Artifacts.FeaturedHost      }
+  - { phase: analysis, source: SOCFramework.Artifacts.File              }
+  - { phase: analysis, source: SOCFramework.Artifacts.HostName          }
+  - { phase: analysis, source: SOCFramework.Artifacts.NetworkArtifacts  }
+  - { phase: analysis, source: SOCFramework.Artifacts.ProcessNames      }
+  - { phase: analysis, source: SOCFramework.Artifacts.UserName          }
+  - { phase: analysis, source: SOCFramework.Artifacts.Verdict           }
+  - { phase: analysis, source: SOCFramework.Email.HighValueUserInvolved }
+  - { phase: analysis, source: SOCFramework.Email.reported_by           }
+  - { phase: analysis, source: SOCFramework.Email.threat_id             }
+  - { phase: analysis, source: SOCFramework.Email.threat_status         }
+  - { phase: analysis, source: SOCFramework.Investigation.LinkedCount   }
+  - { phase: analysis, source: SOCFramework.Investigation.RiskScore     }
+  - { phase: analysis, source: SOCFramework.Mitre                       }
+  - { phase: analysis, source: SOCFramework.Mitre.Tactic                }
+  - { phase: analysis, source: SOCFramework.Mitre.Tactic.ID             }
+  - { phase: analysis, source: SOCFramework.Mitre.Technique             }
+  - { phase: analysis, source: SOCFramework.Mitre.Technique.ID          }
+  - { phase: analysis, source: SOCFramework.Product.category            }
+  - { phase: analysis, source: SOCFramework.Product.key                 }
+  - { phase: analysis, source: SOCFramework.phase                       }
+
+  # ------ containment (15 reads) ------
+  - { phase: containment, source: SOCFramework.Artifacts.Domain            }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.From        }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.MessageID   }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.Subject     }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.To          }
+  - { phase: containment, source: SOCFramework.Artifacts.Endpoint.AgentID  }
+  - { phase: containment, source: SOCFramework.Artifacts.Endpoint.Hostname }
+  - { phase: containment, source: SOCFramework.Artifacts.Process.Name      }
+  - { phase: containment, source: SOCFramework.Artifacts.Process.PID       }
+  - { phase: containment, source: SOCFramework.Artifacts.Target.SHA256     }
+  - { phase: containment, source: SOCFramework.Artifacts.UserName          }
+  - { phase: containment, source: SOCFramework.Mitre.Technique.ID          }
+  - { phase: containment, source: SOCFramework.Product.category            }
+  - { phase: containment, source: SOCFramework.Product.response            }
+  - { phase: containment, source: SOCFramework.phase                       }
+
+  # ------ eradication (15 reads) ------
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.From        }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.Subject     }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.ThreatType  }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.ThreatURL   }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.To          }
+  - { phase: eradication, source: SOCFramework.Artifacts.Endpoint.AgentID  }
+  - { phase: eradication, source: SOCFramework.Artifacts.Endpoint.Hostname }
+  - { phase: eradication, source: SOCFramework.Artifacts.Process.Name      }
+  - { phase: eradication, source: SOCFramework.Artifacts.Process.Path      }
+  - { phase: eradication, source: SOCFramework.Artifacts.Process.SHA256    }
+  - { phase: eradication, source: SOCFramework.Artifacts.Target.Path       }
+  - { phase: eradication, source: SOCFramework.Artifacts.Target.SHA256     }
+  - { phase: eradication, source: SOCFramework.Email.TAP.Classification    }
+  - { phase: eradication, source: SOCFramework.Product.category            }
+  - { phase: eradication, source: SOCFramework.phase                       }
+
+  # ------ recovery (9 reads) ------
+  - { phase: recovery, source: SOCFramework.Artifacts.Email.From        }
+  - { phase: recovery, source: SOCFramework.Artifacts.Email.Subject     }
+  - { phase: recovery, source: SOCFramework.Artifacts.Email.To          }
+  - { phase: recovery, source: SOCFramework.Artifacts.Endpoint.AgentID  }
+  - { phase: recovery, source: SOCFramework.Artifacts.Endpoint.Hostname }
+  - { phase: recovery, source: SOCFramework.Artifacts.User              }
+  - { phase: recovery, source: SOCFramework.Email.TAP.Classification    }
+  - { phase: recovery, source: SOCFramework.Product.category            }
+  - { phase: recovery, source: SOCFramework.phase                       }
+
+# ============================================================================
+# reads_from_phases — upstream phase outputs each phase consumes
+# ============================================================================
+# These are the 'story' dependencies — what containment learns from analysis,
+# what eradication learns from analysis + containment, etc.
+# Drift gate: every source must exist in the upstream phase's `writes` block.
+# ============================================================================
+reads_from_phases:
+
+  # ------ containment ------
+  - { phase: containment, from_phase: analysis, source: Analysis.case_score }
+
+  # ------ eradication ------
+  - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_decision  }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_level     }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.mitre_tactic         }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.persistence_type     }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_id    }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_name  }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_user  }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.response_recommended }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.spread_level         }
+  - { phase: eradication, from_phase: containment, source: Containment.action            }
+  - { phase: eradication, from_phase: containment, source: Containment.required          }
+
+  # ------ recovery ------
+  - { phase: recovery, from_phase: analysis   , source: Analysis.compromise_decision }
+  - { phase: recovery, from_phase: analysis   , source: Analysis.compromise_level    }
+  - { phase: recovery, from_phase: analysis   , source: Analysis.primary_entity_user }
+  - { phase: recovery, from_phase: analysis   , source: Analysis.verdict             }
+  - { phase: recovery, from_phase: eradication, source: Eradication.attempted        }
+  - { phase: recovery, from_phase: eradication, source: Eradication.story            }
+  - { phase: recovery, from_phase: eradication, source: Eradication.success          }
+  - { phase: recovery, from_phase: containment, source: Containment.Execution        }
+  - { phase: recovery, from_phase: containment, source: Containment.required         }
+
+# ============================================================================
+# writes — phase contract surface (the story produced for downstream phases)
+# ============================================================================
+# Extracted verbatim from each phase orchestrator's `outputs:` block in YAML.
+# These are the keys that survive into the next phase's input scope.
+# ============================================================================
+writes:
+
+  # ------ analysis ------
+
+  - { phase: analysis, target: Analysis.verdict                     , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.confidence                  , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.response_recommended        , type: boolean , init: false  }
+  - { phase: analysis, target: Analysis.compromise_level            , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.compromise_decision         , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.spread_level                , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.persistence_type            , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.primary_entity_id           , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.primary_entity_name         , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.primary_entity_type         , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.primary_entity_user         , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.case_category               , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.mitre_tactic                , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.mitre_tactic_id             , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.mitre_technique             , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.mitre_technique_id          , type: string  , init: ""     }
+  - { phase: analysis, target: Analysis.story                       , type: array   , init: []     }
+  - { phase: analysis, target: Analysis.case_score                  , type: number  , init: 0      }
+  - { phase: analysis, target: Analysis.global_hash_prevalence_count, type: number  , init: 0      }
+  - { phase: analysis, target: Analysis.case_host_count             , type: number  , init: 0      }
+  - { phase: analysis, target: Analysis.case_issue_count            , type: number  , init: 0      }
+  - { phase: analysis, target: Analysis.case_user_count             , type: number  , init: 0      }
+
+  # ------ containment ------
+
+  - { phase: containment, target: Containment.status        , type: string  , init: ""     }
+  - { phase: containment, target: Containment.isolated_hosts, type: array   , init: []     }
+  - { phase: containment, target: Containment.action        , type: string  , init: ""     }
+  - { phase: containment, target: Containment.story         , type: array   , init: []     }
+  - { phase: containment, target: Containment.required      , type: boolean  , init: false     }
+  - { phase: containment, target: Containment.Execution     , type: object   , init: {}     }
+  - { phase: containment, target: Containment.disabled_users, type: array   , init: []     }
+
+  # ------ eradication ------
+
+  - { phase: eradication, target: Eradication.success            , type: boolean , init: false  }
+  - { phase: eradication, target: Eradication.attempted          , type: boolean , init: false  }
+  - { phase: eradication, target: Eradication.files_removed      , type: array   , init: []     }
+  - { phase: eradication, target: Eradication.persistence_removed, type: array   , init: []     }
+  - { phase: eradication, target: Eradication.reimage_required   , type: boolean , init: false  }
+  - { phase: eradication, target: Eradication.escalate_to_reimage, type: boolean , init: false  }
+  - { phase: eradication, target: Eradication.story              , type: array   , init: []     }
+
+  # ------ recovery ------
+
+  - { phase: recovery, target: Recovery.status             , type: string  , init: ""     }
+  - { phase: recovery, target: Recovery.story              , type: array   , init: []     }
+  - { phase: recovery, target: Recovery.monitoring_required, type: boolean , init: false  }
+  - { phase: recovery, target: Recovery.monitoring_scope   , type: string  , init: ""     }
+  - { phase: recovery, target: Recovery.restore_required   , type: boolean , init: false  }
+  - { phase: recovery, target: Recovery.restore_method     , type: string  , init: ""     }
+
+writes_by_category:
+
+  # ------ analysis ------
+
+  - { phase: analysis, category: endpoint, target: Analysis.verdict                     , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.confidence                  , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.response_recommended        , type: boolean , init: false  }
+  - { phase: analysis, category: endpoint, target: Analysis.compromise_level            , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.compromise_decision         , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.spread_level                , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.persistence_type            , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_id           , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_name         , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_user         , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_type         , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.case_category               , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_tactic                , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_tactic_id             , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_technique             , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_technique_id          , type: string  , init: ""     }
+  - { phase: analysis, category: endpoint, target: Analysis.story                       , type: array   , init: []     }
+  - { phase: analysis, category: endpoint, target: Analysis.case_score                  , type: number  , init: 0      }
+  - { phase: analysis, category: endpoint, target: Analysis.global_hash_prevalence_count, type: number  , init: 0      }
+  - { phase: analysis, category: endpoint, target: Analysis.case_host_count             , type: number  , init: 0      }
+  - { phase: analysis, category: endpoint, target: Analysis.case_issue_count            , type: number  , init: 0      }
+  - { phase: analysis, category: endpoint, target: Analysis.case_user_count             , type: number  , init: 0      }
+  - { phase: analysis, category: email   , target: Analysis.Email.verdict               , type: string  , init: ""     }
+  - { phase: analysis, category: email   , target: Analysis.Email.confidence            , type: string  , init: ""     }
+  - { phase: analysis, category: email   , target: Analysis.Email.category              , type: string  , init: ""     }
+  - { phase: analysis, category: email   , target: Analysis.Email.signal_type           , type: string  , init: ""     }
+  - { phase: analysis, category: email   , target: Analysis.Email.source_verdict        , type: array   , init: []     }
+  - { phase: analysis, category: email   , target: Analysis.Email.response_recommended  , type: boolean , init: false  }
+  - { phase: analysis, category: email   , target: Analysis.Email.spread_level          , type: string  , init: ""     }
+  - { phase: analysis, category: email   , target: Analysis.Email.persistence_type      , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.verdict                     , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.confidence                  , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.response_recommended        , type: boolean , init: false  }
+  - { phase: analysis, category: identity, target: Analysis.compromise_level            , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.compromise_decision         , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.spread_level                , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_id           , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_name         , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_user         , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_type         , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.case_category               , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.mitre_tactic                , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.mitre_tactic_id             , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.mitre_technique             , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.mitre_technique_id          , type: string  , init: ""     }
+  - { phase: analysis, category: identity, target: Analysis.story                       , type: array   , init: []     }
+  - { phase: analysis, category: identity, target: Analysis.case_score                  , type: number  , init: 0      }
+  - { phase: analysis, category: identity, target: Analysis.case_host_count             , type: number  , init: 0      }
+  - { phase: analysis, category: identity, target: Analysis.case_issue_count            , type: number  , init: 0      }
+  - { phase: analysis, category: identity, target: Analysis.case_user_count             , type: number  , init: 0      }
+
+  # ------ containment ------
+
+  - { phase: containment, category: endpoint, target: Containment.story            , type: array   , init: []     }
+  - { phase: containment, category: endpoint, target: Containment.Execution        , type: object   , init: {}     }
+  - { phase: containment, category: email   , target: Containment.required         , type: boolean  , init: false     }
+  - { phase: containment, category: email   , target: Containment.action           , type: string  , init: ""     }
+  - { phase: containment, category: email   , target: Containment.story            , type: array   , init: []     }
+  - { phase: containment, category: email   , target: Containment.Execution        , type: object   , init: {}     }
+  - { phase: containment, category: identity, target: Blocklist.Final              , type: array   , init: []     }
+  - { phase: containment, category: identity, target: QuarantinedFilesFromEndpoints, type: array   , init: []     }
+  - { phase: containment, category: identity, target: Core.blocklist.added_hashes  , type: array   , init: []     }
+  - { phase: containment, category: identity, target: Core.Isolation.endpoint_id   , type: string  , init: ""     }
+
+  # ------ eradication ------
+
+  - { phase: eradication, category: endpoint, target: Eradication.story            , type: array   , init: []     }
+  - { phase: eradication, category: endpoint, target: Eradication.Execution        , type: object   , init: {}     }
+  - { phase: eradication, category: email   , target: Eradication.attempted        , type: boolean , init: false  }
+  - { phase: eradication, category: email   , target: Eradication.success          , type: boolean , init: false  }
+  - { phase: eradication, category: email   , target: Eradication.story            , type: array   , init: []     }
+  - { phase: eradication, category: email   , target: Eradication.Execution        , type: object   , init: {}     }
+  - { phase: eradication, category: identity, target: Eradication.attempted        , type: boolean , init: false  }
+  - { phase: eradication, category: identity, target: Eradication.credentials_reset, type: array   , init: []     }
+  - { phase: eradication, category: identity, target: Eradication.tokens_revoked   , type: array   , init: []     }
+  - { phase: eradication, category: identity, target: Eradication.story            , type: array   , init: []     }
+
+  # ------ recovery ------
+
+  - { phase: recovery, category: endpoint, target: Recovery.story              , type: array   , init: []     }
+  - { phase: recovery, category: endpoint, target: Recovery.Execution          , type: object   , init: {}     }
+  - { phase: recovery, category: email   , target: Recovery.status             , type: string  , init: ""     }
+  - { phase: recovery, category: email   , target: Recovery.monitoring_required, type: boolean , init: false  }
+  - { phase: recovery, category: email   , target: Recovery.story              , type: array   , init: []     }
+  - { phase: recovery, category: email   , target: Recovery.Execution          , type: object   , init: {}     }
+  - { phase: recovery, category: identity, target: Recovery.attempted          , type: boolean , init: false  }
+  - { phase: recovery, category: identity, target: Recovery.account_restored   , type: boolean , init: false  }
+  - { phase: recovery, category: identity, target: Recovery.monitoring_required, type: boolean , init: false  }
+  - { phase: recovery, category: identity, target: Recovery.restore_method     , type: string  , init: ""     }
+  - { phase: recovery, category: identity, target: Recovery.story              , type: array   , init: []     }

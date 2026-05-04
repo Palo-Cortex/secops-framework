@@ -54,7 +54,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "9000"
+      - "8500"
     separatecontext: false
     continueonerrortype: ""
     view: |-
@@ -1162,6 +1162,51 @@ tasks:
         "position": {
           "x": 2055,
           "y": 1522.5
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8500":
+    id: "8500"
+    taskid: c0000000-0000-4000-9999-000000008500
+    type: regular
+    task:
+      id: c0000000-0000-4000-9999-000000008500
+      version: -1
+      name: Initialize containment phase context
+      description: |-
+        Reads SOCFrameworkPhaseContract_V3 and pre-initializes every key
+        this phase will produce — top-level writes plus per-category
+        writes for the category in SOCFramework.Product.category. Gives
+        downstream sub-playbooks a stable, predictable read shape.
+
+        Never overwrites existing non-empty values — safe on re-entry.
+
+        To change initialization behavior, edit the phase contract schema
+        and regenerate the list. Never edit this task for per-key changes.
+      script: SOCInitializePhaseContext
+      type: regular
+      iscommand: false
+      brand: ""
+    scriptarguments:
+      phase:
+        simple: containment
+    nexttasks:
+      '#none#':
+      - "9000"
+    separatecontext: false
+    continueonerrortype: ""
+    continueonerror: true
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 200
         }
       }
     note: false
