@@ -693,20 +693,57 @@ def main():
                 f"SOCCommandWrapper: legacy response routing — vendor={vendor}"
             )
 
-    # Step 4: fall back to first available vendor
+    # Step 4: no matching vendor — skip cleanly with a recorded reason.
+    # Do NOT fall back to "first available vendor": that silently dispatches a
+    # non-matching vendor's command (e.g. core-quarantine-files against a
+    # CrowdStrike host because soc-quarantine-files lacks a CrowdStrike branch).
+    # Instead, write a skipped execution record so SOCSummarizePhase and the
+    # case audit trail show the action was attempted but had no vendor
+    # implementation for the alert's source.
     if not vendor_data:
-        demisto.debug(
-            "SOCCommandWrapper: no vendor resolved from category map or legacy response. "
-            f"action={action}, action_class={action_class}, "
-            f"available={list(responses.keys())}"
+        legacy_vendor = demisto.get(ctx, "SOCFramework.Product.response")
+        available = sorted(responses.keys())
+        skip_reason = (
+            f"no implementation for source vendor {legacy_vendor!r} in "
+            f"{action}.responses; available: {available}"
         )
-        for k, v in responses.items():
-            vendor = k
-            vendor_data = v
-            break
+        demisto.debug(
+            f"SOCCommandWrapper: skipping {action} — {skip_reason} "
+            f"(action_class={action_class})"
+        )
 
-    if not vendor_data:
-        return_error("No vendor response defined")
+        skip_record = {
+            "action": action,
+            "vendor": legacy_vendor or "(unresolved)",
+            "command": None,
+            "args": {},
+            "shadow_mode": shadow_mode,
+            "success": False,
+            "skipped": True,
+            "skip_reason": skip_reason,
+            "tags": tags or [],
+            "run_id": get_or_create_run_id(ctx),
+            "timestamp": utc_now(),
+        }
+        if output_key:
+            append_context(output_key, skip_record)
+
+        warroom_log(
+            f"SOC Framework — {action}: skipped (no vendor implementation)",
+            {
+                "reason": "no implementation for source vendor",
+                "source_vendor": legacy_vendor or "(unresolved)",
+                "action_class": action_class,
+                "action": action,
+                "available_vendors": available,
+            },
+            tags,
+        )
+        return_results(
+            f"{action} skipped — no implementation for source vendor "
+            f"{legacy_vendor or '(unresolved)'} in this action's responses"
+        )
+        return
 
     command = vendor_data.get("command")
     inline_args = vendor_data.get("inline_args", {})
