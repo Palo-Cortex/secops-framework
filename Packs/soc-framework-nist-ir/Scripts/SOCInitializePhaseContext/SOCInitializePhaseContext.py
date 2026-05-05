@@ -108,6 +108,12 @@ _ARRAY_LEAVES = {
     "persistence_removed", "credentials_reset", "tokens_revoked",
     "added_hashes", "final", "quarantinedfilesfromendpoints",
     "source_verdict",
+    # Execution is the per-action audit trail written by SOCCommandWrapper —
+    # always an array of records. The wrapper appends; if pre-init is {} the
+    # append silently fails and the wrapper falls back to SOCFramework.Execution[],
+    # which breaks downstream consumers (e.g. Recovery's ContainmentIsolated
+    # filter against Containment.Execution[]).
+    "execution",
 }
 
 
@@ -120,8 +126,6 @@ def infer_type(target):
         return "number"
     if tail in _ARRAY_LEAVES:
         return "array"
-    if tail == "execution":
-        return "object"
     return "string"
 
 

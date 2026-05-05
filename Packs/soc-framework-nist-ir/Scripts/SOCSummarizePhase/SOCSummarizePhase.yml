@@ -1,0 +1,64 @@
+commonfields:
+  id: SOCSummarizePhase
+  version: -1
+name: SOCSummarizePhase
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.12.5490952
+runas: DBotWeakRole
+runonce: false
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+sourcescripid: SOCSummarizePhase
+pswd: ''
+signature: ''
+scripttarget: 0
+comment: |
+  Project per-action records from <Phase>.Execution[] into phase-state
+  context fields (action, attempted, isolated_hosts, status, etc.). Runs
+  once near the end of an Endpoint Containment / Eradication / Recovery
+  playbook, after wrapper calls and before the story write.
+
+  Never overwrites existing non-empty values — safe to re-run if a phase
+  is re-entered.
+args:
+  - name: phase
+    description: NIST IR phase to summarize (containment | eradication | recovery)
+    required: true
+    auto: PREDEFINED
+    predefined:
+      - containment
+      - eradication
+      - recovery
+    supportedModules: []
+outputs:
+  - contextPath: SOCFramework.PhaseSummary.containment
+    description: Summary of fields written for Containment (when phase=containment)
+    type: unknown
+  - contextPath: SOCFramework.PhaseSummary.eradication
+    description: Summary of fields written for Eradication (when phase=eradication)
+    type: unknown
+  - contextPath: SOCFramework.PhaseSummary.recovery
+    description: Summary of fields written for Recovery (when phase=recovery)
+    type: unknown
+tags:
+  - SOC
+  - SOC_Framework
+  - NIST_IR
+  - Summarize
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework - NIST IR (800-61)
+    itemVersion: 1.0.0
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
+system: true

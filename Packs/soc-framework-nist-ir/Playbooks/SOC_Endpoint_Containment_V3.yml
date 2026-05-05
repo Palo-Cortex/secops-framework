@@ -309,6 +309,8 @@ tasks:
     scriptarguments:
       action:
         simple: soc-isolate-endpoint
+      output_key:
+        simple: Containment.Execution
       phase:
         simple: Containment
     separatecontext: false
@@ -495,6 +497,8 @@ tasks:
     scriptarguments:
       action:
         simple: soc-kill-process
+      output_key:
+        simple: Containment.Execution
       phase:
         simple: Containment
     separatecontext: false
@@ -531,7 +535,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "80"
+      - "75"
       Present:
       - "31"
     separatecontext: false
@@ -626,7 +630,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "80"
+      - "75"
       Allow:
       - "33"
     separatecontext: false
@@ -676,10 +680,12 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "80"
+      - "75"
     scriptarguments:
       action:
         simple: soc-block-indicators
+      output_key:
+        simple: Containment.Execution
       phase:
         simple: Containment
     separatecontext: false
@@ -690,6 +696,55 @@ tasks:
         "position": {
           "x": 480,
           "y": 2120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "75":
+    id: "75"
+    taskid: b2222222-0000-0000-0000-000000000075
+    type: regular
+    task:
+      id: b2222222-0000-0000-0000-000000000075
+      version: -1
+      name: Summarize Phase — project Containment.Execution into state fields
+      description: |
+        Read Containment.Execution[] (populated by SOCCommandWrapper) and
+        project per-action records into:
+          Containment.attempted        (bool)
+          Containment.required         (bool, mirrors attempted)
+          Containment.action           (csv of attempted action names)
+          Containment.status           (skipped | shadow | production | mixed)
+          Containment.isolated_hosts[] (Hostname when soc-isolate-endpoint ran)
+          Containment.disabled_users[] (User when soc-disable-user ran)
+
+        Never overwrites existing non-empty values. Runs once after all
+        wrapper calls have converged and before the story write.
+      script: SOCSummarizePhase
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "80"
+    scriptarguments:
+      phase:
+        simple: containment
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2200
         }
       }
     note: false
