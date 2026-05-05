@@ -307,6 +307,8 @@ tasks:
     scriptarguments:
       action:
         simple: soc-remove-file
+      output_key:
+        simple: Eradication.Execution
       phase:
         simple: Eradication
     separatecontext: false
@@ -499,6 +501,8 @@ tasks:
     scriptarguments:
       action:
         simple: soc-quarantine-files
+      output_key:
+        simple: Eradication.Execution
       phase:
         simple: Eradication
     separatecontext: false
@@ -535,7 +539,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "80"
+      - "75"
       Present:
       - "31"
     separatecontext: false
@@ -630,7 +634,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "80"
+      - "75"
       Allow:
       - "33"
     separatecontext: false
@@ -680,10 +684,12 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "80"
+      - "75"
     scriptarguments:
       action:
         simple: soc-remove-persistence
+      output_key:
+        simple: Eradication.Execution
       phase:
         simple: Eradication
     separatecontext: false
@@ -694,6 +700,56 @@ tasks:
         "position": {
           "x": 480,
           "y": 2120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "75":
+    id: "75"
+    taskid: c3333333-0000-0000-0000-000000000075
+    type: regular
+    task:
+      id: c3333333-0000-0000-0000-000000000075
+      version: -1
+      name: Summarize Phase — project Eradication.Execution into state fields
+      description: |
+        Read Eradication.Execution[] (populated by SOCCommandWrapper) and
+        project per-action records into:
+          Eradication.attempted             (bool)
+          Eradication.success               (bool — true only when all entries
+                                             succeeded and none in shadow mode)
+          Eradication.files_removed[]       (filename when soc-remove-file or
+                                             soc-quarantine-files attempted)
+          Eradication.persistence_removed[] (process name when
+                                             soc-remove-persistence attempted)
+
+        Never overwrites existing non-empty values. Runs once after all
+        wrapper calls have converged and before the story write.
+      script: SOCSummarizePhase
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "80"
+    scriptarguments:
+      phase:
+        simple: eradication
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2200
         }
       }
     note: false

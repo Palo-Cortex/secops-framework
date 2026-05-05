@@ -149,7 +149,7 @@ check("infer_type Containment.story → array", infer_type("Containment.story"),
 check("infer_type case_score → number", infer_type("Analysis.case_score"), "number")
 check("infer_type response_recommended → boolean", infer_type("Analysis.response_recommended"), "boolean")
 check("infer_type verdict → string", infer_type("Analysis.verdict"), "string")
-check("infer_type Execution → object", infer_type("Containment.Execution"), "object")
+check("infer_type Execution → array", infer_type("Containment.Execution"), "array")
 check("infer_type Blocklist.Final → array", infer_type("Blocklist.Final"), "array")
 
 # Resolve init: missing both fields

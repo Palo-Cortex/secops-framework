@@ -318,6 +318,8 @@ tasks:
     scriptarguments:
       action:
         simple: soc-deisolate-endpoint
+      output_key:
+        simple: Recovery.Execution
       phase:
         simple: Recovery
     separatecontext: false
@@ -358,7 +360,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "80"
+      - "75"
       Eligible:
       - "21"
     separatecontext: false
@@ -459,7 +461,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - "80"
+      - "75"
       Allow:
       - "23"
     separatecontext: false
@@ -509,10 +511,12 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "80"
+      - "75"
     scriptarguments:
       action:
         simple: soc-enable-user
+      output_key:
+        simple: Recovery.Execution
       phase:
         simple: Recovery
     separatecontext: false
@@ -523,6 +527,54 @@ tasks:
         "position": {
           "x": 480,
           "y": 1480
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "75":
+    id: "75"
+    taskid: d4444444-0000-0000-0000-000000000075
+    type: regular
+    task:
+      id: d4444444-0000-0000-0000-000000000075
+      version: -1
+      name: Summarize Phase — project Recovery.Execution into state fields
+      description: |
+        Read Recovery.Execution[] (populated by SOCCommandWrapper) and
+        project per-action records into:
+          Recovery.restore_required    (bool — any restorative action attempted)
+          Recovery.monitoring_required (bool — mirrors restore_required)
+          Recovery.restore_method      (csv: agent_deisolate | user_enable | …)
+          Recovery.monitoring_scope    (string: endpoint:<hostname> when scoped)
+          Recovery.status              (skipped | shadow | production | mixed)
+
+        Never overwrites existing non-empty values. Runs once after all
+        wrapper calls have converged and before the story write.
+      script: SOCSummarizePhase
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "80"
+    scriptarguments:
+      phase:
+        simple: recovery
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1500
         }
       }
     note: false
