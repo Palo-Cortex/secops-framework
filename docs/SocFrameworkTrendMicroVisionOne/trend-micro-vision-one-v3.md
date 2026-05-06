@@ -109,50 +109,52 @@ Creates an XSIAM alert for each Trend Micro Vision One workbench detection event
 
 #### Alert Fields
 
-| Issue Field | Source | Bucket |
-|---|---|---|
-| `vendor` | `vendor` | `computed` |
-| `product` | `product` | `computed` |
-| `originalalertid` | `originalalertid` | `computed` |
-| `originalalertname` | `originalalertname` | `computed` |
-| `originalalertsource` | `originalalertsource` | `computed` |
-| `externallink` | `externallink` | `computed` |
-| `alert_description` | `alert_description` | `computed` |
-| `severity` | `severity` | `computed` |
-| `mitretacticid` | `mitretacticid` | `computed` |
-| `mitretacticname` | `mitretacticname` | `computed` |
-| `mitretechniqueid` | `mitretechniqueid` | `computed` |
-| `mitretechniquename` | `mitretechniquename` | `computed` |
-| `agent_hostname` | `agent_hostname` | `computed` |
-| `agent_id` | `agent_id` | `computed` |
-| `agent_device_domain` | `agent_device_domain` | `computed` |
-| `actor_effective_username` | `actor_effective_username` | `computed` |
-| `actor_process_image_name` | `actor_process_image_name` | `computed` |
-| `actor_process_image_path` | `actor_process_image_path` | `computed` |
-| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |
-| `actor_process_command_line` | `actor_process_command_line` | `computed` |
-| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |
-| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |
-| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |
-| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |
-| `action_file_name` | `action_file_name` | `computed` |
-| `action_file_path` | `action_file_path` | `computed` |
-| `action_file_sha256` | `action_file_sha256` | `computed` |
-| `action_local_ip` | `action_local_ip` | `computed` |
-| `action_remote_ip` | `action_remote_ip` | `computed` |
-| `filehash` | `sha256` | `computed` |
-| `mac` | `mac_address` | `computed` |
-| `processcmd` | `cmdline` | `computed` |
-| `parentprocessname` | `parent_process_name` | `computed` |
-| `parentprocesspath` | `parent_process_path` | `computed` |
-| `external_pivot_url` | `workbench_link` | `computed` |
-| `externalstatus` | `status` | `computed` |
-| `source_insert_ts` | `alert_time` | `computed` |
-| `userid` | `user_id` | `computed` |
-| `additionalindicators` | `ioc_value` | `computed` |
-| `tim_main_indicator` | `ioc_value` | `computed` |
-| `trendmicrovisiononexdrinvestigationstatus` | `investigation_status` | `computed` |
-| `trendmicrovisiononexdrpriorityscore` | `score` | `computed` |
+Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
+
+| Issue Field | Source | Bucket | Description |
+|---|---|---|---|
+| `vendor` | `vendor` | `computed` |  |
+| `product` | `product` | `computed` |  |
+| `originalalertid` | `originalalertid` | `computed` |  |
+| `originalalertname` | `originalalertname` | `computed` |  |
+| `originalalertsource` | `originalalertsource` | `computed` |  |
+| `externallink` | `externallink` | `computed` |  |
+| `alert_description` | `alert_description` | `computed` |  |
+| `severity` | `severity` | `computed` |  |
+| `mitretacticid` | `mitretacticid` | `computed` |  |
+| `mitretacticname` | `mitretacticname` | `computed` |  |
+| `mitretechniqueid` | `mitretechniqueid` | `computed` |  |
+| `mitretechniquename` | `mitretechniquename` | `computed` |  |
+| `agent_hostname` | `agent_hostname` | `computed` |  |
+| `agent_id` | `agent_id` | `computed` |  |
+| `agent_device_domain` | `agent_device_domain` | `computed` |  |
+| `actor_effective_username` | `actor_effective_username` | `computed` |  |
+| `actor_process_image_name` | `actor_process_image_name` | `computed` |  |
+| `actor_process_image_path` | `actor_process_image_path` | `computed` |  |
+| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |  |
+| `actor_process_command_line` | `actor_process_command_line` | `computed` |  |
+| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |  |
+| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |  |
+| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |  |
+| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |  |
+| `action_file_name` | `action_file_name` | `computed` |  |
+| `action_file_path` | `action_file_path` | `computed` |  |
+| `action_file_sha256` | `action_file_sha256` | `computed` |  |
+| `action_local_ip` | `action_local_ip` | `computed` |  |
+| `action_remote_ip` | `action_remote_ip` | `computed` |  |
+| `filehash` | `sha256` | `computed` |  |
+| `mac` | `mac_address` | `computed` |  |
+| `processcmd` | `cmdline` | `computed` |  |
+| `parentprocessname` | `parent_process_name` | `computed` |  |
+| `parentprocesspath` | `parent_process_path` | `computed` |  |
+| `external_pivot_url` | `workbench_link` | `computed` |  |
+| `externalstatus` | `status` | `computed` |  |
+| `source_insert_ts` | `alert_time` | `computed` |  |
+| `userid` | `user_id` | `computed` |  |
+| `additionalindicators` | `ioc_value` | `computed` |  |
+| `tim_main_indicator` | `ioc_value` | `computed` |  |
+| `trendmicrovisiononexdrinvestigationstatus` | `investigation_status` | `computed` |  |
+| `trendmicrovisiononexdrpriorityscore` | `score` | `computed` |  |
 
 #### Pre-Alter XQL
 

@@ -60,43 +60,21 @@ Fields available in the raw ingest dataset.
 
 ### Field Mappings
 
-| XDM Path | Expression | Sources | Issue Field |
-|---|---|---|---|
-| `xdm.email.cc` | `json_extract_array(ccaddresses, "$.")` | `ccaddresses` | `emailcc` |
-| `xdm.email.recipients` | `json_extract_array(recipient, "$.")` | `recipient` | `emailrecipients` |
-| `xdm.email.sender` | `arrayindex(json_extract_array(fromaddress, "$."), 0)` | `fromaddress` | `emailsender` |
-| `xdm.email.return_path` | `sender` | `sender` | `emailreturnpath` |
-| `xdm.email.subject` | `subject` | `subject` | `emailsubject` |
-| `xdm.email.message_id` | `messageid` | `messageid` | `emailmessageid` |
-| `xdm.email.delivery_timestamp` | `parse_timestamp("%Y-%m-%dT%H:%M:%E*SZ", messagetime)` | `messagetime` | `emaildeliverytimestamp` |
-| `xdm.email.attachment.filename` | `json_extract_scalar(messageparts, "$[0].filename")` | `messageparts` | `emailattachmentfilename` |
-| `xdm.email.attachment.md5` | `json_extract_scalar(messageparts, "$[0].md5")` | `messageparts` | `emailattachmentmd5` |
-| `xdm.email.attachment.sha256` | `json_extract_scalar(messageparts, "$[0].sha256")` | `messageparts` | `emailattachmentsha256` |
-| `xdm.source.ipv4` | `senderip` | `senderip` | `emailsenderip` |
+What each XDM field is, where it sources from, what issue field it surfaces on, and why the mapping is shaped the way it is.
 
-#### Notes
-
-**`xdm.email.sender`**
-
-fromaddress is array-typed in the raw dataset. xdm.email.sender is
-scalar — first element only. Other addresses preserved in
-xdm.email.cc / xdm.email.recipients.
-
-**`xdm.email.delivery_timestamp`**
-
-TAP's messageTime is ISO 8601 string. XDM.email.delivery_timestamp is
-typed `date`. Use parse_timestamp() — to_timestamp() only accepts
-numeric epochs. Format string %E*S matches seconds with optional
-fractional component, final Z is literal. Without this cast install
-fails: "Field xdm.email.delivery_timestamp for model xdm is invalid.
-Expected date but received string."
-
-**`xdm.email.attachment.filename`**
-
-xdm.email.attachment.filename is scalar; only the first message part
-is mapped here. All parts are surfaced via the correlation rule's
-proofpointfilename / proofpointsha256 / proofpointmd5 alert_fields
-(comma-joined arraystrings).
+| XDM Path | Expression | Sources | Issue Field | Description |
+|---|---|---|---|---|
+| `xdm.email.cc` | `json_extract_array(ccaddresses, "$.")` | `ccaddresses` | `emailcc` |  |
+| `xdm.email.recipients` | `json_extract_array(recipient, "$.")` | `recipient` | `emailrecipients` |  |
+| `xdm.email.sender` | `arrayindex(json_extract_array(fromaddress, "$."), 0)` | `fromaddress` | `emailsender` | fromaddress is array-typed in the raw dataset. xdm.email.sender is scalar — first element only. Other addresses preserved in xdm.email.cc / xdm.email.recipients. |
+| `xdm.email.return_path` | `sender` | `sender` | `emailreturnpath` |  |
+| `xdm.email.subject` | `subject` | `subject` | `emailsubject` |  |
+| `xdm.email.message_id` | `messageid` | `messageid` | `emailmessageid` |  |
+| `xdm.email.delivery_timestamp` | `parse_timestamp("%Y-%m-%dT%H:%M:%E*SZ", messagetime)` | `messagetime` | `emaildeliverytimestamp` | TAP's messageTime is ISO 8601 string. XDM.email.delivery_timestamp is typed `date`. Use parse_timestamp() — to_timestamp() only accepts numeric epochs. Format string %E*S matches seconds with optional fractional component, final Z is literal. Without this cast install fails: "Field xdm.email.delivery_timestamp for model xdm is invalid. Expected date but received string." |
+| `xdm.email.attachment.filename` | `json_extract_scalar(messageparts, "$[0].filename")` | `messageparts` | `emailattachmentfilename` | xdm.email.attachment.filename is scalar; only the first message part is mapped here. All parts are surfaced via the correlation rule's proofpointfilename / proofpointsha256 / proofpointmd5 alert_fields (comma-joined arraystrings). |
+| `xdm.email.attachment.md5` | `json_extract_scalar(messageparts, "$[0].md5")` | `messageparts` | `emailattachmentmd5` |  |
+| `xdm.email.attachment.sha256` | `json_extract_scalar(messageparts, "$[0].sha256")` | `messageparts` | `emailattachmentsha256` |  |
+| `xdm.source.ipv4` | `senderip` | `senderip` | `emailsenderip` |  |
 
 ### Contributes (Artifacts.*)
 
@@ -161,88 +139,90 @@ event across multiple cycles).
 
 #### Alert Fields
 
-| Issue Field | Source | Bucket |
-|---|---|---|
-| `vendor` | `vendor` | `computed` |
-| `product` | `product` | `computed` |
-| `originalalertid` | `originalalertid` | `computed` |
-| `originalalertname` | `originalalertname` | `computed` |
-| `originalalertsource` | `originalalertsource` | `computed` |
-| `externallink` | `externallink` | `computed` |
-| `alert_description` | `alert_description` | `computed` |
-| `severity` | `severity` | `computed` |
-| `mitretacticid` | `mitretacticid` | `computed` |
-| `mitretacticname` | `mitretacticname` | `computed` |
-| `mitretechniqueid` | `mitretechniqueid` | `computed` |
-| `mitretechniquename` | `mitretechniquename` | `computed` |
-| `agent_hostname` | `agent_hostname` | `computed` |
-| `agent_id` | `agent_id` | `computed` |
-| `agent_device_domain` | `agent_device_domain` | `computed` |
-| `actor_effective_username` | `actor_effective_username` | `computed` |
-| `actor_process_image_name` | `actor_process_image_name` | `computed` |
-| `actor_process_image_path` | `actor_process_image_path` | `computed` |
-| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |
-| `actor_process_command_line` | `actor_process_command_line` | `computed` |
-| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |
-| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |
-| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |
-| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |
-| `action_file_name` | `action_file_name` | `computed` |
-| `action_file_path` | `action_file_path` | `computed` |
-| `action_file_sha256` | `action_file_sha256` | `computed` |
-| `action_local_ip` | `action_local_ip` | `computed` |
-| `action_remote_ip` | `action_remote_ip` | `computed` |
-| `action_file_md5` | `proofpointmd5` | `computed` |
-| `filehash` | `proofpointsha256` | `computed` |
-| `dns_query_name` | `dns_name` | `computed` |
-| `fw_url_domain` | `domain` | `computed` |
-| `emailmessageid` | `messageid` | `raw` |
-| `emailsenderip` | `senderip` | `raw` |
-| `emailsource` | `sender` | `raw` |
-| `fw_email_recipient` | `recipient` | `raw` |
-| `fw_email_sender` | `sender` | `raw` |
-| `fw_email_subject` | `subject` | `raw` |
-| `clickedurls` | `cleaned_url` | `computed` |
-| `linkedcount` | `linkedCount` | `computed` |
-| `socfwemaildeliveryaction` | `delivery_action` | `computed` |
-| `socfwemaildirection` | `direction` | `computed` |
-| `socfwemailthreaturl` | `threat_urls` | `computed` |
-| `socfwemailthreattype` | `threat_types` | `computed` |
-| `socfwemailthreatstatus` | `threat_statuses` | `computed` |
-| `socfwemailthreatid` | `threat_ids` | `computed` |
-| `socfwemailclassification` | `classification_all` | `computed` |
-| `socfwemailphishscore` | `phishscore` | `raw` |
-| `socfwemailmalwarescore` | `malwarescore` | `raw` |
-| `socfwemailcampaignid` | `campaignid` | `raw` |
-| `socfwemailclickip` | `clickip` | `raw` |
-| `socfwemailclicktime` | `clicktime` | `raw` |
-| `proofpointtapcampaignid` | `campaignid` | `raw` |
-| `proofpointtapclickip` | `clickip` | `raw` |
-| `proofpointtapclicktime` | `clicktime` | `raw` |
-| `proofpointtapguid` | `guid` | `raw` |
-| `proofpointtapheadersfrom` | `headerfrom` | `raw` |
-| `proofpointtapheadersreplyto` | `headerreplyto` | `raw` |
-| `proofpointtapid` | `id` | `raw` |
-| `proofpointtapimposterscore` | `impostorscore` | `raw` |
-| `proofpointtapmalwarescore` | `malwarescore` | `raw` |
-| `proofpointtapmessageid` | `messageid` | `raw` |
-| `proofpointtapmessageparts` | `messageparts` | `raw` |
-| `proofpointtapmessagesize` | `messagesize` | `raw` |
-| `proofpointtapphishingscore` | `phishscore` | `raw` |
-| `proofpointtapreplytoaddress` | `replytoaddress` | `raw` |
-| `proofpointtapsenderip` | `senderip` | `raw` |
-| `proofpointtapsmtpsender` | `sender` | `raw` |
-| `proofpointtapspamscore` | `spamscore` | `raw` |
-| `proofpointtapsubject` | `subject` | `raw` |
-| `proofpointtapthreatstatus` | `threatstatus` | `raw` |
-| `proofpointtapthreattime` | `threattime` | `raw` |
-| `proofpointtaptype` | `type` | `raw` |
-| `proofpointtapxmailer` | `xmailer` | `raw` |
-| `proofpointtapthreatid` | `bc_threatid` | `computed` |
-| `proofpointtapclassification` | `bc_classification` | `computed` |
-| `proofpointtapsuspiciousurl` | `bc_threaturl` | `computed` |
-| `proofpointtapthreaturl` | `bc_threaturl` | `computed` |
-| `proofpointtapthreatinfomap` | `bc_threatinfomap` | `computed` |
+Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
+
+| Issue Field | Source | Bucket | Description |
+|---|---|---|---|
+| `vendor` | `vendor` | `computed` |  |
+| `product` | `product` | `computed` |  |
+| `originalalertid` | `originalalertid` | `computed` |  |
+| `originalalertname` | `originalalertname` | `computed` |  |
+| `originalalertsource` | `originalalertsource` | `computed` |  |
+| `externallink` | `externallink` | `computed` |  |
+| `alert_description` | `alert_description` | `computed` |  |
+| `severity` | `severity` | `computed` |  |
+| `mitretacticid` | `mitretacticid` | `computed` |  |
+| `mitretacticname` | `mitretacticname` | `computed` |  |
+| `mitretechniqueid` | `mitretechniqueid` | `computed` |  |
+| `mitretechniquename` | `mitretechniquename` | `computed` |  |
+| `agent_hostname` | `agent_hostname` | `computed` |  |
+| `agent_id` | `agent_id` | `computed` |  |
+| `agent_device_domain` | `agent_device_domain` | `computed` |  |
+| `actor_effective_username` | `actor_effective_username` | `computed` |  |
+| `actor_process_image_name` | `actor_process_image_name` | `computed` |  |
+| `actor_process_image_path` | `actor_process_image_path` | `computed` |  |
+| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |  |
+| `actor_process_command_line` | `actor_process_command_line` | `computed` |  |
+| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |  |
+| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |  |
+| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |  |
+| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |  |
+| `action_file_name` | `action_file_name` | `computed` |  |
+| `action_file_path` | `action_file_path` | `computed` |  |
+| `action_file_sha256` | `action_file_sha256` | `computed` |  |
+| `action_local_ip` | `action_local_ip` | `computed` |  |
+| `action_remote_ip` | `action_remote_ip` | `computed` |  |
+| `action_file_md5` | `proofpointmd5` | `computed` |  |
+| `filehash` | `proofpointsha256` | `computed` |  |
+| `dns_query_name` | `dns_name` | `computed` |  |
+| `fw_url_domain` | `domain` | `computed` |  |
+| `emailmessageid` | `messageid` | `raw` |  |
+| `emailsenderip` | `senderip` | `raw` |  |
+| `emailsource` | `sender` | `raw` |  |
+| `fw_email_recipient` | `recipient` | `raw` |  |
+| `fw_email_sender` | `sender` | `raw` |  |
+| `fw_email_subject` | `subject` | `raw` |  |
+| `clickedurls` | `cleaned_url` | `computed` | Cleaned URL for downstream proxy/firewall correlation |
+| `linkedcount` | `linkedCount` | `computed` | Outbound-compromise scoring signal in Email_Analysis_V3 |
+| `socfwemaildeliveryaction` | `delivery_action` | `computed` |  |
+| `socfwemaildirection` | `direction` | `computed` |  |
+| `socfwemailthreaturl` | `threat_urls` | `computed` |  |
+| `socfwemailthreattype` | `threat_types` | `computed` |  |
+| `socfwemailthreatstatus` | `threat_statuses` | `computed` |  |
+| `socfwemailthreatid` | `threat_ids` | `computed` |  |
+| `socfwemailclassification` | `classification_all` | `computed` |  |
+| `socfwemailphishscore` | `phishscore` | `raw` |  |
+| `socfwemailmalwarescore` | `malwarescore` | `raw` |  |
+| `socfwemailcampaignid` | `campaignid` | `raw` |  |
+| `socfwemailclickip` | `clickip` | `raw` |  |
+| `socfwemailclicktime` | `clicktime` | `raw` |  |
+| `proofpointtapcampaignid` | `campaignid` | `raw` |  |
+| `proofpointtapclickip` | `clickip` | `raw` |  |
+| `proofpointtapclicktime` | `clicktime` | `raw` |  |
+| `proofpointtapguid` | `guid` | `raw` |  |
+| `proofpointtapheadersfrom` | `headerfrom` | `raw` |  |
+| `proofpointtapheadersreplyto` | `headerreplyto` | `raw` |  |
+| `proofpointtapid` | `id` | `raw` |  |
+| `proofpointtapimposterscore` | `impostorscore` | `raw` |  |
+| `proofpointtapmalwarescore` | `malwarescore` | `raw` |  |
+| `proofpointtapmessageid` | `messageid` | `raw` |  |
+| `proofpointtapmessageparts` | `messageparts` | `raw` |  |
+| `proofpointtapmessagesize` | `messagesize` | `raw` |  |
+| `proofpointtapphishingscore` | `phishscore` | `raw` |  |
+| `proofpointtapreplytoaddress` | `replytoaddress` | `raw` |  |
+| `proofpointtapsenderip` | `senderip` | `raw` |  |
+| `proofpointtapsmtpsender` | `sender` | `raw` |  |
+| `proofpointtapspamscore` | `spamscore` | `raw` |  |
+| `proofpointtapsubject` | `subject` | `raw` |  |
+| `proofpointtapthreatstatus` | `threatstatus` | `raw` |  |
+| `proofpointtapthreattime` | `threattime` | `raw` |  |
+| `proofpointtaptype` | `type` | `raw` |  |
+| `proofpointtapxmailer` | `xmailer` | `raw` |  |
+| `proofpointtapthreatid` | `bc_threatid` | `computed` |  |
+| `proofpointtapclassification` | `bc_classification` | `computed` |  |
+| `proofpointtapsuspiciousurl` | `bc_threaturl` | `computed` |  |
+| `proofpointtapthreaturl` | `bc_threaturl` | `computed` |  |
+| `proofpointtapthreatinfomap` | `bc_threatinfomap` | `computed` |  |
 
 #### Pre-Alter XQL
 

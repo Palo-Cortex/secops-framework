@@ -150,6 +150,9 @@ def render_record_list(title: str, records: list[Any], level: int = 2) -> list[s
     """Render a list of dict records as a labeled markdown table.
 
     Column headers are the union of keys preserved in first-seen order.
+    Keys named ``description`` / ``notes`` / ``purpose`` render as prose
+    (not wrapped in code formatting) since they hold human commentary
+    rather than identifiers.
     """
     if not records:
         return []
@@ -168,11 +171,19 @@ def render_record_list(title: str, records: list[Any], level: int = 2) -> list[s
     if not cols:
         return []
 
+    prose_cols = {"description", "notes", "purpose"}
+
     rows = []
     for r in records:
         if not isinstance(r, dict):
             continue
-        row = [md_code(r.get(c)) for c in cols]
+        row = []
+        for c in cols:
+            v = r.get(c)
+            if c in prose_cols:
+                row.append(md_escape_cell(v, max_len=400))
+            else:
+                row.append(md_code(v))
         rows.append(row)
     out.extend(md_table(cols, rows))
     return out
@@ -258,6 +269,11 @@ def _render_modeling_rule(mr: dict[str, Any]) -> list[str]:
     if fields:
         out.append("### Field Mappings")
         out.append("")
+        out.append(
+            "What each XDM field is, where it sources from, what issue field "
+            "it surfaces on, and why the mapping is shaped the way it is."
+        )
+        out.append("")
         rows = []
         for f in fields:
             if not isinstance(f, dict):
@@ -267,20 +283,12 @@ def _render_modeling_rule(mr: dict[str, Any]) -> list[str]:
                 md_code(f.get("expression")),
                 md_code(", ".join(f.get("sources", []))),
                 md_code(f.get("issue_field")),
+                md_escape_cell(f.get("notes"), max_len=400),
             ])
-        out.extend(md_table(["XDM Path", "Expression", "Sources", "Issue Field"], rows))
-
-        # Notes — collected separately so the table stays readable
-        noted = [(f.get("xdm_path"), f.get("notes")) for f in fields
-                 if isinstance(f, dict) and f.get("notes")]
-        if noted:
-            out.append("#### Notes")
-            out.append("")
-            for xdm, note in noted:
-                out.append(f"**`{xdm}`**")
-                out.append("")
-                out.append(str(note).strip())
-                out.append("")
+        out.extend(md_table(
+            ["XDM Path", "Expression", "Sources", "Issue Field", "Description"],
+            rows,
+        ))
 
     contributes = mr.get("contributes") or []
     if contributes:
@@ -337,6 +345,12 @@ def _render_correlation_rule(rule: dict[str, Any]) -> list[str]:
     if rule.get("alert_fields"):
         out.append("#### Alert Fields")
         out.append("")
+        out.append(
+            "Issue-field assignments emitted by the correlation rule. The "
+            "Description column captures intent — when present, this is what "
+            "downstream playbooks rely on the field meaning."
+        )
+        out.append("")
         rows = []
         for af in rule["alert_fields"]:
             if not isinstance(af, dict):
@@ -345,8 +359,12 @@ def _render_correlation_rule(rule: dict[str, Any]) -> list[str]:
                 md_code(af.get("issue_field")),
                 md_code(af.get("source")),
                 md_code(af.get("bucket")),
+                md_escape_cell(af.get("notes"), max_len=400),
             ])
-        out.extend(md_table(["Issue Field", "Source", "Bucket"], rows))
+        out.extend(md_table(
+            ["Issue Field", "Source", "Bucket", "Description"],
+            rows,
+        ))
 
     if rule.get("pre_alter"):
         out.append("#### Pre-Alter XQL")

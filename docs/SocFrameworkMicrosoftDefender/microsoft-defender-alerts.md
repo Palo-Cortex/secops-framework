@@ -45,37 +45,20 @@ Fields available in the raw ingest dataset.
 
 ### Field Mappings
 
-| XDM Path | Expression | Sources | Issue Field |
-|---|---|---|---|
-| `xdm.event.id` | `id` | `id` | `eventid` |
-| `xdm.event.description` | `coalesce(description, title)` | `description, title` | `eventdescription` |
-| `xdm.event.original_event_type` | `category` | `category` | `original_event_type` |
-| `xdm.alert.name` | `title` | `title` | `alertname` |
-| `xdm.alert.category` | `category` | `category` | `alertcategory` |
-| `xdm.alert.original_alert_id` | `providerAlertId` | `providerAlertId` | `originalalertid` |
-| `xdm.alert.severity` | `severity` | `severity` | `severity` |
-| `xdm.observer.product` | `productName` | `productName` | `observerproduct` |
-| `xdm.observer.vendor` | `"Microsoft"` |  | `observervendor` |
-| `xdm.network.http.url` | `alertWebUrl` | `alertWebUrl` | `alerturl` |
+What each XDM field is, where it sources from, what issue field it surfaces on, and why the mapping is shaped the way it is.
 
-#### Notes
-
-**`xdm.event.description`**
-
-Falls back to title when description is empty.
-
-**`xdm.alert.severity`**
-
-Microsoft Graph severity is a string ("low"/"medium"/"high"/"informational").
-XDM severity accepts string values; no coercion needed.
-
-**`xdm.observer.vendor`**
-
-Literal — vendor is constant for this rule.
-
-**`xdm.network.http.url`**
-
-Direct link back to the Microsoft Defender portal for the alert.
+| XDM Path | Expression | Sources | Issue Field | Description |
+|---|---|---|---|---|
+| `xdm.event.id` | `id` | `id` | `eventid` |  |
+| `xdm.event.description` | `coalesce(description, title)` | `description, title` | `eventdescription` | Falls back to title when description is empty. |
+| `xdm.event.original_event_type` | `category` | `category` | `original_event_type` |  |
+| `xdm.alert.name` | `title` | `title` | `alertname` |  |
+| `xdm.alert.category` | `category` | `category` | `alertcategory` |  |
+| `xdm.alert.original_alert_id` | `providerAlertId` | `providerAlertId` | `originalalertid` |  |
+| `xdm.alert.severity` | `severity` | `severity` | `severity` | Microsoft Graph severity is a string ("low"/"medium"/"high"/"informational"). XDM severity accepts string values; no coercion needed. |
+| `xdm.observer.product` | `productName` | `productName` | `observerproduct` |  |
+| `xdm.observer.vendor` | `"Microsoft"` |  | `observervendor` | Literal — vendor is constant for this rule. |
+| `xdm.network.http.url` | `alertWebUrl` | `alertWebUrl` | `alerturl` | Direct link back to the Microsoft Defender portal for the alert. |
 
 ### Contributes (Artifacts.*)
 
@@ -135,53 +118,55 @@ back-to-back ingestion polls from re-creating the same alert.
 
 #### Alert Fields
 
-| Issue Field | Source | Bucket |
-|---|---|---|
-| `vendor` | `vendor` | `computed` |
-| `product` | `product` | `computed` |
-| `originalalertid` | `originalalertid` | `computed` |
-| `originalalertname` | `originalalertname` | `computed` |
-| `originalalertsource` | `originalalertsource` | `computed` |
-| `externallink` | `externallink` | `computed` |
-| `alert_description` | `alert_description` | `computed` |
-| `severity` | `severity` | `computed` |
-| `mitretacticid` | `mitretacticid` | `computed` |
-| `mitretacticname` | `mitretacticname` | `computed` |
-| `mitretechniqueid` | `mitretechniqueid` | `computed` |
-| `mitretechniquename` | `mitretechniquename` | `computed` |
-| `agent_hostname` | `agent_hostname` | `computed` |
-| `agent_id` | `agent_id` | `computed` |
-| `agent_device_domain` | `agent_device_domain` | `computed` |
-| `actor_effective_username` | `actor_effective_username` | `computed` |
-| `actor_process_image_name` | `actor_process_image_name` | `computed` |
-| `actor_process_image_path` | `actor_process_image_path` | `computed` |
-| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |
-| `actor_process_command_line` | `actor_process_command_line` | `computed` |
-| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |
-| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |
-| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |
-| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |
-| `action_file_name` | `action_file_name` | `computed` |
-| `action_file_path` | `action_file_path` | `computed` |
-| `action_file_sha256` | `action_file_sha256` | `computed` |
-| `action_local_ip` | `action_local_ip` | `computed` |
-| `action_remote_ip` | `action_remote_ip` | `computed` |
-| `samaccountname` | `evidence_user_upn` | `computed` |
-| `usersid` | `evidence_user_userSid` | `computed` |
-| `actor_process_signature_vendor` | `evidence_process_signer` | `computed` |
-| `processid` | `evidence_process_pid` | `computed` |
-| `processcreationtime` | `evidence_process_starttime` | `computed` |
-| `causality_actor_process_signature_vendor` | `evidence_parent_process_signer` | `computed` |
-| `parentprocessid` | `evidence_parent_process_pid` | `computed` |
-| `parentprocessname` | `evidence_parent_process_name` | `computed` |
-| `parentprocesspath` | `evidence_parent_process_path` | `computed` |
-| `parentprocesssha256` | `evidence_parent_process_sha256` | `computed` |
-| `deviceexternalips` | `evidence_device_externalip` | `computed` |
-| `deviceosname` | `evidence_device_os` | `computed` |
-| `action_remote_ip_v6` | `evidence_remote_ipv6` | `computed` |
-| `alertaction` | `evidence_process_action` | `computed` |
-| `detectionid` | `detectorId` | `raw` |
-| `alert_name` | `alert_name` | `computed` |
+Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
+
+| Issue Field | Source | Bucket | Description |
+|---|---|---|---|
+| `vendor` | `vendor` | `computed` |  |
+| `product` | `product` | `computed` |  |
+| `originalalertid` | `originalalertid` | `computed` |  |
+| `originalalertname` | `originalalertname` | `computed` |  |
+| `originalalertsource` | `originalalertsource` | `computed` |  |
+| `externallink` | `externallink` | `computed` |  |
+| `alert_description` | `alert_description` | `computed` |  |
+| `severity` | `severity` | `computed` |  |
+| `mitretacticid` | `mitretacticid` | `computed` |  |
+| `mitretacticname` | `mitretacticname` | `computed` |  |
+| `mitretechniqueid` | `mitretechniqueid` | `computed` |  |
+| `mitretechniquename` | `mitretechniquename` | `computed` |  |
+| `agent_hostname` | `agent_hostname` | `computed` |  |
+| `agent_id` | `agent_id` | `computed` |  |
+| `agent_device_domain` | `agent_device_domain` | `computed` |  |
+| `actor_effective_username` | `actor_effective_username` | `computed` |  |
+| `actor_process_image_name` | `actor_process_image_name` | `computed` |  |
+| `actor_process_image_path` | `actor_process_image_path` | `computed` |  |
+| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |  |
+| `actor_process_command_line` | `actor_process_command_line` | `computed` |  |
+| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |  |
+| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |  |
+| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |  |
+| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |  |
+| `action_file_name` | `action_file_name` | `computed` |  |
+| `action_file_path` | `action_file_path` | `computed` |  |
+| `action_file_sha256` | `action_file_sha256` | `computed` |  |
+| `action_local_ip` | `action_local_ip` | `computed` |  |
+| `action_remote_ip` | `action_remote_ip` | `computed` |  |
+| `samaccountname` | `evidence_user_upn` | `computed` |  |
+| `usersid` | `evidence_user_userSid` | `computed` |  |
+| `actor_process_signature_vendor` | `evidence_process_signer` | `computed` |  |
+| `processid` | `evidence_process_pid` | `computed` |  |
+| `processcreationtime` | `evidence_process_starttime` | `computed` |  |
+| `causality_actor_process_signature_vendor` | `evidence_parent_process_signer` | `computed` |  |
+| `parentprocessid` | `evidence_parent_process_pid` | `computed` |  |
+| `parentprocessname` | `evidence_parent_process_name` | `computed` |  |
+| `parentprocesspath` | `evidence_parent_process_path` | `computed` |  |
+| `parentprocesssha256` | `evidence_parent_process_sha256` | `computed` |  |
+| `deviceexternalips` | `evidence_device_externalip` | `computed` |  |
+| `deviceosname` | `evidence_device_os` | `computed` |  |
+| `action_remote_ip_v6` | `evidence_remote_ipv6` | `computed` |  |
+| `alertaction` | `evidence_process_action` | `computed` |  |
+| `detectionid` | `detectorId` | `raw` |  |
+| `alert_name` | `alert_name` | `computed` |  |
 
 #### Pre-Alter XQL
 

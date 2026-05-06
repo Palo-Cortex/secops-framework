@@ -65,49 +65,26 @@ Fields available in the raw ingest dataset.
 
 ### Field Mappings
 
-| XDM Path | Expression | Sources | Issue Field |
-|---|---|---|---|
-| `xdm.alert.severity` | `concat(to_string(severity), " - ", severity_name)` | `severity, severity_name` | `severity` |
-| `xdm.event.original_event_type` | `incident_type` | `incident_type` | `original_event_type` |
-| `xdm.event.type` | `incident_type` | `incident_type` | `event_type` |
-| `xdm.event.description` | `description` | `description` | `alert_description` |
-| `xdm.source.host.hostname` | `device->hostname` | `device` | `hostname` |
-| `xdm.source.host.fqdn` | `device->machine_domain` | `device` | `hostfqdn` |
-| `xdm.source.host.os_family` | `device->os_version` | `device` | `hostos` |
-| `xdm.source.ipv4` | `device->local_ip` | `device` | `hostip` |
-| `xdm.source.user.username` | `user_name` | `user_name` | `username` |
-| `xdm.source.user.domain` | `device->machine_domain` | `device` | `userdomain` |
-| `xdm.source.user.groups` | `device->groups[]` | `device` | `usergroups` |
-| `xdm.source.process.pid` | `to_integer(local_process_id)` | `local_process_id` | `initiatorpid` |
-| `xdm.source.process.name` | `parent_details->filename` | `parent_details` | `initiatedby` |
-| `xdm.source.process.executable.path` | `parent_details->filepath` | `parent_details` | `initiatorpath` |
-| `xdm.source.process.executable.sha256` | `parent_details->sha256` | `parent_details` | `initiatorsha256` |
-| `xdm.source.process.command_line` | `parent_details->cmdline` | `parent_details` | `initiatorcmd` |
+What each XDM field is, where it sources from, what issue field it surfaces on, and why the mapping is shaped the way it is.
 
-#### Notes
-
-**`xdm.alert.severity`**
-
-Composite — vendor int + name pair joined for analyst readability.
-
-**`xdm.event.type`**
-
-Same source as original_event_type — duplicate mapping, intentional.
-
-**`xdm.source.host.fqdn`**
-
-machine_domain is being mapped to fqdn here AND to user.domain below.
-In Falcon's schema it's the AD domain — fqdn would be hostname + machine_domain
-concatenated. Flag for review.
-
-**`xdm.source.host.os_family`**
-
-os_version is the OS version string (e.g., "Windows 10 Pro"); os_family
-should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain.
-
-**`xdm.source.process.name`**
-
-Currently mapping PARENT process name into source.process slot.
+| XDM Path | Expression | Sources | Issue Field | Description |
+|---|---|---|---|---|
+| `xdm.alert.severity` | `concat(to_string(severity), " - ", severity_name)` | `severity, severity_name` | `severity` | Composite — vendor int + name pair joined for analyst readability. |
+| `xdm.event.original_event_type` | `incident_type` | `incident_type` | `original_event_type` |  |
+| `xdm.event.type` | `incident_type` | `incident_type` | `event_type` | Same source as original_event_type — duplicate mapping, intentional. |
+| `xdm.event.description` | `description` | `description` | `alert_description` |  |
+| `xdm.source.host.hostname` | `device->hostname` | `device` | `hostname` |  |
+| `xdm.source.host.fqdn` | `device->machine_domain` | `device` | `hostfqdn` | machine_domain is being mapped to fqdn here AND to user.domain below. In Falcon's schema it's the AD domain — fqdn would be hostname + machine_domain concatenated. Flag for review. |
+| `xdm.source.host.os_family` | `device->os_version` | `device` | `hostos` | os_version is the OS version string (e.g., "Windows 10 Pro"); os_family should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain. |
+| `xdm.source.ipv4` | `device->local_ip` | `device` | `hostip` |  |
+| `xdm.source.user.username` | `user_name` | `user_name` | `username` |  |
+| `xdm.source.user.domain` | `device->machine_domain` | `device` | `userdomain` |  |
+| `xdm.source.user.groups` | `device->groups[]` | `device` | `usergroups` |  |
+| `xdm.source.process.pid` | `to_integer(local_process_id)` | `local_process_id` | `initiatorpid` |  |
+| `xdm.source.process.name` | `parent_details->filename` | `parent_details` | `initiatedby` | Currently mapping PARENT process name into source.process slot. |
+| `xdm.source.process.executable.path` | `parent_details->filepath` | `parent_details` | `initiatorpath` |  |
+| `xdm.source.process.executable.sha256` | `parent_details->sha256` | `parent_details` | `initiatorsha256` |  |
+| `xdm.source.process.command_line` | `parent_details->cmdline` | `parent_details` | `initiatorcmd` |  |
 
 ### Contributes (Artifacts.*)
 
@@ -166,82 +143,84 @@ composite_id is CrowdStrike Falcon's unique identifier per detection event.
 
 #### Alert Fields
 
-| Issue Field | Source | Bucket |
-|---|---|---|
-| `vendor` | `vendor` | `computed` |
-| `product` | `product` | `computed` |
-| `originalalertid` | `originalalertid` | `computed` |
-| `originalalertname` | `originalalertname` | `computed` |
-| `originalalertsource` | `originalalertsource` | `computed` |
-| `externallink` | `externallink` | `computed` |
-| `alert_description` | `alert_description` | `computed` |
-| `severity` | `severity` | `computed` |
-| `mitretacticid` | `mitretacticid` | `computed` |
-| `mitretacticname` | `mitretacticname` | `computed` |
-| `mitretechniqueid` | `mitretechniqueid` | `computed` |
-| `mitretechniquename` | `mitretechniquename` | `computed` |
-| `agent_hostname` | `agent_hostname` | `computed` |
-| `agent_id` | `agent_id` | `computed` |
-| `agent_device_domain` | `agent_device_domain` | `computed` |
-| `actor_effective_username` | `actor_effective_username` | `computed` |
-| `actor_process_image_name` | `actor_process_image_name` | `computed` |
-| `actor_process_image_path` | `actor_process_image_path` | `computed` |
-| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |
-| `actor_process_command_line` | `actor_process_command_line` | `computed` |
-| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |
-| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |
-| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |
-| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |
-| `action_file_name` | `action_file_name` | `computed` |
-| `action_file_path` | `action_file_path` | `computed` |
-| `action_file_sha256` | `action_file_sha256` | `computed` |
-| `action_local_ip` | `action_local_ip` | `computed` |
-| `action_remote_ip` | `action_remote_ip` | `computed` |
-| `_device_id` | `device_id` | `computed` |
-| `mac` | `mac_address` | `computed` |
-| `prenatsourceip` | `local_ip` | `computed` |
-| `postnatdestinationip` | `remote_ips` | `computed` |
-| `deviceexternalips` | `external_ip` | `computed` |
-| `deviceou` | `device_ou_arr` | `computed` |
-| `userid` | `user_name` | `raw` |
-| `user_principal` | `user_principal` | `raw` |
-| `usersid` | `user_id` | `raw` |
-| `action_process_image_sha256` | `sha256` | `raw` |
-| `filehash` | `sha256` | `raw` |
-| `processmd5` | `md5` | `raw` |
-| `processcreationtime` | `process_start_time` | `raw` |
-| `parentprocessname` | `parent_process_name` | `computed` |
-| `parentprocesscmd` | `parent_process_cmd` | `computed` |
-| `parentprocesspath` | `parent_process_path` | `computed` |
-| `parentprocesssha256` | `parent_process_sha256` | `computed` |
-| `parentprocessid` | `parent_local_process_id` | `computed` |
-| `parentprocessids` | `parent_local_process_id` | `computed` |
-| `grandparentprocessname` | `grandparent_process_name` | `computed` |
-| `grandparentprocesscmd` | `grandparent_process_cmd` | `computed` |
-| `grandparentprocesspath` | `grandparent_process_path` | `computed` |
-| `grandparentprocesssha256` | `grandparent_process_sha256` | `computed` |
-| `grandparentprocessid` | `grandparent_local_process_id` | `computed` |
-| `processid` | `grandparent_local_process_id` | `computed` |
-| `causality_actor_causality_id` | `aggregate_id` | `raw` |
-| `causality_actor_process_command_line` | `cgo_cmd` | `computed` |
-| `sourceid` | `aggregate_id` | `raw` |
-| `dns_query_name` | `dns_queries` | `computed` |
-| `dns_requests` | `dns_requests` | `raw` |
-| `network_accesses` | `network_accesses` | `raw` |
-| `files_written` | `files_written` | `raw` |
-| `additionalindicators` | `ioc_value` | `raw` |
-| `tim_main_indicator` | `ioc_value` | `raw` |
-| `eventaction` | `ioc_source` | `raw` |
-| `originaldescription` | `alert_description` | `computed` |
-| `detectionid` | `template_instance_id` | `raw` |
-| `alertaction` | `pattern_disposition_description` | `raw` |
-| `pattern_disposition_details` | `pattern_disposition_details` | `raw` |
-| `external_pivot_url` | `falcon_host_link` | `raw` |
-| `externalconfidence` | `confidence` | `raw` |
-| `externalseverity` | `severity_int_raw` | `computed` |
-| `scenario` | `scenario` | `raw` |
-| `objective` | `objective` | `raw` |
-| `sourceInstance` | `sourceInstance` | `raw` |
+Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
+
+| Issue Field | Source | Bucket | Description |
+|---|---|---|---|
+| `vendor` | `vendor` | `computed` |  |
+| `product` | `product` | `computed` |  |
+| `originalalertid` | `originalalertid` | `computed` |  |
+| `originalalertname` | `originalalertname` | `computed` |  |
+| `originalalertsource` | `originalalertsource` | `computed` |  |
+| `externallink` | `externallink` | `computed` |  |
+| `alert_description` | `alert_description` | `computed` |  |
+| `severity` | `severity` | `computed` |  |
+| `mitretacticid` | `mitretacticid` | `computed` |  |
+| `mitretacticname` | `mitretacticname` | `computed` |  |
+| `mitretechniqueid` | `mitretechniqueid` | `computed` |  |
+| `mitretechniquename` | `mitretechniquename` | `computed` |  |
+| `agent_hostname` | `agent_hostname` | `computed` |  |
+| `agent_id` | `agent_id` | `computed` |  |
+| `agent_device_domain` | `agent_device_domain` | `computed` |  |
+| `actor_effective_username` | `actor_effective_username` | `computed` |  |
+| `actor_process_image_name` | `actor_process_image_name` | `computed` |  |
+| `actor_process_image_path` | `actor_process_image_path` | `computed` |  |
+| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |  |
+| `actor_process_command_line` | `actor_process_command_line` | `computed` |  |
+| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |  |
+| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |  |
+| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |  |
+| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |  |
+| `action_file_name` | `action_file_name` | `computed` |  |
+| `action_file_path` | `action_file_path` | `computed` |  |
+| `action_file_sha256` | `action_file_sha256` | `computed` |  |
+| `action_local_ip` | `action_local_ip` | `computed` |  |
+| `action_remote_ip` | `action_remote_ip` | `computed` |  |
+| `_device_id` | `device_id` | `computed` |  |
+| `mac` | `mac_address` | `computed` |  |
+| `prenatsourceip` | `local_ip` | `computed` |  |
+| `postnatdestinationip` | `remote_ips` | `computed` |  |
+| `deviceexternalips` | `external_ip` | `computed` |  |
+| `deviceou` | `device_ou_arr` | `computed` |  |
+| `userid` | `user_name` | `raw` |  |
+| `user_principal` | `user_principal` | `raw` |  |
+| `usersid` | `user_id` | `raw` |  |
+| `action_process_image_sha256` | `sha256` | `raw` |  |
+| `filehash` | `sha256` | `raw` |  |
+| `processmd5` | `md5` | `raw` |  |
+| `processcreationtime` | `process_start_time` | `raw` |  |
+| `parentprocessname` | `parent_process_name` | `computed` |  |
+| `parentprocesscmd` | `parent_process_cmd` | `computed` |  |
+| `parentprocesspath` | `parent_process_path` | `computed` |  |
+| `parentprocesssha256` | `parent_process_sha256` | `computed` |  |
+| `parentprocessid` | `parent_local_process_id` | `computed` |  |
+| `parentprocessids` | `parent_local_process_id` | `computed` |  |
+| `grandparentprocessname` | `grandparent_process_name` | `computed` |  |
+| `grandparentprocesscmd` | `grandparent_process_cmd` | `computed` |  |
+| `grandparentprocesspath` | `grandparent_process_path` | `computed` |  |
+| `grandparentprocesssha256` | `grandparent_process_sha256` | `computed` |  |
+| `grandparentprocessid` | `grandparent_local_process_id` | `computed` |  |
+| `processid` | `grandparent_local_process_id` | `computed` |  |
+| `causality_actor_causality_id` | `aggregate_id` | `raw` |  |
+| `causality_actor_process_command_line` | `cgo_cmd` | `computed` |  |
+| `sourceid` | `aggregate_id` | `raw` |  |
+| `dns_query_name` | `dns_queries` | `computed` |  |
+| `dns_requests` | `dns_requests` | `raw` |  |
+| `network_accesses` | `network_accesses` | `raw` |  |
+| `files_written` | `files_written` | `raw` |  |
+| `additionalindicators` | `ioc_value` | `raw` |  |
+| `tim_main_indicator` | `ioc_value` | `raw` |  |
+| `eventaction` | `ioc_source` | `raw` |  |
+| `originaldescription` | `alert_description` | `computed` |  |
+| `detectionid` | `template_instance_id` | `raw` |  |
+| `alertaction` | `pattern_disposition_description` | `raw` |  |
+| `pattern_disposition_details` | `pattern_disposition_details` | `raw` |  |
+| `external_pivot_url` | `falcon_host_link` | `raw` |  |
+| `externalconfidence` | `confidence` | `raw` |  |
+| `externalseverity` | `severity_int_raw` | `computed` |  |
+| `scenario` | `scenario` | `raw` |  |
+| `objective` | `objective` | `raw` |  |
+| `sourceInstance` | `sourceInstance` | `raw` |  |
 
 #### Pre-Alter XQL
 
