@@ -1,0 +1,461 @@
+# ============================================================================
+# Check Point NDR — Behavioral Generic Alerts
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Source-of-truth contract for the SOC Framework's pack content generator.
+# The generator reads this file and emits:
+#   - CorrelationRules/<name>.yml    (one per correlation_rules entry)
+#
+# No modeling rule emitted: the Broker VM ingestion already populates
+# checkpointndr_generic_alert_raw with structured top-level columns
+# (insight, type, count, probability, data, etc.). The correlation rule
+# reads those columns directly plus json_extract on _alert_data for the
+# fields that remain inside the payload.
+#
+# Replaces the OEM-default rule that produced empty alert_fields and
+# missing DS tags, causing SOC Framework playbooks to hang on
+# unclassified alerts.
+# ============================================================================
+vendor: check-point-ndr
+product: NDR
+data_source: checkpointndr_generic_alert_raw
+category: Network
+pack: soc-checkpoint-ndr
+
+raw_schema:
+
+  # ---- Top-level dataset columns (parsed by Broker VM ingestion) ----
+
+  insight:        {type: string, is_array: false}
+  type:           {type: string, is_array: false}
+  id:             {type: string, is_array: false}
+  count:          {type: string, is_array: false}
+  probability:    {type: string, is_array: false}
+  filter:         {type: string, is_array: false}
+  from:           {type: string, is_array: false}
+  to:             {type: string, is_array: false}
+  domain:         {type: string, is_array: false}
+  targetdomain:   {type: string, is_array: false}
+  data:           {type: string, is_array: false}
+  externalid:     {type: string, is_array: false}
+  editable:       {type: string, is_array: false}
+  mdr:            {type: string, is_array: false}
+  user:           {type: string, is_array: false}
+  updated:        {type: string, is_array: false}
+  created:        {type: string, is_array: false}
+
+  # ---- _alert_data — JSON-encoded payload requiring json_extract ----
+  # Subfields referenced (extracted in pre_alter):
+  #   $.alert_name, $.alert_description, $.alert_domain, $.severity,
+  #   $.alert_action_status, $.alert_source, $.externallink,
+  #   $.sourceips[], $.destinationips[], $.dstports[],
+  #   $.sentbytes, $.receivedbytes
+  # Plus data.statistics:
+  #   $.statistics.top_protection_name[], $.statistics.total_src,
+  #   $.statistics.total_dst
+
+  _alert_data:    {type: string, is_array: false}
+
+
+modeling_rule:
+  fromversion: "6.10.0"
+  modeling_rule_id: SOC_CheckPointNDR_ModelingRule
+  modeling_rule_name: SOC Check Point NDR Modeling Rule
+  directory_name: SOCCheckPointNDRModelingRules
+
+  # No filter — apply to all rows in checkpointndr_generic_alert_raw.
+  # The correlation rule's filter (`type = "Behavioral"`) scopes alert
+  # creation; the modeling rule maps every ingested row to XDM so the
+  # full dataset is queryable in cross-vendor analytics.
+  #
+  # Only XDM paths validated against the Data Model Rules editor are
+  # included. Vendor / product are intentionally omitted — XSIAM auto-
+  # populates xdm.observer.vendor and xdm.observer.product from the
+  # dataset's _vendor and _product system fields. Confidence,
+  # bytes_sent, bytes_received, threat_signature_name, and tenant_id
+  # are not part of the XDM schema and would cause modeling rule
+  # validation to fail; that data is still preserved on resulting
+  # alerts via the correlation rule's alert_fields (externalconfidence,
+  # checkpoint_protection, checkpoint_bytes_sent, etc.).
+
+  fields:
+
+    # ------ Event identity ------
+
+    - xdm_path: xdm.event.id
+      expression: to_string(id)
+      sources: [id]
+      issue_field: originalalertid
+
+    - xdm_path: xdm.event.type
+      expression: type
+      sources: [type]
+
+    - xdm_path: xdm.alert.original_alert_id
+      expression: to_string(id)
+      sources: [id]
+
+    # ------ Alert metadata ------
+
+    - xdm_path: xdm.alert.name
+      expression: insight
+      sources: [insight]
+      issue_field: originalalertname
+
+    - xdm_path: xdm.alert.description
+      expression: 'json_extract_scalar(_alert_data, "$.alert_description")'
+      sources: [_alert_data]
+      issue_field: alert_description
+
+    - xdm_path: xdm.alert.severity
+      expression: 'json_extract_scalar(_alert_data, "$.severity")'
+      sources: [_alert_data]
+      issue_field: severity
+      notes: |
+        Raw Check Point severity (SEV_0X0_X). The correlation rule's
+        pre_alter does the standard severity-string mapping; this XDM
+        field preserves the raw vendor value for analytics.
+
+    - xdm_path: xdm.alert.category
+      expression: 'arrayindex(split(insight, "."), 0)'
+      sources: [insight]
+      notes: |
+        First dot-segment of insight: "Behavioral" / "Threat" /
+        "Reputation" / "Anomaly" — Check Point's top-level alert family.
+
+    - xdm_path: xdm.alert.subcategory
+      expression: 'arrayindex(split(insight, "."), 1)'
+      sources: [insight]
+      notes: |
+        Second dot-segment: "Geo" / "Port" / etc. — the analytic
+        dimension within the family.
+
+    # ------ Network 5-tuple ------
+    # For inbound NDR alerts, sourceips[0] = external attacker
+    # and destinationips[0] = internal target. This convention
+    # matches what the correlation rule writes into action_remote_ip
+    # and action_local_ip respectively.
+
+    - xdm_path: xdm.source.ipv4
+      expression: 'arrayindex(json_extract_array(_alert_data, "$.sourceips"), 0)'
+      sources: [_alert_data]
+      issue_field: action_remote_ip
+
+    - xdm_path: xdm.target.ipv4
+      expression: 'arrayindex(json_extract_array(_alert_data, "$.destinationips"), 0)'
+      sources: [_alert_data]
+      issue_field: action_local_ip
+
+    - xdm_path: xdm.target.port
+      expression: 'to_integer(arrayindex(json_extract_array(_alert_data, "$.dstports"), 0))'
+      sources: [_alert_data]
+      issue_field: action_remote_port
+
+  # Coverage commitment — Artifacts category fields this modeling rule
+  # populates. Lifecycle-neutral: every consuming lifecycle's
+  # Artifacts.Network schema joins against this list to compute its
+  # coverage report.
+  contributes:
+    - Network.RemoteIP
+    - Network.LocalIP
+    - Network.RemotePort
+
+
+correlation_rules:
+
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC CheckPoint NDR - Behavioral Alerts'
+    name: 'SOC CheckPoint NDR - Behavioral Alerts'
+    description: >-
+      Reshapes Check Point NDR Behavioral alerts (from
+      checkpointndr_generic_alert_raw) into properly-formed XSIAM alerts.
+      Replaces the OEM-default rule, which produced empty alert_fields
+      and missing DS tags, causing SOC Framework playbooks to hang on
+      unclassified alerts. Extracts source/destination IPs, derives
+      category from the insight prefix, maps Check Point's SEV_0X0_X
+      severity ladder to XSIAM severity, and injects DS:Check Point/NDR
+      and DOM:Security tags so Foundation Product Classification routes
+      the alert into the Network category.
+    tags:
+      - SOCFramework
+      - Passthrough
+      - Network
+      - Check Point
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: REAL_TIME
+      mapping_strategy: CUSTOM
+      user_defined_category: cp_category
+      user_defined_severity: severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    alert_name: 'SOC CheckPoint NDR - $alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 1 hours
+      fields: [originalalertid]
+      notes: |
+        originalalertid sources from the dataset's `id` column —
+        Check Point NDR's per-alert unique identifier. Hourly
+        suppression handles cases where the same alert re-fires
+        on subsequent polling cycles before being closed.
+
+    pre_alter: |
+      // Vendor / product (required for SOCProductCategoryMap routing)
+      | alter vendor_name = "Check Point", product_name = "NDR"
+
+      // Scope to Behavioral.* insights. Other top-level types
+      // (Threat.*, Reputation.*, Anomaly.*) get their own rule entries
+      // with matching filters when samples appear.
+      | filter type = "Behavioral"
+
+      // Top-level columns are already parsed — rename for readability.
+      // `from` / `to` are XQL keywords; backtick-quote when referencing.
+      | alter
+              cp_insight     = insight,
+              cp_type        = type,
+              cp_id          = id,
+              cp_filter      = `filter`,
+              cp_probability = to_integer(probability),
+              cp_domain      = domain
+
+      // Extract scalar fields from the _alert_data payload
+      | alter
+              alert_name_raw          = json_extract_scalar(_alert_data, "$.alert_name"),
+              alert_description_raw   = json_extract_scalar(_alert_data, "$.alert_description"),
+              severity_raw            = json_extract_scalar(_alert_data, "$.severity"),
+              alert_action_status     = json_extract_scalar(_alert_data, "$.alert_action_status"),
+              external_link           = json_extract_scalar(_alert_data, "$.externallink"),
+              cp_alert_source         = json_extract_scalar(_alert_data, "$.alert_source"),
+              bytes_sent              = to_integer(json_extract_scalar(_alert_data, "$.sentbytes")),
+              bytes_received          = to_integer(json_extract_scalar(_alert_data, "$.receivedbytes"))
+
+      // Extract IP / port arrays from _alert_data; first element is the
+      // actionable IOC. For inbound NDR alerts (Behavioral.Geo, Behavioral.Port):
+      //   sourceips[0]      = external attacker  → action_remote_ip
+      //   destinationips[0] = target / asset     → action_local_ip
+      | alter
+              source_ips    = json_extract_array(_alert_data, "$.sourceips"),
+              dest_ips      = json_extract_array(_alert_data, "$.destinationips"),
+              dst_ports_arr = json_extract_array(_alert_data, "$.dstports")
+
+      | alter
+              src_ip   = arrayindex(source_ips, 0),
+              dst_ip   = arrayindex(dest_ips, 0),
+              dst_port = arrayindex(dst_ports_arr, 0)
+
+      // Extract enrichment from data.statistics. top_protection_name may
+      // be empty for Behavioral subtypes that don't have a Threat
+      // Prevention signature association (e.g. Behavioral.Geo.*).
+      | alter
+              protection_name  = arrayindex(json_extract_array(data, "$.statistics.top_protection_name"), 0),
+              total_src_count  = to_integer(json_extract_scalar(data, "$.statistics.total_src")),
+              total_dst_count  = to_integer(json_extract_scalar(data, "$.statistics.total_dst"))
+
+      // Severity mapping: Check Point SEV_0X0_X → XSIAM standard.
+      // Today only SEV_020_LOW and SEV_030_MEDIUM observed in this PoV;
+      // full ladder included for resilience.
+      | alter severity = if(
+              severity_raw = "SEV_050_CRITICAL", "Critical",
+              severity_raw = "SEV_040_HIGH",     "High",
+              severity_raw = "SEV_030_MEDIUM",   "Medium",
+              severity_raw = "SEV_020_LOW",      "Low",
+              severity_raw = "SEV_010_INFO",     "Informational",
+              "Low"
+          )
+
+      // Category derivation from the insight string structure.
+      //   Behavioral.Geo.Mexico        → cp_category=Behavioral, cp_subcategory=Geo
+      //   Behavioral.Port.11211.InnoDB → cp_category=Behavioral, cp_subcategory=Port
+      | alter
+              cp_category    = arrayindex(split(cp_insight, "."), 0),
+              cp_subcategory = arrayindex(split(cp_insight, "."), 1)
+
+      // Default category fallback when insight is empty or malformed
+      | alter cp_category = coalesce(cp_category, "Network")
+
+      // MITRE — empty for Behavioral alerts. Columns must exist for the
+      // four MITRE alert_fields entries required by the passthrough
+      // subtype validator.
+      | alter
+              mitretacticid       = null,
+              mitretacticname     = null,
+              mitretechniqueid    = null,
+              mitretechniquename  = null
+
+      // Build readable alert name following the Falcon / ProofPoint
+      // pattern: [Category] {actor} - {phase}: {detail}.
+      //
+      // For NDR alerts, the "actor" is the source→destination connection
+      // (visible directionality at a glance), the "phase" is Check Point's
+      // analytic dimension (Geo / Port / etc. — second insight segment),
+      // and the "detail" is the Threat Prevention signature name when
+      // associated, falling back to the full insight string when not.
+      //
+      //   Behavioral.Geo.Mexico (no protection_name):
+      //     [Network] 177.245.208.115 → 198.140.5.229 - Geo: Behavioral.Geo.Mexico
+      //
+      //   Behavioral.Port.11211.InnoDB (with protection_name):
+      //     [Network] 65.49.1.94 → 192.189.186.36 - Port: Memcached Web-Servers Network Flood Denial of Service
+      | alter alert_name = concat(
+              "[Network] ",
+              coalesce(src_ip, "Unknown"),
+              " → ",
+              coalesce(dst_ip, "Unknown"),
+              " - ",
+              coalesce(cp_subcategory, "Behavioral"),
+              ": ",
+              coalesce(protection_name, cp_insight, "Anomaly")
+          )
+
+      // Build alert description: Check Point's original text (preserved
+      // for analyst context — note that it sometimes references different
+      // IPs than sourceips/destinationips because it describes the
+      // originating behavioral pattern while the alert is a narrowed
+      // slice per the filter expression) plus a piped fact-list of the
+      // actionable IOCs and key metadata. Pattern matches Falcon's
+      // description format.
+      | alter alert_description = concat(
+              coalesce(alert_description_raw, "Check Point NDR Behavioral alert"),
+              " | Source: ",       coalesce(src_ip,                     "Unknown"),
+              " | Destination: ",  coalesce(dst_ip,                     "Unknown"),
+              " | Port: ",         coalesce(to_string(dst_port),        "Unknown"),
+              " | Severity: ",     coalesce(severity,                   "Unknown"),
+              " | Confidence: ",   coalesce(to_string(cp_probability),  "0"),
+              " | Bytes Sent: ",   coalesce(to_string(bytes_sent),      "0")
+          )
+
+      // ============================================================
+      // CANONICAL CORE NORMALIZATION
+      // Endpoint-shaped columns (agent_*, actor_*, parent_process_*)
+      // stay null for network alerts. Network-shaped columns drive
+      // Foundation_-_Normalize_Network_V3.
+      // ============================================================
+      | alter
+              vendor              = vendor_name,
+              product             = product_name,
+              originalalertid     = cp_id,
+              originalalertname   = cp_insight,
+              originalalertsource = "Check Point - NDR",
+              externallink        = external_link,
+              alert_description   = alert_description,
+              severity            = severity,
+              action_local_ip     = dst_ip,
+              action_remote_ip    = src_ip,
+              action_remote_port  = dst_port
+
+      // Check Point NDR-specific extensions preserved for analyst
+      // context and downstream enrichment.
+      | alter
+              originalalertconfidence = cp_probability,
+              originalalertfilter     = cp_filter,
+              checkpoint_protection   = protection_name,
+              checkpoint_subcategory  = cp_subcategory,
+              checkpoint_total_src    = total_src_count,
+              checkpoint_total_dst    = total_dst_count,
+              checkpoint_bytes_sent   = bytes_sent
+
+      // Tag injection — load-bearing for routing.
+      // Foundation Product Classification reads issue.tags, filters for
+      // entries containing DS:, lowercases and normalizes non-alnum
+      // characters to underscore. "DS:Check Point/NDR" becomes
+      // ds_check_point_ndr, which keys into SOCProductCategoryMap_V3
+      // → category: Network. Without this, downstream Workflow routing
+      // has no category to dispatch to and the playbook stalls.
+      | alter alert_tags = arraycreate("DS:Check Point/NDR", "DOM:Security")
+
+    final_projection:
+      - cp_id
+      - cp_insight
+      - cp_type
+      - cp_category
+      - cp_subcategory
+      - cp_filter
+      - cp_probability
+      - cp_domain
+      - src_ip
+      - dst_ip
+      - dst_port
+      - bytes_sent
+      - bytes_received
+      - protection_name
+      - total_src_count
+      - total_dst_count
+      - severity
+      - severity_raw
+      - alert_action_status
+      - alert_name
+      - alert_description
+      - external_link
+      - vendor
+      - product
+      - originalalertid
+      - originalalertname
+      - originalalertsource
+      - externallink
+      - mitretacticid
+      - mitretacticname
+      - mitretechniqueid
+      - mitretechniquename
+      - action_local_ip
+      - action_remote_ip
+      - action_remote_port
+      - originalalertconfidence
+      - originalalertfilter
+      - checkpoint_protection
+      - checkpoint_subcategory
+      - checkpoint_total_src
+      - checkpoint_total_dst
+      - checkpoint_bytes_sent
+      - alert_tags
+      - "*"
+
+    alert_fields:
+
+      # === CANONICAL CORE — required across every vendor pack ===
+      # LHS = issue field (what Foundation reads)
+      # RHS = pre_alter column with the matching canonical name
+      - {issue_field: vendor,              source: vendor,              bucket: computed}
+      - {issue_field: product,             source: product,             bucket: computed}
+      - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
+      - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink,        source: externallink,        bucket: computed}
+      - {issue_field: alert_description,   source: alert_description,   bucket: computed}
+      - {issue_field: severity,            source: severity,            bucket: computed}
+
+      # === MITRE — required by passthrough subtype validator ===
+      # Empty for Behavioral alerts; columns exist (set to null in pre_alter)
+      - {issue_field: mitretacticid,       source: mitretacticid,       bucket: mitre}
+      - {issue_field: mitretacticname,     source: mitretacticname,     bucket: mitre}
+      - {issue_field: mitretechniqueid,    source: mitretechniqueid,    bucket: mitre}
+      - {issue_field: mitretechniquename,  source: mitretechniquename,  bucket: mitre}
+
+      # === Network artifacts (consumed by Foundation_-_Normalize_Network_V3) ===
+      - {issue_field: action_local_ip,     source: action_local_ip,     bucket: computed}
+      - {issue_field: action_remote_ip,    source: action_remote_ip,    bucket: computed}
+      - {issue_field: action_remote_port,  source: action_remote_port,  bucket: computed}
+
+      # === Check Point NDR-specific extensions ===
+      - {issue_field: externalconfidence,  source: originalalertconfidence, bucket: computed}
+      - {issue_field: checkpoint_protection,    source: checkpoint_protection,    bucket: computed}
+      - {issue_field: checkpoint_subcategory,   source: checkpoint_subcategory,   bucket: computed}
+      - {issue_field: checkpoint_bytes_sent,    source: checkpoint_bytes_sent,    bucket: computed}
+
+      # === Tags (load-bearing for SOC Framework routing) ===
+      - {issue_field: tags,                source: alert_tags,          bucket: computed}
+
+    contributes:
+      - Network.RemoteIP
+      - Network.LocalIP
+      - Network.RemotePort
+      - Network.BytesSent
