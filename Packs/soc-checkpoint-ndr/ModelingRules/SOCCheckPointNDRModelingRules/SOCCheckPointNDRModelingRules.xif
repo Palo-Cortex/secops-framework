@@ -1,0 +1,13 @@
+[MODEL: dataset=checkpointndr_generic_alert_raw]
+alter
+xdm.event.id = to_string(id),
+xdm.event.type = type,
+xdm.alert.original_alert_id = to_string(id),
+xdm.alert.name = insight,
+xdm.alert.description = json_extract_scalar(_alert_data, "$.alert_description"),
+xdm.alert.severity = json_extract_scalar(_alert_data, "$.severity"),
+xdm.alert.category = arrayindex(split(insight, "."), 0),
+xdm.alert.subcategory = arrayindex(split(insight, "."), 1),
+xdm.source.ipv4 = arrayindex(json_extract_array(_alert_data, "$.sourceips"), 0),
+xdm.target.ipv4 = arrayindex(json_extract_array(_alert_data, "$.destinationips"), 0),
+xdm.target.port = to_integer(arrayindex(json_extract_array(_alert_data, "$.dstports"), 0));

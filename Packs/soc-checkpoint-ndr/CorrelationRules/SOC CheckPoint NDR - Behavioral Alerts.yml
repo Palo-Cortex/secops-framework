@@ -1,0 +1,170 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Network
+  - Check Point
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor
+  product: product
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  alert_description: alert_description
+  severity: severity
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  action_local_ip: action_local_ip
+  action_remote_ip: action_remote_ip
+  action_remote_port: action_remote_port
+  externalconfidence: originalalertconfidence
+  checkpoint_protection: checkpoint_protection
+  checkpoint_subcategory: checkpoint_subcategory
+  checkpoint_bytes_sent: checkpoint_bytes_sent
+  tags: alert_tags
+alert_name: SOC CheckPoint NDR - $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+name: SOC CheckPoint NDR - Behavioral Alerts
+description: >-
+  Reshapes Check Point NDR Behavioral alerts (from
+  checkpointndr_generic_alert_raw) into properly-formed XSIAM alerts. Replaces
+  the OEM-default rule, which produced empty alert_fields and missing DS tags,
+  causing SOC Framework playbooks to hang on unclassified alerts. Extracts
+  source/destination IPs, derives category from the insight prefix, maps Check
+  Point's SEV_0X0_X severity ladder to XSIAM severity, and injects DS:Check
+  Point/NDR and DOM:Security tags so Foundation Product Classification routes
+  the alert into the Network category.
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC CheckPoint NDR - Behavioral Alerts
+investigation_query_link: ''
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs: {}
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- originalalertid
+timezone: null
+user_defined_category: cp_category
+user_defined_severity: severity
+xql_query: |
+  dataset = checkpointndr_generic_alert_raw
+  | alter vendor_name = "Check Point", product_name = "NDR"
+
+  | filter type = "Behavioral"
+
+  | alter
+          cp_insight     = insight,
+          cp_type        = type,
+          cp_id          = id,
+          cp_filter      = `filter`,
+          cp_probability = to_integer(probability),
+          cp_domain      = domain
+
+  | alter
+          alert_name_raw          = json_extract_scalar(_alert_data, "$.alert_name"),
+          alert_description_raw   = json_extract_scalar(_alert_data, "$.alert_description"),
+          severity_raw            = json_extract_scalar(_alert_data, "$.severity"),
+          alert_action_status     = json_extract_scalar(_alert_data, "$.alert_action_status"),
+          external_link           = json_extract_scalar(_alert_data, "$.externallink"),
+          cp_alert_source         = json_extract_scalar(_alert_data, "$.alert_source"),
+          bytes_sent              = to_integer(json_extract_scalar(_alert_data, "$.sentbytes")),
+          bytes_received          = to_integer(json_extract_scalar(_alert_data, "$.receivedbytes"))
+
+  | alter
+          source_ips    = json_extract_array(_alert_data, "$.sourceips"),
+          dest_ips      = json_extract_array(_alert_data, "$.destinationips"),
+          dst_ports_arr = json_extract_array(_alert_data, "$.dstports")
+
+  | alter
+          src_ip   = arrayindex(source_ips, 0),
+          dst_ip   = arrayindex(dest_ips, 0),
+          dst_port = arrayindex(dst_ports_arr, 0)
+
+  | alter
+          protection_name  = arrayindex(json_extract_array(data, "$.statistics.top_protection_name"), 0),
+          total_src_count  = to_integer(json_extract_scalar(data, "$.statistics.total_src")),
+          total_dst_count  = to_integer(json_extract_scalar(data, "$.statistics.total_dst"))
+
+  | alter severity = if(
+          severity_raw = "SEV_050_CRITICAL", "Critical",
+          severity_raw = "SEV_040_HIGH",     "High",
+          severity_raw = "SEV_030_MEDIUM",   "Medium",
+          severity_raw = "SEV_020_LOW",      "Low",
+          severity_raw = "SEV_010_INFO",     "Informational",
+          "Low"
+      )
+
+  | alter
+          cp_category    = arrayindex(split(cp_insight, "."), 0),
+          cp_subcategory = arrayindex(split(cp_insight, "."), 1)
+
+  | alter cp_category = coalesce(cp_category, "Network")
+
+  | alter
+          mitretacticid       = null,
+          mitretacticname     = null,
+          mitretechniqueid    = null,
+          mitretechniquename  = null
+
+  | alter alert_name = concat(
+          "[Network] ",
+          coalesce(src_ip, "Unknown"),
+          " → ",
+          coalesce(dst_ip, "Unknown"),
+          " - ",
+          coalesce(cp_subcategory, "Behavioral"),
+          ": ",
+          coalesce(protection_name, cp_insight, "Anomaly")
+      )
+
+  | alter alert_description = concat(
+          coalesce(alert_description_raw, "Check Point NDR Behavioral alert"),
+          " | Source: ",       coalesce(src_ip,                     "Unknown"),
+          " | Destination: ",  coalesce(dst_ip,                     "Unknown"),
+          " | Port: ",         coalesce(to_string(dst_port),        "Unknown"),
+          " | Severity: ",     coalesce(severity,                   "Unknown"),
+          " | Confidence: ",   coalesce(to_string(cp_probability),  "0"),
+          " | Bytes Sent: ",   coalesce(to_string(bytes_sent),      "0")
+      )
+
+  | alter
+          vendor              = vendor_name,
+          product             = product_name,
+          originalalertid     = cp_id,
+          originalalertname   = cp_insight,
+          originalalertsource = "Check Point - NDR",
+          externallink        = external_link,
+          alert_description   = alert_description,
+          severity            = severity,
+          action_local_ip     = dst_ip,
+          action_remote_ip    = src_ip,
+          action_remote_port  = dst_port
+
+  | alter
+          originalalertconfidence = cp_probability,
+          originalalertfilter     = cp_filter,
+          checkpoint_protection   = protection_name,
+          checkpoint_subcategory  = cp_subcategory,
+          checkpoint_total_src    = total_src_count,
+          checkpoint_total_dst    = total_dst_count,
+          checkpoint_bytes_sent   = bytes_sent
+
+  | alter alert_tags = arraycreate("DS:Check Point/NDR", "DOM:Security")
+  | fields
+      cp_id, cp_insight, cp_type, cp_category, cp_subcategory, cp_filter, cp_probability, cp_domain, src_ip, dst_ip, dst_port, bytes_sent, bytes_received, protection_name, total_src_count, total_dst_count, severity, severity_raw, alert_action_status, alert_name, alert_description, external_link, vendor, product, originalalertid, originalalertname, originalalertsource, externallink, mitretacticid, mitretacticname, mitretechniqueid, mitretechniquename, action_local_ip, action_remote_ip, action_remote_port, originalalertconfidence, originalalertfilter, checkpoint_protection, checkpoint_subcategory, checkpoint_total_src, checkpoint_total_dst, checkpoint_bytes_sent, alert_tags, *
