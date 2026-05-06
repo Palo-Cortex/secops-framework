@@ -1,0 +1,27 @@
+# SOC Framework NIST IR (800-61) — Overview
+
+<!-- GENERATED FILE — do not edit by hand. Run `python tools/generate_pack_overviews.py` to regenerate. -->
+
+| Field | Value |
+|---|---|
+| ID | `soc-framework-nist-ir` |
+| Version | `1.5.49` |
+| Category | Utility |
+| Pack Path | `Packs/soc-framework-nist-ir` |
+| Manifest | [`Packs/soc-framework-nist-ir/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir/xsoar_config.json) |
+
+> ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
+
+## Manual Steps
+
+Documented post-install steps required to finish configuration.
+
+- [SOC Framework NIST IR - Manual Steps](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir/POST_CONFIG_README.md)
+
+## Custom Packs Installed
+
+Additional custom packs the installer pulls in alongside this pack.
+
+| Pack | System | Source |
+|---|---|---|
+| `soc-framework-nist-ir.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-v1.5.49/soc-framework-nist-ir-v1.5.49.zip) |

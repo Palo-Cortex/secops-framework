@@ -1,0 +1,90 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "mkdocs.yml.template"
+      - "schemas/**"
+      - "pack_catalog.json"
+      - "Packs/**/xsoar_config.json"
+      - "tools/generate_schema_docs.py"
+      - "tools/generate_pack_overviews.py"
+      - "tools/generate_mkdocs_nav.py"
+      - ".github/workflows/docs-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, cancel any in-progress run
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install mkdocs-material pymdown-extensions pyyaml
+
+      # Run generators in dependency order:
+      #   1. schema docs   — writes docs/<pack>/<schema>.md
+      #   2. pack overviews — writes docs/<pack>/overview.md
+      #   3. mkdocs nav    — reads catalog + docs/, writes mkdocs.yml
+      #
+      # Each generator prunes its own orphan files (matched by GENERATED banner).
+      - name: Regenerate schema docs
+        run: python tools/generate_schema_docs.py
+
+      - name: Regenerate pack overviews
+        run: python tools/generate_pack_overviews.py
+
+      - name: Regenerate mkdocs nav
+        run: python tools/generate_mkdocs_nav.py
+
+      - name: Fail if any generated file drifted
+        run: |
+          if ! git diff --quiet docs/ mkdocs.yml; then
+            echo "::error::Generated docs are out of date."
+            echo "Run the generators locally and commit:"
+            echo "  python tools/generate_schema_docs.py"
+            echo "  python tools/generate_pack_overviews.py"
+            echo "  python tools/generate_mkdocs_nav.py"
+            git --no-pager diff docs/ mkdocs.yml
+            exit 1
+          fi
+
+      - name: Build site
+        # NOTE: --strict is deliberately disabled for the initial launch.
+        # Existing hand-authored docs have broken cross-links and missing
+        # image references. Curate those (or remove stale docs like
+        # BRANCH_NAMING.md, CIA_*.md), then re-enable: `mkdocs build --strict`.
+        run: mkdocs build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

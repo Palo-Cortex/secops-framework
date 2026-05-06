@@ -87,6 +87,16 @@ def build_catalog_entry(
         cats = meta["categories"]
         category = cats[0] if isinstance(cats, list) else cats
 
+    # Preserve existing "docs_path" if present; otherwise default to docs/<id>.
+    # Catalog is the source of truth for where each pack's docs live — the
+    # docs generators read this field directly. Edits made by hand are
+    # preserved across rebuilds, the same way "visible" and "category" are.
+    docs_path = None
+    if existing_entry is not None and existing_entry.get("docs_path"):
+        docs_path = existing_entry["docs_path"]
+    else:
+        docs_path = f"docs/{pack_id}"
+
     # Detect xsoar_config.json and build raw URL if it exists
     xsoar_config_path = pack_dir / "xsoar_config.json"
     if xsoar_config_path.is_file():
@@ -103,6 +113,7 @@ def build_catalog_entry(
         "category": category,
         "version": version,
         "path": str(pack_dir.as_posix()),
+        "docs_path": docs_path,
         "visible": visible,
         "xsoar_config": xsoar_config_url,
     }
