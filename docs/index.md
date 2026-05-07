@@ -1,36 +1,48 @@
 # SOC Framework
 
-Opinionated, modular, production-grade SOC content built on Cortex XSIAM. Aligned to NIST IR 800-61.
+Opinionated, modular SOC content for Cortex XSIAM. Auditable end-to-end. Safe by default via Shadow Mode.
 
-The framework is the answer to two field failure modes: leading with migration
-narratives instead of outcomes, and pitching every XSIAM capability instead of
-a scoped PoV. It gives DCs an opinionated starting point and gives PS a clean
-inheritance path.
+The SOC Framework provides a structured, contract-driven layer over XSIAM that
+turns ad-hoc SecOps automation into something composable, testable, and
+upgradable. Built on NIST IR 800-61, every alert flows through the same
+lifecycle (Analysis → Containment → Eradication → Recovery), every action is
+gated by Shadow Mode by default, and every pack inherits the same contracts.
 
-## How the docs are organized
+The framework's three core values:
 
-**Architecture** — How the framework thinks. Alert flow, Upon Trigger,
-NIST IR lifecycle, Universal Command and Shadow Mode, Blue/Green deployment,
-Value Metrics. Start here if you're new.
+- **Auditable** — every framework action writes to a dataset; every phase
+  surface is contractually defined; every value driver maps to a metric.
+- **Modular** — vendor packs are interchangeable. Drop in a new EDR or email
+  source and the lifecycle adapts.
+- **Safe** — Shadow Mode is the default for every action. Flip a flag to go
+  to production. No surprises.
 
-**Contracts** — The contract schemas that govern what each layer reads and
-writes. `SOCFrameworkNormalizeMap_V3` defines the per-category Foundation
-normalizer outputs. `SOCFrameworkPhaseContract_V3` defines what each NIST IR
-phase produces.
+<div class="grid cards" markdown>
 
-**Vendor Packs** — One reference page per vendor data source. Documents the
-raw schema, modeling rule field mappings, and correlation rules. Generated
-from `schemas/vendors/<vendor>/<source>.yaml` — drift-checked in CI.
+-   :material-rocket-launch:{ .lg .middle } **Get Started**
 
-**Contributing** — How to submit a PR, what gets validated, multi-file edit
-patterns, component design guide.
+    ---
 
-## Source of truth
+    Concepts, the alert flow, the lifecycle. Read this first.
 
-Schemas under `schemas/` are the source of truth. Pages under **Contracts**
-and **Vendor Packs** are generated from those schemas by
-`tools/generate_schema_docs.py` and re-rendered on every push. Hand-editing
-those pages is a no-op — they get overwritten.
+    [Architecture →](architecture/index.md)
 
-Hand-authored prose lives under **Architecture** and **Contributing** and is
-edited directly in `docs/`.
+-   :material-foundation:{ .lg .middle } **Foundation**
+
+    ---
+
+    The two packs that define the framework: the contract layer and the
+    NIST IR lifecycle.
+
+    [Foundation →](foundation/index.md)
+
+-   :material-package-variant:{ .lg .middle } **Packs**
+
+    ---
+
+    Vendor coverage — endpoint, email, identity, network. One reference page
+    per data source.
+
+    [Packs →](packs/index.md)
+
+</div>

@@ -97,6 +97,14 @@ def build_catalog_entry(
     else:
         docs_path = f"docs/{pack_id}"
 
+    # Preserve existing "tier" if present. The docs nav generator buckets
+    # packs by tier — "foundation" packs (the framework's structural cores)
+    # render under a top-level Foundation section, everything else lands in
+    # Packs. There is no default; absence means "vendor pack" implicitly.
+    tier = None
+    if existing_entry is not None and existing_entry.get("tier"):
+        tier = existing_entry["tier"]
+
     # Detect xsoar_config.json and build raw URL if it exists
     xsoar_config_path = pack_dir / "xsoar_config.json"
     if xsoar_config_path.is_file():
@@ -107,7 +115,7 @@ def build_catalog_entry(
     else:
         xsoar_config_url = None
 
-    return {
+    entry = {
         "id": pack_id,
         "display_name": display_name,
         "category": category,
@@ -117,6 +125,9 @@ def build_catalog_entry(
         "visible": visible,
         "xsoar_config": xsoar_config_url,
     }
+    if tier:
+        entry["tier"] = tier
+    return entry
 
 
 def main():
