@@ -1,97 +1,101 @@
-# Post-Configuration — SOC Framework PoV Test Pack
+## How to install and set up
+
+1. **Install the SOC Framework Pack Manager** from the Marketplace.
+2. **Configure the SOC Framework Pack Manager integration instance:**
+    - API Key
+    - API ID
+    - API URL
+3. **Apply the Foundation pack** from the Playground:
+   ```
+   !SOCFWPackManager action=apply pack_id=soc-optimization-unified
+   ```
+4. **Run the health check** from the Playground:
+   ```
+   !SOCFWHealthCheck
+   ```
+   Correlation rule activation must be checked manually — the health check
+   inventories presence, not behavior.
+5. **Switch to the SOC Framework correlation rules** for your enabled sources
+   (SOC CrowdStrike Falcon, SOC Microsoft Defender, SOC Trend Micro, etc.). Disable any vendor
+   defaults that overlap with the Framework's rules.
+6. **Enable the Auto-Triage job** (`JOB_-_Auto_Triage_V3`).
+    - Default behavior closes cases with case risk score ≤ 40.
+    - Starring remains a supported alternative if your tenant uses Starred
+      Issues instead of risk scoring.
+7. **Create an Automation Trigger** for `EP_IR_NIST (800-61)_V3` on all alerts
+   of severity **Medium or higher**.
+8. **Configure the NIST IR Layout Rule:**
+    - Severity: **Medium or higher**
+    - Issue Domain: **Security**
 
 ---
 
-## Running the Turla Carbon scenario
+## How to run
 
-Open the playground or any case war room and run both commands.
-The shared `global_min` / `global_max` keeps both sources on the same time axis
-so the email delivery always appears ~2 hours before the endpoint detections.
+### Default
 
-### Send CrowdStrike Falcon events (138 endpoint detections)
+Once setup is complete, no further action is required:
 
-```
-!SOCFWPoVSend list_name="SOCFWPoVData_CrowdStrike_TurlaCarbon_V1"
-  instance_name="socfw_pov_crowdstrike_sender"
-  source_name="crowdstrike"
-  global_min="2025-12-02T13:00:00Z"
-  global_max="2025-12-04T12:01:07Z"
-```
+- Auto-Triage runs on schedule
+- NIST IR runs on every Medium+ alert
+- Value Metrics dashboards populate (MTTD, MTTI, MTTC, MTTE, MTTR)
 
-### Send Proofpoint TAP events (2 email threat events)
+### Show an attack
 
-```
-!SOCFWPoVSend list_name="SOCFWPoVData_TAP_TurlaCarbon_V1"
-  instance_name="socfw_pov_tap_sender"
-  source_name="proofpoint"
-  global_min="2025-12-02T13:00:00Z"
-  global_max="2025-12-04T12:01:07Z"
-```
+Optional — for live-fire demonstrations:
 
-Navigate to **Cases & Issues → Cases**. Cases appear within seconds for real-time rules.
+- **MITRE Turla Carbon Attack Lab**
+    - Configure XDR agent policies for **logging only**
+    - Install the XDR agent in a BYOS environment
+    - Run the Turla Carbon scenario; the Value Metrics dashboards light up
+      end-to-end through the lifecycle
 
 ---
 
-## What you should see
+## Reading the metrics
 
-- **Email alert**: `[Email] Gunter@SKT.LOCAL - Initial Access: Threat Email Delivered`
-- **Endpoint alerts**: `[Endpoint] Gunter@SKT.LOCAL - Command and Control: ...` (138 events grouped)
-- **Cross-source case**: XSIAM groups both into one case via shared `Gunter@SKT.LOCAL` username
-- **AI narrative**: spans both sources — email delivery → Carbon dropper execution → C2
-- **SOC Framework**: Foundation → Analysis → Containment → Eradication → Recovery (all shadow mode)
+Three dashboards, each scoped to a different view of the same execution data.
 
----
+### XSIAM SOC Value Driver Metrics V3
 
-## Replaying the scenario
+Top-level operational KPIs.
 
-Suppression IDs rotate automatically on every run. Just re-run the same commands.
-No cleanup needed between replays.
+- Total Cases
+- Total Starred Manual Cases
+- Critical & High Alerts
+- Security Tools Integration
+- Cases Auto Resolved
+- Total Manual Cases
+- Total Alerts by Source
+- Critical Alerts by Source
+- Average Alert Ingestion Lag
+- Top 20 Slowest Data Sources
+- MTTD (sec) — Mean Time To Detect
+- MTTI (min) — Mean Time To Investigate
+- MTTC (min) — Mean Time To Contain
+- MTTE (min) — Mean Time To Eradicate
+- MTTR (min) — Mean Time To Recovery
 
-To compress into a shorter window for a live demo:
+### XSIAM SOC Value Metrics — Full Run
 
-```
-!SOCFWPoVSend list_name="SOCFWPoVData_CrowdStrike_TurlaCarbon_V1"
-  instance_name="socfw_pov_crowdstrike_sender"
-  source_name="crowdstrike"
-  compress_window="30m"
-  global_min="2025-12-02T13:00:00Z"
-  global_max="2025-12-04T12:01:07Z"
-```
+Production-mode automation impact. Filtered to `execution_mode = "production"`.
 
----
+- Time Saved by Category
+- Time Saved by XSIAM per Task
+- XSIAM Vendor Usage
+- Tools Used by XSIAM by Hour
+- Total SOC Hours Worked by XSIAM
+- Analysts Required without XSIAM (Events Per Hour 8–13)
+- Analysts Required with XSIAM (EPH 8–13)
+- Total Alerts by Data Source
+- Total Alerts by Source — Total Alerts
+- Total Cases
+- Cases Auto Resolved
+- Total Manual Cases
+- Total Starred Manual Cases
 
-## Set the teardown reminder
+### XSIAM SOC Value Metrics — Shadow Mode
 
-Go to **Automation → Jobs → POV Teardown Reminder V1**.
-Set the schedule to fire on the last day of the PoV.
-The JOB creates a High severity case titled:
-`ACTION REQUIRED: Uninstall SOC Framework PoV Test Pack`
-
----
-
-## Teardown (before PS handoff)
-
-Complete in order:
-
-```
-☐ 1. Uninstall soc-framework-pov-test from Marketplace
-☐ 2. Delete socfw_pov_crowdstrike HTTP Collector
-      Settings → Data Sources → socfw_pov_crowdstrike → Delete
-☐ 3. Delete socfw_pov_tap HTTP Collector
-☐ 4. Set shadow_mode = false per action in SOCFrameworkActions_V3
-☐ 5. Help PS onboard real customer data sources (CrowdStrike, TAP integrations)
-☐ 6. Verify correlation rules fire on real data before leaving
-☐ 7. Close the teardown reminder case
-```
-
----
-
-## Adding future scenario sources (XDR agent, MS Defender, etc.)
-
-1. Build the TSV from lab execution
-2. Add as a new List: `SOCFWPoVData_<Vendor>_<Scenario>_V1`
-3. Create a new HTTP Collector in XSIAM targeting the correct dataset
-4. Add a new `SOCFWPoVSender` integration instance
-5. Run `!SOCFWPoVSend` with the new list name and instance name
-
-No code changes needed for new vendors.
+Same widget set as Full Run, filtered to `execution_mode = "shadow"`. Use this
+to show what the lifecycle *would* do in production while running safely in
+shadow.
