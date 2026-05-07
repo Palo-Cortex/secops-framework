@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
-"""Generate mkdocs.yml from mkdocs.yml.template by injecting auto-generated
-``Foundation`` and ``Packs`` nav sections.
+"""Generate mkdocs.yml from mkdocs.yml.template by injecting an auto-generated
+``Packs`` nav section.
 
 For every visible pack in ``pack_catalog.json``:
   - looks at the pack's ``docs_path`` for an ``overview.md``
   - looks for any other ``*.md`` files with the schema-doc generated banner
   - builds a sub-nav: Overview first, schema docs alphabetical
 
-Packs are bucketed by their ``tier`` field:
-  - ``tier: foundation``  →  Foundation section (framework-tier packs)
-  - anything else / unset →  Packs section (vendor / data-source packs)
-
-The template carries two markers that get substituted:
-  ``# {{AUTO_FOUNDATION}}``  and  ``# {{AUTO_PACKS}}``
+Then assembles a flat ``Packs`` section (all packs alphabetical by display
+name) and substitutes it into the template's ``# {{AUTO_PACKS}}`` marker.
 
 Usage::
 
@@ -34,12 +30,11 @@ DOCS_DIR     = REPO_ROOT / "docs"
 TEMPLATE     = REPO_ROOT / "mkdocs.yml.template"
 OUTPUT       = REPO_ROOT / "mkdocs.yml"
 
-MARKER_FOUNDATION = "# {{AUTO_FOUNDATION}}"
-MARKER_PACKS      = "# {{AUTO_PACKS}}"
+MARKER = "# {{AUTO_PACKS}}"
 
-# Banner fragments stamped by the schema generator. We use these to discover
-# what each generator produced — anything else under a pack's docs_path is
-# hand-authored and gets ignored by the nav generator.
+# Banner fragments stamped by the other two generators. We use these to
+# discover what each generator produced — anything else under a pack's
+# docs_path is hand-authored and gets ignored by the nav generator.
 SCHEMA_BANNER  = "tools/generate_schema_docs.py"
 OVERVIEW_NAME  = "overview.md"
 
@@ -107,23 +102,21 @@ def discover_pack_pages(docs_path: Path, repo_root: Path) -> list[tuple[str, str
 
 def render_packs_section(packs: list[dict], repo_root: Path,
                          indent: str) -> str:
-    """Render YAML lines for one nav section's pack list.
+    """Render the YAML lines for the auto ``Packs`` section.
 
-    Lines are emitted at the supplied indent (no parent header). The
-    caller wraps these inside a parent tab in the template — the nav
-    generator just produces the pack-list children.
-
-    Returns a multi-line string with no leading or trailing newline.
-    Returns an empty string if there are no packs to render so the section
-    cleanly degrades to just its index.md.
+    Indentation is matched to the marker's column so the inserted lines
+    align cleanly under the parent. Returns a multi-line string with
+    no leading or trailing newline.
     """
+    sub_indent = indent + "    "
+
     enriched: list[tuple[str, dict, list[tuple[str, str]]]] = []
     for entry in packs:
         docs_path_str = entry.get("docs_path") or f"docs/{entry.get('id')}"
         docs_path = (repo_root / docs_path_str).resolve()
         pages = discover_pack_pages(docs_path, repo_root)
         if not pages:
-            continue
+            continue  # visible pack with no generated docs — skip
         # Use pack id (slug) for nav label — display_name from pack_metadata
         # is often verbose ("SOC CrowdStrike Falcon Integration Enhancement
         # for Cortex XSIAM2") and wraps badly in the left rail. The id is
@@ -134,15 +127,35 @@ def render_packs_section(packs: list[dict], repo_root: Path,
     enriched.sort(key=lambda x: x[0].lower())
 
     if not enriched:
-        return ""
+        # Visible packs exist but none have generated docs yet
+        return f"{indent}- Packs:\n{sub_indent}- (no docs generated yet)"
 
-    lines: list[str] = []
+    lines: list[str] = [f"{indent}- Packs:"]
     for display, _entry, pages in enriched:
-        lines.append(f'{indent}- "{display}":')
+        lines.append(f'{sub_indent}- "{display}":')
         for label, rel in pages:
+            # Quote labels that contain YAML-significant characters
             safe_label = f'"{label}"' if any(c in label for c in ":#&*?!|>%@") else label
-            lines.append(f'{indent}    - {safe_label}: {rel}')
+            lines.append(f'{sub_indent}    - {safe_label}: {rel}')
     return "\n".join(lines)
+
+
+def render_mkdocs_yaml(template_text: str, packs_block: str) -> str:
+    """Substitute the marker line with the rendered packs block.
+
+    The marker may be indented to any depth. We match the line, capture its
+    leading whitespace, and inject the block at the same indent.
+    """
+    pattern = re.compile(r"^(\s*)" + re.escape(MARKER) + r"\s*$", re.MULTILINE)
+    match = pattern.search(template_text)
+    if not match:
+        raise ValueError(
+            f"Template is missing the {MARKER!r} marker — add it where the "
+            f"auto-generated Packs section should appear."
+        )
+    indent = match.group(1)
+    actual_block = render_packs_section.__cached_block__  # set below
+    return pattern.sub(lambda m: actual_block, template_text)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -172,30 +185,17 @@ def main(argv: list[str] | None = None) -> int:
 
     template_text = template_path.read_text()
 
-    # Bucket visible packs by tier
-    foundation_packs = [p for p in packs if (p.get("tier") or "").lower() == "foundation"]
-    vendor_packs     = [p for p in packs if (p.get("tier") or "").lower() != "foundation"]
+    # Find marker indentation, render packs block at that indent, then
+    # substitute. Splitting this into two steps avoids the closure trick.
+    pattern = re.compile(r"^(\s*)" + re.escape(MARKER) + r"\s*$", re.MULTILINE)
+    match = pattern.search(template_text)
+    if not match:
+        print(f"ERROR: template is missing the '{MARKER}' marker.", file=sys.stderr)
+        return 2
 
-    # Substitute each marker, preserving whatever indent the template carries.
-    # If a bucket is empty, the marker line is simply removed — the section's
-    # index.md still appears in nav but no pack children are listed.
-    rendered = template_text
-    for marker, bucket in [
-        (MARKER_FOUNDATION, foundation_packs),
-        (MARKER_PACKS,      vendor_packs),
-    ]:
-        pattern = re.compile(r"^(\s*)" + re.escape(marker) + r"\s*\n",
-                             re.MULTILINE)
-        match = pattern.search(rendered)
-        if not match:
-            print(f"ERROR: template is missing the '{marker}' marker.",
-                  file=sys.stderr)
-            return 2
-        indent = match.group(1)
-        block = render_packs_section(bucket, repo_root, indent)
-        replacement = (block + "\n") if block else ""
-        rendered = pattern.sub(lambda m: replacement, rendered, count=1)
-
+    indent = match.group(1)
+    packs_block = render_packs_section(packs, repo_root, indent)
+    rendered = pattern.sub(lambda m: packs_block, template_text, count=1)
     if not rendered.endswith("\n"):
         rendered += "\n"
 

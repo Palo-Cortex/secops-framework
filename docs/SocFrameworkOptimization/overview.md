@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkOptimization` |
-| Version | `2.1.48` |
+| Version | `2.1.49` |
 | Category | Use Case |
 | Pack Path | `Packs/SocFrameworkOptimization` |
 | Manifest | [`Packs/SocFrameworkOptimization/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkOptimization/xsoar_config.json) |

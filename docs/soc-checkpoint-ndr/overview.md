@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-checkpoint-ndr` |
-| Version | `1.0.0` |
+| Version | `1.0.1` |
 | Category | Network Security |
 | Pack Path | `Packs/soc-checkpoint-ndr` |
 | Manifest | [`Packs/soc-checkpoint-ndr/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-checkpoint-ndr/xsoar_config.json) |
