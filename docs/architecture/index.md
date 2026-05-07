@@ -4,45 +4,26 @@ The framework's structural concepts: how alerts flow, how phases hand off,
 where Shadow Mode kicks in, what the Universal Command does, and how value
 metrics roll up.
 
-## Read in this order
+!!! note "Migration in progress"
 
-If you're new to the framework, read these in order. Each builds on the
-previous one. Each is short — under 5 minutes — and stands alone if you
-just need the one concept.
+    The architecture topic prose (Alert Flow, Upon Trigger, Entry Points,
+    Auto Triage, Value Metrics) is currently in `docs/soc-optimization/`,
+    which is being decommissioned. Topics will move into this section as
+    they're updated for the current framework version.
 
-1. **[Alert Flow](alert-flow.md)** — the five-stage path from raw vendor
-   event to closed alert. The mental model that makes everything else
-   make sense.
-2. **[Upon Trigger](upon-trigger.md)** — the single doorway every alert
-   walks through. Why the framework uses one entry point and not many.
-3. **[Entry Points](entry-points.md)** — the inventory of `EP_*`
-   playbooks. Today there's one; the slot exists for the next lifecycle.
-4. **[Auto Triage](auto-triage.md)** — the fast pre-filter that decides
-   which alerts deserve the full lifecycle and which close immediately.
-5. **[NIST IR Lifecycle](nist-ir-lifecycle.md)** — the four phases:
-   Analysis, Containment, Eradication, Recovery. What each phase does
-   and how they hand off via the phase contract.
-6. **[Universal Command & Shadow Mode](universal-command-shadow-mode.md)** —
-   how every action is gated. The single boolean that flips a pack from
-   preview to production.
-7. **[Value Metrics](value-metrics.md)** — MTTD/MTTC/MTTE/MTTR, the two
-   dashboards, and the dataset that drives them.
+    For now, the most accurate references are the schema docs themselves —
+    they describe the contracts the architecture implements:
 
-## Read by need
+    - [`SOCFrameworkPhaseContract_V3`](../soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.md) — the NIST IR phase contract
+    - [`SOCFrameworkNormalizeMap_V3`](../soc-optimization-unified/SOCFrameworkNormalizeMap_V3.md) — Foundation normalizer outputs
 
-If you're solving a specific problem:
+## Core concepts (planned topics)
 
-- *"An alert came in but nothing ran"* — start with [Upon Trigger](upon-trigger.md)
-  and [Entry Points](entry-points.md)
-- *"The lifecycle ran but didn't do anything"* — [Universal Command &
-  Shadow Mode](universal-command-shadow-mode.md). Probably what you want.
-- *"How do I prove value to the customer?"* — [Value Metrics](value-metrics.md)
-- *"Why does the framework care about CIA scores?"* — [Auto Triage](auto-triage.md)
-- *"What does each NIST IR phase actually do?"* — [NIST IR Lifecycle](nist-ir-lifecycle.md)
+- **Alert Flow** — how alerts enter the framework, what runs on them, and where they exit
+- **Upon Trigger** — the entry-point pattern; what playbooks fire and why
+- **Entry Points** — the inventory of `EP_*` playbooks and their categories
+- **Universal Command & Shadow Mode** — how every action is gated; how to flip to production
+- **NIST IR Lifecycle** — Analysis → Containment → Eradication → Recovery; phase contracts
+- **Value Metrics** — MTTD/MTTC/MTTE/MTTR, dashboards, the `xsiam_socfw_ir_execution_raw` dataset
 
-## How these docs relate to the schemas
-
-Architecture docs explain *why* things are shaped the way they are. The
-[Foundation](../foundation/index.md) schema docs define *exactly* what
-each phase reads and writes, field by field. When the schema and the
-prose diverge, the schema is authoritative.
+These will land here as the soc-optimization-unified pack is fully documented.
