@@ -10,6 +10,12 @@
 | Pack Path | `Packs/SocFrameworkMicrosoftDefender` |
 | Manifest | [`Packs/SocFrameworkMicrosoftDefender/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkMicrosoftDefender/xsoar_config.json) |
 
+## Schemas
+
+Reference documentation for the schemas this pack defines.
+
+- [Microsoft Defender for Endpoint (microsoft-defender)](microsoft-defender-alerts.md)
+
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
 
 ## Manual Steps

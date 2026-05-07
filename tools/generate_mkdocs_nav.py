@@ -117,7 +117,11 @@ def render_packs_section(packs: list[dict], repo_root: Path,
         pages = discover_pack_pages(docs_path, repo_root)
         if not pages:
             continue  # visible pack with no generated docs — skip
-        display = entry.get("display_name") or entry.get("id") or "(unnamed)"
+        # Use pack id (slug) for nav label — display_name from pack_metadata
+        # is often verbose ("SOC CrowdStrike Falcon Integration Enhancement
+        # for Cortex XSIAM2") and wraps badly in the left rail. The id is
+        # short, stable, and matches what authors recognize.
+        display = entry.get("id") or entry.get("display_name") or "(unnamed)"
         enriched.append((display, entry, pages))
 
     enriched.sort(key=lambda x: x[0].lower())

@@ -10,6 +10,12 @@
 | Pack Path | `Packs/SocFrameworkProofPointTap` |
 | Manifest | [`Packs/SocFrameworkProofPointTap/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkProofPointTap/xsoar_config.json) |
 
+## Schemas
+
+Reference documentation for the schemas this pack defines.
+
+- [TAP (proofpoint-tap)](proofpoint-tap-threats.md)
+
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
 
 ## Manual Steps

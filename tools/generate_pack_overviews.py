@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -228,6 +229,56 @@ def _render_exported_playbooks(items: list[Any]) -> list[str]:
     return out
 
 
+# Marker fragment that schema docs carry in their generated banner. Used
+# to scan a pack's docs folder for sibling schema pages without coupling
+# to file naming. Must stay in sync with generate_schema_docs.py's banner.
+SCHEMA_BANNER_FRAGMENT = "tools/generate_schema_docs.py"
+
+
+def _discover_schemas_for_pack(docs_dir: Path) -> list[tuple[str, str]]:
+    """Find sibling schema docs in this pack's docs folder.
+
+    Returns ``[(label, filename), ...]`` sorted alphabetically by label.
+    Only matches files containing the schema generator's banner — overview.md
+    and any hand-authored Markdown are skipped.
+    """
+    if not docs_dir.exists():
+        return []
+    found: list[tuple[str, str]] = []
+    for md in sorted(docs_dir.glob("*.md")):
+        if md.name == "overview.md":
+            continue
+        try:
+            text = md.read_text()
+        except OSError:
+            continue
+        if SCHEMA_BANNER_FRAGMENT not in text[:600]:
+            continue
+        # Use the file's first H1 heading as the label
+        title = md.stem
+        for line in text.splitlines():
+            if line.startswith("# "):
+                title = line[2:].strip()
+                break
+        # Strip render suffixes ("— Vendor Schema", "— Phase Contract", etc.)
+        title = re.sub(r"\s+—\s+(Vendor Schema|.*Contract.*)\s*$", "", title).strip()
+        found.append((title, md.name))
+    return sorted(found, key=lambda x: x[0].lower())
+
+
+def _render_schemas_section(schemas: list[tuple[str, str]]) -> list[str]:
+    """Render the Schemas section linking each sibling schema doc."""
+    if not schemas:
+        return []
+    out = ["## Schemas", "",
+           "Reference documentation for the schemas this pack defines.",
+           ""]
+    for label, filename in schemas:
+        out.append(f"- [{label}]({filename})")
+    out.append("")
+    return out
+
+
 # Section render order for the overview page
 SECTION_ORDER: list[tuple[str, Any]] = [
     ("post_config_docs",      _render_post_config_docs),
@@ -244,7 +295,8 @@ SECTION_ORDER: list[tuple[str, Any]] = [
 # Per-pack overview rendering
 # ---------------------------------------------------------------------------
 
-def render_overview(pack_entry: dict, xsoar_config: dict, source_rel: str) -> str:
+def render_overview(pack_entry: dict, xsoar_config: dict, source_rel: str,
+                    schemas: list[tuple[str, str]] | None = None) -> str:
     out: list[str] = []
 
     title = pack_entry.get("display_name") or pack_entry.get("id", "Pack")
@@ -263,7 +315,12 @@ def render_overview(pack_entry: dict, xsoar_config: dict, source_rel: str) -> st
     rows = [r for r in rows if r[1]]
     out.extend(md_table(["Field", "Value"], rows))
 
-    # If there are post_config_docs, surface them prominently right below identity
+    # Schemas section right after identity — puts schemas as the second
+    # entry in the right-rail TOC so they're immediately discoverable.
+    if schemas:
+        out.extend(_render_schemas_section(schemas))
+
+    # If there are post_config_docs, surface them prominently
     if xsoar_config.get("post_config_docs"):
         out.append(
             "> ⚠️ This pack requires manual post-install steps. "
@@ -356,7 +413,8 @@ def process_pack(pack_entry: dict, *, repo_root: Path, docs_root: Path,
     rel_in = _safe_rel(cfg_path, repo_root)
     rel_out = _safe_rel(out_path, repo_root)
 
-    rendered = render_overview(pack_entry, xsoar_config, rel_in)
+    rendered = render_overview(pack_entry, xsoar_config, rel_in,
+                                schemas=_discover_schemas_for_pack(docs_dir))
     if not rendered.endswith("\n"):
         rendered += "\n"
 

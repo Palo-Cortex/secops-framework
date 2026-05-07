@@ -10,6 +10,12 @@
 | Pack Path | `Packs/SocFrameworkTrendMicroVisionOne` |
 | Manifest | [`Packs/SocFrameworkTrendMicroVisionOne/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkTrendMicroVisionOne/xsoar_config.json) |
 
+## Schemas
+
+Reference documentation for the schemas this pack defines.
+
+- [Vision One (trend-vision-one)](trend-micro-vision-one-v3.md)
+
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
 
 ## Manual Steps

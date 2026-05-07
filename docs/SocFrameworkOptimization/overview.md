@@ -16,7 +16,7 @@
 
 Documented post-install steps required to finish configuration.
 
-- [SOC Framework - Manual Steps](https://github.com/Palo-Cortex/soc-optimization/blob/main/POST_CONFIG_README.md)
+- [SOC Framework - Manual Steps](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkOptimization/POST_CONFIG_README.md)
 
 ## Custom Packs Installed
 
