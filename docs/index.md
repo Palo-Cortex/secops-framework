@@ -8,7 +8,17 @@ upgradable. Built on NIST IR 800-61, every alert flows through the same
 lifecycle (Analysis → Containment → Eradication → Recovery), every action is
 gated by Shadow Mode by default, and every pack inherits the same contracts.
 
-The framework's three core values:
+## Install & Setup
+
+**[→ SOC Framework Install & Setup](getting-started.md)**
+
+Step-by-step tenant configuration: install the SOC Framework Package Manager,
+deploy `soc-optimization-unified`, run `!SOCFWHealthCheck`, enable Auto Triage,
+wire the automation trigger. This is the same canonical doc referenced by
+`xsiam-pov-automation` and the package manager — single source of truth for
+getting a tenant ready.
+
+## Three core values
 
 - **Auditable** — every framework action writes to a dataset; every phase
   surface is contractually defined; every value driver maps to a metric.
@@ -17,9 +27,11 @@ The framework's three core values:
 - **Safe** — Shadow Mode is the default for every action. Flip a flag to go
   to production. No surprises.
 
+## Learn the framework
+
 <div class="grid cards" markdown>
 
--   :material-rocket-launch:{ .lg .middle } **Get Started**
+-   **Architecture**
 
     ---
 
@@ -27,7 +39,7 @@ The framework's three core values:
 
     [Architecture →](architecture/index.md)
 
--   :material-foundation:{ .lg .middle } **Foundation**
+-   **Foundation**
 
     ---
 
@@ -36,7 +48,7 @@ The framework's three core values:
 
     [Foundation →](foundation/index.md)
 
--   :material-package-variant:{ .lg .middle } **Packs**
+-   **Packs**
 
     ---
 
