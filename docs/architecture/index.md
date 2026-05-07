@@ -1,48 +1,60 @@
-# Architecture
+# SOC Framework
 
-The framework's structural concepts: how alerts flow, how phases hand off,
-where Shadow Mode kicks in, what the Universal Command does, and how value
-metrics roll up.
+Opinionated, modular SOC content for Cortex XSIAM. Auditable end-to-end. Safe by default via Shadow Mode.
 
-## Read in this order
+The SOC Framework provides a structured, contract-driven layer over XSIAM that
+turns ad-hoc SecOps automation into something composable, testable, and
+upgradable. Built on NIST IR 800-61, every alert flows through the same
+lifecycle (Analysis → Containment → Eradication → Recovery), every action is
+gated by Shadow Mode by default, and every pack inherits the same contracts.
 
-If you're new to the framework, read these in order. Each builds on the
-previous one. Each is short — under 5 minutes — and stands alone if you
-just need the one concept.
+## Install & Setup
 
-1. **[Alert Flow](alert-flow.md)** — the five-stage path from raw vendor
-   event to closed alert. The mental model that makes everything else
-   make sense.
-2. **[Upon Trigger](upon-trigger.md)** — the single doorway every alert
-   walks through. Why the framework uses one entry point and not many.
-3. **[Entry Points](entry-points.md)** — the inventory of `EP_*`
-   playbooks. Today there's one; the slot exists for the next lifecycle.
-4. **[Auto Triage](auto-triage.md)** — the fast pre-filter that decides
-   which alerts deserve the full lifecycle and which close immediately.
-5. **[NIST IR Lifecycle](nist-ir-lifecycle.md)** — the four phases:
-   Analysis, Containment, Eradication, Recovery. What each phase does
-   and how they hand off via the phase contract.
-6. **[Universal Command & Shadow Mode](universal-command-shadow-mode.md)** —
-   how every action is gated. The single boolean that flips a pack from
-   preview to production.
-7. **[Value Metrics](value-metrics.md)** — MTTD/MTTC/MTTE/MTTR, the two
-   dashboards, and the dataset that drives them.
+**[→ SOC Framework Install & Setup](getting-started.md)**
 
-## Read by need
+Step-by-step tenant configuration: install the SOC Framework Package Manager,
+deploy `soc-optimization-unified`, run `!SOCFWHealthCheck`, enable Auto Triage,
+wire the automation trigger. This is the same canonical doc referenced by
+`xsiam-pov-automation` and the package manager — single source of truth for
+getting a tenant ready.
 
-If you're solving a specific problem:
+## Three core values
 
-- *"An alert came in but nothing ran"* — start with [Upon Trigger](upon-trigger.md)
-  and [Entry Points](entry-points.md)
-- *"The lifecycle ran but didn't do anything"* — [Universal Command &
-  Shadow Mode](universal-command-shadow-mode.md). Probably what you want.
-- *"How do I prove value to the customer?"* — [Value Metrics](value-metrics.md)
-- *"Why does the framework care about CIA scores?"* — [Auto Triage](auto-triage.md)
-- *"What does each NIST IR phase actually do?"* — [NIST IR Lifecycle](nist-ir-lifecycle.md)
+- **Auditable** — every framework action writes to a dataset; every phase
+  surface is contractually defined; every value driver maps to a metric.
+- **Modular** — vendor packs are interchangeable. Drop in a new EDR or email
+  source and the lifecycle adapts.
+- **Safe** — Shadow Mode is the default for every action. Flip a flag to go
+  to production. No surprises.
 
-## How these docs relate to the schemas
+## Learn the framework
 
-Architecture docs explain *why* things are shaped the way they are. The
-[Foundation](../foundation/index.md) schema docs define *exactly* what
-each phase reads and writes, field by field. When the schema and the
-prose diverge, the schema is authoritative.
+<div class="grid cards" markdown>
+
+-   **Architecture**
+
+    ---
+
+    Concepts, the alert flow, the lifecycle. Read this first.
+
+    [Architecture →](architecture/index.md)
+
+-   **Foundation**
+
+    ---
+
+    The two packs that define the framework: the contract layer and the
+    NIST IR lifecycle.
+
+    [Foundation →](foundation/index.md)
+
+-   **Packs**
+
+    ---
+
+    Vendor coverage — endpoint, email, identity, network. One reference page
+    per data source.
+
+    [Packs →](packs/index.md)
+
+</div>
