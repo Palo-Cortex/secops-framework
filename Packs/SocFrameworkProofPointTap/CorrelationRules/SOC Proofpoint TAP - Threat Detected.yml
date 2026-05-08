@@ -107,10 +107,12 @@ description: >-
   legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via
   proofpointtap* fields). Legacy fields marked for removal when old phishing
   pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon
-  and other endpoint sources): action_file_sha256 (attachment hash),
-  user_principal (UPN match), and action_local_ip (clickip → endpoint local_ip).
-  actor_effective_username carries the SAM-format username for matching against
-  vendors that emit bare names.
+  and other endpoint sources): actor_effective_username (UPN format, e.g.
+  "Gunter@SKT.LOCAL", matches CrowdStrike's user_name field byte-for-byte),
+  user_principal (full UPN, parallel pivot), action_local_ip (clickip → endpoint
+  local_ip), and action_file_sha256 (attachment hash). The username contract
+  across all framework vendor rules is full UPN -- vendors that emit bare SAM or
+  DOMAIN\user must normalize to UPN in their own pre_alter block.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC Proofpoint TAP - Threat Detected
@@ -205,8 +207,6 @@ xql_query: |
 
   | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)
 
-  | alter recipient_local = replex(to_string(recipient), "@.*$", "")
-
   | alter
           vendor                              = vendor_name,
           product                             = product_name,
@@ -223,7 +223,7 @@ xql_query: |
           agent_hostname                      = null,
           agent_id                            = null,
           agent_device_domain                 = domain,
-          actor_effective_username            = recipient_local,
+          actor_effective_username            = to_string(recipient),
           actor_process_image_name            = null,
           actor_process_image_path            = null,
           actor_process_image_sha256          = null,
