@@ -33,7 +33,7 @@ The framework's three core values:
 
     [Architecture →](architecture/index.md)
 
--   **Foundation**
+-   :material-foundation:{ .lg .middle } **Foundation**
 
     ---
 
@@ -42,7 +42,7 @@ The framework's three core values:
 
     [Foundation →](foundation/index.md)
 
--   **Packs**
+-   :material-package-variant:{ .lg .middle } **Packs**
 
     ---
 
