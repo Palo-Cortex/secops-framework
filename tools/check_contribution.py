@@ -30,7 +30,11 @@ WORKFLOW
                                  Workflow, wrong namespace writes, missing
                                  Lifecycle phase boundaries.
   6. validate_shadow_mode.py     Shadow mode consistency across all UC actions.
-  7. upload_package.sh           Deploy changed packs to review tenant.
+  7. prep_docs.py --check        Documentation drift gate — wraps the four
+                                 doc generators (pack overviews, schema docs,
+                                 mkdocs nav, home page). Fails if a schema or
+                                 pack edit lands without regenerating docs.
+  8. upload_package.sh           Deploy changed packs to review tenant.
                                  Runs in both local and CI — credentials come
                                  from .env locally, GitHub Secrets in CI.
                                  Includes platform health check — aborts if
@@ -490,13 +494,35 @@ def main() -> None:
         ),
     ))
 
+    # ── Step 7: prep_docs --check (once, framework-wide) ──────────────────────
+    # Drift gate for the MkDocs site. Wraps four generators that read schemas,
+    # pack metadata, and pack_catalog.json to produce docs/ and mkdocs.yml. A
+    # schema or pack edit without a doc regen will fail here. Runs after
+    # validate_shadow_mode so structural failures surface as themselves
+    # (a broken schema would otherwise show up as a docs failure first).
+    # Sits before the upload gate so a stale-docs PR fails CI without
+    # burning a tenant deploy.
+    results.append(run_step(
+        "prep_docs --check",
+        [sys.executable, "tools/prep_docs.py", "--check"],
+        args.ci,
+        remediation=(
+            "Documentation generators detected drift between committed docs/\n"
+            "and what the generators would produce from current schemas, pack\n"
+            "metadata, and pack_catalog.json. Regenerate locally:\n"
+            "  python3 tools/prep_docs.py\n"
+            "Then commit the resulting changes under docs/ and mkdocs.yml\n"
+            "alongside the schema or pack edit that triggered them."
+        ),
+    ))
+
     # ── Gate: abort before upload if any validation failed ────────────────────
     # No point shipping content that's known-broken. Halt here so the user fixes
     # issues locally instead of waiting for the upload to fail (or worse,
     # succeed and silently break the tenant).
     abort_if_failed(results, "pre-upload validation")
 
-    # ── Step 7: upload ────────────────────────────────────────────────────────
+    # ── Step 8: upload ────────────────────────────────────────────────────────
     if not args.no_upload:
         for pack in packs:
             results.append(run_step(

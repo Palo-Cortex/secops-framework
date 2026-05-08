@@ -1,0 +1,300 @@
+name: SOC Packs — Contribution Intake
+
+# ─────────────────────────────────────────────────────────────────
+# Pre-merge intake stage. Runs on every PR targeting main BEFORE
+# the existing soc-packs-pr-gate workflow is allowed to proceed.
+#
+# Job 1 · guard      — skip if head commit is from the bot itself
+#                      (prevents an infinite loop after auto-commit)
+# Job 2 · detect     — find packs with content changes (same diff
+#                      logic as soc-packs-pr-gate detect job)
+# Job 3 · intake     — run check_contribution.py to normalize + validate
+#                      in one pass, commit any normalized files back to
+#                      the PR branch, then deploy to the CONTRIB tenant
+#                      using XSIAM_CONTRIB_* secrets
+# Job 4 · comment    — clear stale intake labels (including
+#                      intake:approved — any new push forces re-review),
+#                      set the fresh outcome label, post a sticky PR
+#                      comment with stage results and reviewer next steps
+#
+# After this workflow succeeds, the reviewer opens the contrib tenant,
+# inspects the deployed content in the XSIAM UI, and adds the
+# `intake:approved` label. The existing soc-packs-pr-gate workflow
+# is gated on that label and will not proceed without it.
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write        # auto-commit normalized files back to PR branch
+  pull-requests: write   # add/remove labels, post sticky comment
+  issues: write          # comments use the issues API
+
+env:
+  PACKS_DIR: Packs
+  DEMISTO_SDK_VERSION: "1.38.14"
+  DEMISTO_SDK_IGNORE_CONTENT_WARNING: "1"
+
+concurrency:
+  group: intake-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ── JOB 1: GUARD ────────────────────────────────────────────────
+  guard:
+    name: Guard — skip bot commits
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - name: Inspect head commit author
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          AUTHOR_NAME=$(gh api "repos/${REPO}/commits/${HEAD_SHA}" --jq '.commit.author.name')
+          echo "Head commit author: ${AUTHOR_NAME}"
+          if [ "${AUTHOR_NAME}" = "github-actions[bot]" ]; then
+            echo "Skipping intake — head commit is from the auto-normalize bot."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── JOB 2: DETECT CHANGED PACKS ────────────────────────────────
+  detect:
+    name: Detect changed packs
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      packs: ${{ steps.changed.outputs.packs }}
+      has_content: ${{ steps.changed.outputs.has_content }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Fetch base branch
+        run: git fetch origin main --depth=50
+
+      - name: Find changed packs
+        id: changed
+        run: |
+          python - << 'PY'
+          import os, subprocess
+          from pathlib import Path
+
+          packs_dir = Path(os.environ["PACKS_DIR"])
+          base = subprocess.check_output(
+              ["git", "merge-base", "HEAD", "origin/main"], text=True
+          ).strip()
+
+          # --diff-filter=ACMR matches the existing soc-packs-pr-gate logic.
+          # Deletions don't count as a meaningful "change" for pack detection.
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "--diff-filter=ACMR", base, "HEAD"], text=True
+          ).splitlines()
+
+          touched = set()
+          for f in changed:
+              p = Path(f)
+              if (
+                  p.parts
+                  and p.parts[0] == str(packs_dir)
+                  and len(p.parts) > 1
+                  and (packs_dir / p.parts[1] / "pack_metadata.json").exists()
+              ):
+                  touched.add(p.parts[1])
+
+          out = ",".join(sorted(touched))
+          print("Content-changed packs:", out or "(none)")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"packs={out}\n")
+              fh.write(f"has_content={'true' if touched else 'false'}\n")
+          PY
+
+  # ── JOB 3: INTAKE — normalize + validate + auto-commit + deploy ─
+  intake:
+    name: Intake — normalize, validate, deploy contrib tenant
+    needs: [guard, detect]
+    if: needs.guard.outputs.proceed == 'true' && needs.detect.outputs.has_content == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          # GITHUB_TOKEN must have contents: write (set above) to push back
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install "demisto-sdk==${DEMISTO_SDK_VERSION}" pyyaml
+
+      - name: Run check_contribution.py (normalize + validate, no upload yet)
+        # check_contribution.py orchestrates normalize → preflight → lint →
+        # pack_prep → contracts → shadow_mode → docs check. The --no-upload
+        # flag stops it before upload_package.sh — we deploy in a later step
+        # against the CONTRIB tenant rather than the pack_prep default.
+        run: python3 tools/check_contribution.py --no-upload --ci
+
+      - name: Commit normalized files back to PR branch
+        # Runs even on validation failure so the reviewer sees the canonical
+        # version of the contribution. If validation failed, the deploy step
+        # below is skipped (default if: success() semantics).
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Normalize produced changes — committing back to PR branch."
+            git add -A
+            git commit -m "chore: auto-normalize contribution
+
+          Stripped _copy/_export suffixes, reset versions, cleaned UI export
+          artifacts. Generated by tools/normalize_contribution.py."
+            git push
+          else
+            echo "No normalization changes — files were already canonical."
+          fi
+
+      - name: Deploy to contrib tenant
+        # Only runs if check_contribution.py passed. Uses the dedicated
+        # XSIAM_CONTRIB_* secrets — separate from the final tenant secrets
+        # used by soc-packs-pr-gate.yml so the two tenants never cross-talk.
+        # upload_package.sh takes one pack path per invocation, so loop
+        # over the comma-separated list (matches existing pr-gate pattern).
+        env:
+          DEMISTO_BASE_URL: ${{ secrets.XSIAM_CONTRIB_URL }}
+          DEMISTO_API_KEY:  ${{ secrets.XSIAM_CONTRIB_KEY }}
+          XSIAM_AUTH_ID:    ${{ secrets.XSIAM_CONTRIB_AUTH_ID }}
+          DEMISTO_SDK_CONTENT_PATH: ${{ github.workspace }}
+          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
+        run: |
+          IFS=',' read -r -a PACKS <<< "$CHANGED_PACKS"
+          FAILED=0
+          for PACK in "${PACKS[@]}"; do
+            [ -z "$PACK" ] && continue
+            echo "=== Deploying ${PACK} → contrib tenant ==="
+            bash tools/upload_package.sh "${PACKS_DIR}/${PACK}" || FAILED=1
+          done
+          exit $FAILED
+
+  # ── JOB 4: COMMENT + LABEL ─────────────────────────────────────
+  comment:
+    name: Update labels + post sticky comment
+    needs: [guard, detect, intake]
+    if: always() && needs.guard.outputs.proceed == 'true' && needs.detect.outputs.has_content == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Reset intake labels
+        # Always clear all three intake:* labels, including intake:approved.
+        # Any new contributor push must force the reviewer to re-approve
+        # against the new content — stale approval is worse than no approval.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          for L in intake:passed intake:failed intake:approved; do
+            gh pr edit "$PR" --remove-label "$L" 2>/dev/null || true
+          done
+
+      - name: Apply outcome label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          INTAKE_RESULT: ${{ needs.intake.result }}
+        run: |
+          if [ "$INTAKE_RESULT" = "success" ]; then
+            gh pr edit "$PR" --add-label intake:passed
+          else
+            gh pr edit "$PR" --add-label intake:failed
+          fi
+
+      - name: Post or update sticky PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          INTAKE_RESULT: ${{ needs.intake.result }}
+          PACKS: ${{ needs.detect.outputs.packs }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - << 'PY'
+          import json, os, subprocess
+
+          repo   = os.environ["REPO"]
+          pr     = os.environ["PR"]
+          result = os.environ["INTAKE_RESULT"]
+          packs  = os.environ["PACKS"] or "(none)"
+          run    = os.environ["RUN_URL"]
+
+          marker = "<!-- soc-intake-comment -->"
+          status = "passed" if result == "success" else "failed"
+
+          if result == "success":
+              next_steps = (
+                  "**Reviewer next steps:**\n"
+                  "1. Open the contrib tenant and inspect the deployed content in the XSIAM UI.\n"
+                  "2. If correct, add the `intake:approved` label — that releases the PR Gate workflow.\n"
+                  "3. If changes are needed, request them on the PR. Any new push from the contributor "
+                  "clears `intake:approved` and re-runs this workflow."
+              )
+          else:
+              next_steps = (
+                  "**Action required:** intake validation failed. "
+                  f"See the [workflow run logs]({run}) for details. "
+                  "The contributor needs to address the errors and push a new commit; "
+                  "this workflow will re-run automatically."
+              )
+
+          body = (
+              f"{marker}\n"
+              f"## Contribution intake — {status}\n\n"
+              f"**Changed packs:** `{packs}`\n\n"
+              f"| Stage | Result |\n"
+              f"|---|---|\n"
+              f"| Normalize + validate + deploy contrib | `{result}` |\n\n"
+              f"{next_steps}\n\n"
+              f"_[Workflow run]({run})_"
+          )
+
+          # Find existing sticky comment (by hidden marker) or create a new one
+          comments = json.loads(subprocess.check_output(
+              ["gh", "api", f"repos/{repo}/issues/{pr}/comments", "--paginate"], text=True
+          ))
+          existing = next((c for c in comments if marker in (c.get("body") or "")), None)
+
+          if existing:
+              subprocess.run(
+                  ["gh", "api", "--method", "PATCH",
+                   f"repos/{repo}/issues/comments/{existing['id']}",
+                   "-f", f"body={body}"],
+                  check=True,
+              )
+              print(f"Updated existing intake comment {existing['id']}.")
+          else:
+              subprocess.run(
+                  ["gh", "pr", "comment", pr, "--body", body],
+                  check=True,
+              )
+              print("Posted new intake comment.")
+          PY

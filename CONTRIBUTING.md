@@ -145,23 +145,49 @@ Leave the shadow mode and known issues fields blank if they don't apply.
 
 ## What Happens After You Open the PR
 
-1. CI runs automatically (takes a few minutes)
-2. CI posts a comment on the PR with what it found, what it cleaned up, and
-   whether it loaded successfully to the review tenant
-3. A reviewer opens the review tenant, looks at your content in the XSIAM UI,
-   and approves or requests changes on the PR
-4. Once approved, a maintainer merges it into the correct pack
+Your PR moves through two CI workflows with a reviewer gate between them.
+
+**1. Intake CI runs automatically** (a few minutes). It normalizes your file
+(strips `_copy` and `_export` suffixes, resets the version, fixes internal
+IDs and packIDs) and commits the cleaned-up version back to your PR branch.
+You will see an extra commit appear authored by `github-actions[bot]` — that
+is expected.
+
+**2. Intake CI deploys your content to the contribution review tenant**
+so a reviewer can see it live in the XSIAM UI. The PR gets either an
+`intake:passed` or `intake:failed` label, plus a sticky comment with the
+result and a link to the workflow logs.
+
+**3. A reviewer inspects the deployed content** on the review tenant.
+If everything looks correct they add the `intake:approved` label, which
+releases the second CI workflow (validation, prerelease build, deploy
+to the final tenant). If changes are needed they request them on the PR.
+
+**4. Once the second workflow passes**, a maintainer merges into main.
+A release workflow then bumps the pack version and publishes.
 
 You do not need to do anything after opening the PR unless the reviewer
-asks you to make changes.
+asks you to make changes. **If you push a new commit at any point, the
+`intake:approved` label is removed automatically** and the reviewer needs
+to re-approve against the updated content — stale approval is worse than
+no approval.
+
+### Labels you will see
+
+| Label | What it means |
+|---|---|
+| `intake:passed` | Intake CI normalized, validated, and deployed your content to the review tenant. Ready for reviewer to look at. |
+| `intake:failed` | Intake CI hit a validation error. See the sticky PR comment for the workflow run link. |
+| `intake:approved` | Reviewer has inspected the live content and unblocked the rest of the pipeline. Removed automatically on any new commit. |
 
 ---
 
 ## Common Questions
 
 **My file has `_copy` or a version number in the name. Is that a problem?**
-No. The CI pipeline strips those automatically from the file's internal name
-and ID fields. Upload the file as-is from your export.
+No. The intake CI strips those automatically and commits the cleaned-up
+version back to your PR branch as a separate commit (authored by
+`github-actions[bot]`). Upload the file as-is from your XSIAM export.
 
 **I'm not sure which pack my playbook belongs to.**
 Fill in the PR description with what the playbook does and which integrations

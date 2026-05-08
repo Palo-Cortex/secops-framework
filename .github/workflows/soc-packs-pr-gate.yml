@@ -50,9 +50,32 @@ concurrency:
 
 jobs:
 
+  # ── JOB 0: INTAKE GATE ──────────────────────────────────────────
+  # Blocks the entire pipeline until a reviewer has inspected the
+  # contribution on the contrib tenant (deployed by contributions-pr.yml)
+  # and added the `intake:approved` label. The labeled event re-fires
+  # this workflow automatically — no manual re-run required.
+  #
+  # Applies to ALL PRs into main, including content-less ones (workflow
+  # edits, docs, tooling). Maintainers can self-add the label on their
+  # own PRs when no review is needed.
+  intake-gate:
+    name: Intake gate — wait for reviewer approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify intake:approved label is present
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'intake:approved') }}
+        run: |
+          echo "::error::Waiting for intake review."
+          echo "A reviewer must inspect the deployed content on the contrib tenant"
+          echo "and add the 'intake:approved' label before this workflow can proceed."
+          echo "Push a new commit to clear the label and re-run intake."
+          exit 1
+
   # ── JOB 1: CUSTOMER DATA SCAN ───────────────────────────────────
   scan:
     name: Scan — no customer data
+    needs: [intake-gate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -98,6 +121,7 @@ jobs:
   # Runs in parallel with scan — no dependency between them.
   version-plan:
     name: Version plan — read label
+    needs: [intake-gate]
     runs-on: ubuntu-latest
     permissions:
       contents: read
