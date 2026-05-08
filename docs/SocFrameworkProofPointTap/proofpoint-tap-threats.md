@@ -102,7 +102,7 @@ Fields populated for downstream lifecycle Artifacts schemas:
 | subtype | `passthrough` |
 | fromversion | `6.10.0` |
 
-Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection. Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields). Legacy fields marked for removal when old phishing pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon and other endpoint sources): action_file_sha256 (attachment hash), user_principal (UPN match), and action_local_ip (clickip → endpoint local_ip). actor_effective_username carries the SAM-format username for matching against vendors that emit bare names.
+Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection. Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields). Legacy fields marked for removal when old phishing pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon and other endpoint sources): actor_effective_username (UPN format, e.g. "Gunter@SKT.LOCAL", matches CrowdStrike's user_name field byte-for-byte), user_principal (full UPN, parallel pivot), action_local_ip (clickip → endpoint local_ip), and action_file_sha256 (attachment hash). The username contract across all framework vendor rules is full UPN -- vendors that emit bare SAM or DOMAIN\user must normalize to UPN in their own pre_alter block.
 
 **Tags:** `SOCFramework`, `Detection`, `Email`, `ProofpointTAP`, `T1566`, `T1114`
 
@@ -307,12 +307,12 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)
 
-// Username normalization for cross-rule grouping.
-// recipient is "Gunter@SKT.LOCAL" (UPN). CrowdStrike's actor_effective_username
-// is "Gunter" (bare SAM). Stripping @domain on TAP's actor_effective_username
-// makes them pivot. user_principal carries the full UPN for the parallel pivot
-// against CrowdStrike's user_principal field.
-| alter recipient_local = replex(to_string(recipient), "@.*$", "")
+// Cross-rule username contract: emit full UPN to match CrowdStrike's
+// user_name (which Falcon delivers as e.g. "Gunter@SKT.LOCAL"). The
+// earlier "recipient_local" trick stripped the @domain to bare SAM,
+// which broke pivot grouping with CrowdStrike on the Turla scenario.
+// recipient is array-typed in raw_schema; to_string coerces to scalar.
+// See investigation in tools/correlation_rule_grouping_check notes.
 
 // ============================================================
 // CANONICAL CORE NORMALIZATION
@@ -342,7 +342,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         agent_hostname                      = null,
         agent_id                            = null,
         agent_device_domain                 = domain,
-        actor_effective_username            = recipient_local,
+        actor_effective_username            = to_string(recipient),
         actor_process_image_name            = null,
         actor_process_image_path            = null,
         actor_process_image_sha256          = null,
@@ -358,10 +358,11 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_remote_ip                    = null
 
 // Vendor-specific pivots beyond canonical core.
-// user_principal carries full UPN for cross-rule grouping with
-// CrowdStrike's user_principal (which carries "Gunter@SKT.LOCAL").
-// recipient is array-typed in raw_schema; XSIAM coerces to string
-// on assignment, same pattern used for actor_effective_username above.
+// user_principal carries full UPN as a parallel grouping pivot against
+// CrowdStrike's user_principal. With actor_effective_username also now
+// carrying UPN, both fields match CrowdStrike for grouping; keeping
+// user_principal explicit avoids regressions if the canonical-core
+// username field's semantics change.
 | alter
         user_principal                      = recipient
 ```
