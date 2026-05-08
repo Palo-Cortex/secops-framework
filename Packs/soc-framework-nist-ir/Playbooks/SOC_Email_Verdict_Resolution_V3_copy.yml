@@ -1,0 +1,1083 @@
+id: e4cb835b-c7ff-4946-87e9-4e6b8255f8bd
+version: 4
+contentitemexportablefields:
+  contentitemfields:
+    packID: ""
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.5.50
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+vcShouldKeepItemLegacyProdMachine: false
+aclrelations: []
+aclowner:
+  id: ""
+  type: ""
+  name: ""
+name: SOC Email Verdict Resolution_V3_copy
+description: |-
+  Purpose
+  Determine the verdict, confidence, and category for an email threat.
+
+  This playbook answers: is this malicious, how confident are we, and what type of threat is it?
+  It does NOT answer: who was impacted or what action to take at scale — that is SOC Email Exposure Evaluation_V3.
+
+  Primary signal: Email source ThreatStatus (inputs.ThreatStatus)
+    malicious  → verdict=malicious, confidence=high
+    suspicious → verdict=malicious, confidence=medium
+    default    → verdict=benign,    confidence=low
+
+  Secondary signal: Analysis.Email.source_verdict from DBot (set by Signal Characterization)
+    If DBot=malicious AND ThreatStatus returned benign → elevate to suspicious/medium
+
+  Advisory recommendation is set here as a non-executing signal to guide Containment.
+  Priority order: escalate_IR > search_and_purge > retract_message > quarantine > no_action
+tags:
+- SOC
+- SOC_Framework_Unified
+- Detection & Analysis
+- NIST 800-61
+- Email
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 07f29d81-563e-4897-bdea-a928d0c4ef1f
+    type: start
+    task:
+      id: 07f29d81-563e-4897-bdea-a928d0c4ef1f
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 50ed0103-b968-4d23-98bb-961c81036dcf
+    type: title
+    task:
+      id: 50ed0103-b968-4d23-98bb-961c81036dcf
+      version: -1
+      name: Set Defaults
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "2"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: 17746e80-c446-4800-b733-29c0eefc328f
+    type: regular
+    task:
+      id: 17746e80-c446-4800-b733-29c0eefc328f
+      version: -1
+      name: Initialize Verdict Defaults
+      description: Set multiple keys/values to the context.
+      scriptName: SetMultipleValues
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "3"
+    scriptarguments:
+      keys:
+        simple: Email.verdict,Email.confidence,Email.category,Email.response_recommended
+      parent:
+        simple: Analysis
+      values:
+        simple: benign,low,unknown,no_action
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 390
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: 1cabeeb4-b905-4a4c-bc17-3ad596723bea
+    type: title
+    task:
+      id: 1cabeeb4-b905-4a4c-bc17-3ad596723bea
+      version: -1
+      name: Determine Verdict from ThreatStatus
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 575
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: b7671af2-d127-4dc7-a3a9-e17557c5438f
+    type: condition
+    task:
+      id: b7671af2-d127-4dc7-a3a9-e17557c5438f
+      version: -1
+      name: ThreatStatus?
+      description: Routes on Email source ThreatStatus. Malicious → high confidence.
+        Suspicious → medium confidence. Default → benign, low confidence (defaults
+        already set).
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "7"
+      Active:
+      - "5"
+      Malicious:
+      - "5"
+      Suspicious:
+      - "6"
+    separatecontext: false
+    conditions:
+    - label: Malicious
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ThreatStatus
+            iscontext: true
+          right:
+            value:
+              simple: malicious
+          ignorecase: true
+    - label: Suspicious
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ThreatStatus
+            iscontext: true
+          right:
+            value:
+              simple: suspicious
+          ignorecase: true
+    - label: Active
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ThreatStatus
+            iscontext: true
+          right:
+            value:
+              simple: active
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 745
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: 0d04996f-7538-417d-b77e-e72e2839e5b9
+    type: regular
+    task:
+      id: 0d04996f-7538-417d-b77e-e72e2839e5b9
+      version: -1
+      name: Set Verdict Malicious — High Confidence
+      description: Set multiple keys/values to the context.
+      scriptName: SetMultipleValues
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    scriptarguments:
+      keys:
+        simple: Email.verdict,Email.confidence
+      parent:
+        simple: Analysis
+      values:
+        simple: malicious,high
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 930
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "6":
+    id: "6"
+    taskid: 008d7e79-659d-42b6-8e65-e4cf79174976
+    type: regular
+    task:
+      id: 008d7e79-659d-42b6-8e65-e4cf79174976
+      version: -1
+      name: Set Verdict Malicious — Medium Confidence
+      description: Set multiple keys/values to the context.
+      scriptName: SetMultipleValues
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    scriptarguments:
+      keys:
+        simple: Email.verdict,Email.confidence
+      parent:
+        simple: Analysis
+      values:
+        simple: malicious,medium
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 930
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: 5e10954a-20c2-4b3f-ba36-a43e30985ceb
+    type: regular
+    task:
+      id: 5e10954a-20c2-4b3f-ba36-a43e30985ceb
+      version: -1
+      name: Set Verdict Benign — Low Confidence
+      description: Set multiple keys/values to the context.
+      scriptName: SetMultipleValues
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "8"
+    scriptarguments:
+      keys:
+        simple: Email.verdict,Email.confidence
+      parent:
+        simple: Analysis
+      values:
+        simple: benign,low
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 930
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: c73a4a81-48bf-4885-a9fd-0b64c1b7225f
+    type: title
+    task:
+      id: c73a4a81-48bf-4885-a9fd-0b64c1b7225f
+      version: -1
+      name: Cross-check DBot Source Verdict
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1115
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: 19185dcc-890b-488f-bdd5-7d4da5041fa3
+    type: condition
+    task:
+      id: 19185dcc-890b-488f-bdd5-7d4da5041fa3
+      version: -1
+      name: DBot Confirms Malicious?
+      description: If DBot independently rates the indicator as malicious but ThreatStatus
+        returned benign, elevate to suspicious/medium as a secondary signal. Prevents
+        missed verdicts on stale TAP status.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "10"
+      "yes":
+      - "11"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.source_verdict
+            iscontext: true
+          right:
+            value:
+              simple: malicious
+          ignorecase: true
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.verdict
+            iscontext: true
+          right:
+            value:
+              simple: benign
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1285
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: ef2adb10-2835-472d-97cf-8fd981d1cdf1
+    type: title
+    task:
+      id: ef2adb10-2835-472d-97cf-8fd981d1cdf1
+      version: -1
+      name: Set Category
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "12"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 60,
+          "y": 1477.5
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: 373da371-d397-4164-b50c-fd74a5d7debe
+    type: regular
+    task:
+      id: 373da371-d397-4164-b50c-fd74a5d7debe
+      version: -1
+      name: Elevate to Suspicious — DBot Override
+      description: Set multiple keys/values to the context.
+      scriptName: SetMultipleValues
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "12"
+    scriptarguments:
+      keys:
+        simple: Email.verdict,Email.confidence
+      parent:
+        simple: Analysis
+      values:
+        simple: suspicious,medium
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 490,
+          "y": 1470
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "12":
+    id: "12"
+    taskid: 4eae74d6-3466-4729-8084-47b407dd7b8c
+    type: regular
+    task:
+      id: 4eae74d6-3466-4729-8084-47b407dd7b8c
+      version: -1
+      name: Set Email Category
+      description: Maps email source Classification to Analysis.Email.category. Appends
+        unknown as fallback so FirstArrayElement always resolves.
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "13"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Analysis.Email.category
+      value:
+        complex:
+          root: inputs.Classification
+          transformers:
+          - operator: append
+            args:
+              item:
+                value:
+                  simple: unknown
+          - operator: FirstArrayElement
+          - operator: toLowerCase
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1655
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "13":
+    id: "13"
+    taskid: 72dc6f3b-a2de-4318-b265-b76778ca62da
+    type: title
+    task:
+      id: 72dc6f3b-a2de-4318-b265-b76778ca62da
+      version: -1
+      name: Set Response Recommendation
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "14"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1840
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "14":
+    id: "14"
+    taskid: e64cbda8-538c-4ca2-8dd6-b4a8560873f3
+    type: condition
+    task:
+      id: e64cbda8-538c-4ca2-8dd6-b4a8560873f3
+      version: -1
+      name: Action Recommended?
+      description: 'Advisory recommendation only — no execution. Consumed by Containment
+        phase. Priority: escalate_IR (VIP) > search_and_purge (clicked) > retract_message
+        (delivered) > quarantine (blocked/at-rest) > no_action (benign/low).'
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "24"
+      "No":
+      - "19"
+    separatecontext: false
+    conditions:
+    - label: "No"
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.DeliveredCount
+            iscontext: true
+          right:
+            value:
+              simple: "0"
+      - - operator: isNotEqualString
+          left:
+            value:
+              simple: Analysis.Email.verdict
+            iscontext: true
+          right:
+            value:
+              simple: malicious
+          ignorecase: true
+      - - operator: isEqualNumber
+          left:
+            value:
+              simple: inputs.ClickCount
+            iscontext: true
+          right:
+            value:
+              simple: "0"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2010
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "19":
+    id: "19"
+    taskid: 82fe06a5-ff29-4bab-bc5a-07ae578f425c
+    type: regular
+    task:
+      id: 82fe06a5-ff29-4bab-bc5a-07ae578f425c
+      version: -1
+      name: Set Recommendation — no_action
+      description: Set a value in context under the key you entered.
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "21"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Analysis.Email.response_recommended
+      value:
+        simple: "True"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 60,
+          "y": 2195
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: b778069c-7613-458c-864e-6a16b190730a
+    type: title
+    task:
+      id: b778069c-7613-458c-864e-6a16b190730a
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2750
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "21":
+    id: "21"
+    taskid: a0547d63-5e2a-49b3-9bff-7c1649cef270
+    type: condition
+    task:
+      id: a0547d63-5e2a-49b3-9bff-7c1649cef270
+      version: -1
+      name: Internal Lateral Risk?
+      description: |-
+        Flags internal lateral spread risk.
+
+        True when ALL of:
+          verdict = malicious
+          category = phish or malware
+          ExposureLevel = clicked
+          RecipientScope = multi_user OR tenant_wide
+
+        Two label branches both route to true — OR logic across scope values.
+        tenant_wide is the worst case and must not be excluded.
+        Matches original SOC_Proofpoint_Analysis task 34 logic.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "23"
+      multi_user:
+      - "22"
+      tenant_wide:
+      - "22"
+    separatecontext: false
+    conditions:
+    - label: multi_user
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.verdict
+            iscontext: true
+          right:
+            value:
+              simple: malicious
+          ignorecase: true
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: Analysis.Email.category
+            iscontext: true
+          right:
+            value:
+              simple: phish
+          ignorecase: true
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.ExposureLevel
+            iscontext: true
+          right:
+            value:
+              simple: clicked
+          ignorecase: true
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.RecipientScope
+            iscontext: true
+          right:
+            value:
+              simple: multi_user
+          ignorecase: true
+    - label: tenant_wide
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.verdict
+            iscontext: true
+          right:
+            value:
+              simple: malicious
+          ignorecase: true
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: Analysis.Email.category
+            iscontext: true
+          right:
+            value:
+              simple: phish
+          ignorecase: true
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.ExposureLevel
+            iscontext: true
+          right:
+            value:
+              simple: clicked
+          ignorecase: true
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Analysis.Email.RecipientScope
+            iscontext: true
+          right:
+            value:
+              simple: tenant_wide
+          ignorecase: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2380
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "22":
+    id: "22"
+    taskid: 5ad4c7df-c470-4b60-a068-25783e132a45
+    type: regular
+    task:
+      id: 5ad4c7df-c470-4b60-a068-25783e132a45
+      version: -1
+      name: Set Internal Lateral Risk — True
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Email.internal_lateral_risk
+      value:
+        simple: "true"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 2565
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: a93dc00f-e957-4346-a3b1-d7c9767cbc98
+    type: regular
+    task:
+      id: a93dc00f-e957-4346-a3b1-d7c9767cbc98
+      version: -1
+      name: Set Internal Lateral Risk — False
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: Analysis.Email.internal_lateral_risk
+      value:
+        simple: "false"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 2565
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "24":
+    id: "24"
+    taskid: 48b88b31-ef6b-470a-a883-5886c753df7b
+    type: regular
+    task:
+      id: 48b88b31-ef6b-470a-a883-5886c753df7b
+      version: -1
+      name: Set Recommendation — true
+      description: Set a value in context under the key you entered.
+      scriptName: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "21"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Analysis.Email.response_recommended
+      value:
+        simple: "True"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 490,
+          "y": 2195
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+outlinetasks: {}
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 2760,
+        "width": 1240,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: ThreatStatus
+  value:
+    simple: ${SOCFramework.Email.threat_status}
+  required: false
+  description: Threat status from source SEG — active/falsepositive/cleared. Set by
+    Foundation - Normalize Email_V3.
+  playbookInputQuery: null
+- key: Classification
+  value:
+    simple: ${Email.Classification}
+  required: false
+  description: Email threat classification — phish/malware/spam/bec. Set by SOC Email
+    Exposure Evaluation_V3.
+  playbookInputQuery: null
+- key: HighValueUserInvolved
+  value:
+    simple: ${SOCFramework.Email.HighValueUserInvolved}
+  required: false
+  description: True/False — set by Enrichment VIP check. Escalates recommendation
+    to escalate_IR.
+  playbookInputQuery: null
+- key: ClickCount
+  value:
+    simple: ${Email.Exposure.click_count}
+  required: false
+  description: Number of recipients who clicked the threat URL. Set by SOC Email Exposure
+    Evaluation_V3.
+  playbookInputQuery: null
+- key: DeliveredCount
+  value:
+    simple: ${Email.Exposure.delivered_count}
+  required: false
+  description: Number of inboxes the email reached. Set by SOC Email Exposure Evaluation_V3.
+  playbookInputQuery: null
+outputs:
+- contextPath: Analysis.Email.verdict
+  description: malicious / benign
+  type: string
+- contextPath: Analysis.Email.confidence
+  description: high / medium / low
+  type: string
+- contextPath: Analysis.Email.category
+  description: phish / malware / bec / spam / unknown
+  type: string
+- contextPath: Analysis.Email.response_recommended
+  description: escalate_IR / search_and_purge / retract_message / quarantine / no_action
+  type: string
+- contextPath: Analysis.Email.internal_lateral_risk
+  description: true if verdict=malicious, category=phish/malware, ExposureLevel=clicked,
+    and RecipientScope=multi_user or tenant_wide
+  type: boolean
+sourceplaybookid: SOC Email Verdict Resolution_V3
+adopted: true
+possibleresponses: []
