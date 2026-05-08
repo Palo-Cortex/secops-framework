@@ -41,6 +41,7 @@ alert_fields:
   action_file_sha256: action_file_sha256
   action_local_ip: action_local_ip
   action_remote_ip: action_remote_ip
+  user_principal: user_principal
   action_file_md5: proofpointmd5
   filehash: proofpointsha256
   dns_query_name: dns_name
@@ -105,7 +106,11 @@ description: >-
   filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and
   legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via
   proofpointtap* fields). Legacy fields marked for removal when old phishing
-  pack is decommissioned.
+  pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon
+  and other endpoint sources): action_file_sha256 (attachment hash),
+  user_principal (UPN match), and action_local_ip (clickip → endpoint local_ip).
+  actor_effective_username carries the SAM-format username for matching against
+  vendors that emit bare names.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC Proofpoint TAP - Threat Detected
@@ -200,6 +205,8 @@ xql_query: |
 
   | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)
 
+  | alter recipient_local = replex(to_string(recipient), "@.*$", "")
+
   | alter
           vendor                              = vendor_name,
           product                             = product_name,
@@ -216,7 +223,7 @@ xql_query: |
           agent_hostname                      = null,
           agent_id                            = null,
           agent_device_domain                 = domain,
-          actor_effective_username            = recipient,
+          actor_effective_username            = recipient_local,
           actor_process_image_name            = null,
           actor_process_image_path            = null,
           actor_process_image_sha256          = null,
@@ -228,5 +235,8 @@ xql_query: |
           action_file_name                    = proofpointfilename,
           action_file_path                    = null,
           action_file_sha256                  = proofpointsha256,
-          action_local_ip                     = null,
-          action_remote_ip                    = senderip
+          action_local_ip                     = clickip,
+          action_remote_ip                    = null
+
+  | alter
+          user_principal                      = recipient
