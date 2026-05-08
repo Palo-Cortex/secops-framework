@@ -8,17 +8,7 @@ upgradable. Built on NIST IR 800-61, every alert flows through the same
 lifecycle (Analysis → Containment → Eradication → Recovery), every action is
 gated by Shadow Mode by default, and every pack inherits the same contracts.
 
-## Install & Setup
-
-**[→ SOC Framework Install & Setup](getting-started.md)**
-
-Step-by-step tenant configuration: install the SOC Framework Package Manager,
-deploy `soc-optimization-unified`, run `!SOCFWHealthCheck`, enable Auto Triage,
-wire the automation trigger. This is the same canonical doc referenced by
-`xsiam-pov-automation` and the package manager — single source of truth for
-getting a tenant ready.
-
-## Three core values
+The framework's three core values:
 
 - **Auditable** — every framework action writes to a dataset; every phase
   surface is contractually defined; every value driver maps to a metric.
@@ -35,7 +25,7 @@ getting a tenant ready.
 
 <div class="grid cards" markdown>
 
--   **Architecture**
+-   :material-rocket-launch:{ .lg .middle } **Get Started**
 
     ---
 
@@ -43,7 +33,7 @@ getting a tenant ready.
 
     [Architecture →](architecture/index.md)
 
--   **Foundation**
+-   :material-foundation:{ .lg .middle } **Foundation**
 
     ---
 
@@ -52,7 +42,7 @@ getting a tenant ready.
 
     [Foundation →](foundation/index.md)
 
--   **Packs**
+-   :material-package-variant:{ .lg .middle } **Packs**
 
     ---
 
