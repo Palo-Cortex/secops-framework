@@ -1,4 +1,17 @@
 {
+  "roles": {
+    "canonical": {
+      "description": "V3 contract path. The agreed read or write for this concept.",
+      "retention": "forever"
+    },
+    "legacy_alias": {
+      "description": "Older path still observed in playbook YAML. For reads, the playbook should migrate. For writes, downstream consumers should migrate.",
+      "retention": "deletable",
+      "requires": [
+        "superseded_by"
+      ]
+    }
+  },
   "phases": {
     "analysis": {
       "orchestrator": "SOC_Analysis_V3",
@@ -8,7 +21,7 @@
     "containment": {
       "orchestrator": "SOC_Containment_V3",
       "requires_phase": "analysis",
-      "purpose": "Stop the spread — isolate hosts, block users, quarantine email."
+      "purpose": "Stop the spread \u2014 isolate hosts, block users, quarantine email."
     },
     "eradication": {
       "orchestrator": "SOC_Eradication_V3",
@@ -30,274 +43,387 @@
     "analysis": [
       {
         "category": "endpoint",
-        "sub_playbook": "SOC_EndPoint_Analysis_V3"
+        "sub_playbook": "SOC_EndPoint_Analysis_V3",
+        "role": "canonical"
       },
       {
         "category": "email",
-        "sub_playbook": "SOC_Email_Analysis_V3"
+        "sub_playbook": "SOC_Email_Analysis_V3",
+        "role": "canonical"
       },
       {
         "category": "identity",
-        "sub_playbook": "SOC_Identity_Analysis_V3"
+        "sub_playbook": "SOC_Identity_Analysis_V3",
+        "role": "canonical"
       }
     ],
     "containment": [
       {
         "category": "endpoint",
-        "sub_playbook": "SOC_Endpoint_Containment_V3"
+        "sub_playbook": "SOC_Endpoint_Containment_V3",
+        "role": "canonical"
       },
       {
         "category": "email",
-        "sub_playbook": "SOC_Email_Containment_V3"
+        "sub_playbook": "SOC_Email_Containment_V3",
+        "role": "canonical"
       },
       {
         "category": "identity",
-        "sub_playbook": "SOC_Identity_Containment_V3"
+        "sub_playbook": "SOC_Identity_Containment_V3",
+        "role": "canonical"
       }
     ],
     "eradication": [
       {
         "category": "endpoint",
-        "sub_playbook": "SOC_EndPoint_Eradication_V3"
+        "sub_playbook": "SOC_EndPoint_Eradication_V3",
+        "role": "canonical"
       },
       {
         "category": "email",
-        "sub_playbook": "SOC_Email_Eradication_V3"
+        "sub_playbook": "SOC_Email_Eradication_V3",
+        "role": "canonical"
       },
       {
         "category": "identity",
-        "sub_playbook": "SOC_Identity_Eradication_V3"
+        "sub_playbook": "SOC_Identity_Eradication_V3",
+        "role": "canonical"
       }
     ],
     "recovery": [
       {
         "category": "endpoint",
-        "sub_playbook": "SOC_EndPoint_Recovery_V3"
+        "sub_playbook": "SOC_EndPoint_Recovery_V3",
+        "role": "canonical"
       },
       {
         "category": "email",
-        "sub_playbook": "SOC_Email_Recovery_V3"
+        "sub_playbook": "SOC_Email_Recovery_V3",
+        "role": "canonical"
       },
       {
         "category": "identity",
-        "sub_playbook": "SOC_Identity_Recovery_V3"
+        "sub_playbook": "SOC_Identity_Recovery_V3",
+        "role": "canonical"
       }
     ]
   },
   "reads_from_framework_by_phase": {
     "analysis": [
       {
-        "source": "SOCFramework.Artifacts"
+        "source": "SOCFramework.Artifacts.Email.From",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.CommandLine"
+        "source": "SOCFramework.Artifacts.Email.Subject",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email"
+        "source": "SOCFramework.Artifacts.Email.ThreatType",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.From"
+        "source": "SOCFramework.Artifacts.Email.ThreatURL",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.Subject"
+        "source": "SOCFramework.Artifacts.Email.To",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.ThreatType"
+        "source": "SOCFramework.Email.HighValueUserInvolved",
+        "role": "canonical",
+        "notes": "Custom Analysis-side enrichment field; written by upstream enrichment, not normalize map."
       },
       {
-        "source": "SOCFramework.Artifacts.Email.ThreatURL"
+        "source": "SOCFramework.Email.reported_by",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.To"
+        "source": "SOCFramework.Email.threat_id",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.EndPointID"
+        "source": "SOCFramework.Email.threat_status",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.FeaturedHost"
+        "source": "SOCFramework.Investigation.LinkedCount",
+        "role": "canonical",
+        "notes": "Written by Foundation_-_Enrichment_V3 / Investigation pipeline."
       },
       {
-        "source": "SOCFramework.Artifacts.File"
+        "source": "SOCFramework.Investigation.RiskScore",
+        "role": "canonical",
+        "notes": "Written by Foundation_-_Enrichment_V3 / Investigation pipeline."
       },
       {
-        "source": "SOCFramework.Artifacts.HostName"
+        "source": "SOCFramework.Product.category",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.NetworkArtifacts"
+        "source": "SOCFramework.Product.key",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.ProcessNames"
+        "source": "SOCFramework.phase",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.UserName"
+        "source": "SOCFramework.Artifacts",
+        "role": "legacy_alias",
+        "superseded_by": "TBD",
+        "notes": "Bare namespace read \u2014 likely an exists-check. Replace with specific leaf reads or remove."
       },
       {
-        "source": "SOCFramework.Artifacts.Verdict"
+        "source": "SOCFramework.Artifacts.CommandLine",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.Process.CommandLine"
       },
       {
-        "source": "SOCFramework.Email.HighValueUserInvolved"
+        "source": "SOCFramework.Artifacts.Email",
+        "role": "legacy_alias",
+        "superseded_by": "TBD",
+        "notes": "Bare email namespace read. Replace with specific leaf reads (Email.From/To/Subject/etc.)."
       },
       {
-        "source": "SOCFramework.Email.reported_by"
+        "source": "SOCFramework.Artifacts.EndPointID",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.Endpoint.AgentID"
       },
       {
-        "source": "SOCFramework.Email.threat_id"
+        "source": "SOCFramework.Artifacts.FeaturedHost",
+        "role": "legacy_alias",
+        "superseded_by": "TBD",
+        "notes": "No clear V3 equivalent. Likely Artifacts.Endpoint.Hostname; verify usage in SOC_Analysis_V3 before mapping."
       },
       {
-        "source": "SOCFramework.Email.threat_status"
+        "source": "SOCFramework.Artifacts.File",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.Target.SHA256"
       },
       {
-        "source": "SOCFramework.Investigation.LinkedCount"
+        "source": "SOCFramework.Artifacts.HostName",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.Endpoint.Hostname",
+        "notes": "Capital N drift \u2014 V3 canonical is .Hostname (capital H, lower n)."
       },
       {
-        "source": "SOCFramework.Investigation.RiskScore"
+        "source": "SOCFramework.Artifacts.NetworkArtifacts",
+        "role": "legacy_alias",
+        "superseded_by": "TBD",
+        "notes": "No clear V3 equivalent. Investigate whether replaced by Artifacts.Network.IP or by a future Artifacts.Network.* sub-tree."
       },
       {
-        "source": "SOCFramework.Mitre"
+        "source": "SOCFramework.Artifacts.ProcessNames",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.Process.Name"
       },
       {
-        "source": "SOCFramework.Mitre.Tactic"
+        "source": "SOCFramework.Artifacts.UserName",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.User",
+        "notes": "Migrate to Artifacts.User.Name once User sub-tree is authored."
       },
       {
-        "source": "SOCFramework.Mitre.Tactic.ID"
+        "source": "SOCFramework.Artifacts.Verdict",
+        "role": "legacy_alias",
+        "superseded_by": "TBD",
+        "notes": "V3 splits per-entity verdicts: Artifacts.Process.Verdict and Artifacts.Target.Verdict."
       },
       {
-        "source": "SOCFramework.Mitre.Technique"
+        "source": "SOCFramework.Mitre",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.MITRE",
+        "notes": "Capital M not under Artifacts. V3 canonical is Artifacts.MITRE.*"
       },
       {
-        "source": "SOCFramework.Mitre.Technique.ID"
+        "source": "SOCFramework.Mitre.Tactic",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.MITRE.Tactic"
       },
       {
-        "source": "SOCFramework.Product.category"
+        "source": "SOCFramework.Mitre.Tactic.ID",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.MITRE.TacticID"
       },
       {
-        "source": "SOCFramework.Product.key"
+        "source": "SOCFramework.Mitre.Technique",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.MITRE.Technique"
       },
       {
-        "source": "SOCFramework.phase"
+        "source": "SOCFramework.Mitre.Technique.ID",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.MITRE.TechniqueID"
       }
     ],
     "containment": [
       {
-        "source": "SOCFramework.Artifacts.Domain"
+        "source": "SOCFramework.Artifacts.Domain",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.From"
+        "source": "SOCFramework.Artifacts.Email.From",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.MessageID"
+        "source": "SOCFramework.Artifacts.Email.MessageID",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.Subject"
+        "source": "SOCFramework.Artifacts.Email.Subject",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.To"
+        "source": "SOCFramework.Artifacts.Email.To",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Endpoint.AgentID"
+        "source": "SOCFramework.Artifacts.Endpoint.AgentID",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Endpoint.Hostname"
+        "source": "SOCFramework.Artifacts.Endpoint.Hostname",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Process.Name"
+        "source": "SOCFramework.Artifacts.Process.Name",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Process.PID"
+        "source": "SOCFramework.Artifacts.Process.PID",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Target.SHA256"
+        "source": "SOCFramework.Artifacts.Target.SHA256",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.UserName"
+        "source": "SOCFramework.Product.category",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Mitre.Technique.ID"
+        "source": "SOCFramework.Product.response",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Product.category"
+        "source": "SOCFramework.phase",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Product.response"
+        "source": "SOCFramework.Artifacts.UserName",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.User",
+        "notes": "Migrate to Artifacts.User.Name once User sub-tree is authored."
       },
       {
-        "source": "SOCFramework.phase"
+        "source": "SOCFramework.Mitre.Technique.ID",
+        "role": "legacy_alias",
+        "superseded_by": "SOCFramework.Artifacts.MITRE.TechniqueID"
       }
     ],
     "eradication": [
       {
-        "source": "SOCFramework.Artifacts.Email.From"
+        "source": "SOCFramework.Artifacts.Email.From",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.Subject"
+        "source": "SOCFramework.Artifacts.Email.Subject",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.ThreatType"
+        "source": "SOCFramework.Artifacts.Email.ThreatType",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.ThreatURL"
+        "source": "SOCFramework.Artifacts.Email.ThreatURL",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.To"
+        "source": "SOCFramework.Artifacts.Email.To",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Endpoint.AgentID"
+        "source": "SOCFramework.Artifacts.Endpoint.AgentID",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Endpoint.Hostname"
+        "source": "SOCFramework.Artifacts.Endpoint.Hostname",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Process.Name"
+        "source": "SOCFramework.Artifacts.Process.Name",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Process.Path"
+        "source": "SOCFramework.Artifacts.Process.Path",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Process.SHA256"
+        "source": "SOCFramework.Artifacts.Process.SHA256",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Target.Path"
+        "source": "SOCFramework.Artifacts.Target.Path",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Target.SHA256"
+        "source": "SOCFramework.Artifacts.Target.SHA256",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Email.TAP.Classification"
+        "source": "SOCFramework.Email.TAP.Classification",
+        "role": "canonical",
+        "notes": "Vendor-specific Email Analysis output; written by Email Analysis sub-playbook."
       },
       {
-        "source": "SOCFramework.Product.category"
+        "source": "SOCFramework.Product.category",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.phase"
+        "source": "SOCFramework.phase",
+        "role": "canonical"
       }
     ],
     "recovery": [
       {
-        "source": "SOCFramework.Artifacts.Email.From"
+        "source": "SOCFramework.Artifacts.Email.From",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.Subject"
+        "source": "SOCFramework.Artifacts.Email.Subject",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Email.To"
+        "source": "SOCFramework.Artifacts.Email.To",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Endpoint.AgentID"
+        "source": "SOCFramework.Artifacts.Endpoint.AgentID",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.Endpoint.Hostname"
+        "source": "SOCFramework.Artifacts.Endpoint.Hostname",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Artifacts.User"
+        "source": "SOCFramework.Artifacts.User",
+        "role": "canonical",
+        "notes": "Will become Artifacts.User.Name once User sub-tree is authored; matches normalize-map legacy_alias."
       },
       {
-        "source": "SOCFramework.Email.TAP.Classification"
+        "source": "SOCFramework.Email.TAP.Classification",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.Product.category"
+        "source": "SOCFramework.Product.category",
+        "role": "canonical"
       },
       {
-        "source": "SOCFramework.phase"
+        "source": "SOCFramework.phase",
+        "role": "canonical"
       }
     ]
   },
@@ -305,91 +431,112 @@
     "containment": [
       {
         "from_phase": "analysis",
-        "source": "Analysis.case_score"
+        "source": "Analysis.case_score",
+        "role": "canonical"
       }
     ],
     "eradication": [
       {
         "from_phase": "analysis",
-        "source": "Analysis.compromise_decision"
+        "source": "Analysis.compromise_decision",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.compromise_level"
+        "source": "Analysis.compromise_level",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.mitre_tactic"
+        "source": "Analysis.mitre_tactic",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.persistence_type"
+        "source": "Analysis.persistence_type",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.primary_entity_id"
+        "source": "Analysis.primary_entity_id",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.primary_entity_name"
+        "source": "Analysis.primary_entity_name",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.primary_entity_user"
+        "source": "Analysis.primary_entity_user",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.response_recommended"
+        "source": "Analysis.response_recommended",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.spread_level"
+        "source": "Analysis.spread_level",
+        "role": "canonical"
       },
       {
         "from_phase": "containment",
-        "source": "Containment.action"
+        "source": "Containment.action",
+        "role": "canonical"
       },
       {
         "from_phase": "containment",
-        "source": "Containment.required"
+        "source": "Containment.required",
+        "role": "canonical"
       }
     ],
     "recovery": [
       {
         "from_phase": "analysis",
-        "source": "Analysis.compromise_decision"
+        "source": "Analysis.compromise_decision",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.compromise_level"
+        "source": "Analysis.compromise_level",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.primary_entity_user"
+        "source": "Analysis.primary_entity_user",
+        "role": "canonical"
       },
       {
         "from_phase": "analysis",
-        "source": "Analysis.verdict"
+        "source": "Analysis.verdict",
+        "role": "canonical"
       },
       {
         "from_phase": "eradication",
-        "source": "Eradication.attempted"
+        "source": "Eradication.attempted",
+        "role": "canonical"
       },
       {
         "from_phase": "eradication",
-        "source": "Eradication.story"
+        "source": "Eradication.story",
+        "role": "canonical"
       },
       {
         "from_phase": "eradication",
-        "source": "Eradication.success"
+        "source": "Eradication.success",
+        "role": "canonical"
       },
       {
         "from_phase": "containment",
-        "source": "Containment.Execution"
+        "source": "Containment.Execution",
+        "role": "canonical"
       },
       {
         "from_phase": "containment",
-        "source": "Containment.required"
+        "source": "Containment.required",
+        "role": "canonical"
       }
     ]
   },
@@ -398,218 +545,260 @@
       {
         "target": "Analysis.verdict",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.confidence",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.response_recommended",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Analysis.compromise_level",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.compromise_decision",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.spread_level",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.persistence_type",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.primary_entity_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.primary_entity_name",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.primary_entity_type",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.primary_entity_user",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.case_category",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.mitre_tactic",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.mitre_tactic_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.mitre_technique",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.mitre_technique_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Analysis.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "target": "Analysis.case_score",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "target": "Analysis.global_hash_prevalence_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "target": "Analysis.case_host_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "target": "Analysis.case_issue_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "target": "Analysis.case_user_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       }
     ],
     "containment": [
       {
         "target": "Containment.status",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Containment.isolated_hosts",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "target": "Containment.action",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Containment.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "target": "Containment.required",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Containment.Execution",
-        "type": "array",
-        "init": []
+        "type": "object",
+        "init": {},
+        "role": "canonical"
       },
       {
         "target": "Containment.disabled_users",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       }
     ],
     "eradication": [
       {
         "target": "Eradication.success",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Eradication.attempted",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Eradication.files_removed",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "target": "Eradication.persistence_removed",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "target": "Eradication.reimage_required",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Eradication.escalate_to_reimage",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Eradication.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       }
     ],
     "recovery": [
       {
         "target": "Recovery.status",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Recovery.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "target": "Recovery.monitoring_required",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Recovery.monitoring_scope",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "target": "Recovery.restore_required",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "target": "Recovery.restore_method",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       }
     ]
   },
@@ -619,301 +808,351 @@
         "category": "endpoint",
         "target": "Analysis.verdict",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.confidence",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.response_recommended",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.compromise_level",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.compromise_decision",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.spread_level",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.persistence_type",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.primary_entity_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.primary_entity_name",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.primary_entity_user",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.primary_entity_type",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.case_category",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.mitre_tactic",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.mitre_tactic_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.mitre_technique",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.mitre_technique_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.case_score",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.global_hash_prevalence_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.case_host_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.case_issue_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Analysis.case_user_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.verdict",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.confidence",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.category",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.signal_type",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.source_verdict",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.response_recommended",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.spread_level",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Analysis.Email.persistence_type",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.verdict",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.confidence",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.response_recommended",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.compromise_level",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.compromise_decision",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.spread_level",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.primary_entity_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.primary_entity_name",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.primary_entity_user",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.primary_entity_type",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.case_category",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.mitre_tactic",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.mitre_tactic_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.mitre_technique",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.mitre_technique_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.case_score",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.case_host_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.case_issue_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Analysis.case_user_count",
         "type": "number",
-        "init": 0
+        "init": 0,
+        "role": "canonical"
       }
     ],
     "containment": [
@@ -921,61 +1160,79 @@
         "category": "endpoint",
         "target": "Containment.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Containment.Execution",
-        "type": "array",
-        "init": []
+        "type": "object",
+        "init": {},
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Containment.required",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Containment.action",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Containment.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Containment.Execution",
-        "type": "array",
-        "init": []
+        "type": "object",
+        "init": {},
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Blocklist.Final",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "legacy_alias",
+        "superseded_by": "Containment.blocklist_added",
+        "notes": "Top-level Blocklist namespace predates Containment.*"
       },
       {
         "category": "identity",
         "target": "QuarantinedFilesFromEndpoints",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "legacy_alias",
+        "superseded_by": "Containment.quarantined_files",
+        "notes": "Top-level write predates Containment.* namespace."
       },
       {
         "category": "identity",
         "target": "Core.blocklist.added_hashes",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "legacy_alias",
+        "superseded_by": "Containment.blocklist_added_hashes",
+        "notes": "Core.* namespace predates Containment.*."
       },
       {
         "category": "identity",
         "target": "Core.Isolation.endpoint_id",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "legacy_alias",
+        "superseded_by": "Containment.isolated_endpoint_id",
+        "notes": "Core.* namespace predates Containment.*."
       }
     ],
     "eradication": [
@@ -983,61 +1240,71 @@
         "category": "endpoint",
         "target": "Eradication.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Eradication.Execution",
-        "type": "array",
-        "init": []
+        "type": "object",
+        "init": {},
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Eradication.attempted",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Eradication.success",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Eradication.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Eradication.Execution",
-        "type": "array",
-        "init": []
+        "type": "object",
+        "init": {},
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Eradication.attempted",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Eradication.credentials_reset",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Eradication.tokens_revoked",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Eradication.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       }
     ],
     "recovery": [
@@ -1045,70 +1312,79 @@
         "category": "endpoint",
         "target": "Recovery.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "endpoint",
         "target": "Recovery.Execution",
-        "type": "array",
-        "init": []
+        "type": "object",
+        "init": {},
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Recovery.status",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Recovery.monitoring_required",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Recovery.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       },
       {
         "category": "email",
         "target": "Recovery.Execution",
-        "type": "array",
-        "init": []
+        "type": "object",
+        "init": {},
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Recovery.attempted",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Recovery.account_restored",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Recovery.monitoring_required",
         "type": "boolean",
-        "init": false
+        "init": false,
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Recovery.restore_method",
         "type": "string",
-        "init": ""
+        "init": "",
+        "role": "canonical"
       },
       {
         "category": "identity",
         "target": "Recovery.story",
         "type": "array",
-        "init": []
+        "init": [],
+        "role": "canonical"
       }
     ]
-  },
-  "id": "SOCFrameworkPhaseContract_V3",
-  "name": "SOCFrameworkPhaseContract_V3"
+  }
 }

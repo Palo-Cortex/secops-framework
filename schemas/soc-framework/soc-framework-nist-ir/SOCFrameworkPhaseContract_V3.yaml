@@ -23,16 +23,78 @@
 # SOCFramework.* / upstream-phase reads). Drift from this contract = a
 # playbook change without a schema PR.
 #
-# DRIFT GATES (build-time):
+# ----------------------------------------------------------------------------
+# ROLES — every entry declares one
+# ----------------------------------------------------------------------------
+#   canonical
+#     The V3 contract. The agreed read or write path for this concept.
+#     Stable. Required. Retention: forever.
+#
+#   legacy_alias
+#     Older path kept alive because a playbook still reads or writes it.
+#     For reads_from_framework: playbook should migrate to read the
+#     `superseded_by` path instead.
+#     For writes/writes_by_category: downstream consumer should migrate
+#     to read the `superseded_by` target instead.
+#     Must declare `superseded_by` (or `superseded_by: TBD` with notes
+#     for entries where no single canonical equivalent exists yet).
+#     Retention: deletable when consumers/producers migrate.
+#     Grouped at the tail of each block band for one-shot deletion.
+#
+# ----------------------------------------------------------------------------
+# NAMESPACES — phase output discipline
+# ----------------------------------------------------------------------------
+# Canonical phase-write namespaces (V3 contract):
+#   Analysis.*       — analysis phase outputs
+#   Analysis.Email.* — analysis phase outputs, email sub-tree
+#   Containment.*    — containment phase outputs
+#   Eradication.*    — eradication phase outputs
+#   Recovery.*       — recovery phase outputs
+#
+# Legacy non-phase namespaces still observed (deprecate):
+#   Blocklist.*               — predates Containment.blocklist_*
+#   QuarantinedFilesFromEndpoints — predates Containment.quarantined_files
+#   Core.*                    — predates phase-namespaced equivalents
+#
+# Canonical SOCFramework.* read paths (per-phase via reads_from_framework):
+#   SOCFramework.Artifacts.<Domain>.[<Sub>.]<Leaf>  — V3 sub-tree
+#   SOCFramework.<Category>.<leaf>                  — V3 flat surface
+#   SOCFramework.Product.*                          — Foundation product classification
+#   SOCFramework.phase                              — Foundation phase tracker
+#   SOCFramework.Investigation.*                    — Foundation investigation enrichment
+#
+# Legacy SOCFramework.* read paths still observed (deprecate):
+#   SOCFramework.Artifacts            — bare namespace, read-existence checks
+#   SOCFramework.Artifacts.<Flat>     — pre-sub-tree flat keys (EndPointID, File, HostName, UserName, CommandLine, ProcessNames, Verdict, FeaturedHost, NetworkArtifacts)
+#   SOCFramework.Mitre.*              — capital M, not under Artifacts (canonical: Artifacts.MITRE.*)
+#
+# ----------------------------------------------------------------------------
+# DRIFT GATES (build-time)
+# ----------------------------------------------------------------------------
 #   1. Categories ⊆ SOCProductCategoryMap_V3 in soc-optimization-unified
 #   2. Every (phase, category) routing target must exist as SOC_<Cat>_<Phase>_V3
 #      playbook in this pack
 #   3. Every reads_from_phases source must exist in upstream phase's writes
+#   4. Every legacy_alias entry must declare superseded_by (CI)
+#   5. Every canonical writes/writes_by_category target must use a phase
+#      namespace (Analysis|Containment|Eradication|Recovery).* (CI)
 # ============================================================================
 
 pack: soc-framework-nist-ir
 list_name: SOCFrameworkPhaseContract_V3
-description: NIST IR phase contract — what each phase reads, writes, and routes to
+description: NIST IR phase contract — what each phase reads, writes, and routes to. Two roles (canonical, legacy_alias) with banded organization for one-shot legacy cleanup.
+
+# ============================================================================
+# Roles — machine-readable definitions for CI validators
+# ============================================================================
+roles:
+  canonical:
+    description: V3 contract path. The agreed read or write for this concept.
+    retention: forever
+  legacy_alias:
+    description: Older path still observed in playbook YAML. For reads, the playbook should migrate. For writes, downstream consumers should migrate.
+    retention: deletable
+    requires: [superseded_by]
 
 # ============================================================================
 # Self-described validation — interpreted generically by the generator
@@ -43,6 +105,10 @@ description: NIST IR phase contract — what each phase reads, writes, and route
 # All three are interpreted by tools/generate_soc_framework_content.py.
 # Adding a new soc-framework app = drop a YAML with its own validation block.
 # Generator does not change.
+#
+# Per-entry `role` is required by convention on every list block. Add to
+# item_required once the generator's role-aware validator ships; until then,
+# role tagging is enforced by review and by validate_normalizer_contracts.py.
 # ============================================================================
 validation:
   required_blocks: [phases, categories, routing, writes]
@@ -128,120 +194,146 @@ categories:
   - endpoint
   - email
   - identity
+
 # ============================================================================
 # Routing — per (phase, category) sub-playbook
 # ============================================================================
 # Note: 'Endpoint' capitalization differs by phase (containment uses lowercase
-# 'Endpoint', other three phases use 'EndPoint'). This is preserved verbatim
-# from the playbook YAML — drift gate validates each name resolves to an
-# actual playbook file.
+# 'Endpoint', other three phases use 'EndPoint'). Preserved verbatim from the
+# playbook YAML — drift gate validates each name resolves to a real playbook.
+# All entries role: canonical (no deprecated routes today).
 # ============================================================================
 routing:
 
   # ------ analysis ------
-  - { phase: analysis, category: endpoint, sub_playbook: SOC_EndPoint_Analysis_V3 }
-  - { phase: analysis, category: email   , sub_playbook: SOC_Email_Analysis_V3    }
-  - { phase: analysis, category: identity, sub_playbook: SOC_Identity_Analysis_V3 }
+  - { phase: analysis, category: endpoint, sub_playbook: SOC_EndPoint_Analysis_V3, role: canonical }
+  - { phase: analysis, category: email   , sub_playbook: SOC_Email_Analysis_V3   , role: canonical }
+  - { phase: analysis, category: identity, sub_playbook: SOC_Identity_Analysis_V3, role: canonical }
 
   # ------ containment ------
-  - { phase: containment, category: endpoint, sub_playbook: SOC_Endpoint_Containment_V3 }
-  - { phase: containment, category: email   , sub_playbook: SOC_Email_Containment_V3    }
-  - { phase: containment, category: identity, sub_playbook: SOC_Identity_Containment_V3 }
+  - { phase: containment, category: endpoint, sub_playbook: SOC_Endpoint_Containment_V3, role: canonical }
+  - { phase: containment, category: email   , sub_playbook: SOC_Email_Containment_V3   , role: canonical }
+  - { phase: containment, category: identity, sub_playbook: SOC_Identity_Containment_V3, role: canonical }
 
   # ------ eradication ------
-  - { phase: eradication, category: endpoint, sub_playbook: SOC_EndPoint_Eradication_V3 }
-  - { phase: eradication, category: email   , sub_playbook: SOC_Email_Eradication_V3    }
-  - { phase: eradication, category: identity, sub_playbook: SOC_Identity_Eradication_V3 }
+  - { phase: eradication, category: endpoint, sub_playbook: SOC_EndPoint_Eradication_V3, role: canonical }
+  - { phase: eradication, category: email   , sub_playbook: SOC_Email_Eradication_V3   , role: canonical }
+  - { phase: eradication, category: identity, sub_playbook: SOC_Identity_Eradication_V3, role: canonical }
 
   # ------ recovery ------
-  - { phase: recovery, category: endpoint, sub_playbook: SOC_EndPoint_Recovery_V3 }
-  - { phase: recovery, category: email   , sub_playbook: SOC_Email_Recovery_V3    }
-  - { phase: recovery, category: identity, sub_playbook: SOC_Identity_Recovery_V3 }
+  - { phase: recovery, category: endpoint, sub_playbook: SOC_EndPoint_Recovery_V3, role: canonical }
+  - { phase: recovery, category: email   , sub_playbook: SOC_Email_Recovery_V3   , role: canonical }
+  - { phase: recovery, category: identity, sub_playbook: SOC_Identity_Recovery_V3, role: canonical }
 
 # ============================================================================
 # reads_from_framework — SOCFramework.* keys consumed by each phase
 # ============================================================================
-# Aggregated across orchestrator + all 7 per-category sub-playbooks. Lock-in
+# Aggregated across orchestrator + all per-category sub-playbooks. Lock-in
 # mode: only paths actually referenced in the YAML today.
+#
+# Bands within each phase, when applicable:
+#   1. CANONICAL    — V3 contract paths. Keep.
+#   2. LEGACY ALIAS — playbook reads pre-V3 paths. Migrate the playbook
+#                     to read superseded_by; then delete the entry.
 # ============================================================================
 reads_from_framework:
 
-  # ------ analysis (30 reads) ------
-  - { phase: analysis, source: SOCFramework.Artifacts                   }
-  - { phase: analysis, source: SOCFramework.Artifacts.CommandLine       }
-  - { phase: analysis, source: SOCFramework.Artifacts.Email             }
-  - { phase: analysis, source: SOCFramework.Artifacts.Email.From        }
-  - { phase: analysis, source: SOCFramework.Artifacts.Email.Subject     }
-  - { phase: analysis, source: SOCFramework.Artifacts.Email.ThreatType  }
-  - { phase: analysis, source: SOCFramework.Artifacts.Email.ThreatURL   }
-  - { phase: analysis, source: SOCFramework.Artifacts.Email.To          }
-  - { phase: analysis, source: SOCFramework.Artifacts.EndPointID        }
-  - { phase: analysis, source: SOCFramework.Artifacts.FeaturedHost      }
-  - { phase: analysis, source: SOCFramework.Artifacts.File              }
-  - { phase: analysis, source: SOCFramework.Artifacts.HostName          }
-  - { phase: analysis, source: SOCFramework.Artifacts.NetworkArtifacts  }
-  - { phase: analysis, source: SOCFramework.Artifacts.ProcessNames      }
-  - { phase: analysis, source: SOCFramework.Artifacts.UserName          }
-  - { phase: analysis, source: SOCFramework.Artifacts.Verdict           }
-  - { phase: analysis, source: SOCFramework.Email.HighValueUserInvolved }
-  - { phase: analysis, source: SOCFramework.Email.reported_by           }
-  - { phase: analysis, source: SOCFramework.Email.threat_id             }
-  - { phase: analysis, source: SOCFramework.Email.threat_status         }
-  - { phase: analysis, source: SOCFramework.Investigation.LinkedCount   }
-  - { phase: analysis, source: SOCFramework.Investigation.RiskScore     }
-  - { phase: analysis, source: SOCFramework.Mitre                       }
-  - { phase: analysis, source: SOCFramework.Mitre.Tactic                }
-  - { phase: analysis, source: SOCFramework.Mitre.Tactic.ID             }
-  - { phase: analysis, source: SOCFramework.Mitre.Technique             }
-  - { phase: analysis, source: SOCFramework.Mitre.Technique.ID          }
-  - { phase: analysis, source: SOCFramework.Product.category            }
-  - { phase: analysis, source: SOCFramework.Product.key                 }
-  - { phase: analysis, source: SOCFramework.phase                       }
+  # ==========================================================================
+  # analysis :: CANONICAL — V3 contract reads
+  # ==========================================================================
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.From       , role: canonical }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.Subject    , role: canonical }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.ThreatType , role: canonical }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.ThreatURL  , role: canonical }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email.To         , role: canonical }
+  - { phase: analysis, source: SOCFramework.Email.HighValueUserInvolved, role: canonical, notes: "Custom Analysis-side enrichment field; written by upstream enrichment, not normalize map." }
+  - { phase: analysis, source: SOCFramework.Email.reported_by          , role: canonical }
+  - { phase: analysis, source: SOCFramework.Email.threat_id            , role: canonical }
+  - { phase: analysis, source: SOCFramework.Email.threat_status        , role: canonical }
+  - { phase: analysis, source: SOCFramework.Investigation.LinkedCount  , role: canonical, notes: "Written by Foundation_-_Enrichment_V3 / Investigation pipeline." }
+  - { phase: analysis, source: SOCFramework.Investigation.RiskScore    , role: canonical, notes: "Written by Foundation_-_Enrichment_V3 / Investigation pipeline." }
+  - { phase: analysis, source: SOCFramework.Product.category           , role: canonical }
+  - { phase: analysis, source: SOCFramework.Product.key                , role: canonical }
+  - { phase: analysis, source: SOCFramework.phase                      , role: canonical }
 
-  # ------ containment (15 reads) ------
-  - { phase: containment, source: SOCFramework.Artifacts.Domain            }
-  - { phase: containment, source: SOCFramework.Artifacts.Email.From        }
-  - { phase: containment, source: SOCFramework.Artifacts.Email.MessageID   }
-  - { phase: containment, source: SOCFramework.Artifacts.Email.Subject     }
-  - { phase: containment, source: SOCFramework.Artifacts.Email.To          }
-  - { phase: containment, source: SOCFramework.Artifacts.Endpoint.AgentID  }
-  - { phase: containment, source: SOCFramework.Artifacts.Endpoint.Hostname }
-  - { phase: containment, source: SOCFramework.Artifacts.Process.Name      }
-  - { phase: containment, source: SOCFramework.Artifacts.Process.PID       }
-  - { phase: containment, source: SOCFramework.Artifacts.Target.SHA256     }
-  - { phase: containment, source: SOCFramework.Artifacts.UserName          }
-  - { phase: containment, source: SOCFramework.Mitre.Technique.ID          }
-  - { phase: containment, source: SOCFramework.Product.category            }
-  - { phase: containment, source: SOCFramework.Product.response            }
-  - { phase: containment, source: SOCFramework.phase                       }
+  # ==========================================================================
+  # analysis :: LEGACY ALIAS — DELETABLE BLOCK (playbook reads to migrate)
+  # --------------------------------------------------------------------------
+  # SOC_Analysis_V3 reads pre-V3 flat Artifacts.* keys and bare Mitre.*
+  # paths. Migrate the playbook to read the superseded_by path, then delete
+  # the entry. Audit: grep SOC_Analysis_V3 + sub-playbooks for each source.
+  # ==========================================================================
+  - { phase: analysis, source: SOCFramework.Artifacts                  , role: legacy_alias, superseded_by: TBD,                                       notes: "Bare namespace read — likely an exists-check. Replace with specific leaf reads or remove." }
+  - { phase: analysis, source: SOCFramework.Artifacts.CommandLine      , role: legacy_alias, superseded_by: SOCFramework.Artifacts.Process.CommandLine }
+  - { phase: analysis, source: SOCFramework.Artifacts.Email            , role: legacy_alias, superseded_by: TBD,                                       notes: "Bare email namespace read. Replace with specific leaf reads (Email.From/To/Subject/etc.)." }
+  - { phase: analysis, source: SOCFramework.Artifacts.EndPointID       , role: legacy_alias, superseded_by: SOCFramework.Artifacts.Endpoint.AgentID }
+  - { phase: analysis, source: SOCFramework.Artifacts.FeaturedHost     , role: legacy_alias, superseded_by: TBD,                                       notes: "No clear V3 equivalent. Likely Artifacts.Endpoint.Hostname; verify usage in SOC_Analysis_V3 before mapping." }
+  - { phase: analysis, source: SOCFramework.Artifacts.File             , role: legacy_alias, superseded_by: SOCFramework.Artifacts.Target.SHA256 }
+  - { phase: analysis, source: SOCFramework.Artifacts.HostName         , role: legacy_alias, superseded_by: SOCFramework.Artifacts.Endpoint.Hostname,  notes: "Capital N drift — V3 canonical is .Hostname (capital H, lower n)." }
+  - { phase: analysis, source: SOCFramework.Artifacts.NetworkArtifacts , role: legacy_alias, superseded_by: TBD,                                       notes: "No clear V3 equivalent. Investigate whether replaced by Artifacts.Network.IP or by a future Artifacts.Network.* sub-tree." }
+  - { phase: analysis, source: SOCFramework.Artifacts.ProcessNames     , role: legacy_alias, superseded_by: SOCFramework.Artifacts.Process.Name }
+  - { phase: analysis, source: SOCFramework.Artifacts.UserName         , role: legacy_alias, superseded_by: SOCFramework.Artifacts.User,               notes: "Migrate to Artifacts.User.Name once User sub-tree is authored." }
+  - { phase: analysis, source: SOCFramework.Artifacts.Verdict          , role: legacy_alias, superseded_by: TBD,                                       notes: "V3 splits per-entity verdicts: Artifacts.Process.Verdict and Artifacts.Target.Verdict." }
+  - { phase: analysis, source: SOCFramework.Mitre                      , role: legacy_alias, superseded_by: SOCFramework.Artifacts.MITRE,              notes: "Capital M not under Artifacts. V3 canonical is Artifacts.MITRE.*" }
+  - { phase: analysis, source: SOCFramework.Mitre.Tactic               , role: legacy_alias, superseded_by: SOCFramework.Artifacts.MITRE.Tactic }
+  - { phase: analysis, source: SOCFramework.Mitre.Tactic.ID            , role: legacy_alias, superseded_by: SOCFramework.Artifacts.MITRE.TacticID }
+  - { phase: analysis, source: SOCFramework.Mitre.Technique            , role: legacy_alias, superseded_by: SOCFramework.Artifacts.MITRE.Technique }
+  - { phase: analysis, source: SOCFramework.Mitre.Technique.ID         , role: legacy_alias, superseded_by: SOCFramework.Artifacts.MITRE.TechniqueID }
 
-  # ------ eradication (15 reads) ------
-  - { phase: eradication, source: SOCFramework.Artifacts.Email.From        }
-  - { phase: eradication, source: SOCFramework.Artifacts.Email.Subject     }
-  - { phase: eradication, source: SOCFramework.Artifacts.Email.ThreatType  }
-  - { phase: eradication, source: SOCFramework.Artifacts.Email.ThreatURL   }
-  - { phase: eradication, source: SOCFramework.Artifacts.Email.To          }
-  - { phase: eradication, source: SOCFramework.Artifacts.Endpoint.AgentID  }
-  - { phase: eradication, source: SOCFramework.Artifacts.Endpoint.Hostname }
-  - { phase: eradication, source: SOCFramework.Artifacts.Process.Name      }
-  - { phase: eradication, source: SOCFramework.Artifacts.Process.Path      }
-  - { phase: eradication, source: SOCFramework.Artifacts.Process.SHA256    }
-  - { phase: eradication, source: SOCFramework.Artifacts.Target.Path       }
-  - { phase: eradication, source: SOCFramework.Artifacts.Target.SHA256     }
-  - { phase: eradication, source: SOCFramework.Email.TAP.Classification    }
-  - { phase: eradication, source: SOCFramework.Product.category            }
-  - { phase: eradication, source: SOCFramework.phase                       }
+  # ==========================================================================
+  # containment :: CANONICAL — V3 contract reads
+  # ==========================================================================
+  - { phase: containment, source: SOCFramework.Artifacts.Domain           , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.From       , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.MessageID  , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.Subject    , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Email.To         , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Endpoint.AgentID , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Endpoint.Hostname, role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Process.Name     , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Process.PID      , role: canonical }
+  - { phase: containment, source: SOCFramework.Artifacts.Target.SHA256    , role: canonical }
+  - { phase: containment, source: SOCFramework.Product.category           , role: canonical }
+  - { phase: containment, source: SOCFramework.Product.response           , role: canonical }
+  - { phase: containment, source: SOCFramework.phase                      , role: canonical }
 
-  # ------ recovery (9 reads) ------
-  - { phase: recovery, source: SOCFramework.Artifacts.Email.From        }
-  - { phase: recovery, source: SOCFramework.Artifacts.Email.Subject     }
-  - { phase: recovery, source: SOCFramework.Artifacts.Email.To          }
-  - { phase: recovery, source: SOCFramework.Artifacts.Endpoint.AgentID  }
-  - { phase: recovery, source: SOCFramework.Artifacts.Endpoint.Hostname }
-  - { phase: recovery, source: SOCFramework.Artifacts.User              }
-  - { phase: recovery, source: SOCFramework.Email.TAP.Classification    }
-  - { phase: recovery, source: SOCFramework.Product.category            }
-  - { phase: recovery, source: SOCFramework.phase                       }
+  # ==========================================================================
+  # containment :: LEGACY ALIAS — DELETABLE BLOCK
+  # ==========================================================================
+  - { phase: containment, source: SOCFramework.Artifacts.UserName , role: legacy_alias, superseded_by: SOCFramework.Artifacts.User,                  notes: "Migrate to Artifacts.User.Name once User sub-tree is authored." }
+  - { phase: containment, source: SOCFramework.Mitre.Technique.ID , role: legacy_alias, superseded_by: SOCFramework.Artifacts.MITRE.TechniqueID }
+
+  # ==========================================================================
+  # eradication :: CANONICAL — V3 contract reads (no legacy band)
+  # ==========================================================================
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.From       , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.Subject    , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.ThreatType , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.ThreatURL  , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Email.To         , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Endpoint.AgentID , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Endpoint.Hostname, role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Process.Name     , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Process.Path     , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Process.SHA256   , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Target.Path      , role: canonical }
+  - { phase: eradication, source: SOCFramework.Artifacts.Target.SHA256    , role: canonical }
+  - { phase: eradication, source: SOCFramework.Email.TAP.Classification   , role: canonical, notes: "Vendor-specific Email Analysis output; written by Email Analysis sub-playbook." }
+  - { phase: eradication, source: SOCFramework.Product.category           , role: canonical }
+  - { phase: eradication, source: SOCFramework.phase                      , role: canonical }
+
+  # ==========================================================================
+  # recovery :: CANONICAL — V3 contract reads (no legacy band)
+  # ==========================================================================
+  - { phase: recovery, source: SOCFramework.Artifacts.Email.From       , role: canonical }
+  - { phase: recovery, source: SOCFramework.Artifacts.Email.Subject    , role: canonical }
+  - { phase: recovery, source: SOCFramework.Artifacts.Email.To         , role: canonical }
+  - { phase: recovery, source: SOCFramework.Artifacts.Endpoint.AgentID , role: canonical }
+  - { phase: recovery, source: SOCFramework.Artifacts.Endpoint.Hostname, role: canonical }
+  - { phase: recovery, source: SOCFramework.Artifacts.User             , role: canonical, notes: "Will become Artifacts.User.Name once User sub-tree is authored; matches normalize-map legacy_alias." }
+  - { phase: recovery, source: SOCFramework.Email.TAP.Classification   , role: canonical }
+  - { phase: recovery, source: SOCFramework.Product.category           , role: canonical }
+  - { phase: recovery, source: SOCFramework.phase                      , role: canonical }
 
 # ============================================================================
 # reads_from_phases — upstream phase outputs each phase consumes
@@ -249,189 +341,210 @@ reads_from_framework:
 # These are the 'story' dependencies — what containment learns from analysis,
 # what eradication learns from analysis + containment, etc.
 # Drift gate: every source must exist in the upstream phase's `writes` block.
+# All entries role: canonical.
 # ============================================================================
 reads_from_phases:
 
   # ------ containment ------
-  - { phase: containment, from_phase: analysis, source: Analysis.case_score }
+  - { phase: containment, from_phase: analysis, source: Analysis.case_score, role: canonical }
 
   # ------ eradication ------
-  - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_decision  }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_level     }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.mitre_tactic         }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.persistence_type     }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_id    }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_name  }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_user  }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.response_recommended }
-  - { phase: eradication, from_phase: analysis   , source: Analysis.spread_level         }
-  - { phase: eradication, from_phase: containment, source: Containment.action            }
-  - { phase: eradication, from_phase: containment, source: Containment.required          }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_decision , role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_level    , role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.mitre_tactic        , role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.persistence_type    , role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_id   , role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_name , role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.primary_entity_user , role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.response_recommended, role: canonical }
+  - { phase: eradication, from_phase: analysis   , source: Analysis.spread_level        , role: canonical }
+  - { phase: eradication, from_phase: containment, source: Containment.action           , role: canonical }
+  - { phase: eradication, from_phase: containment, source: Containment.required         , role: canonical }
 
   # ------ recovery ------
-  - { phase: recovery, from_phase: analysis   , source: Analysis.compromise_decision }
-  - { phase: recovery, from_phase: analysis   , source: Analysis.compromise_level    }
-  - { phase: recovery, from_phase: analysis   , source: Analysis.primary_entity_user }
-  - { phase: recovery, from_phase: analysis   , source: Analysis.verdict             }
-  - { phase: recovery, from_phase: eradication, source: Eradication.attempted        }
-  - { phase: recovery, from_phase: eradication, source: Eradication.story            }
-  - { phase: recovery, from_phase: eradication, source: Eradication.success          }
-  - { phase: recovery, from_phase: containment, source: Containment.Execution        }
-  - { phase: recovery, from_phase: containment, source: Containment.required         }
+  - { phase: recovery, from_phase: analysis   , source: Analysis.compromise_decision, role: canonical }
+  - { phase: recovery, from_phase: analysis   , source: Analysis.compromise_level   , role: canonical }
+  - { phase: recovery, from_phase: analysis   , source: Analysis.primary_entity_user, role: canonical }
+  - { phase: recovery, from_phase: analysis   , source: Analysis.verdict            , role: canonical }
+  - { phase: recovery, from_phase: eradication, source: Eradication.attempted       , role: canonical }
+  - { phase: recovery, from_phase: eradication, source: Eradication.story           , role: canonical }
+  - { phase: recovery, from_phase: eradication, source: Eradication.success         , role: canonical }
+  - { phase: recovery, from_phase: containment, source: Containment.Execution       , role: canonical }
+  - { phase: recovery, from_phase: containment, source: Containment.required        , role: canonical }
 
 # ============================================================================
 # writes — phase contract surface (the story produced for downstream phases)
 # ============================================================================
 # Extracted verbatim from each phase orchestrator's `outputs:` block in YAML.
 # These are the keys that survive into the next phase's input scope.
+# All entries currently role: canonical (no deprecated phase outputs at the
+# orchestrator level today). Per-category writes carry the legacy band.
 # ============================================================================
 writes:
 
   # ------ analysis ------
-
-  - { phase: analysis, target: Analysis.verdict                     , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.confidence                  , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.response_recommended        , type: boolean , init: false  }
-  - { phase: analysis, target: Analysis.compromise_level            , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.compromise_decision         , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.spread_level                , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.persistence_type            , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.primary_entity_id           , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.primary_entity_name         , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.primary_entity_type         , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.primary_entity_user         , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.case_category               , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.mitre_tactic                , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.mitre_tactic_id             , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.mitre_technique             , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.mitre_technique_id          , type: string  , init: ""     }
-  - { phase: analysis, target: Analysis.story                       , type: array   , init: []     }
-  - { phase: analysis, target: Analysis.case_score                  , type: number  , init: 0      }
-  - { phase: analysis, target: Analysis.global_hash_prevalence_count, type: number  , init: 0      }
-  - { phase: analysis, target: Analysis.case_host_count             , type: number  , init: 0      }
-  - { phase: analysis, target: Analysis.case_issue_count            , type: number  , init: 0      }
-  - { phase: analysis, target: Analysis.case_user_count             , type: number  , init: 0      }
+  - { phase: analysis, target: Analysis.verdict                     , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.confidence                  , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.response_recommended        , type: boolean , init: false , role: canonical }
+  - { phase: analysis, target: Analysis.compromise_level            , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.compromise_decision         , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.spread_level                , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.persistence_type            , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.primary_entity_id           , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.primary_entity_name         , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.primary_entity_type         , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.primary_entity_user         , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.case_category               , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.mitre_tactic                , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.mitre_tactic_id             , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.mitre_technique             , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.mitre_technique_id          , type: string  , init: ""    , role: canonical }
+  - { phase: analysis, target: Analysis.story                       , type: array   , init: []    , role: canonical }
+  - { phase: analysis, target: Analysis.case_score                  , type: number  , init: 0     , role: canonical }
+  - { phase: analysis, target: Analysis.global_hash_prevalence_count, type: number  , init: 0     , role: canonical }
+  - { phase: analysis, target: Analysis.case_host_count             , type: number  , init: 0     , role: canonical }
+  - { phase: analysis, target: Analysis.case_issue_count            , type: number  , init: 0     , role: canonical }
+  - { phase: analysis, target: Analysis.case_user_count             , type: number  , init: 0     , role: canonical }
 
   # ------ containment ------
-
-  - { phase: containment, target: Containment.status        , type: string  , init: ""     }
-  - { phase: containment, target: Containment.isolated_hosts, type: array   , init: []     }
-  - { phase: containment, target: Containment.action        , type: string  , init: ""     }
-  - { phase: containment, target: Containment.story         , type: array   , init: []     }
-  - { phase: containment, target: Containment.required      , type: boolean  , init: false     }
-  - { phase: containment, target: Containment.Execution     , type: object   , init: {}     }
-  - { phase: containment, target: Containment.disabled_users, type: array   , init: []     }
+  - { phase: containment, target: Containment.status        , type: string  , init: ""    , role: canonical }
+  - { phase: containment, target: Containment.isolated_hosts, type: array   , init: []    , role: canonical }
+  - { phase: containment, target: Containment.action        , type: string  , init: ""    , role: canonical }
+  - { phase: containment, target: Containment.story         , type: array   , init: []    , role: canonical }
+  - { phase: containment, target: Containment.required      , type: boolean , init: false , role: canonical }
+  - { phase: containment, target: Containment.Execution     , type: object  , init: {}    , role: canonical }
+  - { phase: containment, target: Containment.disabled_users, type: array   , init: []    , role: canonical }
 
   # ------ eradication ------
-
-  - { phase: eradication, target: Eradication.success            , type: boolean , init: false  }
-  - { phase: eradication, target: Eradication.attempted          , type: boolean , init: false  }
-  - { phase: eradication, target: Eradication.files_removed      , type: array   , init: []     }
-  - { phase: eradication, target: Eradication.persistence_removed, type: array   , init: []     }
-  - { phase: eradication, target: Eradication.reimage_required   , type: boolean , init: false  }
-  - { phase: eradication, target: Eradication.escalate_to_reimage, type: boolean , init: false  }
-  - { phase: eradication, target: Eradication.story              , type: array   , init: []     }
+  - { phase: eradication, target: Eradication.success            , type: boolean , init: false , role: canonical }
+  - { phase: eradication, target: Eradication.attempted          , type: boolean , init: false , role: canonical }
+  - { phase: eradication, target: Eradication.files_removed      , type: array   , init: []    , role: canonical }
+  - { phase: eradication, target: Eradication.persistence_removed, type: array   , init: []    , role: canonical }
+  - { phase: eradication, target: Eradication.reimage_required   , type: boolean , init: false , role: canonical }
+  - { phase: eradication, target: Eradication.escalate_to_reimage, type: boolean , init: false , role: canonical }
+  - { phase: eradication, target: Eradication.story              , type: array   , init: []    , role: canonical }
 
   # ------ recovery ------
+  - { phase: recovery, target: Recovery.status             , type: string  , init: ""    , role: canonical }
+  - { phase: recovery, target: Recovery.story              , type: array   , init: []    , role: canonical }
+  - { phase: recovery, target: Recovery.monitoring_required, type: boolean , init: false , role: canonical }
+  - { phase: recovery, target: Recovery.monitoring_scope   , type: string  , init: ""    , role: canonical }
+  - { phase: recovery, target: Recovery.restore_required   , type: boolean , init: false , role: canonical }
+  - { phase: recovery, target: Recovery.restore_method     , type: string  , init: ""    , role: canonical }
 
-  - { phase: recovery, target: Recovery.status             , type: string  , init: ""     }
-  - { phase: recovery, target: Recovery.story              , type: array   , init: []     }
-  - { phase: recovery, target: Recovery.monitoring_required, type: boolean , init: false  }
-  - { phase: recovery, target: Recovery.monitoring_scope   , type: string  , init: ""     }
-  - { phase: recovery, target: Recovery.restore_required   , type: boolean , init: false  }
-  - { phase: recovery, target: Recovery.restore_method     , type: string  , init: ""     }
-
+# ============================================================================
+# writes_by_category — per-category phase outputs (typed empty-init)
+# ============================================================================
+# Bands within each phase, when applicable:
+#   1. CANONICAL    — phase-namespaced outputs (Analysis|Containment|
+#                     Eradication|Recovery).*. Keep.
+#   2. LEGACY ALIAS — outputs in non-phase namespaces (Blocklist.*,
+#                     QuarantinedFilesFromEndpoints, Core.*). Migrate
+#                     downstream consumers to phase-namespaced equivalents.
+# ============================================================================
 writes_by_category:
 
-  # ------ analysis ------
+  # ==========================================================================
+  # analysis :: CANONICAL — phase-namespaced outputs (no legacy band)
+  # ==========================================================================
+  - { phase: analysis, category: endpoint, target: Analysis.verdict                     , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.confidence                  , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.response_recommended        , type: boolean, init: false , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.compromise_level            , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.compromise_decision         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.spread_level                , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.persistence_type            , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_id           , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_name         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_user         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_type         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.case_category               , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_tactic                , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_tactic_id             , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_technique             , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.mitre_technique_id          , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.story                       , type: array  , init: []    , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.case_score                  , type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.global_hash_prevalence_count, type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.case_host_count             , type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.case_issue_count            , type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: endpoint, target: Analysis.case_user_count             , type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.verdict               , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.confidence            , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.category              , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.signal_type           , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.source_verdict        , type: array  , init: []    , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.response_recommended  , type: boolean, init: false , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.spread_level          , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: email   , target: Analysis.Email.persistence_type      , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.verdict                     , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.confidence                  , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.response_recommended        , type: boolean, init: false , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.compromise_level            , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.compromise_decision         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.spread_level                , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_id           , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_name         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_user         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.primary_entity_type         , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.case_category               , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.mitre_tactic                , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.mitre_tactic_id             , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.mitre_technique             , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.mitre_technique_id          , type: string , init: ""    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.story                       , type: array  , init: []    , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.case_score                  , type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.case_host_count             , type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.case_issue_count            , type: number , init: 0     , role: canonical }
+  - { phase: analysis, category: identity, target: Analysis.case_user_count             , type: number , init: 0     , role: canonical }
 
-  - { phase: analysis, category: endpoint, target: Analysis.verdict                     , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.confidence                  , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.response_recommended        , type: boolean , init: false  }
-  - { phase: analysis, category: endpoint, target: Analysis.compromise_level            , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.compromise_decision         , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.spread_level                , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.persistence_type            , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_id           , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_name         , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_user         , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.primary_entity_type         , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.case_category               , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.mitre_tactic                , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.mitre_tactic_id             , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.mitre_technique             , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.mitre_technique_id          , type: string  , init: ""     }
-  - { phase: analysis, category: endpoint, target: Analysis.story                       , type: array   , init: []     }
-  - { phase: analysis, category: endpoint, target: Analysis.case_score                  , type: number  , init: 0      }
-  - { phase: analysis, category: endpoint, target: Analysis.global_hash_prevalence_count, type: number  , init: 0      }
-  - { phase: analysis, category: endpoint, target: Analysis.case_host_count             , type: number  , init: 0      }
-  - { phase: analysis, category: endpoint, target: Analysis.case_issue_count            , type: number  , init: 0      }
-  - { phase: analysis, category: endpoint, target: Analysis.case_user_count             , type: number  , init: 0      }
-  - { phase: analysis, category: email   , target: Analysis.Email.verdict               , type: string  , init: ""     }
-  - { phase: analysis, category: email   , target: Analysis.Email.confidence            , type: string  , init: ""     }
-  - { phase: analysis, category: email   , target: Analysis.Email.category              , type: string  , init: ""     }
-  - { phase: analysis, category: email   , target: Analysis.Email.signal_type           , type: string  , init: ""     }
-  - { phase: analysis, category: email   , target: Analysis.Email.source_verdict        , type: array   , init: []     }
-  - { phase: analysis, category: email   , target: Analysis.Email.response_recommended  , type: boolean , init: false  }
-  - { phase: analysis, category: email   , target: Analysis.Email.spread_level          , type: string  , init: ""     }
-  - { phase: analysis, category: email   , target: Analysis.Email.persistence_type      , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.verdict                     , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.confidence                  , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.response_recommended        , type: boolean , init: false  }
-  - { phase: analysis, category: identity, target: Analysis.compromise_level            , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.compromise_decision         , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.spread_level                , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.primary_entity_id           , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.primary_entity_name         , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.primary_entity_user         , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.primary_entity_type         , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.case_category               , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.mitre_tactic                , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.mitre_tactic_id             , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.mitre_technique             , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.mitre_technique_id          , type: string  , init: ""     }
-  - { phase: analysis, category: identity, target: Analysis.story                       , type: array   , init: []     }
-  - { phase: analysis, category: identity, target: Analysis.case_score                  , type: number  , init: 0      }
-  - { phase: analysis, category: identity, target: Analysis.case_host_count             , type: number  , init: 0      }
-  - { phase: analysis, category: identity, target: Analysis.case_issue_count            , type: number  , init: 0      }
-  - { phase: analysis, category: identity, target: Analysis.case_user_count             , type: number  , init: 0      }
+  # ==========================================================================
+  # containment :: CANONICAL — phase-namespaced outputs
+  # ==========================================================================
+  - { phase: containment, category: endpoint, target: Containment.story    , type: array  , init: []    , role: canonical }
+  - { phase: containment, category: endpoint, target: Containment.Execution, type: object , init: {}    , role: canonical }
+  - { phase: containment, category: email   , target: Containment.required , type: boolean, init: false , role: canonical }
+  - { phase: containment, category: email   , target: Containment.action   , type: string , init: ""    , role: canonical }
+  - { phase: containment, category: email   , target: Containment.story    , type: array  , init: []    , role: canonical }
+  - { phase: containment, category: email   , target: Containment.Execution, type: object , init: {}    , role: canonical }
 
-  # ------ containment ------
+  # ==========================================================================
+  # containment :: LEGACY ALIAS — DELETABLE BLOCK
+  # --------------------------------------------------------------------------
+  # Identity-category writes use non-phase namespaces (Blocklist.*,
+  # QuarantinedFilesFromEndpoints, Core.*). Migrate downstream consumers
+  # to phase-namespaced Containment.* equivalents and delete this block.
+  # ==========================================================================
+  - { phase: containment, category: identity, target: Blocklist.Final              , type: array , init: [], role: legacy_alias, superseded_by: Containment.blocklist_added,        notes: "Top-level Blocklist namespace predates Containment.*" }
+  - { phase: containment, category: identity, target: QuarantinedFilesFromEndpoints, type: array , init: [], role: legacy_alias, superseded_by: Containment.quarantined_files,     notes: "Top-level write predates Containment.* namespace." }
+  - { phase: containment, category: identity, target: Core.blocklist.added_hashes  , type: array , init: [], role: legacy_alias, superseded_by: Containment.blocklist_added_hashes,notes: "Core.* namespace predates Containment.*." }
+  - { phase: containment, category: identity, target: Core.Isolation.endpoint_id   , type: string, init: "", role: legacy_alias, superseded_by: Containment.isolated_endpoint_id,  notes: "Core.* namespace predates Containment.*." }
 
-  - { phase: containment, category: endpoint, target: Containment.story            , type: array   , init: []     }
-  - { phase: containment, category: endpoint, target: Containment.Execution        , type: object   , init: {}     }
-  - { phase: containment, category: email   , target: Containment.required         , type: boolean  , init: false     }
-  - { phase: containment, category: email   , target: Containment.action           , type: string  , init: ""     }
-  - { phase: containment, category: email   , target: Containment.story            , type: array   , init: []     }
-  - { phase: containment, category: email   , target: Containment.Execution        , type: object   , init: {}     }
-  - { phase: containment, category: identity, target: Blocklist.Final              , type: array   , init: []     }
-  - { phase: containment, category: identity, target: QuarantinedFilesFromEndpoints, type: array   , init: []     }
-  - { phase: containment, category: identity, target: Core.blocklist.added_hashes  , type: array   , init: []     }
-  - { phase: containment, category: identity, target: Core.Isolation.endpoint_id   , type: string  , init: ""     }
+  # ==========================================================================
+  # eradication :: CANONICAL — phase-namespaced outputs (no legacy band)
+  # ==========================================================================
+  - { phase: eradication, category: endpoint, target: Eradication.story            , type: array  , init: []    , role: canonical }
+  - { phase: eradication, category: endpoint, target: Eradication.Execution        , type: object , init: {}    , role: canonical }
+  - { phase: eradication, category: email   , target: Eradication.attempted        , type: boolean, init: false , role: canonical }
+  - { phase: eradication, category: email   , target: Eradication.success          , type: boolean, init: false , role: canonical }
+  - { phase: eradication, category: email   , target: Eradication.story            , type: array  , init: []    , role: canonical }
+  - { phase: eradication, category: email   , target: Eradication.Execution        , type: object , init: {}    , role: canonical }
+  - { phase: eradication, category: identity, target: Eradication.attempted        , type: boolean, init: false , role: canonical }
+  - { phase: eradication, category: identity, target: Eradication.credentials_reset, type: array  , init: []    , role: canonical }
+  - { phase: eradication, category: identity, target: Eradication.tokens_revoked   , type: array  , init: []    , role: canonical }
+  - { phase: eradication, category: identity, target: Eradication.story            , type: array  , init: []    , role: canonical }
 
-  # ------ eradication ------
-
-  - { phase: eradication, category: endpoint, target: Eradication.story            , type: array   , init: []     }
-  - { phase: eradication, category: endpoint, target: Eradication.Execution        , type: object   , init: {}     }
-  - { phase: eradication, category: email   , target: Eradication.attempted        , type: boolean , init: false  }
-  - { phase: eradication, category: email   , target: Eradication.success          , type: boolean , init: false  }
-  - { phase: eradication, category: email   , target: Eradication.story            , type: array   , init: []     }
-  - { phase: eradication, category: email   , target: Eradication.Execution        , type: object   , init: {}     }
-  - { phase: eradication, category: identity, target: Eradication.attempted        , type: boolean , init: false  }
-  - { phase: eradication, category: identity, target: Eradication.credentials_reset, type: array   , init: []     }
-  - { phase: eradication, category: identity, target: Eradication.tokens_revoked   , type: array   , init: []     }
-  - { phase: eradication, category: identity, target: Eradication.story            , type: array   , init: []     }
-
-  # ------ recovery ------
-
-  - { phase: recovery, category: endpoint, target: Recovery.story              , type: array   , init: []     }
-  - { phase: recovery, category: endpoint, target: Recovery.Execution          , type: object   , init: {}     }
-  - { phase: recovery, category: email   , target: Recovery.status             , type: string  , init: ""     }
-  - { phase: recovery, category: email   , target: Recovery.monitoring_required, type: boolean , init: false  }
-  - { phase: recovery, category: email   , target: Recovery.story              , type: array   , init: []     }
-  - { phase: recovery, category: email   , target: Recovery.Execution          , type: object   , init: {}     }
-  - { phase: recovery, category: identity, target: Recovery.attempted          , type: boolean , init: false  }
-  - { phase: recovery, category: identity, target: Recovery.account_restored   , type: boolean , init: false  }
-  - { phase: recovery, category: identity, target: Recovery.monitoring_required, type: boolean , init: false  }
-  - { phase: recovery, category: identity, target: Recovery.restore_method     , type: string  , init: ""     }
-  - { phase: recovery, category: identity, target: Recovery.story              , type: array   , init: []     }
+  # ==========================================================================
+  # recovery :: CANONICAL — phase-namespaced outputs (no legacy band)
+  # ==========================================================================
+  - { phase: recovery, category: endpoint, target: Recovery.story              , type: array  , init: []    , role: canonical }
+  - { phase: recovery, category: endpoint, target: Recovery.Execution          , type: object , init: {}    , role: canonical }
+  - { phase: recovery, category: email   , target: Recovery.status             , type: string , init: ""    , role: canonical }
+  - { phase: recovery, category: email   , target: Recovery.monitoring_required, type: boolean, init: false , role: canonical }
+  - { phase: recovery, category: email   , target: Recovery.story              , type: array  , init: []    , role: canonical }
+  - { phase: recovery, category: email   , target: Recovery.Execution          , type: object , init: {}    , role: canonical }
+  - { phase: recovery, category: identity, target: Recovery.attempted          , type: boolean, init: false , role: canonical }
+  - { phase: recovery, category: identity, target: Recovery.account_restored   , type: boolean, init: false , role: canonical }
+  - { phase: recovery, category: identity, target: Recovery.monitoring_required, type: boolean, init: false , role: canonical }
+  - { phase: recovery, category: identity, target: Recovery.restore_method     , type: string , init: ""    , role: canonical }
+  - { phase: recovery, category: identity, target: Recovery.story              , type: array  , init: []    , role: canonical }
