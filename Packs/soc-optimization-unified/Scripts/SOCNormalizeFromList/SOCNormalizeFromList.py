@@ -77,7 +77,25 @@ def is_empty(val):
 # ---------------------------------------------------------------------------
 
 def load_list_section(list_name, category):
-    """Load SOCFrameworkNormalizeMap_V3 and return the requested category section."""
+    """Load SOCFrameworkNormalizeMap_V3 and return a per-category section.
+
+    Supports two list shapes — same script works against either:
+
+      v1 (legacy nested):
+          {"endpoint": {"mappings": [...], "stamps": [...], "mirrors": [...]},
+           "email":    {...}, ...}
+
+      v2 (flat with role tags — current shape post-refactor):
+          {"roles": {...}, "source_origins": {...},
+           "categories": {"endpoint": {...}, "email": {...}, ...},
+           "mappings":   [{"category": "endpoint", ...}, ...],
+           "stamps":     [{"category": "endpoint", ...}, ...],
+           "mirrors":    [{"category": "email",    ...}, ...]}
+
+    Returns a dict shaped {"mappings": [...], "stamps": [...], "mirrors": [...]}
+    containing only rows for the requested category. The downstream apply_*
+    functions consume that shape unchanged.
+    """
     res = demisto.executeCommand("getList", {"listName": list_name})
     if not res:
         raise ValueError(f"getList returned no result for {list_name}")
@@ -98,8 +116,44 @@ def load_list_section(list_name, category):
     else:
         data = contents
 
+    cat_lc = category.lower()
+
+    # ── v2 (flat) detection: top-level mappings/stamps/mirrors are arrays ──
+    if (isinstance(data.get("mappings"), list)
+            and isinstance(data.get("stamps"), list)
+            and isinstance(data.get("mirrors"), list)):
+        # Validate against the categories block when present so a typo'd
+        # category arg gets a useful error instead of silently filtering to []
+        categories_block = data.get("categories")
+        if isinstance(categories_block, dict) and categories_block:
+            known = {k.lower() for k in categories_block.keys()}
+            if cat_lc not in known:
+                available = sorted(categories_block.keys())
+                raise ValueError(
+                    f"category {category!r} not in {list_name}; available: {available}"
+                )
+        elif isinstance(categories_block, list) and categories_block:
+            known = {str(k).lower() for k in categories_block}
+            if cat_lc not in known:
+                available = sorted(categories_block)
+                raise ValueError(
+                    f"category {category!r} not in {list_name}; available: {available}"
+                )
+
+        return {
+            "mappings": [r for r in data["mappings"]
+                         if (r.get("category") or "").lower() == cat_lc],
+            "stamps":   [r for r in data["stamps"]
+                         if (r.get("category") or "").lower() == cat_lc],
+            "mirrors":  [r for r in data["mirrors"]
+                         if (r.get("category") or "").lower() == cat_lc],
+        }
+
+    # ── v1 (legacy nested): data[category] is the section dict ──
     if category not in data:
-        available = sorted(data.keys())
+        # Filter to dict-valued keys to surface only real category sections,
+        # not metadata like 'id' / 'name'
+        available = sorted(k for k, v in data.items() if isinstance(v, dict))
         raise ValueError(f"category {category!r} not in {list_name}; available: {available}")
 
     return data[category]
