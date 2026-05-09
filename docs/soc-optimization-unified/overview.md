@@ -31,7 +31,7 @@ Additional custom packs the installer pulls in alongside this pack.
 | Pack | System | Source |
 |---|---|---|
 | `soc-optimization-unified.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-optimization-unified-v3.7.98/soc-optimization-unified-v3.7.98.zip) |
-| `soc-framework-nist-ir.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-v1.5.49/soc-framework-nist-ir-v1.5.49.zip) |
+| `soc-framework-nist-ir.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-v1.5.50/soc-framework-nist-ir-v1.5.50.zip) |
 | `soc-framework-manager.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-manager-v1.1.1/soc-framework-manager-v1.1.1.zip) |
 
 ## Marketplace Dependencies
