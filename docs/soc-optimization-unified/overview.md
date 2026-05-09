@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-optimization-unified` |
-| Version | `3.8.1` |
+| Version | `3.8.2` |
 | Category | Use Case |
 | Pack Path | `Packs/soc-optimization-unified` |
 | Manifest | [`Packs/soc-optimization-unified/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-optimization-unified/xsoar_config.json) |
@@ -30,8 +30,8 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-optimization-unified.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-optimization-unified-v3.8.1/soc-optimization-unified-v3.8.1.zip) |
-| `soc-framework-nist-ir.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-v1.5.52/soc-framework-nist-ir-v1.5.52.zip) |
+| `soc-optimization-unified.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-optimization-unified-v3.8.2/soc-optimization-unified-v3.8.2.zip) |
+| `soc-framework-nist-ir.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-v1.5.54/soc-framework-nist-ir-v1.5.54.zip) |
 | `soc-framework-manager.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-manager-v1.1.1/soc-framework-manager-v1.1.1.zip) |
 
 ## Marketplace Dependencies
