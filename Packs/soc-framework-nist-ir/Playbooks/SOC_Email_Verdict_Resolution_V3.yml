@@ -1,45 +1,73 @@
 adopted: true
 id: SOC Email Verdict Resolution_V3
-name: SOC Email Verdict Resolution_V3
 version: -1
-fromversion: 6.10.0
-description: "Purpose\nDetermine the verdict, confidence, and category for an email\
-  \ threat.\n\nThis playbook answers: is this malicious, how confident are we, and\
-  \ what type of threat is it?\nIt does NOT answer: who was impacted or what action\
-  \ to take at scale — that is SOC Email Exposure Evaluation_V3.\n\nPrimary signal:\
-  \ Email source ThreatStatus (inputs.ThreatStatus)\n  malicious  → verdict=malicious,\
-  \ confidence=high\n  suspicious → verdict=malicious, confidence=medium\n  default\
-  \    → verdict=benign,    confidence=low\n\nSecondary signal: Analysis.Email.source_verdict\
-  \ from DBot (set by Signal Characterization)\n  If DBot=malicious AND ThreatStatus\
-  \ returned benign → elevate to suspicious/medium\n\nAdvisory recommendation is set\
-  \ here as a non-executing signal to guide Containment.\nPriority order: escalate_IR\
-  \ > search_and_purge > retract_message > quarantine > no_action"
+fromversion: 5.0.0
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    itemVersion: 1.5.50
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+aclrelations: []
+aclowner:
+  id: ""
+  type: ""
+  name: ""
+name: SOC Email Verdict Resolution_V3
+description: |-
+  Purpose
+  Determine the verdict, confidence, and category for an email threat.
+
+  This playbook answers: is this malicious, how confident are we, and what type of threat is it?
+  It does NOT answer: who was impacted or what action to take at scale — that is SOC Email Exposure Evaluation_V3.
+
+  Primary signal: Email source ThreatStatus (inputs.ThreatStatus)
+    malicious  → verdict=malicious, confidence=high
+    suspicious → verdict=malicious, confidence=medium
+    default    → verdict=benign,    confidence=low
+
+  Secondary signal: Analysis.Email.source_verdict from DBot (set by Signal Characterization)
+    If DBot=malicious AND ThreatStatus returned benign → elevate to suspicious/medium
+
+  Advisory recommendation is set here as a non-executing signal to guide Containment.
+  Priority order: escalate_IR > search_and_purge > retract_message > quarantine > no_action
 tags:
 - SOC
 - SOC_Framework_Unified
 - Detection & Analysis
 - NIST 800-61
 - Email
-starttaskid: '0'
+starttaskid: "0"
 tasks:
-  '0':
-    id: '0'
+  "0":
+    id: "0"
     taskid: 07f29d81-563e-4897-bdea-a928d0c4ef1f
     type: start
     task:
       id: 07f29d81-563e-4897-bdea-a928d0c4ef1f
       version: -1
-      name: ''
+      name: ""
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '1'
+      - "1"
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 50}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 50
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -47,8 +75,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '1':
-    id: '1'
+  "1":
+    id: "1"
     taskid: 50ed0103-b968-4d23-98bb-961c81036dcf
     type: title
     task:
@@ -57,15 +85,21 @@ tasks:
       name: Set Defaults
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '2'
+      - "2"
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 195}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 220
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -73,8 +107,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '2':
-    id: '2'
+  "2":
+    id: "2"
     taskid: 17746e80-c446-4800-b733-29c0eefc328f
     type: regular
     task:
@@ -85,22 +119,28 @@ tasks:
       script: SetMultipleValues
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '3'
+      - "3"
     scriptarguments:
       keys:
         simple: Email.verdict,Email.confidence,Email.category,Email.response_recommended
-      values:
-        simple: benign,low,unknown,no_action
       parent:
         simple: Analysis
+      values:
+        simple: benign,low,unknown,no_action
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 365}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 390
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -108,8 +148,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '3':
-    id: '3'
+  "3":
+    id: "3"
     taskid: 1cabeeb4-b905-4a4c-bc17-3ad596723bea
     type: title
     task:
@@ -118,15 +158,21 @@ tasks:
       name: Determine Verdict from ThreatStatus
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '4'
+      - "4"
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 555}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 575
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -134,30 +180,32 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '4':
-    id: '4'
+  "4":
+    id: "4"
     taskid: b7671af2-d127-4dc7-a3a9-e17557c5438f
     type: condition
     task:
       id: b7671af2-d127-4dc7-a3a9-e17557c5438f
       version: -1
       name: ThreatStatus?
-      type: condition
       description: Routes on Email source ThreatStatus. Malicious → high confidence.
         Suspicious → medium confidence. Default → benign, low confidence (defaults
         already set).
+      type: condition
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - '7'
-      Malicious: &id001
-      - '5'
+      - "7"
+      Active:
+      - "5"
+      Malicious:
+      - "5"
       Suspicious:
-      - '6'
-      Active: *id001
+      - "6"
+    separatecontext: false
     conditions:
     - label: Malicious
       condition:
@@ -192,9 +240,14 @@ tasks:
             value:
               simple: active
           ignorecase: true
-    separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 725}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 745
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -202,8 +255,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '5':
-    id: '5'
+  "5":
+    id: "5"
     taskid: 0d04996f-7538-417d-b77e-e72e2839e5b9
     type: regular
     task:
@@ -214,22 +267,28 @@ tasks:
       script: SetMultipleValues
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '8'
+      - "8"
     scriptarguments:
       keys:
         simple: Email.verdict,Email.confidence
-      values:
-        simple: malicious,high
       parent:
         simple: Analysis
+      values:
+        simple: malicious,high
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 200, "y": 920}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 930
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -237,8 +296,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '6':
-    id: '6'
+  "6":
+    id: "6"
     taskid: 008d7e79-659d-42b6-8e65-e4cf79174976
     type: regular
     task:
@@ -249,22 +308,28 @@ tasks:
       script: SetMultipleValues
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '8'
+      - "8"
     scriptarguments:
       keys:
         simple: Email.verdict,Email.confidence
-      values:
-        simple: malicious,medium
       parent:
         simple: Analysis
+      values:
+        simple: malicious,medium
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 920}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 930
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -272,8 +337,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '7':
-    id: '7'
+  "7":
+    id: "7"
     taskid: 5e10954a-20c2-4b3f-ba36-a43e30985ceb
     type: regular
     task:
@@ -284,22 +349,28 @@ tasks:
       script: SetMultipleValues
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '8'
+      - "8"
     scriptarguments:
       keys:
         simple: Email.verdict,Email.confidence
-      values:
-        simple: benign,low
       parent:
         simple: Analysis
+      values:
+        simple: benign,low
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 985, "y": 920}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 910,
+          "y": 930
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -307,8 +378,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '8':
-    id: '8'
+  "8":
+    id: "8"
     taskid: c73a4a81-48bf-4885-a9fd-0b64c1b7225f
     type: title
     task:
@@ -317,15 +388,21 @@ tasks:
       name: Cross-check DBot Source Verdict
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '9'
+      - "9"
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 1110}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1115
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -333,29 +410,30 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '9':
-    id: '9'
+  "9":
+    id: "9"
     taskid: 19185dcc-890b-488f-bdd5-7d4da5041fa3
     type: condition
     task:
       id: 19185dcc-890b-488f-bdd5-7d4da5041fa3
       version: -1
       name: DBot Confirms Malicious?
-      type: condition
       description: If DBot independently rates the indicator as malicious but ThreatStatus
         returned benign, elevate to suspicious/medium as a secondary signal. Prevents
         missed verdicts on stale TAP status.
+      type: condition
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - '10'
-      'yes':
-      - '11'
+      - "10"
+      "yes":
+      - "11"
+    separatecontext: false
     conditions:
-    - label: 'yes'
+    - label: "yes"
       condition:
       - - operator: isEqualString
           left:
@@ -375,9 +453,14 @@ tasks:
             value:
               simple: benign
           ignorecase: true
-    separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 1280}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1285
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -385,8 +468,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '10':
-    id: '10'
+  "10":
+    id: "10"
     taskid: ef2adb10-2835-472d-97cf-8fd981d1cdf1
     type: title
     task:
@@ -395,15 +478,21 @@ tasks:
       name: Set Category
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '12'
+      - "12"
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 1470}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 60,
+          "y": 1477.5
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -411,8 +500,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '11':
-    id: '11'
+  "11":
+    id: "11"
     taskid: 373da371-d397-4164-b50c-fd74a5d7debe
     type: regular
     task:
@@ -423,22 +512,28 @@ tasks:
       script: SetMultipleValues
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '12'
+      - "12"
     scriptarguments:
       keys:
         simple: Email.verdict,Email.confidence
-      values:
-        simple: suspicious,medium
       parent:
         simple: Analysis
+      values:
+        simple: suspicious,medium
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 985, "y": 1470}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 490,
+          "y": 1470
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -446,28 +541,28 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '12':
-    id: '12'
+  "12":
+    id: "12"
     taskid: 4eae74d6-3466-4729-8084-47b407dd7b8c
     type: regular
     task:
       id: 4eae74d6-3466-4729-8084-47b407dd7b8c
       version: -1
       name: Set Email Category
-      description: Maps email source Classification to Analysis.Email.category.
-        Appends unknown as fallback so FirstArrayElement always resolves.
+      description: Maps email source Classification to Analysis.Email.category. Appends
+        unknown as fallback so FirstArrayElement always resolves.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '13'
+      - "13"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       key:
         simple: Analysis.Email.category
       value:
@@ -483,8 +578,14 @@ tasks:
           - operator: toLowerCase
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 1640}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1655
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -492,8 +593,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '13':
-    id: '13'
+  "13":
+    id: "13"
     taskid: 72dc6f3b-a2de-4318-b265-b76778ca62da
     type: title
     task:
@@ -502,15 +603,21 @@ tasks:
       name: Set Response Recommendation
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '14'
+      - "14"
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 1825}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1840
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -518,103 +625,40 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '14':
-    id: '14'
-    taskid: 6c0d33c6-65dd-4119-b333-bed4718c1ba5
+  "14":
+    id: "14"
+    taskid: e64cbda8-538c-4ca2-8dd6-b4a8560873f3
     type: condition
     task:
-      id: 6c0d33c6-65dd-4119-b333-bed4718c1ba5
+      id: e64cbda8-538c-4ca2-8dd6-b4a8560873f3
       version: -1
-      name: Recommend Action?
-      type: condition
+      name: Action Recommended?
       description: 'Advisory recommendation only — no execution. Consumed by Containment
         phase. Priority: escalate_IR (VIP) > search_and_purge (clicked) > retract_message
         (delivered) > quarantine (blocked/at-rest) > no_action (benign/low).'
+      type: condition
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - '19'
-      escalate_IR:
-      - '15'
-      search_and_purge:
-      - '16'
-      retract_message:
-      - '17'
-      quarantine:
-      - '18'
+      - "24"
+      "No":
+      - "19"
+    separatecontext: false
     conditions:
-    - label: escalate_IR
+    - label: "No"
       condition:
       - - operator: isEqualString
-          left:
-            value:
-              simple: Analysis.Email.verdict
-            iscontext: true
-          right:
-            value:
-              simple: malicious
-          ignorecase: true
-      - - operator: isEqualString
-          left:
-            value:
-              simple: inputs.HighValueUserInvolved
-            iscontext: true
-          right:
-            value:
-              simple: 'true'
-          ignorecase: true
-    - label: search_and_purge
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              simple: Analysis.Email.verdict
-            iscontext: true
-          right:
-            value:
-              simple: malicious
-          ignorecase: true
-      - - operator: greaterThan
-          left:
-            value:
-              simple: inputs.ClickCount
-            iscontext: true
-          right:
-            value:
-              simple: '0'
-    - label: retract_message
-      condition:
-      - - operator: isEqualString
-          left:
-            value:
-              simple: Analysis.Email.verdict
-            iscontext: true
-          right:
-            value:
-              simple: malicious
-          ignorecase: true
-      - - operator: greaterThan
           left:
             value:
               simple: inputs.DeliveredCount
             iscontext: true
           right:
             value:
-              simple: '0'
-      - - operator: isEqualNumber
-          left:
-            value:
-              simple: inputs.ClickCount
-            iscontext: true
-          right:
-            value:
-              simple: '0'
-    - label: quarantine
-      condition:
-      - - operator: isEqualString
+              simple: "0"
+      - - operator: isNotEqualString
           left:
             value:
               simple: Analysis.Email.verdict
@@ -626,14 +670,19 @@ tasks:
       - - operator: isEqualNumber
           left:
             value:
-              simple: inputs.DeliveredCount
+              simple: inputs.ClickCount
             iscontext: true
           right:
             value:
-              simple: '0'
-    separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 2000}}'
+              simple: "0"
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2010
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -641,179 +690,41 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '15':
-    id: '15'
-    taskid: 6cad217c-89c4-4cd6-8131-9f2718cdce88
+  "19":
+    id: "19"
+    taskid: 82fe06a5-ff29-4bab-bc5a-07ae578f425c
     type: regular
     task:
-      id: 6cad217c-89c4-4cd6-8131-9f2718cdce88
-      version: -1
-      name: Set Recommendation — escalate_IR
-      description: Set a value in context under the key you entered.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '21'
-    scriptarguments:
-      append:
-        simple: 'false'
-      key:
-        simple: Analysis.Email.response_recommended
-      value:
-        simple: escalate_IR
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 50, "y": 2200}}'
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '16':
-    id: '16'
-    taskid: e421fefe-d092-452b-98b7-1de9521b6f04
-    type: regular
-    task:
-      id: e421fefe-d092-452b-98b7-1de9521b6f04
-      version: -1
-      name: Set Recommendation — search_and_purge
-      description: Set a value in context under the key you entered.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '21'
-    scriptarguments:
-      append:
-        simple: 'false'
-      key:
-        simple: Analysis.Email.response_recommended
-      value:
-        simple: search_and_purge
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 330, "y": 2200}}'
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '17':
-    id: '17'
-    taskid: b63c49ef-6d6f-49d9-9dea-54d7f6ae8b86
-    type: regular
-    task:
-      id: b63c49ef-6d6f-49d9-9dea-54d7f6ae8b86
-      version: -1
-      name: Set Recommendation — retract_message
-      description: Set a value in context under the key you entered.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '21'
-    scriptarguments:
-      append:
-        simple: 'false'
-      key:
-        simple: Analysis.Email.response_recommended
-      value:
-        simple: retract_message
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 2200}}'
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '18':
-    id: '18'
-    taskid: b47c514c-3607-41f1-8144-38c40c31c408
-    type: regular
-    task:
-      id: b47c514c-3607-41f1-8144-38c40c31c408
-      version: -1
-      name: Set Recommendation — quarantine
-      description: Set a value in context under the key you entered.
-      script: SetAndHandleEmpty
-      type: regular
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '21'
-    scriptarguments:
-      append:
-        simple: 'false'
-      key:
-        simple: Analysis.Email.response_recommended
-      value:
-        simple: quarantine
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 855, "y": 2200}}'
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '19':
-    id: '19'
-    taskid: fa831c53-7086-4950-8dac-85cabbafae47
-    type: regular
-    task:
-      id: fa831c53-7086-4950-8dac-85cabbafae47
+      id: 82fe06a5-ff29-4bab-bc5a-07ae578f425c
       version: -1
       name: Set Recommendation — no_action
       description: Set a value in context under the key you entered.
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '21'
+      - "21"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       key:
         simple: Analysis.Email.response_recommended
       value:
-        simple: no_action
+        simple: "True"
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 1120, "y": 2200}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 60,
+          "y": 2195
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -821,8 +732,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '20':
-    id: '20'
+  "20":
+    id: "20"
     taskid: b778069c-7613-458c-864e-6a16b190730a
     type: title
     task:
@@ -831,13 +742,18 @@ tasks:
       name: Done
       type: title
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
-    nexttasks: {}
     separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 2780}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2750
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -845,32 +761,39 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '21':
-    id: '21'
+  "21":
+    id: "21"
     taskid: a0547d63-5e2a-49b3-9bff-7c1649cef270
     type: condition
     task:
       id: a0547d63-5e2a-49b3-9bff-7c1649cef270
       version: -1
       name: Internal Lateral Risk?
-      description: "Flags internal lateral spread risk.\n\nTrue when ALL of:\n  verdict\
-        \ = malicious\n  category = phish or malware\n  ExposureLevel = clicked\n\
-        \  RecipientScope = multi_user OR tenant_wide\n\nTwo label branches both route\
-        \ to true — OR logic across scope values.\ntenant_wide is the worst case and\
-        \ must not be excluded.\nMatches original SOC_Proofpoint_Analysis task 34\
-        \ logic."
+      description: |-
+        Flags internal lateral spread risk.
+
+        True when ALL of:
+          verdict = malicious
+          category = phish or malware
+          ExposureLevel = clicked
+          RecipientScope = multi_user OR tenant_wide
+
+        Two label branches both route to true — OR logic across scope values.
+        tenant_wide is the worst case and must not be excluded.
+        Matches original SOC_Proofpoint_Analysis task 34 logic.
       type: condition
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#default#':
-      - '23'
+      - "23"
       multi_user:
-      - '22'
+      - "22"
       tenant_wide:
-      - '22'
+      - "22"
+    separatecontext: false
     conditions:
     - label: multi_user
       condition:
@@ -948,9 +871,14 @@ tasks:
             value:
               simple: tenant_wide
           ignorecase: true
-    separatecontext: false
-    continueonerrortype: ''
-    view: '{"position": {"x": 592, "y": 2400}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2380
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -958,8 +886,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '22':
-    id: '22'
+  "22":
+    id: "22"
     taskid: 5ad4c7df-c470-4b60-a068-25783e132a45
     type: regular
     task:
@@ -969,25 +897,31 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '20'
+      - "20"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Analysis.Email.internal_lateral_risk
       value:
-        simple: 'true'
+        simple: "true"
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 250, "y": 2590}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 2565
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -995,8 +929,8 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '23':
-    id: '23'
+  "23":
+    id: "23"
     taskid: a93dc00f-e957-4346-a3b1-d7c9767cbc98
     type: regular
     task:
@@ -1006,25 +940,31 @@ tasks:
       script: SetAndHandleEmpty
       type: regular
       iscommand: false
-      brand: ''
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '20'
+      - "20"
     scriptarguments:
       append:
-        simple: 'false'
+        simple: "false"
       force:
-        simple: 'true'
+        simple: "true"
       key:
         simple: Analysis.Email.internal_lateral_risk
       value:
-        simple: 'false'
+        simple: "false"
     separatecontext: false
     continueonerror: true
-    continueonerrortype: ''
-    view: '{"position": {"x": 935, "y": 2590}}'
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 695,
+          "y": 2565
+        }
+      }
     note: false
     timertriggers: []
     ignoreworker: false
@@ -1032,6 +972,61 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  "24":
+    id: "24"
+    taskid: 48b88b31-ef6b-470a-a883-5886c753df7b
+    type: regular
+    task:
+      id: 48b88b31-ef6b-470a-a883-5886c753df7b
+      version: -1
+      name: Set Recommendation — true
+      description: Set a value in context under the key you entered.
+      script: SetAndHandleEmpty
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "21"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: Analysis.Email.response_recommended
+      value:
+        simple: "True"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 490,
+          "y": 2195
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+outlinetasks: {}
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 2760,
+        "width": 1240,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
 inputs:
 - key: ThreatStatus
   value:
@@ -1084,16 +1079,4 @@ outputs:
   description: true if verdict=malicious, category=phish/malware, ExposureLevel=clicked,
     and RecipientScope=multi_user or tenant_wide
   type: boolean
-view: '{"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 2900, "width":
-  1300, "x": 50, "y": 50}}}'
-contentitemexportablefields:
-  contentitemfields:
-    definitionid: ''
-    fromServerVersion: 6.10.0
-    isoverridable: false
-    itemVersion: 3.0.0
-    packID: soc-framework-nist-ir
-    packName: SOC Framework NIST IR (800-61)
-    prevname: ''
-    supportedModules: []
-    toServerVersion: ''
+possibleresponses: []
