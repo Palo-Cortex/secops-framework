@@ -8,7 +8,7 @@
 | List Name | `SOCFrameworkPhaseContract_V3` |
 | Source | [`schemas/soc-framework/soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.yaml`](https://github.com/Palo-Cortex/secops-framework/blob/main/schemas/soc-framework/soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.yaml) |
 
-NIST IR phase contract — what each phase reads, writes, and routes to
+NIST IR phase contract — what each phase reads, writes, and routes to. Two roles (canonical, legacy_alias) with banded organization for one-shot legacy cleanup.
 
 ## Validation
 
@@ -60,250 +60,250 @@ NIST IR phase contract — what each phase reads, writes, and routes to
 
 ## Routing
 
-| phase | category | sub_playbook |
-|---|---|---|
-| `analysis` | `endpoint` | `SOC_EndPoint_Analysis_V3` |
-| `analysis` | `email` | `SOC_Email_Analysis_V3` |
-| `analysis` | `identity` | `SOC_Identity_Analysis_V3` |
-| `containment` | `endpoint` | `SOC_Endpoint_Containment_V3` |
-| `containment` | `email` | `SOC_Email_Containment_V3` |
-| `containment` | `identity` | `SOC_Identity_Containment_V3` |
-| `eradication` | `endpoint` | `SOC_EndPoint_Eradication_V3` |
-| `eradication` | `email` | `SOC_Email_Eradication_V3` |
-| `eradication` | `identity` | `SOC_Identity_Eradication_V3` |
-| `recovery` | `endpoint` | `SOC_EndPoint_Recovery_V3` |
-| `recovery` | `email` | `SOC_Email_Recovery_V3` |
-| `recovery` | `identity` | `SOC_Identity_Recovery_V3` |
+| phase | category | sub_playbook | role |
+|---|---|---|---|
+| `analysis` | `endpoint` | `SOC_EndPoint_Analysis_V3` | `canonical` |
+| `analysis` | `email` | `SOC_Email_Analysis_V3` | `canonical` |
+| `analysis` | `identity` | `SOC_Identity_Analysis_V3` | `canonical` |
+| `containment` | `endpoint` | `SOC_Endpoint_Containment_V3` | `canonical` |
+| `containment` | `email` | `SOC_Email_Containment_V3` | `canonical` |
+| `containment` | `identity` | `SOC_Identity_Containment_V3` | `canonical` |
+| `eradication` | `endpoint` | `SOC_EndPoint_Eradication_V3` | `canonical` |
+| `eradication` | `email` | `SOC_Email_Eradication_V3` | `canonical` |
+| `eradication` | `identity` | `SOC_Identity_Eradication_V3` | `canonical` |
+| `recovery` | `endpoint` | `SOC_EndPoint_Recovery_V3` | `canonical` |
+| `recovery` | `email` | `SOC_Email_Recovery_V3` | `canonical` |
+| `recovery` | `identity` | `SOC_Identity_Recovery_V3` | `canonical` |
 
 ## Reads from Framework Namespace (`SOCFramework.*`)
 
-| phase | source |
-|---|---|
-| `analysis` | `SOCFramework.Artifacts` |
-| `analysis` | `SOCFramework.Artifacts.CommandLine` |
-| `analysis` | `SOCFramework.Artifacts.Email` |
-| `analysis` | `SOCFramework.Artifacts.Email.From` |
-| `analysis` | `SOCFramework.Artifacts.Email.Subject` |
-| `analysis` | `SOCFramework.Artifacts.Email.ThreatType` |
-| `analysis` | `SOCFramework.Artifacts.Email.ThreatURL` |
-| `analysis` | `SOCFramework.Artifacts.Email.To` |
-| `analysis` | `SOCFramework.Artifacts.EndPointID` |
-| `analysis` | `SOCFramework.Artifacts.FeaturedHost` |
-| `analysis` | `SOCFramework.Artifacts.File` |
-| `analysis` | `SOCFramework.Artifacts.HostName` |
-| `analysis` | `SOCFramework.Artifacts.NetworkArtifacts` |
-| `analysis` | `SOCFramework.Artifacts.ProcessNames` |
-| `analysis` | `SOCFramework.Artifacts.UserName` |
-| `analysis` | `SOCFramework.Artifacts.Verdict` |
-| `analysis` | `SOCFramework.Email.HighValueUserInvolved` |
-| `analysis` | `SOCFramework.Email.reported_by` |
-| `analysis` | `SOCFramework.Email.threat_id` |
-| `analysis` | `SOCFramework.Email.threat_status` |
-| `analysis` | `SOCFramework.Investigation.LinkedCount` |
-| `analysis` | `SOCFramework.Investigation.RiskScore` |
-| `analysis` | `SOCFramework.Mitre` |
-| `analysis` | `SOCFramework.Mitre.Tactic` |
-| `analysis` | `SOCFramework.Mitre.Tactic.ID` |
-| `analysis` | `SOCFramework.Mitre.Technique` |
-| `analysis` | `SOCFramework.Mitre.Technique.ID` |
-| `analysis` | `SOCFramework.Product.category` |
-| `analysis` | `SOCFramework.Product.key` |
-| `analysis` | `SOCFramework.phase` |
-| `containment` | `SOCFramework.Artifacts.Domain` |
-| `containment` | `SOCFramework.Artifacts.Email.From` |
-| `containment` | `SOCFramework.Artifacts.Email.MessageID` |
-| `containment` | `SOCFramework.Artifacts.Email.Subject` |
-| `containment` | `SOCFramework.Artifacts.Email.To` |
-| `containment` | `SOCFramework.Artifacts.Endpoint.AgentID` |
-| `containment` | `SOCFramework.Artifacts.Endpoint.Hostname` |
-| `containment` | `SOCFramework.Artifacts.Process.Name` |
-| `containment` | `SOCFramework.Artifacts.Process.PID` |
-| `containment` | `SOCFramework.Artifacts.Target.SHA256` |
-| `containment` | `SOCFramework.Artifacts.UserName` |
-| `containment` | `SOCFramework.Mitre.Technique.ID` |
-| `containment` | `SOCFramework.Product.category` |
-| `containment` | `SOCFramework.Product.response` |
-| `containment` | `SOCFramework.phase` |
-| `eradication` | `SOCFramework.Artifacts.Email.From` |
-| `eradication` | `SOCFramework.Artifacts.Email.Subject` |
-| `eradication` | `SOCFramework.Artifacts.Email.ThreatType` |
-| `eradication` | `SOCFramework.Artifacts.Email.ThreatURL` |
-| `eradication` | `SOCFramework.Artifacts.Email.To` |
-| `eradication` | `SOCFramework.Artifacts.Endpoint.AgentID` |
-| `eradication` | `SOCFramework.Artifacts.Endpoint.Hostname` |
-| `eradication` | `SOCFramework.Artifacts.Process.Name` |
-| `eradication` | `SOCFramework.Artifacts.Process.Path` |
-| `eradication` | `SOCFramework.Artifacts.Process.SHA256` |
-| `eradication` | `SOCFramework.Artifacts.Target.Path` |
-| `eradication` | `SOCFramework.Artifacts.Target.SHA256` |
-| `eradication` | `SOCFramework.Email.TAP.Classification` |
-| `eradication` | `SOCFramework.Product.category` |
-| `eradication` | `SOCFramework.phase` |
-| `recovery` | `SOCFramework.Artifacts.Email.From` |
-| `recovery` | `SOCFramework.Artifacts.Email.Subject` |
-| `recovery` | `SOCFramework.Artifacts.Email.To` |
-| `recovery` | `SOCFramework.Artifacts.Endpoint.AgentID` |
-| `recovery` | `SOCFramework.Artifacts.Endpoint.Hostname` |
-| `recovery` | `SOCFramework.Artifacts.User` |
-| `recovery` | `SOCFramework.Email.TAP.Classification` |
-| `recovery` | `SOCFramework.Product.category` |
-| `recovery` | `SOCFramework.phase` |
+| phase | source | role | notes | superseded_by |
+|---|---|---|---|---|
+| `analysis` | `SOCFramework.Artifacts.Email.From` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Artifacts.Email.Subject` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Artifacts.Email.ThreatType` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Artifacts.Email.ThreatURL` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Artifacts.Email.To` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Email.HighValueUserInvolved` | `canonical` | Custom Analysis-side enrichment field; written by upstream enrichment, not normalize map. |  |
+| `analysis` | `SOCFramework.Email.reported_by` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Email.threat_id` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Email.threat_status` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Investigation.LinkedCount` | `canonical` | Written by Foundation_-_Enrichment_V3 / Investigation pipeline. |  |
+| `analysis` | `SOCFramework.Investigation.RiskScore` | `canonical` | Written by Foundation_-_Enrichment_V3 / Investigation pipeline. |  |
+| `analysis` | `SOCFramework.Product.category` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Product.key` | `canonical` |  |  |
+| `analysis` | `SOCFramework.phase` | `canonical` |  |  |
+| `analysis` | `SOCFramework.Artifacts` | `legacy_alias` | Bare namespace read — likely an exists-check. Replace with specific leaf reads or remove. | `TBD` |
+| `analysis` | `SOCFramework.Artifacts.CommandLine` | `legacy_alias` |  | `SOCFramework.Artifacts.Process.CommandLine` |
+| `analysis` | `SOCFramework.Artifacts.Email` | `legacy_alias` | Bare email namespace read. Replace with specific leaf reads (Email.From/To/Subject/etc.). | `TBD` |
+| `analysis` | `SOCFramework.Artifacts.EndPointID` | `legacy_alias` |  | `SOCFramework.Artifacts.Endpoint.AgentID` |
+| `analysis` | `SOCFramework.Artifacts.FeaturedHost` | `legacy_alias` | No clear V3 equivalent. Likely Artifacts.Endpoint.Hostname; verify usage in SOC_Analysis_V3 before mapping. | `TBD` |
+| `analysis` | `SOCFramework.Artifacts.File` | `legacy_alias` |  | `SOCFramework.Artifacts.Target.SHA256` |
+| `analysis` | `SOCFramework.Artifacts.HostName` | `legacy_alias` | Capital N drift — V3 canonical is .Hostname (capital H, lower n). | `SOCFramework.Artifacts.Endpoint.Hostname` |
+| `analysis` | `SOCFramework.Artifacts.NetworkArtifacts` | `legacy_alias` | No clear V3 equivalent. Investigate whether replaced by Artifacts.Network.IP or by a future Artifacts.Network.* sub-tree. | `TBD` |
+| `analysis` | `SOCFramework.Artifacts.ProcessNames` | `legacy_alias` |  | `SOCFramework.Artifacts.Process.Name` |
+| `analysis` | `SOCFramework.Artifacts.UserName` | `legacy_alias` | Migrate to Artifacts.User.Name once User sub-tree is authored. | `SOCFramework.Artifacts.User` |
+| `analysis` | `SOCFramework.Artifacts.Verdict` | `legacy_alias` | V3 splits per-entity verdicts: Artifacts.Process.Verdict and Artifacts.Target.Verdict. | `TBD` |
+| `analysis` | `SOCFramework.Mitre` | `legacy_alias` | Capital M not under Artifacts. V3 canonical is Artifacts.MITRE.* | `SOCFramework.Artifacts.MITRE` |
+| `analysis` | `SOCFramework.Mitre.Tactic` | `legacy_alias` |  | `SOCFramework.Artifacts.MITRE.Tactic` |
+| `analysis` | `SOCFramework.Mitre.Tactic.ID` | `legacy_alias` |  | `SOCFramework.Artifacts.MITRE.TacticID` |
+| `analysis` | `SOCFramework.Mitre.Technique` | `legacy_alias` |  | `SOCFramework.Artifacts.MITRE.Technique` |
+| `analysis` | `SOCFramework.Mitre.Technique.ID` | `legacy_alias` |  | `SOCFramework.Artifacts.MITRE.TechniqueID` |
+| `containment` | `SOCFramework.Artifacts.Domain` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Email.From` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Email.MessageID` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Email.Subject` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Email.To` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Endpoint.AgentID` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Endpoint.Hostname` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Process.Name` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Process.PID` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.Target.SHA256` | `canonical` |  |  |
+| `containment` | `SOCFramework.Product.category` | `canonical` |  |  |
+| `containment` | `SOCFramework.Product.response` | `canonical` |  |  |
+| `containment` | `SOCFramework.phase` | `canonical` |  |  |
+| `containment` | `SOCFramework.Artifacts.UserName` | `legacy_alias` | Migrate to Artifacts.User.Name once User sub-tree is authored. | `SOCFramework.Artifacts.User` |
+| `containment` | `SOCFramework.Mitre.Technique.ID` | `legacy_alias` |  | `SOCFramework.Artifacts.MITRE.TechniqueID` |
+| `eradication` | `SOCFramework.Artifacts.Email.From` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Email.Subject` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Email.ThreatType` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Email.ThreatURL` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Email.To` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Endpoint.AgentID` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Endpoint.Hostname` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Process.Name` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Process.Path` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Process.SHA256` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Target.Path` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Artifacts.Target.SHA256` | `canonical` |  |  |
+| `eradication` | `SOCFramework.Email.TAP.Classification` | `canonical` | Vendor-specific Email Analysis output; written by Email Analysis sub-playbook. |  |
+| `eradication` | `SOCFramework.Product.category` | `canonical` |  |  |
+| `eradication` | `SOCFramework.phase` | `canonical` |  |  |
+| `recovery` | `SOCFramework.Artifacts.Email.From` | `canonical` |  |  |
+| `recovery` | `SOCFramework.Artifacts.Email.Subject` | `canonical` |  |  |
+| `recovery` | `SOCFramework.Artifacts.Email.To` | `canonical` |  |  |
+| `recovery` | `SOCFramework.Artifacts.Endpoint.AgentID` | `canonical` |  |  |
+| `recovery` | `SOCFramework.Artifacts.Endpoint.Hostname` | `canonical` |  |  |
+| `recovery` | `SOCFramework.Artifacts.User` | `canonical` | Will become Artifacts.User.Name once User sub-tree is authored; matches normalize-map legacy_alias. |  |
+| `recovery` | `SOCFramework.Email.TAP.Classification` | `canonical` |  |  |
+| `recovery` | `SOCFramework.Product.category` | `canonical` |  |  |
+| `recovery` | `SOCFramework.phase` | `canonical` |  |  |
 
 ## Reads from Upstream Phases
 
-| phase | from_phase | source |
-|---|---|---|
-| `containment` | `analysis` | `Analysis.case_score` |
-| `eradication` | `analysis` | `Analysis.compromise_decision` |
-| `eradication` | `analysis` | `Analysis.compromise_level` |
-| `eradication` | `analysis` | `Analysis.mitre_tactic` |
-| `eradication` | `analysis` | `Analysis.persistence_type` |
-| `eradication` | `analysis` | `Analysis.primary_entity_id` |
-| `eradication` | `analysis` | `Analysis.primary_entity_name` |
-| `eradication` | `analysis` | `Analysis.primary_entity_user` |
-| `eradication` | `analysis` | `Analysis.response_recommended` |
-| `eradication` | `analysis` | `Analysis.spread_level` |
-| `eradication` | `containment` | `Containment.action` |
-| `eradication` | `containment` | `Containment.required` |
-| `recovery` | `analysis` | `Analysis.compromise_decision` |
-| `recovery` | `analysis` | `Analysis.compromise_level` |
-| `recovery` | `analysis` | `Analysis.primary_entity_user` |
-| `recovery` | `analysis` | `Analysis.verdict` |
-| `recovery` | `eradication` | `Eradication.attempted` |
-| `recovery` | `eradication` | `Eradication.story` |
-| `recovery` | `eradication` | `Eradication.success` |
-| `recovery` | `containment` | `Containment.Execution` |
-| `recovery` | `containment` | `Containment.required` |
+| phase | from_phase | source | role |
+|---|---|---|---|
+| `containment` | `analysis` | `Analysis.case_score` | `canonical` |
+| `eradication` | `analysis` | `Analysis.compromise_decision` | `canonical` |
+| `eradication` | `analysis` | `Analysis.compromise_level` | `canonical` |
+| `eradication` | `analysis` | `Analysis.mitre_tactic` | `canonical` |
+| `eradication` | `analysis` | `Analysis.persistence_type` | `canonical` |
+| `eradication` | `analysis` | `Analysis.primary_entity_id` | `canonical` |
+| `eradication` | `analysis` | `Analysis.primary_entity_name` | `canonical` |
+| `eradication` | `analysis` | `Analysis.primary_entity_user` | `canonical` |
+| `eradication` | `analysis` | `Analysis.response_recommended` | `canonical` |
+| `eradication` | `analysis` | `Analysis.spread_level` | `canonical` |
+| `eradication` | `containment` | `Containment.action` | `canonical` |
+| `eradication` | `containment` | `Containment.required` | `canonical` |
+| `recovery` | `analysis` | `Analysis.compromise_decision` | `canonical` |
+| `recovery` | `analysis` | `Analysis.compromise_level` | `canonical` |
+| `recovery` | `analysis` | `Analysis.primary_entity_user` | `canonical` |
+| `recovery` | `analysis` | `Analysis.verdict` | `canonical` |
+| `recovery` | `eradication` | `Eradication.attempted` | `canonical` |
+| `recovery` | `eradication` | `Eradication.story` | `canonical` |
+| `recovery` | `eradication` | `Eradication.success` | `canonical` |
+| `recovery` | `containment` | `Containment.Execution` | `canonical` |
+| `recovery` | `containment` | `Containment.required` | `canonical` |
 
 ## Writes (Top-Level)
 
-| phase | target | type | init |
-|---|---|---|---|
-| `analysis` | `Analysis.verdict` | `string` |  |
-| `analysis` | `Analysis.confidence` | `string` |  |
-| `analysis` | `Analysis.response_recommended` | `boolean` |  |
-| `analysis` | `Analysis.compromise_level` | `string` |  |
-| `analysis` | `Analysis.compromise_decision` | `string` |  |
-| `analysis` | `Analysis.spread_level` | `string` |  |
-| `analysis` | `Analysis.persistence_type` | `string` |  |
-| `analysis` | `Analysis.primary_entity_id` | `string` |  |
-| `analysis` | `Analysis.primary_entity_name` | `string` |  |
-| `analysis` | `Analysis.primary_entity_type` | `string` |  |
-| `analysis` | `Analysis.primary_entity_user` | `string` |  |
-| `analysis` | `Analysis.case_category` | `string` |  |
-| `analysis` | `Analysis.mitre_tactic` | `string` |  |
-| `analysis` | `Analysis.mitre_tactic_id` | `string` |  |
-| `analysis` | `Analysis.mitre_technique` | `string` |  |
-| `analysis` | `Analysis.mitre_technique_id` | `string` |  |
-| `analysis` | `Analysis.story` | `array` |  |
-| `analysis` | `Analysis.case_score` | `number` | `0` |
-| `analysis` | `Analysis.global_hash_prevalence_count` | `number` | `0` |
-| `analysis` | `Analysis.case_host_count` | `number` | `0` |
-| `analysis` | `Analysis.case_issue_count` | `number` | `0` |
-| `analysis` | `Analysis.case_user_count` | `number` | `0` |
-| `containment` | `Containment.status` | `string` |  |
-| `containment` | `Containment.isolated_hosts` | `array` |  |
-| `containment` | `Containment.action` | `string` |  |
-| `containment` | `Containment.story` | `array` |  |
-| `containment` | `Containment.required` | `boolean` |  |
-| `containment` | `Containment.Execution` | `object` |  |
-| `containment` | `Containment.disabled_users` | `array` |  |
-| `eradication` | `Eradication.success` | `boolean` |  |
-| `eradication` | `Eradication.attempted` | `boolean` |  |
-| `eradication` | `Eradication.files_removed` | `array` |  |
-| `eradication` | `Eradication.persistence_removed` | `array` |  |
-| `eradication` | `Eradication.reimage_required` | `boolean` |  |
-| `eradication` | `Eradication.escalate_to_reimage` | `boolean` |  |
-| `eradication` | `Eradication.story` | `array` |  |
-| `recovery` | `Recovery.status` | `string` |  |
-| `recovery` | `Recovery.story` | `array` |  |
-| `recovery` | `Recovery.monitoring_required` | `boolean` |  |
-| `recovery` | `Recovery.monitoring_scope` | `string` |  |
-| `recovery` | `Recovery.restore_required` | `boolean` |  |
-| `recovery` | `Recovery.restore_method` | `string` |  |
+| phase | target | type | init | role |
+|---|---|---|---|---|
+| `analysis` | `Analysis.verdict` | `string` |  | `canonical` |
+| `analysis` | `Analysis.confidence` | `string` |  | `canonical` |
+| `analysis` | `Analysis.response_recommended` | `boolean` |  | `canonical` |
+| `analysis` | `Analysis.compromise_level` | `string` |  | `canonical` |
+| `analysis` | `Analysis.compromise_decision` | `string` |  | `canonical` |
+| `analysis` | `Analysis.spread_level` | `string` |  | `canonical` |
+| `analysis` | `Analysis.persistence_type` | `string` |  | `canonical` |
+| `analysis` | `Analysis.primary_entity_id` | `string` |  | `canonical` |
+| `analysis` | `Analysis.primary_entity_name` | `string` |  | `canonical` |
+| `analysis` | `Analysis.primary_entity_type` | `string` |  | `canonical` |
+| `analysis` | `Analysis.primary_entity_user` | `string` |  | `canonical` |
+| `analysis` | `Analysis.case_category` | `string` |  | `canonical` |
+| `analysis` | `Analysis.mitre_tactic` | `string` |  | `canonical` |
+| `analysis` | `Analysis.mitre_tactic_id` | `string` |  | `canonical` |
+| `analysis` | `Analysis.mitre_technique` | `string` |  | `canonical` |
+| `analysis` | `Analysis.mitre_technique_id` | `string` |  | `canonical` |
+| `analysis` | `Analysis.story` | `array` |  | `canonical` |
+| `analysis` | `Analysis.case_score` | `number` | `0` | `canonical` |
+| `analysis` | `Analysis.global_hash_prevalence_count` | `number` | `0` | `canonical` |
+| `analysis` | `Analysis.case_host_count` | `number` | `0` | `canonical` |
+| `analysis` | `Analysis.case_issue_count` | `number` | `0` | `canonical` |
+| `analysis` | `Analysis.case_user_count` | `number` | `0` | `canonical` |
+| `containment` | `Containment.status` | `string` |  | `canonical` |
+| `containment` | `Containment.isolated_hosts` | `array` |  | `canonical` |
+| `containment` | `Containment.action` | `string` |  | `canonical` |
+| `containment` | `Containment.story` | `array` |  | `canonical` |
+| `containment` | `Containment.required` | `boolean` |  | `canonical` |
+| `containment` | `Containment.Execution` | `object` |  | `canonical` |
+| `containment` | `Containment.disabled_users` | `array` |  | `canonical` |
+| `eradication` | `Eradication.success` | `boolean` |  | `canonical` |
+| `eradication` | `Eradication.attempted` | `boolean` |  | `canonical` |
+| `eradication` | `Eradication.files_removed` | `array` |  | `canonical` |
+| `eradication` | `Eradication.persistence_removed` | `array` |  | `canonical` |
+| `eradication` | `Eradication.reimage_required` | `boolean` |  | `canonical` |
+| `eradication` | `Eradication.escalate_to_reimage` | `boolean` |  | `canonical` |
+| `eradication` | `Eradication.story` | `array` |  | `canonical` |
+| `recovery` | `Recovery.status` | `string` |  | `canonical` |
+| `recovery` | `Recovery.story` | `array` |  | `canonical` |
+| `recovery` | `Recovery.monitoring_required` | `boolean` |  | `canonical` |
+| `recovery` | `Recovery.monitoring_scope` | `string` |  | `canonical` |
+| `recovery` | `Recovery.restore_required` | `boolean` |  | `canonical` |
+| `recovery` | `Recovery.restore_method` | `string` |  | `canonical` |
 
 ## Writes by Category
 
-| phase | category | target | type | init |
-|---|---|---|---|---|
-| `analysis` | `endpoint` | `Analysis.verdict` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.confidence` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.response_recommended` | `boolean` |  |
-| `analysis` | `endpoint` | `Analysis.compromise_level` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.compromise_decision` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.spread_level` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.persistence_type` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.primary_entity_id` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.primary_entity_name` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.primary_entity_user` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.primary_entity_type` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.case_category` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.mitre_tactic` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.mitre_tactic_id` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.mitre_technique` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.mitre_technique_id` | `string` |  |
-| `analysis` | `endpoint` | `Analysis.story` | `array` |  |
-| `analysis` | `endpoint` | `Analysis.case_score` | `number` | `0` |
-| `analysis` | `endpoint` | `Analysis.global_hash_prevalence_count` | `number` | `0` |
-| `analysis` | `endpoint` | `Analysis.case_host_count` | `number` | `0` |
-| `analysis` | `endpoint` | `Analysis.case_issue_count` | `number` | `0` |
-| `analysis` | `endpoint` | `Analysis.case_user_count` | `number` | `0` |
-| `analysis` | `email` | `Analysis.Email.verdict` | `string` |  |
-| `analysis` | `email` | `Analysis.Email.confidence` | `string` |  |
-| `analysis` | `email` | `Analysis.Email.category` | `string` |  |
-| `analysis` | `email` | `Analysis.Email.signal_type` | `string` |  |
-| `analysis` | `email` | `Analysis.Email.source_verdict` | `array` |  |
-| `analysis` | `email` | `Analysis.Email.response_recommended` | `boolean` |  |
-| `analysis` | `email` | `Analysis.Email.spread_level` | `string` |  |
-| `analysis` | `email` | `Analysis.Email.persistence_type` | `string` |  |
-| `analysis` | `identity` | `Analysis.verdict` | `string` |  |
-| `analysis` | `identity` | `Analysis.confidence` | `string` |  |
-| `analysis` | `identity` | `Analysis.response_recommended` | `boolean` |  |
-| `analysis` | `identity` | `Analysis.compromise_level` | `string` |  |
-| `analysis` | `identity` | `Analysis.compromise_decision` | `string` |  |
-| `analysis` | `identity` | `Analysis.spread_level` | `string` |  |
-| `analysis` | `identity` | `Analysis.primary_entity_id` | `string` |  |
-| `analysis` | `identity` | `Analysis.primary_entity_name` | `string` |  |
-| `analysis` | `identity` | `Analysis.primary_entity_user` | `string` |  |
-| `analysis` | `identity` | `Analysis.primary_entity_type` | `string` |  |
-| `analysis` | `identity` | `Analysis.case_category` | `string` |  |
-| `analysis` | `identity` | `Analysis.mitre_tactic` | `string` |  |
-| `analysis` | `identity` | `Analysis.mitre_tactic_id` | `string` |  |
-| `analysis` | `identity` | `Analysis.mitre_technique` | `string` |  |
-| `analysis` | `identity` | `Analysis.mitre_technique_id` | `string` |  |
-| `analysis` | `identity` | `Analysis.story` | `array` |  |
-| `analysis` | `identity` | `Analysis.case_score` | `number` | `0` |
-| `analysis` | `identity` | `Analysis.case_host_count` | `number` | `0` |
-| `analysis` | `identity` | `Analysis.case_issue_count` | `number` | `0` |
-| `analysis` | `identity` | `Analysis.case_user_count` | `number` | `0` |
-| `containment` | `endpoint` | `Containment.story` | `array` |  |
-| `containment` | `endpoint` | `Containment.Execution` | `object` |  |
-| `containment` | `email` | `Containment.required` | `boolean` |  |
-| `containment` | `email` | `Containment.action` | `string` |  |
-| `containment` | `email` | `Containment.story` | `array` |  |
-| `containment` | `email` | `Containment.Execution` | `object` |  |
-| `containment` | `identity` | `Blocklist.Final` | `array` |  |
-| `containment` | `identity` | `QuarantinedFilesFromEndpoints` | `array` |  |
-| `containment` | `identity` | `Core.blocklist.added_hashes` | `array` |  |
-| `containment` | `identity` | `Core.Isolation.endpoint_id` | `string` |  |
-| `eradication` | `endpoint` | `Eradication.story` | `array` |  |
-| `eradication` | `endpoint` | `Eradication.Execution` | `object` |  |
-| `eradication` | `email` | `Eradication.attempted` | `boolean` |  |
-| `eradication` | `email` | `Eradication.success` | `boolean` |  |
-| `eradication` | `email` | `Eradication.story` | `array` |  |
-| `eradication` | `email` | `Eradication.Execution` | `object` |  |
-| `eradication` | `identity` | `Eradication.attempted` | `boolean` |  |
-| `eradication` | `identity` | `Eradication.credentials_reset` | `array` |  |
-| `eradication` | `identity` | `Eradication.tokens_revoked` | `array` |  |
-| `eradication` | `identity` | `Eradication.story` | `array` |  |
-| `recovery` | `endpoint` | `Recovery.story` | `array` |  |
-| `recovery` | `endpoint` | `Recovery.Execution` | `object` |  |
-| `recovery` | `email` | `Recovery.status` | `string` |  |
-| `recovery` | `email` | `Recovery.monitoring_required` | `boolean` |  |
-| `recovery` | `email` | `Recovery.story` | `array` |  |
-| `recovery` | `email` | `Recovery.Execution` | `object` |  |
-| `recovery` | `identity` | `Recovery.attempted` | `boolean` |  |
-| `recovery` | `identity` | `Recovery.account_restored` | `boolean` |  |
-| `recovery` | `identity` | `Recovery.monitoring_required` | `boolean` |  |
-| `recovery` | `identity` | `Recovery.restore_method` | `string` |  |
-| `recovery` | `identity` | `Recovery.story` | `array` |  |
+| phase | category | target | type | init | role | superseded_by | notes |
+|---|---|---|---|---|---|---|---|
+| `analysis` | `endpoint` | `Analysis.verdict` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.confidence` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.response_recommended` | `boolean` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.compromise_level` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.compromise_decision` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.spread_level` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.persistence_type` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.primary_entity_id` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.primary_entity_name` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.primary_entity_user` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.primary_entity_type` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.case_category` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.mitre_tactic` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.mitre_tactic_id` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.mitre_technique` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.mitre_technique_id` | `string` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.story` | `array` |  | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.case_score` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.global_hash_prevalence_count` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.case_host_count` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.case_issue_count` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `endpoint` | `Analysis.case_user_count` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.verdict` | `string` |  | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.confidence` | `string` |  | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.category` | `string` |  | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.signal_type` | `string` |  | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.source_verdict` | `array` |  | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.response_recommended` | `boolean` |  | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.spread_level` | `string` |  | `canonical` |  |  |
+| `analysis` | `email` | `Analysis.Email.persistence_type` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.verdict` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.confidence` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.response_recommended` | `boolean` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.compromise_level` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.compromise_decision` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.spread_level` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.primary_entity_id` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.primary_entity_name` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.primary_entity_user` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.primary_entity_type` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.case_category` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.mitre_tactic` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.mitre_tactic_id` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.mitre_technique` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.mitre_technique_id` | `string` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.story` | `array` |  | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.case_score` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.case_host_count` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.case_issue_count` | `number` | `0` | `canonical` |  |  |
+| `analysis` | `identity` | `Analysis.case_user_count` | `number` | `0` | `canonical` |  |  |
+| `containment` | `endpoint` | `Containment.story` | `array` |  | `canonical` |  |  |
+| `containment` | `endpoint` | `Containment.Execution` | `object` |  | `canonical` |  |  |
+| `containment` | `email` | `Containment.required` | `boolean` |  | `canonical` |  |  |
+| `containment` | `email` | `Containment.action` | `string` |  | `canonical` |  |  |
+| `containment` | `email` | `Containment.story` | `array` |  | `canonical` |  |  |
+| `containment` | `email` | `Containment.Execution` | `object` |  | `canonical` |  |  |
+| `containment` | `identity` | `Blocklist.Final` | `array` |  | `legacy_alias` | `Containment.blocklist_added` | Top-level Blocklist namespace predates Containment.* |
+| `containment` | `identity` | `QuarantinedFilesFromEndpoints` | `array` |  | `legacy_alias` | `Containment.quarantined_files` | Top-level write predates Containment.* namespace. |
+| `containment` | `identity` | `Core.blocklist.added_hashes` | `array` |  | `legacy_alias` | `Containment.blocklist_added_hashes` | Core.* namespace predates Containment.*. |
+| `containment` | `identity` | `Core.Isolation.endpoint_id` | `string` |  | `legacy_alias` | `Containment.isolated_endpoint_id` | Core.* namespace predates Containment.*. |
+| `eradication` | `endpoint` | `Eradication.story` | `array` |  | `canonical` |  |  |
+| `eradication` | `endpoint` | `Eradication.Execution` | `object` |  | `canonical` |  |  |
+| `eradication` | `email` | `Eradication.attempted` | `boolean` |  | `canonical` |  |  |
+| `eradication` | `email` | `Eradication.success` | `boolean` |  | `canonical` |  |  |
+| `eradication` | `email` | `Eradication.story` | `array` |  | `canonical` |  |  |
+| `eradication` | `email` | `Eradication.Execution` | `object` |  | `canonical` |  |  |
+| `eradication` | `identity` | `Eradication.attempted` | `boolean` |  | `canonical` |  |  |
+| `eradication` | `identity` | `Eradication.credentials_reset` | `array` |  | `canonical` |  |  |
+| `eradication` | `identity` | `Eradication.tokens_revoked` | `array` |  | `canonical` |  |  |
+| `eradication` | `identity` | `Eradication.story` | `array` |  | `canonical` |  |  |
+| `recovery` | `endpoint` | `Recovery.story` | `array` |  | `canonical` |  |  |
+| `recovery` | `endpoint` | `Recovery.Execution` | `object` |  | `canonical` |  |  |
+| `recovery` | `email` | `Recovery.status` | `string` |  | `canonical` |  |  |
+| `recovery` | `email` | `Recovery.monitoring_required` | `boolean` |  | `canonical` |  |  |
+| `recovery` | `email` | `Recovery.story` | `array` |  | `canonical` |  |  |
+| `recovery` | `email` | `Recovery.Execution` | `object` |  | `canonical` |  |  |
+| `recovery` | `identity` | `Recovery.attempted` | `boolean` |  | `canonical` |  |  |
+| `recovery` | `identity` | `Recovery.account_restored` | `boolean` |  | `canonical` |  |  |
+| `recovery` | `identity` | `Recovery.monitoring_required` | `boolean` |  | `canonical` |  |  |
+| `recovery` | `identity` | `Recovery.restore_method` | `string` |  | `canonical` |  |  |
+| `recovery` | `identity` | `Recovery.story` | `array` |  | `canonical` |  |  |
