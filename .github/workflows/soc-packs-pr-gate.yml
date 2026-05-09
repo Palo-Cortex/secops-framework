@@ -63,8 +63,13 @@ jobs:
     name: Intake gate — wait for reviewer approval
     runs-on: ubuntu-latest
     steps:
+      # Skip the gate for same-repo PRs (maintainer branches like
+      # update/<topic>). Fork PRs still require the 'intake:approved' label
+      # before this step passes.
       - name: Verify intake:approved label is present
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'intake:approved') }}
+        if: |
+          github.event.pull_request.head.repo.full_name != github.repository &&
+          !contains(github.event.pull_request.labels.*.name, 'intake:approved')
         run: |
           echo "::error::Waiting for intake review."
           echo "A reviewer must inspect the deployed content on the contrib tenant"
