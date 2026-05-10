@@ -221,6 +221,25 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `scenario` | `scenario` | `raw` |  |
 | `objective` | `objective` | `raw` |  |
 | `sourceInstance` | `sourceInstance` | `raw` |  |
+| `agentid` | `agent_id` | `computed` |  |
+| `hostname` | `agent_hostname` | `computed` |  |
+| `domain` | `agent_device_domain` | `computed` |  |
+| `hostmacaddress` | `mac_address` | `computed` |  |
+| `initiatedby` | `actor_process_image_name` | `computed` |  |
+| `initiatorpath` | `actor_process_image_path` | `computed` |  |
+| `initiatorsha256` | `actor_process_image_sha256` | `computed` |  |
+| `initiatorcmd` | `actor_process_command_line` | `computed` |  |
+| `initiatorpid` | `actor_process_os_pid` | `computed` |  |
+| `xdmsourceprocesscausalityid` | `aggregate_id` | `raw` |  |
+| `cgosha256` | `causality_actor_process_image_sha256` | `computed` |  |
+| `filename` | `action_file_name` | `computed` |  |
+| `filepath` | `action_file_path` | `computed` |  |
+| `filesha256` | `action_file_sha256` | `computed` |  |
+| `localip` | `action_local_ip` | `computed` |  |
+| `remoteip` | `action_remote_ip` | `computed` |  |
+| `username` | `actor_effective_username` | `computed` |  |
+| `dnsqueryname` | `dns_queries` | `computed` |  |
+| `sourceinstance` | `sourceInstance` | `raw` |  |
 
 #### Pre-Alter XQL
 

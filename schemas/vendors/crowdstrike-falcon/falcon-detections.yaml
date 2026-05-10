@@ -471,6 +471,75 @@ correlation_rules:
       - {issue_field: scenario, source: scenario, bucket: raw}
       - {issue_field: objective, source: objective, bucket: raw}
       - {issue_field: sourceInstance, source: sourceInstance, bucket: raw}
+
+      # ============================================================
+      # === cliName CONVERGENCE — additive aliases (NEW) =========
+      # ============================================================
+      # Each alias points to the SAME pre_alter source column as an
+      # existing underscored entry above. The underscored entries stay
+      # for alert.* compatibility (dashboards, alert-level XQL, layouts,
+      # in-flight playbook references). The cliName aliases below
+      # surface the same data at issue.* — which is what the SOC
+      # Framework's Foundation_-_Normalize_Endpoint_V3 reads.
+      #
+      # Every alias verified against the tenant /incidentfields registry
+      # (1,857 fields) — these are real registered cliNames.
+      #
+      # Once consumers have migrated off the underscored entries, the
+      # paired underscored entries become eligible for pruning. Track
+      # via schemas/canonical_issue_fields.yaml deprecated_alert_fields.
+      #
+      # Pairing (alias → existing underscored entry it shadows):
+
+      # ---- Endpoint identity ----
+      - {issue_field: agentid,                      source: agent_id,                            bucket: computed}  # ← agent_id
+      - {issue_field: hostname,                     source: agent_hostname,                      bucket: computed}  # ← agent_hostname
+      - {issue_field: domain,                       source: agent_device_domain,                 bucket: computed}  # ← agent_device_domain
+      - {issue_field: hostmacaddress,               source: mac_address,                         bucket: computed}  # ← mac
+
+      # ---- Initiator process (Falcon's actor_process_*) ----
+      - {issue_field: initiatedby,                  source: actor_process_image_name,            bucket: computed}  # ← actor_process_image_name
+      - {issue_field: initiatorpath,                source: actor_process_image_path,            bucket: computed}  # ← actor_process_image_path
+      - {issue_field: initiatorsha256,              source: actor_process_image_sha256,          bucket: computed}  # ← actor_process_image_sha256
+      - {issue_field: initiatorcmd,                 source: actor_process_command_line,          bucket: computed}  # ← actor_process_command_line
+      - {issue_field: initiatorpid,                 source: actor_process_os_pid,                bucket: computed}  # ← actor_process_os_pid
+
+      # ---- Causality (CGO) ----
+      - {issue_field: xdmsourceprocesscausalityid,  source: aggregate_id,                        bucket: raw}       # ← causality_actor_causality_id
+      - {issue_field: cgosha256,                    source: causality_actor_process_image_sha256, bucket: computed} # ← causality_actor_process_image_sha256
+
+      # ---- Action target (file) ----
+      - {issue_field: filename,                     source: action_file_name,                    bucket: computed}  # ← action_file_name
+      - {issue_field: filepath,                     source: action_file_path,                    bucket: computed}  # ← action_file_path
+      - {issue_field: filesha256,                   source: action_file_sha256,                  bucket: computed}  # ← action_file_sha256
+
+      # ---- Action target (network) ----
+      - {issue_field: localip,                      source: action_local_ip,                     bucket: computed}  # ← action_local_ip
+      - {issue_field: remoteip,                     source: action_remote_ip,                    bucket: computed}  # ← action_remote_ip
+
+      # ---- User ----
+      - {issue_field: username,                     source: actor_effective_username,            bucket: computed}  # ← actor_effective_username
+
+      # ---- Misc ----
+      - {issue_field: dnsqueryname,                 source: dns_queries,                         bucket: computed}  # ← dns_query_name
+      - {issue_field: sourceinstance,               source: sourceInstance,                      bucket: raw}       # ← sourceInstance (camelCase)
+
+      # ===========================================================
+      # NOT CONVERGED (no clean registered cliName equivalent):
+      #   causality_actor_process_image_name   → no cliName for CGO process name
+      #   causality_actor_process_image_path   → no cliName for CGO process path
+      #   causality_actor_process_command_line → no cliName for CGO cmdline
+      #   action_process_image_sha256          → already aliased via filehash
+      #   pattern_disposition_details          → vendor-specific (kept verbatim)
+      #   user_principal                       → no cliName; raw field used in XQL only
+      #   dns_requests / network_accesses / files_written → raw arrays, no cliName
+      #   grandparentprocess{name,cmd,path,sha256,id} → no cliName for grandparent
+      #
+      # These remain available at alert.* for vendor-specific consumers.
+      # Re-evaluate when SOC Framework needs them downstream and we can
+      # justify creating socfwendpoint* customs.
+      # ===========================================================
+
     mitre_defs: {}
     legacy_mitre_defs_for_reference:
       TA0001 - Initial Access: [T1566 - Phishing, T1204 - User Execution]
