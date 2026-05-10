@@ -155,6 +155,22 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `tim_main_indicator` | `ioc_value` | `computed` |  |
 | `trendmicrovisiononexdrinvestigationstatus` | `investigation_status` | `computed` |  |
 | `trendmicrovisiononexdrpriorityscore` | `score` | `computed` |  |
+| `agentid` | `agent_id` | `computed` |  |
+| `hostname` | `agent_hostname` | `computed` |  |
+| `domain` | `agent_device_domain` | `computed` |  |
+| `username` | `actor_effective_username` | `computed` |  |
+| `initiatedby` | `actor_process_image_name` | `computed` |  |
+| `initiatorpath` | `actor_process_image_path` | `computed` |  |
+| `initiatorsha256` | `actor_process_image_sha256` | `computed` |  |
+| `initiatorcmd` | `actor_process_command_line` | `computed` |  |
+| `initiatorpid` | `actor_process_os_pid` | `computed` |  |
+| `cgosha256` | `causality_actor_process_image_sha256` | `computed` |  |
+| `filename` | `action_file_name` | `computed` |  |
+| `filepath` | `action_file_path` | `computed` |  |
+| `filesha256` | `action_file_sha256` | `computed` |  |
+| `localip` | `action_local_ip` | `computed` |  |
+| `remoteip` | `action_remote_ip` | `computed` |  |
+| `hostmacaddress` | `mac_address` | `computed` |  |
 
 #### Pre-Alter XQL
 
