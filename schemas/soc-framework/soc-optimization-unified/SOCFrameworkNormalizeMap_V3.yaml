@@ -13,6 +13,39 @@
 # without a schema PR (or vice versa).
 #
 # ----------------------------------------------------------------------------
+# CHANGELOG — cliName convergence (this revision)
+# ----------------------------------------------------------------------------
+# All `issue_field:` values flipped from XSIAM ALERT-field names (underscored
+# canonical-core forms emitted by vendor pack alert_fields blocks, e.g.,
+# `agent_id`, `agent_hostname`, `actor_process_image_name`, `action_file_*`,
+# `causality_actor_causality_id`) to ISSUE-field cliNames (the registered
+# incident-field names that `issue.*` actually surfaces in playbook context,
+# e.g., `agentid`, `hostname`, `initiatedby`, `filename`, `filesha256`,
+# `xdmsourceprocesscausalityid`).
+#
+# Verified against tenant /incidentfields dump (1,857 fields) — every
+# cliName below is a registered incident field on brumxdr.
+#
+# Notable surprises beyond the obvious agent_id → agentid:
+#   - `mac` is NOT a registered cliName. Use `hostmacaddress`.
+#   - `endpointstatus` is NOT registered. Use `endpointisolationstatus`.
+#   - `action_local_ip` is NOT registered. Use `localip`.
+#   - `dns_query_name` is NOT registered. Use `dnsqueryname`.
+#
+# Dropped from this revision (no registered cliName, currently unused
+# downstream — re-add as `socfwendpoint*` custom fields when consumers wire up):
+#   - Endpoint.user_principal (was: issue.user_principal)
+#   - Endpoint.network_accesses (was: issue.network_accesses)
+#
+# Identity band: LEFT AS-IS pending Identity workflow activation. Most
+# entries (authsource, sourcecountry, logontype, mfamethod, eventoutcome,
+# userrisk, targetresource, userdisplayname, useremail) are NOT registered
+# native cliNames; several have existing `socfwidentity*` custom counterparts
+# (socfwidentityauthsource, socfwidentitycountry, socfwidentityoutcome,
+# socfwidentityrisklevel, socfwidentityuserdisplayname, socfwidentityuseremail).
+# Identity convergence is its own future PR.
+#
+# ----------------------------------------------------------------------------
 # SHAPE — flat vs structured
 # ----------------------------------------------------------------------------
 # Every mapping declares a shape. There are exactly two.
@@ -89,9 +122,10 @@
 # SOURCE ORIGINS — every mapping declares one
 # ----------------------------------------------------------------------------
 #   native
-#     XSIAM provides the field. The vendor pack's CANONICAL CORE
-#     alert_fields block emits it (or XSIAM populates it natively for
-#     XDR Agent alerts). No SOC Framework custom plumbing required.
+#     XSIAM provides the field as a registered incident-field cliName.
+#     Either populated natively for XDR Agent alerts, or surfaced into
+#     issue.* via vendor pack alert_fields blocks whose LHS keys are
+#     registered cliNames. No SOC Framework custom plumbing required.
 #
 #   socfw_custom
 #     SOC Framework custom field, prefixed `socfw*`. Created by a
@@ -113,6 +147,7 @@
 #   legacy_alias entry without superseded_by         → ERROR (CI)
 #   structured target not under SOCFramework.Artifacts.* → ERROR (CI)
 #   flat target depth != 2 levels under SOCFramework → ERROR (CI)
+#   issue_field not in canonical_issue_fields.yaml allowlist → ERROR (CI, future)
 # ============================================================================
 
 pack: soc-optimization-unified
@@ -136,9 +171,9 @@ roles:
 # ============================================================================
 source_origins:
   native:
-    description: XSIAM-provided field. Either populated natively for XDR Agent alerts, or emitted by every vendor pack's CANONICAL CORE alert_fields block.
+    description: Registered XSIAM incident-field cliName. Populated either natively for XDR Agent alerts, or via vendor pack alert_fields blocks whose LHS keys match a registered cliName.
   socfw_custom:
-    description: SOC Framework custom field, prefixed socfw*. Created via correlation rule alert_fields because XSIAM has no native equivalent.
+    description: SOC Framework custom field, prefixed socfw*. Created via correlation rule alert_fields because XSIAM has no native cliName equivalent.
     prefix_required: socfw
 
 # ============================================================================
@@ -164,11 +199,15 @@ categories:
     source_playbook: Foundation_-_Normalize_Email_V3
     notes: Artifacts.Email.* tree populated via mirrors; no Process/Target/etc. structured trees yet.
   identity:
-    status: in_progress
-    flat_coverage: complete
+    status: deferred
+    flat_coverage: partial
     structured_coverage: none
     source_playbook: Foundation_-_Normalize_Identity_V3
-    notes: Artifacts.Identity.* tree pending — next priority per migration plan.
+    notes: |
+      Identity convergence deferred to its own PR. Most current flat-band
+      entries are NOT registered native cliNames; several already have
+      `socfwidentity*` custom counterparts. Will be reworked when Identity
+      workflow goes live downstream.
 
 # ============================================================================
 # Mappings — passthrough from issue.<field>
@@ -188,76 +227,84 @@ mappings:
   # ==========================================================================
   # endpoint :: CANONICAL — flat per-category surface (SOCFramework.Endpoint.*)
   # --------------------------------------------------------------------------
-  # Reads canonical issue.* names. Every entry: role=canonical, origin=native.
+  # Reads registered XSIAM incident-field cliNames. Every entry: role=canonical,
+  # origin=native. Array-shaped cliNames use `.[0]` to extract the first value
+  # (matches XDR Agent native shape; vendor packs emit single values via
+  # correlation rules so `.[0]` is a no-op for those).
   # ==========================================================================
   - { category: endpoint, target: Endpoint.alert_action          , issue_field: alertaction              , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.containment_status    , issue_field: endpointstatus           , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.dns_queries           , issue_field: dns_query_name           , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.domain                , issue_field: agent_device_domain      , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.endpoint_id           , issue_field: agent_id                 , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.containment_status    , issue_field: endpointisolationstatus  , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.dns_queries           , issue_field: dnsqueryname             , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.domain                , issue_field: domain                   , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.endpoint_id           , issue_field: agentid                  , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.external_ip           , issue_field: deviceexternalips        , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.file_path             , issue_field: action_file_path         , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.file_sha256           , issue_field: action_file_sha256       , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.hostname              , issue_field: agent_hostname           , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.ip_address            , issue_field: action_local_ip          , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.mac_address           , issue_field: mac                      , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.network_accesses      , issue_field: network_accesses         , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.file_path             , issue_field: 'filepath.[0]'           , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.file_sha256           , issue_field: 'filesha256.[0]'         , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.hostname              , issue_field: hostname                 , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.ip_address            , issue_field: localip                  , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.mac_address           , issue_field: hostmacaddress           , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.os                    , issue_field: ostype                   , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.parent_process_cmd    , issue_field: parentprocesscmd         , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.parent_process_name   , issue_field: parentprocessname        , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.parent_process_sha256 , issue_field: parentprocesssha256      , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.process_cmd           , issue_field: actor_process_command_line  , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.process_name          , issue_field: actor_process_image_name    , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.process_path          , issue_field: actor_process_image_path    , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.process_pid           , issue_field: actor_process_os_pid     , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.process_sha256        , issue_field: actor_process_image_sha256  , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.process_cmd           , issue_field: 'initiatorcmd.[0]'       , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.process_name          , issue_field: 'initiatedby.[0]'        , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.process_path          , issue_field: 'initiatorpath.[0]'      , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.process_pid           , issue_field: 'initiatorpid.[0]'       , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.process_sha256        , issue_field: 'initiatorsha256.[0]'    , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.tactic                , issue_field: mitretacticname          , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.tactic_id             , issue_field: mitretacticid            , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.technique             , issue_field: mitretechniquename       , shape: flat, role: canonical, source_origin: native }
   - { category: endpoint, target: Endpoint.technique_id          , issue_field: mitretechniqueid         , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.user_principal        , issue_field: user_principal           , shape: flat, role: canonical, source_origin: native }
-  - { category: endpoint, target: Endpoint.username              , issue_field: actor_effective_username , shape: flat, role: canonical, source_origin: native }
+  - { category: endpoint, target: Endpoint.username              , issue_field: 'username.[0]'           , shape: flat, role: canonical, source_origin: native }
+  # DROPPED (no registered cliName, currently unused downstream):
+  #   Endpoint.user_principal     ← was: issue.user_principal
+  #     Re-add as socfwendpointuserprincipal when Identity workflow consumes
+  #     UPN-based account disable from endpoint context.
+  #   Endpoint.network_accesses   ← was: issue.network_accesses
+  #     Raw dataset field used in XQL for lateral-movement detection. No
+  #     cliName equivalent. Re-add as socfwendpointnetworkaccesses if/when
+  #     Containment lateral-spread detection is wired up.
 
   # ==========================================================================
   # endpoint :: CANONICAL — structured Artifacts tree (SOCFramework.Artifacts.*)
   # --------------------------------------------------------------------------
   # V3 vendor-agnostic contract. Read by Lifecycle and Workflow playbooks.
-  # Sources flipped to canonical XSIAM names where a vendor pack CANONICAL
-  # CORE sibling exists. Sources without a clear canonical sibling kept
-  # as-is and flagged in `notes` for future contract review.
+  # All sources are registered XSIAM incident-field cliNames verified against
+  # the tenant /incidentfields dump.
   # ==========================================================================
-  - { category: endpoint, target: Artifacts.Endpoint.AgentID            , issue_field: agent_id                  , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Endpoint.Domain             , issue_field: agent_device_domain       , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Endpoint.FQDN               , issue_field: hostfqdn                  , shape: structured, role: canonical, source_origin: native, notes: "No vendor canonical core sibling. hostfqdn is the XSIAM-native name." }
-  - { category: endpoint, target: Artifacts.Endpoint.Hostname           , issue_field: agent_hostname            , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Endpoint.MACAddress         , issue_field: mac                       , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Endpoint.OS                 , issue_field: hostos                    , shape: structured, role: canonical, source_origin: native, notes: "Display string (e.g., 'Windows 10 Pro'). Distinct from flat Endpoint.os which uses ostype family." }
-  - { category: endpoint, target: Artifacts.Endpoint.OSVersion          , issue_field: agentossubtype            , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.MITRE.Category              , issue_field: categoryname              , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.MITRE.Tactic                , issue_field: mitretacticname           , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.MITRE.TacticID              , issue_field: mitretacticid             , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.MITRE.Technique             , issue_field: mitretechniquename        , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.MITRE.TechniqueID           , issue_field: mitretechniqueid          , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Network.IP                  , issue_field: 'hostip.[0]'              , shape: structured, role: canonical, source_origin: native, notes: "Host primary IP. Distinct from flat Endpoint.ip_address (action_local_ip)." }
-  - { category: endpoint, target: Artifacts.Process.Causality.ID        , issue_field: causality_actor_causality_id  , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.Causality.InstanceID, issue_field: 'actorprocessinstanceid.[0]'  , shape: structured, role: canonical, source_origin: native, notes: "No vendor canonical core sibling identified. Verify on dev tenant; propose canonical name if drift observed across vendors." }
-  - { category: endpoint, target: Artifacts.Process.CommandLine         , issue_field: actor_process_command_line    , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.MD5                 , issue_field: processmd5                , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.Name                , issue_field: actor_process_image_name      , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.Parent.PID          , issue_field: parentprocessid           , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.Parent.Signature    , issue_field: 'osparentsignature.[0]'   , shape: structured, role: canonical, source_origin: native, notes: "No canonical core sibling. Vendor packs vary on parent signature surfacing." }
-  - { category: endpoint, target: Artifacts.Process.Path                , issue_field: actor_process_image_path      , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.PID                 , issue_field: actor_process_os_pid      , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.SHA256              , issue_field: actor_process_image_sha256    , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Process.Signature           , issue_field: 'initiatorsignature.[0]'  , shape: structured, role: canonical, source_origin: native, notes: "No canonical core sibling identified across vendor packs." }
-  - { category: endpoint, target: Artifacts.Process.Signer              , issue_field: 'initiatorsigner.[0]'     , shape: structured, role: canonical, source_origin: native, notes: "No canonical core sibling identified across vendor packs." }
-  - { category: endpoint, target: Artifacts.Source.Action               , issue_field: 'action.[0]'              , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Source.AlertDomain          , issue_field: alert_domain              , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Source.Module               , issue_field: 'module.[0]'              , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Target.File                 , issue_field: action_file_name          , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Target.Path                 , issue_field: action_file_path          , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Target.SHA256               , issue_field: action_file_sha256        , shape: structured, role: canonical, source_origin: native }
-  - { category: endpoint, target: Artifacts.Target.SignatureStatus      , issue_field: 'xdmtargetprocessexecutablesignaturestatus.[0]', shape: structured, role: canonical, source_origin: native, notes: "XDM-styled name. No canonical core sibling identified." }
+  - { category: endpoint, target: Artifacts.Endpoint.AgentID            , issue_field: agentid                              , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Endpoint.Domain             , issue_field: domain                               , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Endpoint.FQDN               , issue_field: hostfqdn                             , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Endpoint.Hostname           , issue_field: hostname                             , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Endpoint.MACAddress         , issue_field: hostmacaddress                       , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Endpoint.OS                 , issue_field: hostos                               , shape: structured, role: canonical, source_origin: native, notes: "Display string (e.g., 'Windows 10 Pro'). Distinct from flat Endpoint.os which uses ostype family." }
+  - { category: endpoint, target: Artifacts.Endpoint.OSVersion          , issue_field: agentossubtype                       , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.MITRE.Category              , issue_field: categoryname                         , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.MITRE.Tactic                , issue_field: mitretacticname                      , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.MITRE.TacticID              , issue_field: mitretacticid                        , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.MITRE.Technique             , issue_field: mitretechniquename                   , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.MITRE.TechniqueID           , issue_field: mitretechniqueid                     , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Network.IP                  , issue_field: 'hostip.[0]'                         , shape: structured, role: canonical, source_origin: native, notes: "Host primary IP. Distinct from flat Endpoint.ip_address (localip)." }
+  - { category: endpoint, target: Artifacts.Process.Causality.ID        , issue_field: 'xdmsourceprocesscausalityid.[0]'    , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.Causality.InstanceID, issue_field: 'actorprocessinstanceid.[0]'         , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.CommandLine         , issue_field: 'initiatorcmd.[0]'                   , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.MD5                 , issue_field: 'initiatormd5.[0]'                   , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.Name                , issue_field: 'initiatedby.[0]'                    , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.Parent.PID          , issue_field: 'osparentid.[0]'                     , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.Parent.Signature    , issue_field: 'osparentsignature.[0]'              , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.Path                , issue_field: 'initiatorpath.[0]'                  , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.PID                 , issue_field: 'initiatorpid.[0]'                   , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.SHA256              , issue_field: 'initiatorsha256.[0]'                , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.Signature           , issue_field: 'initiatorsignature.[0]'             , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Process.Signer              , issue_field: 'initiatorsigner.[0]'                , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Source.Action               , issue_field: 'action.[0]'                         , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Source.AlertDomain          , issue_field: alert_domain                         , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Source.Module               , issue_field: 'module.[0]'                         , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Target.File                 , issue_field: 'filename.[0]'                       , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Target.Path                 , issue_field: 'filepath.[0]'                       , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Target.SHA256               , issue_field: 'filesha256.[0]'                     , shape: structured, role: canonical, source_origin: native }
+  - { category: endpoint, target: Artifacts.Target.SignatureStatus      , issue_field: 'xdmtargetprocessexecutablesignaturestatus.[0]', shape: structured, role: canonical, source_origin: native }
 
   # ==========================================================================
   # endpoint :: LEGACY ALIASES — DELETABLE BLOCK
@@ -269,24 +316,30 @@ mappings:
   # this entire block as one operation. Audit consumers via:
   #   grep -rE "Artifacts\.(EndPointID|File|FilePath|Hash|User)([^.]|$)" Packs/
   #
-  # Sources flipped to canonical names so the legacy targets are still
+  # Sources updated to registered cliNames so the legacy targets are still
   # populated correctly during the transition.
   # ==========================================================================
-  - { category: endpoint, target: Artifacts.EndPointID , issue_field: agent_id              , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Endpoint.AgentID }
-  - { category: endpoint, target: Artifacts.File       , issue_field: action_file_sha256    , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Target.SHA256 }
-  - { category: endpoint, target: Artifacts.FilePath   , issue_field: action_file_path      , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Target.Path }
-  - { category: endpoint, target: Artifacts.Hash       , issue_field: action_file_sha256    , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Target.SHA256 }
-  - { category: endpoint, target: Artifacts.User       , issue_field: actor_effective_username  , shape: structured, role: legacy_alias, source_origin: native, superseded_by: "Artifacts.User.Name (TBD — User sub-tree not yet authored)" }
+  - { category: endpoint, target: Artifacts.EndPointID , issue_field: agentid                , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Endpoint.AgentID }
+  - { category: endpoint, target: Artifacts.File       , issue_field: 'filesha256.[0]'       , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Target.SHA256 }
+  - { category: endpoint, target: Artifacts.FilePath   , issue_field: 'filepath.[0]'         , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Target.Path }
+  - { category: endpoint, target: Artifacts.Hash       , issue_field: 'filesha256.[0]'       , shape: structured, role: legacy_alias, source_origin: native, superseded_by: Artifacts.Target.SHA256 }
+  - { category: endpoint, target: Artifacts.User       , issue_field: 'username.[0]'         , shape: structured, role: legacy_alias, source_origin: native, superseded_by: "Artifacts.User.Name (TBD — User sub-tree not yet authored)" }
 
   # ==========================================================================
   # email :: CANONICAL — flat per-category surface (SOCFramework.Email.*)
   # --------------------------------------------------------------------------
-  # Mix of native XSIAM fields and SOC Framework custom socfw* fields.
+  # Mix of native XSIAM cliNames and SOC Framework custom socfw* fields.
   # source_origin tag distinguishes them so vendor pack authors know which
   # alert_fields they must explicitly emit.
+  #
+  # NOTE: attachment_name and attachment_sha256 currently sourced from
+  # `action_file_name` / `action_file_sha256` — these are alert-field names,
+  # NOT registered cliNames. To be verified on tenant whether email vendor
+  # packs route attachment data through these or whether they need their own
+  # socfwemailattachment* customs. Flagged below.
   # ==========================================================================
-  - { category: email, target: Email.attachment_name  , issue_field: action_file_name        , shape: flat, role: canonical, source_origin: native }
-  - { category: email, target: Email.attachment_sha256, issue_field: action_file_sha256      , shape: flat, role: canonical, source_origin: native }
+  - { category: email, target: Email.attachment_name  , issue_field: 'filename.[0]'          , shape: flat, role: canonical, source_origin: native, notes: "Was: action_file_name (alert-field, not a cliName). Switched to filename per cliName convergence; verify email vendor packs route attachment metadata through filename cliName." }
+  - { category: email, target: Email.attachment_sha256, issue_field: 'filesha256.[0]'        , shape: flat, role: canonical, source_origin: native, notes: "Was: action_file_sha256 (alert-field, not a cliName). Same caveat as attachment_name." }
   - { category: email, target: Email.campaign_id      , issue_field: socfwemailcampaignid    , shape: flat, role: canonical, source_origin: socfw_custom }
   - { category: email, target: Email.classification   , issue_field: socfwemailclassification, shape: flat, role: canonical, source_origin: socfw_custom }
   - { category: email, target: Email.click_ip         , issue_field: socfwemailclickip       , shape: flat, role: canonical, source_origin: socfw_custom }
@@ -310,10 +363,21 @@ mappings:
   # via mirrors (see mirrors section), not via direct issue.* mappings.
 
   # ==========================================================================
-  # identity :: CANONICAL — flat per-category surface (SOCFramework.Identity.*)
+  # identity :: DEFERRED — Identity convergence is a future PR
   # --------------------------------------------------------------------------
-  # All native XSIAM fields. Structured Artifacts.Identity.* tree pending —
-  # next priority per migration plan.
+  # CURRENT ENTRIES PRESERVED VERBATIM PENDING REVIEW. Tenant /incidentfields
+  # dump confirmed that authsource, sourcecountry, logontype, mfamethod,
+  # eventoutcome, userrisk, targetresource, userdisplayname, useremail are
+  # NOT registered native cliNames. Several have existing `socfwidentity*`
+  # customs already created (socfwidentityauthsource, socfwidentitycountry,
+  # socfwidentityoutcome, socfwidentityrisklevel, socfwidentityuserdisplayname,
+  # socfwidentityuseremail). Three would need creating
+  # (socfwidentitylogontype, socfwidentitymfamethod, socfwidentitytargetresource).
+  #
+  # Convergence deferred until Identity workflow is actively consumed
+  # downstream. Until then this band reads non-existent cliNames and
+  # returns null on every Identity alert — no functional regression
+  # because no consumer is reading SOCFramework.Identity.* yet.
   # ==========================================================================
   - { category: identity, target: Identity.auth_source      , issue_field: authsource     , shape: flat, role: canonical, source_origin: native }
   - { category: identity, target: Identity.client_ip        , issue_field: sourceip       , shape: flat, role: canonical, source_origin: native }

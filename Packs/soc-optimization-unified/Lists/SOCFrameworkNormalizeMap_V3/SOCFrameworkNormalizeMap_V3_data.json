@@ -14,10 +14,10 @@
   },
   "source_origins": {
     "native": {
-      "description": "XSIAM-provided field. Either populated natively for XDR Agent alerts, or emitted by every vendor pack's CANONICAL CORE alert_fields block."
+      "description": "Registered XSIAM incident-field cliName. Populated either natively for XDR Agent alerts, or via vendor pack alert_fields blocks whose LHS keys match a registered cliName."
     },
     "socfw_custom": {
-      "description": "SOC Framework custom field, prefixed socfw*. Created via correlation rule alert_fields because XSIAM has no native equivalent.",
+      "description": "SOC Framework custom field, prefixed socfw*. Created via correlation rule alert_fields because XSIAM has no native cliName equivalent.",
       "prefix_required": "socfw"
     }
   },
@@ -36,11 +36,11 @@
       "notes": "Artifacts.Email.* tree populated via mirrors; no Process/Target/etc. structured trees yet."
     },
     "identity": {
-      "status": "in_progress",
-      "flat_coverage": "complete",
+      "status": "deferred",
+      "flat_coverage": "partial",
       "structured_coverage": "none",
       "source_playbook": "Foundation_-_Normalize_Identity_V3",
-      "notes": "Artifacts.Identity.* tree pending — next priority per migration plan."
+      "notes": "Identity convergence deferred to its own PR. Most current flat-band\nentries are NOT registered native cliNames; several already have\n`socfwidentity*` custom counterparts. Will be reworked when Identity\nworkflow goes live downstream.\n"
     }
   },
   "mappings": [
@@ -55,7 +55,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.containment_status",
-      "issue_field": "endpointstatus",
+      "issue_field": "endpointisolationstatus",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -63,7 +63,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.dns_queries",
-      "issue_field": "dns_query_name",
+      "issue_field": "dnsqueryname",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -71,7 +71,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.domain",
-      "issue_field": "agent_device_domain",
+      "issue_field": "domain",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -79,7 +79,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.endpoint_id",
-      "issue_field": "agent_id",
+      "issue_field": "agentid",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -95,7 +95,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.file_path",
-      "issue_field": "action_file_path",
+      "issue_field": "filepath.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -103,7 +103,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.file_sha256",
-      "issue_field": "action_file_sha256",
+      "issue_field": "filesha256.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -111,7 +111,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.hostname",
-      "issue_field": "agent_hostname",
+      "issue_field": "hostname",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -119,7 +119,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.ip_address",
-      "issue_field": "action_local_ip",
+      "issue_field": "localip",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -127,15 +127,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.mac_address",
-      "issue_field": "mac",
-      "shape": "flat",
-      "role": "canonical",
-      "source_origin": "native"
-    },
-    {
-      "category": "endpoint",
-      "target": "Endpoint.network_accesses",
-      "issue_field": "network_accesses",
+      "issue_field": "hostmacaddress",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -175,7 +167,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.process_cmd",
-      "issue_field": "actor_process_command_line",
+      "issue_field": "initiatorcmd.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -183,7 +175,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.process_name",
-      "issue_field": "actor_process_image_name",
+      "issue_field": "initiatedby.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -191,7 +183,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.process_path",
-      "issue_field": "actor_process_image_path",
+      "issue_field": "initiatorpath.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -199,7 +191,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.process_pid",
-      "issue_field": "actor_process_os_pid",
+      "issue_field": "initiatorpid.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -207,7 +199,7 @@
     {
       "category": "endpoint",
       "target": "Endpoint.process_sha256",
-      "issue_field": "actor_process_image_sha256",
+      "issue_field": "initiatorsha256.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -246,16 +238,8 @@
     },
     {
       "category": "endpoint",
-      "target": "Endpoint.user_principal",
-      "issue_field": "user_principal",
-      "shape": "flat",
-      "role": "canonical",
-      "source_origin": "native"
-    },
-    {
-      "category": "endpoint",
       "target": "Endpoint.username",
-      "issue_field": "actor_effective_username",
+      "issue_field": "username.[0]",
       "shape": "flat",
       "role": "canonical",
       "source_origin": "native"
@@ -263,7 +247,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Endpoint.AgentID",
-      "issue_field": "agent_id",
+      "issue_field": "agentid",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -271,7 +255,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Endpoint.Domain",
-      "issue_field": "agent_device_domain",
+      "issue_field": "domain",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -282,13 +266,12 @@
       "issue_field": "hostfqdn",
       "shape": "structured",
       "role": "canonical",
-      "source_origin": "native",
-      "notes": "No vendor canonical core sibling. hostfqdn is the XSIAM-native name."
+      "source_origin": "native"
     },
     {
       "category": "endpoint",
       "target": "Artifacts.Endpoint.Hostname",
-      "issue_field": "agent_hostname",
+      "issue_field": "hostname",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -296,7 +279,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Endpoint.MACAddress",
-      "issue_field": "mac",
+      "issue_field": "hostmacaddress",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -365,12 +348,12 @@
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native",
-      "notes": "Host primary IP. Distinct from flat Endpoint.ip_address (action_local_ip)."
+      "notes": "Host primary IP. Distinct from flat Endpoint.ip_address (localip)."
     },
     {
       "category": "endpoint",
       "target": "Artifacts.Process.Causality.ID",
-      "issue_field": "causality_actor_causality_id",
+      "issue_field": "xdmsourceprocesscausalityid.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -381,13 +364,12 @@
       "issue_field": "actorprocessinstanceid.[0]",
       "shape": "structured",
       "role": "canonical",
-      "source_origin": "native",
-      "notes": "No vendor canonical core sibling identified. Verify on dev tenant; propose canonical name if drift observed across vendors."
+      "source_origin": "native"
     },
     {
       "category": "endpoint",
       "target": "Artifacts.Process.CommandLine",
-      "issue_field": "actor_process_command_line",
+      "issue_field": "initiatorcmd.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -395,7 +377,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Process.MD5",
-      "issue_field": "processmd5",
+      "issue_field": "initiatormd5.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -403,7 +385,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Process.Name",
-      "issue_field": "actor_process_image_name",
+      "issue_field": "initiatedby.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -411,7 +393,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Process.Parent.PID",
-      "issue_field": "parentprocessid",
+      "issue_field": "osparentid.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -422,13 +404,12 @@
       "issue_field": "osparentsignature.[0]",
       "shape": "structured",
       "role": "canonical",
-      "source_origin": "native",
-      "notes": "No canonical core sibling. Vendor packs vary on parent signature surfacing."
+      "source_origin": "native"
     },
     {
       "category": "endpoint",
       "target": "Artifacts.Process.Path",
-      "issue_field": "actor_process_image_path",
+      "issue_field": "initiatorpath.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -436,7 +417,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Process.PID",
-      "issue_field": "actor_process_os_pid",
+      "issue_field": "initiatorpid.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -444,7 +425,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Process.SHA256",
-      "issue_field": "actor_process_image_sha256",
+      "issue_field": "initiatorsha256.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -455,8 +436,7 @@
       "issue_field": "initiatorsignature.[0]",
       "shape": "structured",
       "role": "canonical",
-      "source_origin": "native",
-      "notes": "No canonical core sibling identified across vendor packs."
+      "source_origin": "native"
     },
     {
       "category": "endpoint",
@@ -464,8 +444,7 @@
       "issue_field": "initiatorsigner.[0]",
       "shape": "structured",
       "role": "canonical",
-      "source_origin": "native",
-      "notes": "No canonical core sibling identified across vendor packs."
+      "source_origin": "native"
     },
     {
       "category": "endpoint",
@@ -494,7 +473,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Target.File",
-      "issue_field": "action_file_name",
+      "issue_field": "filename.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -502,7 +481,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Target.Path",
-      "issue_field": "action_file_path",
+      "issue_field": "filepath.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -510,7 +489,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Target.SHA256",
-      "issue_field": "action_file_sha256",
+      "issue_field": "filesha256.[0]",
       "shape": "structured",
       "role": "canonical",
       "source_origin": "native"
@@ -521,13 +500,12 @@
       "issue_field": "xdmtargetprocessexecutablesignaturestatus.[0]",
       "shape": "structured",
       "role": "canonical",
-      "source_origin": "native",
-      "notes": "XDM-styled name. No canonical core sibling identified."
+      "source_origin": "native"
     },
     {
       "category": "endpoint",
       "target": "Artifacts.EndPointID",
-      "issue_field": "agent_id",
+      "issue_field": "agentid",
       "shape": "structured",
       "role": "legacy_alias",
       "source_origin": "native",
@@ -536,7 +514,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.File",
-      "issue_field": "action_file_sha256",
+      "issue_field": "filesha256.[0]",
       "shape": "structured",
       "role": "legacy_alias",
       "source_origin": "native",
@@ -545,7 +523,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.FilePath",
-      "issue_field": "action_file_path",
+      "issue_field": "filepath.[0]",
       "shape": "structured",
       "role": "legacy_alias",
       "source_origin": "native",
@@ -554,7 +532,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.Hash",
-      "issue_field": "action_file_sha256",
+      "issue_field": "filesha256.[0]",
       "shape": "structured",
       "role": "legacy_alias",
       "source_origin": "native",
@@ -563,7 +541,7 @@
     {
       "category": "endpoint",
       "target": "Artifacts.User",
-      "issue_field": "actor_effective_username",
+      "issue_field": "username.[0]",
       "shape": "structured",
       "role": "legacy_alias",
       "source_origin": "native",
@@ -572,18 +550,20 @@
     {
       "category": "email",
       "target": "Email.attachment_name",
-      "issue_field": "action_file_name",
+      "issue_field": "filename.[0]",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "native",
+      "notes": "Was: action_file_name (alert-field, not a cliName). Switched to filename per cliName convergence; verify email vendor packs route attachment metadata through filename cliName."
     },
     {
       "category": "email",
       "target": "Email.attachment_sha256",
-      "issue_field": "action_file_sha256",
+      "issue_field": "filesha256.[0]",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "native",
+      "notes": "Was: action_file_sha256 (alert-field, not a cliName). Same caveat as attachment_name."
     },
     {
       "category": "email",
