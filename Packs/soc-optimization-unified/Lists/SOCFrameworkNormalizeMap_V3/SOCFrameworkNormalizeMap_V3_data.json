@@ -36,11 +36,11 @@
       "notes": "Artifacts.Email.* tree populated via mirrors; no Process/Target/etc. structured trees yet."
     },
     "identity": {
-      "status": "deferred",
-      "flat_coverage": "partial",
-      "structured_coverage": "none",
+      "status": "in-progress",
+      "flat_coverage": "complete",
+      "structured_coverage": "complete",
       "source_playbook": "Foundation_-_Normalize_Identity_V3",
-      "notes": "Identity convergence deferred to its own PR. Most current flat-band\nentries are NOT registered native cliNames; several already have\n`socfwidentity*` custom counterparts. Will be reworked when Identity\nworkflow goes live downstream.\n"
+      "notes": "Convergence pass applied. Flat band uses registered native cliNames\nwhere verified (username, userid, eventtype, localip, hostname,\ninitiatedby) and socfwidentity* customs elsewhere. Six customs already\nexist on tenant (authsource, country, outcome, risklevel,\nuserdisplayname, useremail); five need creating before workflow\nactivation (logontype, mfamethod, sessionid, targetresource, deviceid).\nStructured Artifacts.Identity.* tree populated via mirrors.\n"
     }
   },
   "mappings": [
@@ -545,7 +545,7 @@
       "shape": "structured",
       "role": "legacy_alias",
       "source_origin": "native",
-      "superseded_by": "Artifacts.User.Name (TBD — User sub-tree not yet authored)"
+      "superseded_by": "Artifacts.User.Name (TBD \u2014 User sub-tree not yet authored)"
     },
     {
       "category": "email",
@@ -712,34 +712,38 @@
     {
       "category": "identity",
       "target": "Identity.auth_source",
-      "issue_field": "authsource",
+      "issue_field": "socfwidentityauthsource",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "Custom exists on tenant. Was: authsource (not registered)."
     },
     {
       "category": "identity",
       "target": "Identity.client_ip",
-      "issue_field": "sourceip",
+      "issue_field": "localip",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "native",
+      "notes": "Flipped sourceip \u2192 localip per cliName convergence. Same cliName as Endpoint.ip_address; on Identity alerts represents the user's source IP, not an endpoint."
     },
     {
       "category": "identity",
       "target": "Identity.country",
-      "issue_field": "sourcecountry",
+      "issue_field": "socfwidentitycountry",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "Custom exists on tenant. Was: sourcecountry (not registered). Magnifier alerts also surface a `country` field but its registered status is unverified \u2014 sticking with the verified custom."
     },
     {
       "category": "identity",
       "target": "Identity.device_id",
-      "issue_field": "deviceid",
+      "issue_field": "socfwidentitydeviceid",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "PENDING \u2014 assumed not registered, verify on tenant before creating. Source device identifier for the auth event."
     },
     {
       "category": "identity",
@@ -747,87 +751,98 @@
       "issue_field": "eventtype",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "native",
+      "notes": "Native cliName. Magnifier alerts use integer codes (e.g., 102 = Impossible Traveler); xdmeventtype carries the string form (e.g., DML_CONNECTION)."
     },
     {
       "category": "identity",
       "target": "Identity.logon_type",
-      "issue_field": "logontype",
+      "issue_field": "socfwidentitylogontype",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "PENDING \u2014 needs creating. No native cliName, no existing custom."
     },
     {
       "category": "identity",
       "target": "Identity.mfa_method",
-      "issue_field": "mfamethod",
+      "issue_field": "socfwidentitymfamethod",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "PENDING \u2014 needs creating. Vendor pack alert_fields would emit from xdm.event.operation_sub_type after MFA factor classification."
     },
     {
       "category": "identity",
       "target": "Identity.outcome",
-      "issue_field": "eventoutcome",
+      "issue_field": "socfwidentityoutcome",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "Custom exists on tenant. Was: eventoutcome (not registered)."
     },
     {
       "category": "identity",
       "target": "Identity.risk_level",
-      "issue_field": "userrisk",
+      "issue_field": "socfwidentityrisklevel",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "Custom exists on tenant. Was: userrisk (not registered)."
     },
     {
       "category": "identity",
       "target": "Identity.session_id",
-      "issue_field": "sessionid",
+      "issue_field": "socfwidentitysessionid",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "PENDING \u2014 needs creating. Required for forced-session-revocation Containment action (soc-clear-sessions)."
     },
     {
       "category": "identity",
       "target": "Identity.source_hostname",
-      "issue_field": "sourcehostname",
+      "issue_field": "hostname",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "native",
+      "notes": "Flipped sourcehostname \u2192 hostname per cliName convergence. WARNING: For SSO alerts, hostname carries the user's source IP, NOT a hostname. Identity normalizer treats as auth-source signal."
     },
     {
       "category": "identity",
       "target": "Identity.target_resource",
-      "issue_field": "targetresource",
+      "issue_field": "socfwidentitytargetresource",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "PENDING \u2014 needs creating. Target SSO app / resource the auth event hit (Salesforce, GSuite, etc.)."
     },
     {
       "category": "identity",
       "target": "Identity.user_agent",
-      "issue_field": "useragent",
+      "issue_field": "initiatedby.[0]",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "native",
+      "notes": "Flipped useragent \u2192 initiatedby per cliName convergence. Reuses the endpoint-band cliName; on Identity alerts carries browser/UA strings (e.g., 'Edge 18.26200', 'Chrome 146.0.0')."
     },
     {
       "category": "identity",
       "target": "Identity.user_display_name",
-      "issue_field": "userdisplayname",
+      "issue_field": "socfwidentityuserdisplayname",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "Custom exists on tenant. Was: userdisplayname (not registered)."
     },
     {
       "category": "identity",
       "target": "Identity.user_email",
-      "issue_field": "useremail",
+      "issue_field": "socfwidentityuseremail",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "socfw_custom",
+      "notes": "Custom exists on tenant. Was: useremail (not registered)."
     },
     {
       "category": "identity",
@@ -840,10 +855,11 @@
     {
       "category": "identity",
       "target": "Identity.username",
-      "issue_field": "username",
+      "issue_field": "username.[0]",
       "shape": "flat",
       "role": "canonical",
-      "source_origin": "native"
+      "source_origin": "native",
+      "notes": "Array on Magnifier alerts (e.g., ['corp\\\\5827014']); .[0] extraction matches endpoint-band convention."
     }
   ],
   "stamps": [
@@ -929,8 +945,125 @@
       "source": "Email.threat_url",
       "role": "canonical",
       "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.User.Name",
+      "source": "Identity.username",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.User.ID",
+      "source": "Identity.user_id",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.User.DisplayName",
+      "source": "Identity.user_display_name",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.User.Email",
+      "source": "Identity.user_email",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Source.IP",
+      "source": "Identity.client_ip",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Source.Hostname",
+      "source": "Identity.source_hostname",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Source.Country",
+      "source": "Identity.country",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Source.UserAgent",
+      "source": "Identity.user_agent",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Source.DeviceID",
+      "source": "Identity.device_id",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Auth.Source",
+      "source": "Identity.auth_source",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Auth.Outcome",
+      "source": "Identity.outcome",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Auth.SessionID",
+      "source": "Identity.session_id",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Auth.MFAMethod",
+      "source": "Identity.mfa_method",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Auth.LogonType",
+      "source": "Identity.logon_type",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Provider.EventType",
+      "source": "Identity.event_type",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Risk.Level",
+      "source": "Identity.risk_level",
+      "role": "canonical",
+      "shape": "structured"
+    },
+    {
+      "category": "identity",
+      "target": "Artifacts.Identity.Target.Resource",
+      "source": "Identity.target_resource",
+      "role": "canonical",
+      "shape": "structured"
     }
-  ],
-  "id": "SOCFrameworkNormalizeMap_V3",
-  "name": "SOCFrameworkNormalizeMap_V3"
+  ]
 }

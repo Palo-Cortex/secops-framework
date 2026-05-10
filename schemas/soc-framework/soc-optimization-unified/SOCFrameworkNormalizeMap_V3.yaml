@@ -13,7 +13,45 @@
 # without a schema PR (or vice versa).
 #
 # ----------------------------------------------------------------------------
-# CHANGELOG — cliName convergence (this revision)
+# CHANGELOG — identity convergence (this revision)
+# ----------------------------------------------------------------------------
+# Identity band moved from `deferred` to `in-progress`. Flat issue_field
+# values flipped per cliName classification:
+#
+#   Native cliNames (verified via /incidentfields dump or endpoint-band reuse):
+#     - Identity.username        ← 'username.[0]'
+#     - Identity.user_id         ← userid
+#     - Identity.event_type      ← eventtype
+#     - Identity.client_ip       ← localip          (was: sourceip)
+#     - Identity.source_hostname ← hostname         (was: sourcehostname)
+#     - Identity.user_agent      ← 'initiatedby.[0]' (was: useragent)
+#
+#   Existing socfwidentity* customs (verified present on brumxdr tenant):
+#     - Identity.auth_source       ← socfwidentityauthsource
+#     - Identity.country           ← socfwidentitycountry
+#     - Identity.outcome           ← socfwidentityoutcome
+#     - Identity.risk_level        ← socfwidentityrisklevel
+#     - Identity.user_display_name ← socfwidentityuserdisplayname
+#     - Identity.user_email        ← socfwidentityuseremail
+#
+#   socfwidentity* customs to be created (block Identity activation):
+#     - Identity.logon_type      ← socfwidentitylogontype
+#     - Identity.mfa_method      ← socfwidentitymfamethod
+#     - Identity.session_id      ← socfwidentitysessionid
+#     - Identity.target_resource ← socfwidentitytargetresource
+#     - Identity.device_id       ← socfwidentitydeviceid     (verify on tenant first)
+#
+# Structured Artifacts.Identity.* tree added (17 mirrors), populated from the
+# flat Identity.* surface — same pattern Email uses for Artifacts.Email.*.
+#
+# Reference: schemas/xsiam_alert_fields.yaml captures the field surface of
+# the canonical "Impossible traveler - SSO" Magnifier UEBA alert this
+# convergence was anchored against. For SSO alerts: hostname/hostip/agentid
+# all carry the user's source IP, NOT endpoint identifiers — Identity
+# normalizer must treat as auth-source signals.
+#
+# ----------------------------------------------------------------------------
+# CHANGELOG — cliName convergence (prior revision)
 # ----------------------------------------------------------------------------
 # All `issue_field:` values flipped from XSIAM ALERT-field names (underscored
 # canonical-core forms emitted by vendor pack alert_fields blocks, e.g.,
@@ -32,18 +70,10 @@
 #   - `action_local_ip` is NOT registered. Use `localip`.
 #   - `dns_query_name` is NOT registered. Use `dnsqueryname`.
 #
-# Dropped from this revision (no registered cliName, currently unused
+# Dropped from prior revision (no registered cliName, currently unused
 # downstream — re-add as `socfwendpoint*` custom fields when consumers wire up):
 #   - Endpoint.user_principal (was: issue.user_principal)
 #   - Endpoint.network_accesses (was: issue.network_accesses)
-#
-# Identity band: LEFT AS-IS pending Identity workflow activation. Most
-# entries (authsource, sourcecountry, logontype, mfamethod, eventoutcome,
-# userrisk, targetresource, userdisplayname, useremail) are NOT registered
-# native cliNames; several have existing `socfwidentity*` custom counterparts
-# (socfwidentityauthsource, socfwidentitycountry, socfwidentityoutcome,
-# socfwidentityrisklevel, socfwidentityuserdisplayname, socfwidentityuseremail).
-# Identity convergence is its own future PR.
 #
 # ----------------------------------------------------------------------------
 # SHAPE — flat vs structured
@@ -199,15 +229,18 @@ categories:
     source_playbook: Foundation_-_Normalize_Email_V3
     notes: Artifacts.Email.* tree populated via mirrors; no Process/Target/etc. structured trees yet.
   identity:
-    status: deferred
-    flat_coverage: partial
-    structured_coverage: none
+    status: in-progress
+    flat_coverage: complete
+    structured_coverage: complete
     source_playbook: Foundation_-_Normalize_Identity_V3
     notes: |
-      Identity convergence deferred to its own PR. Most current flat-band
-      entries are NOT registered native cliNames; several already have
-      `socfwidentity*` custom counterparts. Will be reworked when Identity
-      workflow goes live downstream.
+      Convergence pass applied. Flat band uses registered native cliNames
+      where verified (username, userid, eventtype, localip, hostname,
+      initiatedby) and socfwidentity* customs elsewhere. Six customs already
+      exist on tenant (authsource, country, outcome, risklevel,
+      userdisplayname, useremail); five need creating before workflow
+      activation (logontype, mfamethod, sessionid, targetresource, deviceid).
+      Structured Artifacts.Identity.* tree populated via mirrors.
 
 # ============================================================================
 # Mappings — passthrough from issue.<field>
@@ -363,39 +396,42 @@ mappings:
   # via mirrors (see mirrors section), not via direct issue.* mappings.
 
   # ==========================================================================
-  # identity :: DEFERRED — Identity convergence is a future PR
+  # identity :: CANONICAL — flat per-category surface (SOCFramework.Identity.*)
   # --------------------------------------------------------------------------
-  # CURRENT ENTRIES PRESERVED VERBATIM PENDING REVIEW. Tenant /incidentfields
-  # dump confirmed that authsource, sourcecountry, logontype, mfamethod,
-  # eventoutcome, userrisk, targetresource, userdisplayname, useremail are
-  # NOT registered native cliNames. Several have existing `socfwidentity*`
-  # customs already created (socfwidentityauthsource, socfwidentitycountry,
-  # socfwidentityoutcome, socfwidentityrisklevel, socfwidentityuserdisplayname,
-  # socfwidentityuseremail). Three would need creating
-  # (socfwidentitylogontype, socfwidentitymfamethod, socfwidentitytargetresource).
+  # Anchored against the canonical Magnifier UEBA "Impossible traveler - SSO"
+  # alert. See schemas/xsiam_alert_fields.yaml for the full alert surface.
   #
-  # Convergence deferred until Identity workflow is actively consumed
-  # downstream. Until then this band reads non-existent cliNames and
-  # returns null on every Identity alert — no functional regression
-  # because no consumer is reading SOCFramework.Identity.* yet.
+  # Native cliNames reused from the endpoint band convention (username,
+  # hostname, localip, initiatedby) carry the SAME field name but represent
+  # SOURCE-side auth signals on Identity alerts, not endpoint signals. The
+  # Identity normalizer is responsible for that semantic split.
+  #
+  # `socfwidentity*` source_origin entries split into TWO sets:
+  #   - exists  : already created on tenant; vendor pack alert_fields can
+  #               emit immediately
+  #   - pending : NEEDS CREATING before Identity workflow activates. Each
+  #               flagged in `notes:` so SDK validation surfaces them.
   # ==========================================================================
-  - { category: identity, target: Identity.auth_source      , issue_field: authsource     , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.client_ip        , issue_field: sourceip       , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.country          , issue_field: sourcecountry  , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.device_id        , issue_field: deviceid       , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.event_type       , issue_field: eventtype      , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.logon_type       , issue_field: logontype      , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.mfa_method       , issue_field: mfamethod      , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.outcome          , issue_field: eventoutcome   , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.risk_level       , issue_field: userrisk       , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.session_id       , issue_field: sessionid      , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.source_hostname  , issue_field: sourcehostname , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.target_resource  , issue_field: targetresource , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.user_agent       , issue_field: useragent      , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.user_display_name, issue_field: userdisplayname, shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.user_email       , issue_field: useremail      , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.user_id          , issue_field: userid         , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.username         , issue_field: username       , shape: flat, role: canonical, source_origin: native }
+  - { category: identity, target: Identity.auth_source      , issue_field: socfwidentityauthsource     , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: authsource (not registered)." }
+  - { category: identity, target: Identity.client_ip        , issue_field: localip                     , shape: flat, role: canonical, source_origin: native,       notes: "Flipped sourceip → localip per cliName convergence. Same cliName as Endpoint.ip_address; on Identity alerts represents the user's source IP, not an endpoint." }
+  - { category: identity, target: Identity.country          , issue_field: socfwidentitycountry        , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: sourcecountry (not registered). Magnifier alerts also surface a `country` field but its registered status is unverified — sticking with the verified custom." }
+  - { category: identity, target: Identity.device_id        , issue_field: socfwidentitydeviceid       , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — assumed not registered, verify on tenant before creating. Source device identifier for the auth event." }
+  - { category: identity, target: Identity.event_type       , issue_field: eventtype                   , shape: flat, role: canonical, source_origin: native,       notes: "Native cliName. Magnifier alerts use integer codes (e.g., 102 = Impossible Traveler); xdmeventtype carries the string form (e.g., DML_CONNECTION)." }
+  - { category: identity, target: Identity.logon_type       , issue_field: socfwidentitylogontype      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. No native cliName, no existing custom." }
+  - { category: identity, target: Identity.mfa_method       , issue_field: socfwidentitymfamethod      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. Vendor pack alert_fields would emit from xdm.event.operation_sub_type after MFA factor classification." }
+  - { category: identity, target: Identity.outcome          , issue_field: socfwidentityoutcome        , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: eventoutcome (not registered)." }
+  - { category: identity, target: Identity.risk_level       , issue_field: socfwidentityrisklevel      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: userrisk (not registered)." }
+  - { category: identity, target: Identity.session_id       , issue_field: socfwidentitysessionid      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. Required for forced-session-revocation Containment action (soc-clear-sessions)." }
+  - { category: identity, target: Identity.source_hostname  , issue_field: hostname                    , shape: flat, role: canonical, source_origin: native,       notes: "Flipped sourcehostname → hostname per cliName convergence. WARNING: For SSO alerts, hostname carries the user's source IP, NOT a hostname. Identity normalizer treats as auth-source signal." }
+  - { category: identity, target: Identity.target_resource  , issue_field: socfwidentitytargetresource , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. Target SSO app / resource the auth event hit (Salesforce, GSuite, etc.)." }
+  - { category: identity, target: Identity.user_agent       , issue_field: 'initiatedby.[0]'           , shape: flat, role: canonical, source_origin: native,       notes: "Flipped useragent → initiatedby per cliName convergence. Reuses the endpoint-band cliName; on Identity alerts carries browser/UA strings (e.g., 'Edge 18.26200', 'Chrome 146.0.0')." }
+  - { category: identity, target: Identity.user_display_name, issue_field: socfwidentityuserdisplayname, shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: userdisplayname (not registered)." }
+  - { category: identity, target: Identity.user_email       , issue_field: socfwidentityuseremail      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: useremail (not registered)." }
+  - { category: identity, target: Identity.user_id          , issue_field: userid                      , shape: flat, role: canonical, source_origin: native }
+  - { category: identity, target: Identity.username         , issue_field: 'username.[0]'              , shape: flat, role: canonical, source_origin: native,       notes: "Array on Magnifier alerts (e.g., ['corp\\\\5827014']); .[0] extraction matches endpoint-band convention." }
+
+  # identity has no LEGACY ALIASES band — Artifacts.Identity.* tree is
+  # populated via mirrors (see mirrors section), not via direct issue.* mappings.
 
 # ============================================================================
 # Stamps — literal-value writes
@@ -441,3 +477,24 @@ mirrors:
   - { category: email, target: Artifacts.Email.MessageID , source: Email.message_id , role: canonical, shape: structured }
   - { category: email, target: Artifacts.Email.ThreatType, source: Email.threat_type, role: canonical, shape: structured }
   - { category: email, target: Artifacts.Email.ThreatURL , source: Email.threat_url , role: canonical, shape: structured }
+
+  # ------ identity ------
+  # Mirrors the flat Identity.* surface into the vendor-agnostic structured
+  # tree consumed by Lifecycle and Workflow playbooks. Same pattern as Email.
+  - { category: identity, target: Artifacts.Identity.User.Name        , source: Identity.username          , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.User.ID          , source: Identity.user_id           , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.User.DisplayName , source: Identity.user_display_name , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.User.Email       , source: Identity.user_email        , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Source.IP        , source: Identity.client_ip         , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Source.Hostname  , source: Identity.source_hostname   , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Source.Country   , source: Identity.country           , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Source.UserAgent , source: Identity.user_agent        , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Source.DeviceID  , source: Identity.device_id         , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Auth.Source      , source: Identity.auth_source       , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Auth.Outcome     , source: Identity.outcome           , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Auth.SessionID   , source: Identity.session_id        , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Auth.MFAMethod   , source: Identity.mfa_method        , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Auth.LogonType   , source: Identity.logon_type        , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Provider.EventType, source: Identity.event_type       , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Risk.Level       , source: Identity.risk_level        , role: canonical, shape: structured }
+  - { category: identity, target: Artifacts.Identity.Target.Resource  , source: Identity.target_resource   , role: canonical, shape: structured }

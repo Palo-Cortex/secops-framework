@@ -16,7 +16,7 @@ Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps an
 |---|---|---|---|
 | `endpoint` | complete |  | `Foundation_-_Normalize_Endpoint_V3` |
 | `email` | partial |  | `Foundation_-_Normalize_Email_V3` |
-| `identity` | deferred |  | `Foundation_-_Normalize_Identity_V3` |
+| `identity` | in-progress |  | `Foundation_-_Normalize_Identity_V3` |
 
 ## Mappings — `issue.*` → `SOCFramework.*`
 
@@ -104,23 +104,23 @@ Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps an
 | `email` | `Email.threat_status` | `socfwemailthreatstatus` | `flat` | `canonical` | `socfw_custom` |  |  |
 | `email` | `Email.threat_type` | `socfwemailthreattype` | `flat` | `canonical` | `socfw_custom` |  |  |
 | `email` | `Email.threat_url` | `socfwemailthreaturl` | `flat` | `canonical` | `socfw_custom` |  |  |
-| `identity` | `Identity.auth_source` | `authsource` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.client_ip` | `sourceip` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.country` | `sourcecountry` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.device_id` | `deviceid` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.event_type` | `eventtype` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.logon_type` | `logontype` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.mfa_method` | `mfamethod` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.outcome` | `eventoutcome` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.risk_level` | `userrisk` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.session_id` | `sessionid` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.source_hostname` | `sourcehostname` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.target_resource` | `targetresource` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.user_agent` | `useragent` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.user_display_name` | `userdisplayname` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.user_email` | `useremail` | `flat` | `canonical` | `native` |  |  |
+| `identity` | `Identity.auth_source` | `socfwidentityauthsource` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: authsource (not registered). |  |
+| `identity` | `Identity.client_ip` | `localip` | `flat` | `canonical` | `native` | Flipped sourceip → localip per cliName convergence. Same cliName as Endpoint.ip_address; on Identity alerts represents the user's source IP, not an endpoint. |  |
+| `identity` | `Identity.country` | `socfwidentitycountry` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: sourcecountry (not registered). Magnifier alerts also surface a `country` field but its registered status is unverified — sticking with the verified custom. |  |
+| `identity` | `Identity.device_id` | `socfwidentitydeviceid` | `flat` | `canonical` | `socfw_custom` | PENDING — assumed not registered, verify on tenant before creating. Source device identifier for the auth event. |  |
+| `identity` | `Identity.event_type` | `eventtype` | `flat` | `canonical` | `native` | Native cliName. Magnifier alerts use integer codes (e.g., 102 = Impossible Traveler); xdmeventtype carries the string form (e.g., DML_CONNECTION). |  |
+| `identity` | `Identity.logon_type` | `socfwidentitylogontype` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. No native cliName, no existing custom. |  |
+| `identity` | `Identity.mfa_method` | `socfwidentitymfamethod` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. Vendor pack alert_fields would emit from xdm.event.operation_sub_type after MFA factor classification. |  |
+| `identity` | `Identity.outcome` | `socfwidentityoutcome` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: eventoutcome (not registered). |  |
+| `identity` | `Identity.risk_level` | `socfwidentityrisklevel` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: userrisk (not registered). |  |
+| `identity` | `Identity.session_id` | `socfwidentitysessionid` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. Required for forced-session-revocation Containment action (soc-clear-sessions). |  |
+| `identity` | `Identity.source_hostname` | `hostname` | `flat` | `canonical` | `native` | Flipped sourcehostname → hostname per cliName convergence. WARNING: For SSO alerts, hostname carries the user's source IP, NOT a hostname. Identity normalizer treats as auth-source signal. |  |
+| `identity` | `Identity.target_resource` | `socfwidentitytargetresource` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. Target SSO app / resource the auth event hit (Salesforce, GSuite, etc.). |  |
+| `identity` | `Identity.user_agent` | `initiatedby.[0]` | `flat` | `canonical` | `native` | Flipped useragent → initiatedby per cliName convergence. Reuses the endpoint-band cliName; on Identity alerts carries browser/UA strings (e.g., 'Edge 18.26200', 'Chrome 146.0.0'). |  |
+| `identity` | `Identity.user_display_name` | `socfwidentityuserdisplayname` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: userdisplayname (not registered). |  |
+| `identity` | `Identity.user_email` | `socfwidentityuseremail` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: useremail (not registered). |  |
 | `identity` | `Identity.user_id` | `userid` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.username` | `username` | `flat` | `canonical` | `native` |  |  |
+| `identity` | `Identity.username` | `username.[0]` | `flat` | `canonical` | `native` | Array on Magnifier alerts (e.g., ['corp\\5827014']); .[0] extraction matches endpoint-band convention. |  |
 
 ## Stamps — literal value → `SOCFramework.*`
 
@@ -143,3 +143,20 @@ Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps an
 | `email` | `Artifacts.Email.MessageID` | `Email.message_id` | `canonical` | `structured` |
 | `email` | `Artifacts.Email.ThreatType` | `Email.threat_type` | `canonical` | `structured` |
 | `email` | `Artifacts.Email.ThreatURL` | `Email.threat_url` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.User.Name` | `Identity.username` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.User.ID` | `Identity.user_id` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.User.DisplayName` | `Identity.user_display_name` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.User.Email` | `Identity.user_email` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Source.IP` | `Identity.client_ip` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Source.Hostname` | `Identity.source_hostname` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Source.Country` | `Identity.country` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Source.UserAgent` | `Identity.user_agent` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Source.DeviceID` | `Identity.device_id` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Auth.Source` | `Identity.auth_source` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Auth.Outcome` | `Identity.outcome` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Auth.SessionID` | `Identity.session_id` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Auth.MFAMethod` | `Identity.mfa_method` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Auth.LogonType` | `Identity.logon_type` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Provider.EventType` | `Identity.event_type` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Risk.Level` | `Identity.risk_level` | `canonical` | `structured` |
+| `identity` | `Artifacts.Identity.Target.Resource` | `Identity.target_resource` | `canonical` | `structured` |
