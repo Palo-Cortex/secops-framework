@@ -1,0 +1,36 @@
+adopted: true
+commonfields:
+  id: SOCDedupComputeWinner
+  version: -1
+name: SOCDedupComputeWinner
+script: ''
+type: python
+subtype: python3
+enabled: true
+system: true
+tags:
+- SOC
+- SOC_Framework_Unified
+- foundation
+- dedup
+comment: |
+  Foundation utility for Foundation - Dedup_V3. Given similar alert IDs
+  plus the current alert ID, writes the numeric minimum (canonical case)
+  to SOCFramework.Dedup.WinnerID. Deterministic, race-free, no
+  coordination required.
+args:
+- name: similar_ids
+  description: |
+    List or CSV of similar alert IDs (typically
+    DBotFindSimilarIncidents.similarIncident.id).
+- name: current_id
+  description: The current alert ID (typically ${alert.id}).
+  required: true
+outputs:
+- contextPath: SOCFramework.Dedup.WinnerID
+  description: The minimum (canonical) alert ID — deterministic group winner.
+  type: String
+scripttarget: 0
+runonce: false
+dockerimage: demisto/python3:3.12.13.8927230
+fromversion: 6.10.0

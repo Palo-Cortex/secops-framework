@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkProofPointTap` |
-| Version | `1.4.3` |
+| Version | `1.4.4` |
 | Category | Forensics & Malware Analysis |
 | Pack Path | `Packs/SocFrameworkProofPointTap` |
 | Manifest | [`Packs/SocFrameworkProofPointTap/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkProofPointTap/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `SocFrameworkProofPointTap.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkProofPointTap-v1.4.3/SocFrameworkProofPointTap-v1.4.3.zip) |
+| `SocFrameworkProofPointTap.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkProofPointTap-v1.4.4/SocFrameworkProofPointTap-v1.4.4.zip) |
 
 ## Marketplace Dependencies
 

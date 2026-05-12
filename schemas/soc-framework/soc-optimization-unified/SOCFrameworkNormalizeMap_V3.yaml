@@ -13,7 +13,90 @@
 # without a schema PR (or vice versa).
 #
 # ----------------------------------------------------------------------------
-# CHANGELOG — identity convergence (this revision)
+# CHANGELOG — identity lean cut (this revision)
+# ----------------------------------------------------------------------------
+# Applied lean-build rule: drop custom fields unless a playbook is known to
+# consume them. Reference: email band's socfwemail* customs are kept because
+# the email security playbook contributor confirmed each is read by an
+# action playbook task. Identity customs had no equivalent confirmation.
+#
+# Identity band cut from 17 mappings (11 customs, 6 native) to 8 mappings
+# (zero customs, all native). Activation prereq list drops to zero — no
+# tenant-side custom field creation needed before the Identity workflow
+# can fire end-to-end.
+#
+# Two flipped from custom to native (visible-on-dump verification):
+#   - Identity.country    socfwidentitycountry  → country (native)
+#   - Identity.user_email socfwidentityuseremail → email (native)
+#
+# Nine dropped entirely — no current or imminent playbook consumer:
+#   - Identity.auth_source        (socfwidentityauthsource)
+#   - Identity.device_id          (socfwidentitydeviceid)
+#   - Identity.logon_type         (socfwidentitylogontype)
+#   - Identity.mfa_method         (socfwidentitymfamethod)
+#   - Identity.outcome            (socfwidentityoutcome)
+#   - Identity.risk_level         (socfwidentityrisklevel)
+#   - Identity.session_id         (socfwidentitysessionid)
+#   - Identity.target_resource    (socfwidentitytargetresource)
+#   - Identity.user_display_name  (socfwidentityuserdisplayname)
+#
+# Re-add any of these via a single mapping + mirror entry if and when a
+# playbook task is found to read them. Default is drop.
+#
+# Re-add candidates worth tracking:
+#   - session_id IF SOC_Identity_Containment_V3 task list reads it for
+#     soc-clear-sessions. Most IdP APIs (Okta, MS Graph) revoke all user
+#     sessions by user_id alone, so likely not needed.
+#   - mfa_method, logon_type IF the AI Prompt verdict task in
+#     SOC_Identity_Analysis_V3 (currently proposed, not built) consumes
+#     them for verdict scoring.
+#
+# Structured Artifacts.Identity.* tree drops from 17 mirrors to 8 in
+# parallel — every dropped flat target loses its corresponding mirror.
+#
+# ----------------------------------------------------------------------------
+# CHANGELOG — network band added (prior revision)
+# ----------------------------------------------------------------------------
+# Network band added, in-progress. Anchored against an actual Network alert
+# dump captured on tenant — "Rare AppID usage to a rare destination"
+# (ANALYTICS_BIOC, sourceBrand=PANW NGFW, family_tags="DS:PANW/NGFW").
+# Every issue_field is observed populated on a real network alert's issue
+# context. ZERO socfwnetwork* customs needed for v1 — every required field
+# has a registered native cliName.
+#
+# Cross-band cliName reuse is intentional and expected: source-side natives
+# (xdmsourceipv4, xdmsourcehosthostname, xdmsourcelocationcountry) are
+# shared with Endpoint/Identity bands; target-side natives (xdmtargetipv4,
+# xdmtargethosthostname) are network-specific. Each band declares its own
+# mapping independently — only the category-routed normalizer fires per
+# alert.
+#
+# New native cliNames first appearing in the network band:
+#   - xdmtargetipv4             (drives soc-block-ip, soc-update-acl)
+#   - xdmtargetport             (destination port)
+#   - xdmtargethosthostname     (destination hostname)
+#   - xdmtargetlocationcountry  (destination geo)
+#   - destinationzonename       (firewall destination zone)
+#   - sourcezonename            (firewall source zone)
+#   - localport                 (source ephemeral port — no xdmsourceport observed)
+#   - appid                     (PAN App-ID stack)
+#   - xdmeventtype              (DML event classification)
+#   - action                    (firewall verdict, scalar form on Network/Identity alerts)
+#   - fwname                    (firewall display name)
+#   - fwserialnumber            (firewall hardware serial)
+#   - fwrulename                (matched policy reference)
+#   - dnsqueryname              (verified in prior cliName-convergence;
+#                                routes here for DNS-firewall alerts)
+#
+# Activation prereqs: TWO of the 12 planned Network actions need additional
+# alert samples before their read fields can be mapped:
+#   - soc-block-url     → URL field, needs SWG alert sample (Zscaler ZIA, PAN URL Filter)
+#   - soc-disable-port  → Switch interface, needs NetFlow / NAC alert sample
+# Same anchoring approach: get the dump, read the cliName, add the mapping.
+# No customs invented in the meantime.
+#
+# ----------------------------------------------------------------------------
+# CHANGELOG — identity convergence (prior revision)
 # ----------------------------------------------------------------------------
 # Identity band moved from `deferred` to `in-progress`. Flat issue_field
 # values flipped per cliName classification:
@@ -165,8 +248,8 @@
 # ----------------------------------------------------------------------------
 # SCOPE — current build
 # ----------------------------------------------------------------------------
-#   In scope: endpoint, email, identity
-#   Future:   network, cloud, generic, workload, saas, pam, data,
+#   In scope: endpoint, email, identity, network
+#   Future:   cloud, generic, workload, saas, pam, data,
 #             agentic_endpoint
 #
 # ----------------------------------------------------------------------------
@@ -234,13 +317,29 @@ categories:
     structured_coverage: complete
     source_playbook: Foundation_-_Normalize_Identity_V3
     notes: |
-      Convergence pass applied. Flat band uses registered native cliNames
-      where verified (username, userid, eventtype, localip, hostname,
-      initiatedby) and socfwidentity* customs elsewhere. Six customs already
-      exist on tenant (authsource, country, outcome, risklevel,
-      userdisplayname, useremail); five need creating before workflow
-      activation (logontype, mfamethod, sessionid, targetresource, deviceid).
-      Structured Artifacts.Identity.* tree populated via mirrors.
+      Lean-cut applied. Flat band uses ONLY registered native cliNames —
+      zero customs. 8 mappings: username, user_id, client_ip, country,
+      event_type, source_hostname, user_agent, user_email. Structured
+      Artifacts.Identity.* tree populated via 8 mirrors.
+
+      Activation prereq list: zero. No tenant-side custom field creation
+      needed before the Identity workflow can fire end-to-end. Re-add a
+      socfwidentity* custom only when a playbook task is confirmed to
+      read it.
+  network:
+    status: in-progress
+    flat_coverage: complete
+    structured_coverage: complete
+    source_playbook: Foundation_-_Normalize_Network_V3
+    notes: |
+      Anchored against tenant Network alert dump — "Rare AppID usage to a
+      rare destination" (ANALYTICS_BIOC, sourceBrand=PANW NGFW). Every
+      issue_field is a registered native cliName observed populated on a
+      real network alert. ZERO socfwnetwork* customs needed for v1.
+      Structured Artifacts.Network.* tree populated via mirrors.
+      Activation gaps are alert-sample-shaped, not custom-creation-shaped:
+      URL field for soc-block-url needs SWG alert sample; switch interface
+      for soc-disable-port needs NetFlow / NAC alert sample.
 
 # ============================================================================
 # Mappings — passthrough from issue.<field>
@@ -412,25 +511,67 @@ mappings:
   #   - pending : NEEDS CREATING before Identity workflow activates. Each
   #               flagged in `notes:` so SDK validation surfaces them.
   # ==========================================================================
-  - { category: identity, target: Identity.auth_source      , issue_field: socfwidentityauthsource     , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: authsource (not registered)." }
-  - { category: identity, target: Identity.client_ip        , issue_field: localip                     , shape: flat, role: canonical, source_origin: native,       notes: "Flipped sourceip → localip per cliName convergence. Same cliName as Endpoint.ip_address; on Identity alerts represents the user's source IP, not an endpoint." }
-  - { category: identity, target: Identity.country          , issue_field: socfwidentitycountry        , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: sourcecountry (not registered). Magnifier alerts also surface a `country` field but its registered status is unverified — sticking with the verified custom." }
-  - { category: identity, target: Identity.device_id        , issue_field: socfwidentitydeviceid       , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — assumed not registered, verify on tenant before creating. Source device identifier for the auth event." }
-  - { category: identity, target: Identity.event_type       , issue_field: eventtype                   , shape: flat, role: canonical, source_origin: native,       notes: "Native cliName. Magnifier alerts use integer codes (e.g., 102 = Impossible Traveler); xdmeventtype carries the string form (e.g., DML_CONNECTION)." }
-  - { category: identity, target: Identity.logon_type       , issue_field: socfwidentitylogontype      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. No native cliName, no existing custom." }
-  - { category: identity, target: Identity.mfa_method       , issue_field: socfwidentitymfamethod      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. Vendor pack alert_fields would emit from xdm.event.operation_sub_type after MFA factor classification." }
-  - { category: identity, target: Identity.outcome          , issue_field: socfwidentityoutcome        , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: eventoutcome (not registered)." }
-  - { category: identity, target: Identity.risk_level       , issue_field: socfwidentityrisklevel      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: userrisk (not registered)." }
-  - { category: identity, target: Identity.session_id       , issue_field: socfwidentitysessionid      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. Required for forced-session-revocation Containment action (soc-clear-sessions)." }
-  - { category: identity, target: Identity.source_hostname  , issue_field: hostname                    , shape: flat, role: canonical, source_origin: native,       notes: "Flipped sourcehostname → hostname per cliName convergence. WARNING: For SSO alerts, hostname carries the user's source IP, NOT a hostname. Identity normalizer treats as auth-source signal." }
-  - { category: identity, target: Identity.target_resource  , issue_field: socfwidentitytargetresource , shape: flat, role: canonical, source_origin: socfw_custom, notes: "PENDING — needs creating. Target SSO app / resource the auth event hit (Salesforce, GSuite, etc.)." }
-  - { category: identity, target: Identity.user_agent       , issue_field: 'initiatedby.[0]'           , shape: flat, role: canonical, source_origin: native,       notes: "Flipped useragent → initiatedby per cliName convergence. Reuses the endpoint-band cliName; on Identity alerts carries browser/UA strings (e.g., 'Edge 18.26200', 'Chrome 146.0.0')." }
-  - { category: identity, target: Identity.user_display_name, issue_field: socfwidentityuserdisplayname, shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: userdisplayname (not registered)." }
-  - { category: identity, target: Identity.user_email       , issue_field: socfwidentityuseremail      , shape: flat, role: canonical, source_origin: socfw_custom, notes: "Custom exists on tenant. Was: useremail (not registered)." }
-  - { category: identity, target: Identity.user_id          , issue_field: userid                      , shape: flat, role: canonical, source_origin: native }
-  - { category: identity, target: Identity.username         , issue_field: 'username.[0]'              , shape: flat, role: canonical, source_origin: native,       notes: "Array on Magnifier alerts (e.g., ['corp\\\\5827014']); .[0] extraction matches endpoint-band convention." }
+  - { category: identity, target: Identity.client_ip      , issue_field: localip                     , shape: flat, role: canonical, source_origin: native, notes: "Same cliName as Endpoint.ip_address; on Identity alerts represents the user's source IP, not an endpoint." }
+  - { category: identity, target: Identity.country        , issue_field: country                     , shape: flat, role: canonical, source_origin: native, notes: "Native cliName, observed populated as array of country names on SSO Brute Force dump (e.g., ['AUSTRIA', 'LUXEMBOURG', 'UNITED_STATES', 'NETHERLANDS', 'SWEDEN']). Was: socfwidentitycountry — flipped per lean cut." }
+  - { category: identity, target: Identity.event_type     , issue_field: eventtype                   , shape: flat, role: canonical, source_origin: native, notes: "Native cliName. Magnifier alerts use integer codes (102 observed on both Impossible Traveler and SSO Brute Force samples — code is generic auth-event-of-interest, not alert-specific); xdmeventtype carries the string form (e.g., DML_CONNECTION)." }
+  - { category: identity, target: Identity.source_hostname, issue_field: hostname                    , shape: flat, role: canonical, source_origin: native, notes: "Same cliName as Endpoint.hostname. WARNING: For SSO alerts, hostname carries the user's source IP, NOT a hostname. Identity normalizer treats as auth-source signal." }
+  - { category: identity, target: Identity.user_agent     , issue_field: 'initiatedby.[0]'           , shape: flat, role: canonical, source_origin: native, notes: "Reuses the endpoint-band cliName; on Identity alerts carries browser/UA strings — full UA on some samples ('Edge 18.26200', 'Chrome 146.0.0'), abbreviated browser names on others ('FIREFOX', 'UNKNOWN')." }
+  - { category: identity, target: Identity.user_email     , issue_field: email                       , shape: flat, role: canonical, source_origin: native, notes: "Native cliName, observed populated on tenant alert dumps. Was: socfwidentityuseremail — flipped per lean cut." }
+  - { category: identity, target: Identity.user_id        , issue_field: userid                      , shape: flat, role: canonical, source_origin: native }
+  - { category: identity, target: Identity.username       , issue_field: 'username.[0]'              , shape: flat, role: canonical, source_origin: native, notes: "Array on Magnifier alerts (e.g., ['paloaltonetwork\\\\ocohen']); .[0] extraction matches endpoint-band convention." }
 
   # identity has no LEGACY ALIASES band — Artifacts.Identity.* tree is
+  # populated via mirrors (see mirrors section), not via direct issue.* mappings.
+
+  # ==========================================================================
+  # network :: CANONICAL — flat per-category surface (SOCFramework.Network.*)
+  # --------------------------------------------------------------------------
+  # Anchored against the tenant Network alert dump — "Rare AppID usage to a
+  # rare destination" (ANALYTICS_BIOC, sourceBrand=PANW NGFW,
+  # family_tags="DS:PANW/NGFW"). Every issue_field below was observed
+  # populated on a real network alert's issue context.
+  #
+  # No socfwnetwork* customs needed for v1 — every required field has a
+  # registered native cliName. Cross-band cliName reuse is intentional:
+  # several fields (xdmsource*, action) are shared with Endpoint/Identity
+  # bands. Each band declares its own mapping independently; only the
+  # category-routed normalizer fires per alert.
+  #
+  # Two cliNames carry through to Network from prior bands' verifications
+  # without appearing on the NGFW BIOC sample — populated on different
+  # network alert types that route to category=network:
+  #   - dnsqueryname (verified native in cliName-convergence changelog;
+  #     populated on DNS-firewall alerts: Umbrella, PAN DNS Security)
+  #
+  # mitreattck* cliNames are framework-routed via SOCFramework.Mitre.* and
+  # not redeclared in any per-category band.
+  #
+  # Source/target IP cliName redundancy on PANW NGFW alerts:
+  #   - xdmsourceipv4 == localip      (same value, xdmsource chosen as canonical)
+  #   - xdmtargetipv4 == remoteip     (same value, xdmtarget chosen as canonical)
+  #   - xdmtargetport == remoteport   (same value, xdmtarget chosen as canonical)
+  # Picked xdm-rooted forms for cross-vendor portability; PAN-specific
+  # remote*/local* forms not declared.
+  # ==========================================================================
+  - { category: network, target: Network.action               , issue_field: action                         , shape: flat, role: canonical, source_origin: native, notes: "Single value not array on observed Network dump (action: 'DETECTED'). Endpoint band uses action.[0]; Network alerts surface as scalar." }
+  - { category: network, target: Network.application          , issue_field: 'appid.[0]'                    , shape: flat, role: canonical, source_origin: native, notes: "PAN App-ID stack as concatenated string (e.g., 'ip,tcp,ms-ds-smbv3'). Drives Analysis verdict scoring for L7 anomalies." }
+  - { category: network, target: Network.destination_country  , issue_field: 'xdmtargetlocationcountry.[0]' , shape: flat, role: canonical, source_origin: native, notes: "Empty ('-') for internal-to-internal traffic on observed dump; populated for egress." }
+  - { category: network, target: Network.destination_hostname , issue_field: 'xdmtargethosthostname.[0]'    , shape: flat, role: canonical, source_origin: native }
+  - { category: network, target: Network.destination_ip       , issue_field: 'xdmtargetipv4.[0]'            , shape: flat, role: canonical, source_origin: native, notes: "Drives soc-block-ip and soc-update-acl. Same value as remoteip on PANW NGFW alerts; xdmtarget chosen as canonical for cross-vendor portability." }
+  - { category: network, target: Network.destination_port     , issue_field: 'xdmtargetport.[0]'            , shape: flat, role: canonical, source_origin: native }
+  - { category: network, target: Network.destination_zone     , issue_field: 'destinationzonename.[0]'      , shape: flat, role: canonical, source_origin: native, notes: "Firewall destination zone (e.g., 'Infrastructure'). Network-specific concept, no analogue in Endpoint/Identity bands." }
+  - { category: network, target: Network.device_name          , issue_field: 'fwname.[0]'                   , shape: flat, role: canonical, source_origin: native, notes: "Firewall display name. Drives vendor branch routing in SOC_Network_Containment_V3 / Recovery via SOCExecutionList_V3." }
+  - { category: network, target: Network.device_rule_name     , issue_field: 'fwrulename.[0]'               , shape: flat, role: canonical, source_origin: native, notes: "Pipe-delimited 'vsys|policy' form on PAN (e.g., 'rangexsiam|Lab Learning Policy'). Required by soc-update-acl and soc-restore-acl." }
+  - { category: network, target: Network.device_serial        , issue_field: 'fwserialnumber.[0]'           , shape: flat, role: canonical, source_origin: native, notes: "Firewall hardware serial. Required for vendor API targeting on multi-firewall deployments." }
+  - { category: network, target: Network.dns_query            , issue_field: dnsqueryname                   , shape: flat, role: canonical, source_origin: native, notes: "Native cliName, verified in prior cliName-convergence changelog (NOT dns_query_name). Not present on NGFW BIOC alerts; populated on DNS-firewall alerts (Umbrella, PAN DNS Security). Required by soc-block-domain DNS-firewall path." }
+  - { category: network, target: Network.event_type           , issue_field: 'xdmeventtype.[0]'             , shape: flat, role: canonical, source_origin: native, notes: "DML event classification (e.g., 'DML_CONNECTION'). Distinct from numeric eventtype which is alert-classification code." }
+  - { category: network, target: Network.source_country       , issue_field: 'xdmsourcelocationcountry.[0]' , shape: flat, role: canonical, source_origin: native, notes: "'UNKNOWN' for RFC1918 sources on observed dump; populated for external sources. Drives geo-anomaly verdict signals." }
+  - { category: network, target: Network.source_hostname      , issue_field: xdmsourcehosthostname          , shape: flat, role: canonical, source_origin: native, notes: "Single string not array on observed Network dump (cf. Identity band where the hostname cliName carries source IP for SSO alerts). On Network alerts, carries actual hostname." }
+  - { category: network, target: Network.source_ip            , issue_field: 'xdmsourceipv4.[0]'            , shape: flat, role: canonical, source_origin: native, notes: "Drives soc-quarantine-network targeting. Same value as localip on PANW NGFW alerts; xdmsource chosen as canonical." }
+  - { category: network, target: Network.source_port          , issue_field: 'localport.[0]'                , shape: flat, role: canonical, source_origin: native, notes: "Source ephemeral port. No xdmsourceport observed on dump; localport is the canonical source-port cliName." }
+  - { category: network, target: Network.source_zone          , issue_field: 'sourcezonename.[0]'           , shape: flat, role: canonical, source_origin: native, notes: "Firewall source zone (e.g., 'Users'). Network-specific." }
+
+  # network has no LEGACY ALIASES band — Artifacts.Network.* tree is
   # populated via mirrors (see mirrors section), not via direct issue.* mappings.
 
 # ============================================================================
@@ -455,6 +596,9 @@ stamps:
 
   # ------ identity ------
   - { category: identity, target: Identity.normalization_source, value: identity, role: canonical }
+
+  # ------ network ------
+  - { category: network, target: Network.normalization_source, value: network, role: canonical }
 
 # ============================================================================
 # Mirrors — internal SOCFramework.X → SOCFramework.Y copies
@@ -483,18 +627,31 @@ mirrors:
   # tree consumed by Lifecycle and Workflow playbooks. Same pattern as Email.
   - { category: identity, target: Artifacts.Identity.User.Name        , source: Identity.username          , role: canonical, shape: structured }
   - { category: identity, target: Artifacts.Identity.User.ID          , source: Identity.user_id           , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.User.DisplayName , source: Identity.user_display_name , role: canonical, shape: structured }
   - { category: identity, target: Artifacts.Identity.User.Email       , source: Identity.user_email        , role: canonical, shape: structured }
   - { category: identity, target: Artifacts.Identity.Source.IP        , source: Identity.client_ip         , role: canonical, shape: structured }
   - { category: identity, target: Artifacts.Identity.Source.Hostname  , source: Identity.source_hostname   , role: canonical, shape: structured }
   - { category: identity, target: Artifacts.Identity.Source.Country   , source: Identity.country           , role: canonical, shape: structured }
   - { category: identity, target: Artifacts.Identity.Source.UserAgent , source: Identity.user_agent        , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Source.DeviceID  , source: Identity.device_id         , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Auth.Source      , source: Identity.auth_source       , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Auth.Outcome     , source: Identity.outcome           , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Auth.SessionID   , source: Identity.session_id        , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Auth.MFAMethod   , source: Identity.mfa_method        , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Auth.LogonType   , source: Identity.logon_type        , role: canonical, shape: structured }
   - { category: identity, target: Artifacts.Identity.Provider.EventType, source: Identity.event_type       , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Risk.Level       , source: Identity.risk_level        , role: canonical, shape: structured }
-  - { category: identity, target: Artifacts.Identity.Target.Resource  , source: Identity.target_resource   , role: canonical, shape: structured }
+
+  # ------ network ------
+  # Mirrors the flat Network.* surface into the vendor-agnostic structured
+  # tree consumed by Lifecycle and Workflow playbooks. Same pattern as
+  # Identity / Email.
+  - { category: network, target: Artifacts.Network.Destination.Country  , source: Network.destination_country  , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Destination.Hostname , source: Network.destination_hostname , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Destination.IP       , source: Network.destination_ip       , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Destination.Port     , source: Network.destination_port     , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Destination.Zone     , source: Network.destination_zone     , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Device.Name          , source: Network.device_name          , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Device.RuleName      , source: Network.device_rule_name     , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Device.Serial        , source: Network.device_serial        , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.DNS.Query            , source: Network.dns_query            , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Flow.Action          , source: Network.action               , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Flow.Application     , source: Network.application          , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Flow.EventType       , source: Network.event_type           , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Source.Country       , source: Network.source_country       , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Source.Hostname      , source: Network.source_hostname      , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Source.IP            , source: Network.source_ip            , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Source.Port          , source: Network.source_port          , role: canonical, shape: structured }
+  - { category: network, target: Artifacts.Network.Source.Zone          , source: Network.source_zone          , role: canonical, shape: structured }

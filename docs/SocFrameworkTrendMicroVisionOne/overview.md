@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkTrendMicroVisionOne` |
-| Version | `1.1.2` |
+| Version | `1.1.3` |
 | Category | End Point |
 | Pack Path | `Packs/SocFrameworkTrendMicroVisionOne` |
 | Manifest | [`Packs/SocFrameworkTrendMicroVisionOne/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkTrendMicroVisionOne/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `SocFrameworkTrendMicroVisionOne.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkTrendMicroVisionOne-v1.1.2/SocFrameworkTrendMicroVisionOne-v1.1.2.zip) |
+| `SocFrameworkTrendMicroVisionOne.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkTrendMicroVisionOne-v1.1.3/SocFrameworkTrendMicroVisionOne-v1.1.3.zip) |
 
 ## Marketplace Dependencies
 

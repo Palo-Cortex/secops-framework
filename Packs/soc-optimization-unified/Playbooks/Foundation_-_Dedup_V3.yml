@@ -401,11 +401,11 @@ tasks:
       id: 90806324-1af6-4a1d-9c96-a02a016d3fb4
       version: -1
       name: Compute Winner ID (min alert ID in duplicate group)
-      description: Appends the current alert ID to the list of similar alert IDs,
-        then applies the min transformer to determine the canonical case. The alert
-        with the lowest ID is the winner — deterministic, race-free, no coordination
-        required.
-      script: SetAndHandleEmpty
+      description: Computes the numeric minimum across the current alert ID and the
+        list of similar alert IDs and writes SOCFramework.Dedup.WinnerID. The alert
+        with the lowest ID is the canonical case — deterministic, race-free, no
+        coordination required.
+      script: SOCDedupComputeWinner
       type: regular
       iscommand: false
       brand: ""
@@ -417,20 +417,12 @@ tasks:
       '#none#':
       - "23"
     scriptarguments:
-      key:
-        simple: SOCFramework.Dedup.WinnerID
-      value:
+      similar_ids:
         complex:
           root: DBotFindSimilarIncidents
           accessor: similarIncident.id
-          transformers:
-          - operator: append
-            args:
-              item:
-                value:
-                  simple: alert.id
-                iscontext: true
-          - operator: min
+      current_id:
+        simple: ${alert.id}
     separatecontext: false
     continueonerror: true
     continueonerrortype: errorPath

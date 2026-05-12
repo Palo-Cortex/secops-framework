@@ -17,6 +17,7 @@ Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps an
 | `endpoint` | complete |  | `Foundation_-_Normalize_Endpoint_V3` |
 | `email` | partial |  | `Foundation_-_Normalize_Email_V3` |
 | `identity` | in-progress |  | `Foundation_-_Normalize_Identity_V3` |
+| `network` | in-progress |  | `Foundation_-_Normalize_Network_V3` |
 
 ## Mappings — `issue.*` → `SOCFramework.*`
 
@@ -104,23 +105,31 @@ Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps an
 | `email` | `Email.threat_status` | `socfwemailthreatstatus` | `flat` | `canonical` | `socfw_custom` |  |  |
 | `email` | `Email.threat_type` | `socfwemailthreattype` | `flat` | `canonical` | `socfw_custom` |  |  |
 | `email` | `Email.threat_url` | `socfwemailthreaturl` | `flat` | `canonical` | `socfw_custom` |  |  |
-| `identity` | `Identity.auth_source` | `socfwidentityauthsource` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: authsource (not registered). |  |
-| `identity` | `Identity.client_ip` | `localip` | `flat` | `canonical` | `native` | Flipped sourceip → localip per cliName convergence. Same cliName as Endpoint.ip_address; on Identity alerts represents the user's source IP, not an endpoint. |  |
-| `identity` | `Identity.country` | `socfwidentitycountry` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: sourcecountry (not registered). Magnifier alerts also surface a `country` field but its registered status is unverified — sticking with the verified custom. |  |
-| `identity` | `Identity.device_id` | `socfwidentitydeviceid` | `flat` | `canonical` | `socfw_custom` | PENDING — assumed not registered, verify on tenant before creating. Source device identifier for the auth event. |  |
-| `identity` | `Identity.event_type` | `eventtype` | `flat` | `canonical` | `native` | Native cliName. Magnifier alerts use integer codes (e.g., 102 = Impossible Traveler); xdmeventtype carries the string form (e.g., DML_CONNECTION). |  |
-| `identity` | `Identity.logon_type` | `socfwidentitylogontype` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. No native cliName, no existing custom. |  |
-| `identity` | `Identity.mfa_method` | `socfwidentitymfamethod` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. Vendor pack alert_fields would emit from xdm.event.operation_sub_type after MFA factor classification. |  |
-| `identity` | `Identity.outcome` | `socfwidentityoutcome` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: eventoutcome (not registered). |  |
-| `identity` | `Identity.risk_level` | `socfwidentityrisklevel` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: userrisk (not registered). |  |
-| `identity` | `Identity.session_id` | `socfwidentitysessionid` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. Required for forced-session-revocation Containment action (soc-clear-sessions). |  |
-| `identity` | `Identity.source_hostname` | `hostname` | `flat` | `canonical` | `native` | Flipped sourcehostname → hostname per cliName convergence. WARNING: For SSO alerts, hostname carries the user's source IP, NOT a hostname. Identity normalizer treats as auth-source signal. |  |
-| `identity` | `Identity.target_resource` | `socfwidentitytargetresource` | `flat` | `canonical` | `socfw_custom` | PENDING — needs creating. Target SSO app / resource the auth event hit (Salesforce, GSuite, etc.). |  |
-| `identity` | `Identity.user_agent` | `initiatedby.[0]` | `flat` | `canonical` | `native` | Flipped useragent → initiatedby per cliName convergence. Reuses the endpoint-band cliName; on Identity alerts carries browser/UA strings (e.g., 'Edge 18.26200', 'Chrome 146.0.0'). |  |
-| `identity` | `Identity.user_display_name` | `socfwidentityuserdisplayname` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: userdisplayname (not registered). |  |
-| `identity` | `Identity.user_email` | `socfwidentityuseremail` | `flat` | `canonical` | `socfw_custom` | Custom exists on tenant. Was: useremail (not registered). |  |
+| `identity` | `Identity.client_ip` | `localip` | `flat` | `canonical` | `native` | Same cliName as Endpoint.ip_address; on Identity alerts represents the user's source IP, not an endpoint. |  |
+| `identity` | `Identity.country` | `country` | `flat` | `canonical` | `native` | Native cliName, observed populated as array of country names on SSO Brute Force dump (e.g., ['AUSTRIA', 'LUXEMBOURG', 'UNITED_STATES', 'NETHERLANDS', 'SWEDEN']). Was: socfwidentitycountry — flipped per lean cut. |  |
+| `identity` | `Identity.event_type` | `eventtype` | `flat` | `canonical` | `native` | Native cliName. Magnifier alerts use integer codes (102 observed on both Impossible Traveler and SSO Brute Force samples — code is generic auth-event-of-interest, not alert-specific); xdmeventtype carries the string form (e.g., DML_CONNECTION). |  |
+| `identity` | `Identity.source_hostname` | `hostname` | `flat` | `canonical` | `native` | Same cliName as Endpoint.hostname. WARNING: For SSO alerts, hostname carries the user's source IP, NOT a hostname. Identity normalizer treats as auth-source signal. |  |
+| `identity` | `Identity.user_agent` | `initiatedby.[0]` | `flat` | `canonical` | `native` | Reuses the endpoint-band cliName; on Identity alerts carries browser/UA strings — full UA on some samples ('Edge 18.26200', 'Chrome 146.0.0'), abbreviated browser names on others ('FIREFOX', 'UNKNOWN'). |  |
+| `identity` | `Identity.user_email` | `email` | `flat` | `canonical` | `native` | Native cliName, observed populated on tenant alert dumps. Was: socfwidentityuseremail — flipped per lean cut. |  |
 | `identity` | `Identity.user_id` | `userid` | `flat` | `canonical` | `native` |  |  |
-| `identity` | `Identity.username` | `username.[0]` | `flat` | `canonical` | `native` | Array on Magnifier alerts (e.g., ['corp\\5827014']); .[0] extraction matches endpoint-band convention. |  |
+| `identity` | `Identity.username` | `username.[0]` | `flat` | `canonical` | `native` | Array on Magnifier alerts (e.g., ['paloaltonetwork\\ocohen']); .[0] extraction matches endpoint-band convention. |  |
+| `network` | `Network.action` | `action` | `flat` | `canonical` | `native` | Single value not array on observed Network dump (action: 'DETECTED'). Endpoint band uses action.[0]; Network alerts surface as scalar. |  |
+| `network` | `Network.application` | `appid.[0]` | `flat` | `canonical` | `native` | PAN App-ID stack as concatenated string (e.g., 'ip,tcp,ms-ds-smbv3'). Drives Analysis verdict scoring for L7 anomalies. |  |
+| `network` | `Network.destination_country` | `xdmtargetlocationcountry.[0]` | `flat` | `canonical` | `native` | Empty ('-') for internal-to-internal traffic on observed dump; populated for egress. |  |
+| `network` | `Network.destination_hostname` | `xdmtargethosthostname.[0]` | `flat` | `canonical` | `native` |  |  |
+| `network` | `Network.destination_ip` | `xdmtargetipv4.[0]` | `flat` | `canonical` | `native` | Drives soc-block-ip and soc-update-acl. Same value as remoteip on PANW NGFW alerts; xdmtarget chosen as canonical for cross-vendor portability. |  |
+| `network` | `Network.destination_port` | `xdmtargetport.[0]` | `flat` | `canonical` | `native` |  |  |
+| `network` | `Network.destination_zone` | `destinationzonename.[0]` | `flat` | `canonical` | `native` | Firewall destination zone (e.g., 'Infrastructure'). Network-specific concept, no analogue in Endpoint/Identity bands. |  |
+| `network` | `Network.device_name` | `fwname.[0]` | `flat` | `canonical` | `native` | Firewall display name. Drives vendor branch routing in SOC_Network_Containment_V3 / Recovery via SOCExecutionList_V3. |  |
+| `network` | `Network.device_rule_name` | `fwrulename.[0]` | `flat` | `canonical` | `native` | Pipe-delimited 'vsys\|policy' form on PAN (e.g., 'rangexsiam\|Lab Learning Policy'). Required by soc-update-acl and soc-restore-acl. |  |
+| `network` | `Network.device_serial` | `fwserialnumber.[0]` | `flat` | `canonical` | `native` | Firewall hardware serial. Required for vendor API targeting on multi-firewall deployments. |  |
+| `network` | `Network.dns_query` | `dnsqueryname` | `flat` | `canonical` | `native` | Native cliName, verified in prior cliName-convergence changelog (NOT dns_query_name). Not present on NGFW BIOC alerts; populated on DNS-firewall alerts (Umbrella, PAN DNS Security). Required by soc-block-domain DNS-firewall path. |  |
+| `network` | `Network.event_type` | `xdmeventtype.[0]` | `flat` | `canonical` | `native` | DML event classification (e.g., 'DML_CONNECTION'). Distinct from numeric eventtype which is alert-classification code. |  |
+| `network` | `Network.source_country` | `xdmsourcelocationcountry.[0]` | `flat` | `canonical` | `native` | 'UNKNOWN' for RFC1918 sources on observed dump; populated for external sources. Drives geo-anomaly verdict signals. |  |
+| `network` | `Network.source_hostname` | `xdmsourcehosthostname` | `flat` | `canonical` | `native` | Single string not array on observed Network dump (cf. Identity band where the hostname cliName carries source IP for SSO alerts). On Network alerts, carries actual hostname. |  |
+| `network` | `Network.source_ip` | `xdmsourceipv4.[0]` | `flat` | `canonical` | `native` | Drives soc-quarantine-network targeting. Same value as localip on PANW NGFW alerts; xdmsource chosen as canonical. |  |
+| `network` | `Network.source_port` | `localport.[0]` | `flat` | `canonical` | `native` | Source ephemeral port. No xdmsourceport observed on dump; localport is the canonical source-port cliName. |  |
+| `network` | `Network.source_zone` | `sourcezonename.[0]` | `flat` | `canonical` | `native` | Firewall source zone (e.g., 'Users'). Network-specific. |  |
 
 ## Stamps — literal value → `SOCFramework.*`
 
@@ -132,6 +141,7 @@ Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps an
 | `email` | `Email.normalization_source` | `email` | `canonical` |  |
 | `email` | `Email.normalization_source` | `mail_listener` | `canonical` | Alternate stamp set when alert routes via mail_listener integration. |
 | `identity` | `Identity.normalization_source` | `identity` | `canonical` |  |
+| `network` | `Network.normalization_source` | `network` | `canonical` |  |
 
 ## Mirrors — `SOCFramework.*` → `SOCFramework.*`
 
@@ -145,18 +155,26 @@ Maps issue.<field> -> SOCFramework.<target> per product category, plus stamps an
 | `email` | `Artifacts.Email.ThreatURL` | `Email.threat_url` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.User.Name` | `Identity.username` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.User.ID` | `Identity.user_id` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.User.DisplayName` | `Identity.user_display_name` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.User.Email` | `Identity.user_email` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.Source.IP` | `Identity.client_ip` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.Source.Hostname` | `Identity.source_hostname` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.Source.Country` | `Identity.country` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.Source.UserAgent` | `Identity.user_agent` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Source.DeviceID` | `Identity.device_id` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Auth.Source` | `Identity.auth_source` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Auth.Outcome` | `Identity.outcome` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Auth.SessionID` | `Identity.session_id` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Auth.MFAMethod` | `Identity.mfa_method` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Auth.LogonType` | `Identity.logon_type` | `canonical` | `structured` |
 | `identity` | `Artifacts.Identity.Provider.EventType` | `Identity.event_type` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Risk.Level` | `Identity.risk_level` | `canonical` | `structured` |
-| `identity` | `Artifacts.Identity.Target.Resource` | `Identity.target_resource` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Destination.Country` | `Network.destination_country` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Destination.Hostname` | `Network.destination_hostname` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Destination.IP` | `Network.destination_ip` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Destination.Port` | `Network.destination_port` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Destination.Zone` | `Network.destination_zone` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Device.Name` | `Network.device_name` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Device.RuleName` | `Network.device_rule_name` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Device.Serial` | `Network.device_serial` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.DNS.Query` | `Network.dns_query` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Flow.Action` | `Network.action` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Flow.Application` | `Network.application` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Flow.EventType` | `Network.event_type` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Source.Country` | `Network.source_country` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Source.Hostname` | `Network.source_hostname` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Source.IP` | `Network.source_ip` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Source.Port` | `Network.source_port` | `canonical` | `structured` |
+| `network` | `Artifacts.Network.Source.Zone` | `Network.source_zone` | `canonical` | `structured` |
