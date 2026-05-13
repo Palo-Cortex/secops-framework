@@ -229,6 +229,9 @@ correlation_rules:
       // Filter to EPP detection events only
       | filter product = "epp"
 
+      // Capture the full raw event as JSON before any transformations
+      | alter originalrawlog = to_json_string(`~`)
+
       // Preserve the raw integer severity BEFORE downstream stages reassign
       // 'severity' to the readable string. externalseverity issue field reads this.
       | alter severity_int_raw = severity
@@ -387,6 +390,7 @@ correlation_rules:
       - network_accesses
       - dns_requests
       - files_written
+      - originalrawlog
       - "*"
     alert_fields:
 
@@ -432,7 +436,7 @@ correlation_rules:
       - {issue_field: postnatdestinationip, source: remote_ips, bucket: computed}
       - {issue_field: deviceexternalips, source: external_ip, bucket: computed}
       - {issue_field: deviceou, source: device_ou_arr, bucket: computed}
-      - {issue_field: userid, source: user_name, bucket: raw}
+      - {issue_field: userid, source: user_principal, bucket: raw}
       - {issue_field: user_principal, source: user_principal, bucket: raw}
       - {issue_field: usersid, source: user_id, bucket: raw}
       - {issue_field: action_process_image_sha256, source: sha256, bucket: raw}
@@ -471,6 +475,7 @@ correlation_rules:
       - {issue_field: scenario, source: scenario, bucket: raw}
       - {issue_field: objective, source: objective, bucket: raw}
       - {issue_field: sourceInstance, source: sourceInstance, bucket: raw}
+      - {issue_field: originalrawlog, source: originalrawlog, bucket: computed}
 
       # ============================================================
       # === cliName CONVERGENCE — additive aliases (NEW) =========

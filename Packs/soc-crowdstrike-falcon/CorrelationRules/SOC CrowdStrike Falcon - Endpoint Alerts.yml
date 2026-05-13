@@ -45,7 +45,7 @@ alert_fields:
   postnatdestinationip: remote_ips
   deviceexternalips: external_ip
   deviceou: device_ou_arr
-  userid: user_name
+  userid: user_principal
   user_principal: user_principal
   usersid: user_id
   action_process_image_sha256: sha256
@@ -84,6 +84,7 @@ alert_fields:
   scenario: scenario
   objective: objective
   sourceInstance: sourceInstance
+  originalrawlog: originalrawlog
   agentid: agent_id
   hostname: agent_hostname
   domain: agent_device_domain
@@ -139,6 +140,8 @@ xql_query: |
   | alter vendor_name = "CrowdStrike", product_name = "Falcon"
 
   | filter product = "epp"
+
+  | alter originalrawlog = to_json_string(`~`)
 
   | alter severity_int_raw = severity
 
@@ -236,4 +239,4 @@ xql_query: |
           action_local_ip                     = local_ip,
           action_remote_ip                    = remote_ips
   | fields
-      device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, *
+      device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *
