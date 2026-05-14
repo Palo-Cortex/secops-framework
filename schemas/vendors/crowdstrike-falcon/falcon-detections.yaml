@@ -50,7 +50,6 @@ raw_schema:
   confidence:                      {type: int,    is_array: false, status: inferred_from_correlation}
   scenario:                        {type: string, is_array: false, status: inferred_from_correlation}
   objective:                       {type: string, is_array: false, status: inferred_from_correlation}
-  sourceInstance:                  {type: string, is_array: false, status: inferred_from_correlation}
   ioc_value:                       {type: string, is_array: false, status: inferred_from_correlation}
   ioc_source:                      {type: string, is_array: false, status: inferred_from_correlation}
   dns_requests:                    {type: json,   is_array: true,  status: inferred_from_correlation}
@@ -230,7 +229,7 @@ correlation_rules:
       | filter product = "epp"
 
       // Capture the full raw event as JSON before any transformations
-      | alter originalrawlog = to_json_string(`~`)
+      | alter originalrawlog = to_json_string(rawJSON)
 
       // Preserve the raw integer severity BEFORE downstream stages reassign
       // 'severity' to the readable string. externalseverity issue field reads this.
@@ -474,7 +473,6 @@ correlation_rules:
       - {issue_field: externalseverity, source: severity_int_raw, bucket: computed}
       - {issue_field: scenario, source: scenario, bucket: raw}
       - {issue_field: objective, source: objective, bucket: raw}
-      - {issue_field: sourceInstance, source: sourceInstance, bucket: raw}
       - {issue_field: originalrawlog, source: originalrawlog, bucket: computed}
 
       # ============================================================
@@ -527,7 +525,6 @@ correlation_rules:
 
       # ---- Misc ----
       - {issue_field: dnsqueryname,                 source: dns_queries,                         bucket: computed}  # ← dns_query_name
-      - {issue_field: sourceinstance,               source: sourceInstance,                      bucket: raw}       # ← sourceInstance (camelCase)
 
       # ===========================================================
       # NOT CONVERGED (no clean registered cliName equivalent):

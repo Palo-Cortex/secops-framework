@@ -47,7 +47,6 @@ Fields available in the raw ingest dataset.
 | `confidence` | `int` |  | inferred_from_correlation |  |
 | `scenario` | `string` |  | inferred_from_correlation |  |
 | `objective` | `string` |  | inferred_from_correlation |  |
-| `sourceInstance` | `string` |  | inferred_from_correlation |  |
 | `ioc_value` | `string` |  | inferred_from_correlation |  |
 | `ioc_source` | `string` |  | inferred_from_correlation |  |
 | `dns_requests` | `json` | ✓ | inferred_from_correlation |  |
@@ -182,7 +181,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `postnatdestinationip` | `remote_ips` | `computed` |  |
 | `deviceexternalips` | `external_ip` | `computed` |  |
 | `deviceou` | `device_ou_arr` | `computed` |  |
-| `userid` | `user_name` | `raw` |  |
+| `userid` | `user_principal` | `raw` |  |
 | `user_principal` | `user_principal` | `raw` |  |
 | `usersid` | `user_id` | `raw` |  |
 | `action_process_image_sha256` | `sha256` | `raw` |  |
@@ -220,7 +219,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `externalseverity` | `severity_int_raw` | `computed` |  |
 | `scenario` | `scenario` | `raw` |  |
 | `objective` | `objective` | `raw` |  |
-| `sourceInstance` | `sourceInstance` | `raw` |  |
+| `originalrawlog` | `originalrawlog` | `computed` |  |
 | `agentid` | `agent_id` | `computed` |  |
 | `hostname` | `agent_hostname` | `computed` |  |
 | `domain` | `agent_device_domain` | `computed` |  |
@@ -239,7 +238,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `remoteip` | `action_remote_ip` | `computed` |  |
 | `username` | `actor_effective_username` | `computed` |  |
 | `dnsqueryname` | `dns_queries` | `computed` |  |
-| `sourceinstance` | `sourceInstance` | `raw` |  |
 
 #### Pre-Alter XQL
 
@@ -249,6 +247,9 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 // Filter to EPP detection events only
 | filter product = "epp"
+
+// Capture the full raw event as JSON before any transformations
+| alter originalrawlog = to_json_string(rawJSON)
 
 // Preserve the raw integer severity BEFORE downstream stages reassign
 // 'severity' to the readable string. externalseverity issue field reads this.
