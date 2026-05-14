@@ -1,7 +1,19 @@
 name: Deploy to Tenant
 on:
-  repository_dispatch:
-    types: [deploy-tenant]
+  workflow_dispatch:
+    inputs:
+      wrapped_key:
+        description: 'RSA-OAEP wrapped AES key (base64)'
+        required: true
+        type: string
+      iv:
+        description: 'AES-GCM IV (base64)'
+        required: true
+        type: string
+      ciphertext:
+        description: 'AES-GCM ciphertext (base64)'
+        required: true
+        type: string
 
 jobs:
   deploy:
@@ -19,9 +31,9 @@ jobs:
       - name: Decrypt and validate tenant credentials
         env:
           PAYLOAD_PRIVATE_KEY: ${{ secrets.PAYLOAD_PRIVATE_KEY }}
-          WRAPPED_KEY: ${{ github.event.client_payload.wrapped_key }}
-          IV:          ${{ github.event.client_payload.iv }}
-          CIPHERTEXT:  ${{ github.event.client_payload.ciphertext }}
+          WRAPPED_KEY: ${{ inputs.wrapped_key }}
+          IV:          ${{ inputs.iv }}
+          CIPHERTEXT:  ${{ inputs.ciphertext }}
         run: |
           python3 <<'PY'
           import base64, json, os, sys

@@ -76,7 +76,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
         nonce: crypto.randomUUID(), issued_at: new Date().toISOString() },
       pubKey
     );
-    const r = await fetch(`https://api.github.com/repos/${REPO}/dispatches`, {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/deploy-to-tenant.yml/dispatches`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${d.gh_pat}`,
@@ -84,7 +84,14 @@ document.getElementById('f').addEventListener('submit', async (e) => {
         'X-GitHub-Api-Version': '2022-11-28',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ event_type: 'deploy-tenant', client_payload: sealed }),
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: {
+          wrapped_key: sealed.wrapped_key,
+          iv: sealed.iv,
+          ciphertext: sealed.ciphertext,
+        },
+      }),
     });
     if (r.status === 204) {
       s.className = 'ok';
