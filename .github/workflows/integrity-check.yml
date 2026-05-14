@@ -1,0 +1,45 @@
+name: Integrity Check
+on:
+  pull_request:
+    paths:
+      - 'docs/deploy/index.html'
+      - '.github/workflows/deploy-to-tenant.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/deploy/index.html'
+      - '.github/workflows/deploy-to-tenant.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify deploy form hash
+        env:
+          EXPECTED: ${{ vars.DEPLOY_FORM_SHA256 }}
+        run: |
+          [ -z "$EXPECTED" ] && { echo "::error::DEPLOY_FORM_SHA256 repo variable not set"; exit 1; }
+          ACTUAL=$(sha256sum docs/deploy/index.html | awk '{print $1}')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::docs/deploy/index.html hash mismatch"
+            echo "Expected: $EXPECTED"
+            echo "Actual:   $ACTUAL"
+            echo "If this change is intentional, update the DEPLOY_FORM_SHA256 repository variable in Settings before merging."
+            exit 1
+          fi
+          echo "docs/deploy/index.html OK"
+      - name: Verify deploy workflow hash
+        env:
+          EXPECTED: ${{ vars.DEPLOY_WORKFLOW_SHA256 }}
+        run: |
+          [ -z "$EXPECTED" ] && { echo "::error::DEPLOY_WORKFLOW_SHA256 repo variable not set"; exit 1; }
+          ACTUAL=$(sha256sum .github/workflows/deploy-to-tenant.yml | awk '{print $1}')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::deploy-to-tenant.yml hash mismatch"
+            echo "Expected: $EXPECTED"
+            echo "Actual:   $ACTUAL"
+            echo "If this change is intentional, update the DEPLOY_WORKFLOW_SHA256 repository variable in Settings before merging."
+            exit 1
+          fi
+          echo "deploy-to-tenant.yml OK"
