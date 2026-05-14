@@ -1,0 +1,104 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Deploy SOC Framework</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:480px;margin:4rem auto;padding:0 1rem}
+  label{display:block;margin-top:1rem;font-weight:600}
+  input{display:block;width:100%;padding:.5rem;margin-top:.25rem;font-size:1rem;box-sizing:border-box;font-family:ui-monospace,monospace}
+  button{margin-top:1.5rem;padding:.75rem 1.5rem;font-size:1rem;cursor:pointer}
+  button:disabled{opacity:.5;cursor:wait}
+  #s{margin-top:1rem;padding:.75rem;border-radius:4px}
+  .ok{background:#e6ffed;color:#22863a}
+  .err{background:#ffeef0;color:#cb2431}
+  details{margin-top:2rem;color:#586069;font-size:.9rem}
+</style></head><body>
+<h1>Deploy SOC Framework</h1>
+<form id="f" autocomplete="off">
+  <label>Tenant URL<input name="tenant_url" type="password" required placeholder="https://api-xxx.xdr.us.paloaltonetworks.com"></label>
+  <label>API Key<input name="api_key" type="password" required></label>
+  <label>API Key ID<input name="api_id" type="password" required></label>
+  <label>GitHub PAT<input name="gh_pat" type="password" required placeholder="github_pat_..."></label>
+  <button type="submit">Deploy</button>
+</form>
+<div id="s"></div>
+<details><summary>First-time setup: create your PAT</summary>
+  <p>1. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">github.com/settings/personal-access-tokens/new</a><br>
+  2. Resource owner: <code>Palo-Cortex</code><br>
+  3. Only select repositories: <code>Palo-Cortex/secops-framework</code><br>
+  4. Permissions &rarr; Repository &rarr; <code>Actions: Read and write</code><br>
+  5. Save in 1Password. Paste here each time.</p>
+</details>
+<script>
+const REPO = 'Palo-Cortex/secops-framework';
+const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAzbzDS4yzHaVJXeT3yc/w
+NasModf4WbfnZTgHPzF0dK+HHUl6i3bC1WnNWtG07UJbxTwOm5Qx6XxU/kWLwrhk
+BF1Qv3o+jHLa8vAzFdi6DEfSChxJJd3JRKPSOJwyUCxRFP6rwL5JCNjPFjR2FTFt
+KioRZCFcgvtDCgvrStSKImvLKQAortv5EXGF+9q8gF4TV8/LbZyHg1Is2LOYnftL
+XkJJRAaIJdq8rcbw01qvxh2r/GnhOZY1mEKJj5/nzn4NSTVVY8gA5vlVt6pzYloj
+Dm5XaBG6TMTT+ZG63cgcXhjZ//5V+yV2lBB3A1uc6JWmvuZkNhTtGcihAWOvPzz0
+aOxCGBaWuxjOa6d0kYQcstZTK+VjGua1/bkJ1ZCt1NrafRJic5uOhjKtJidyuhEZ
+Vnuwo5IxDox829bbVwV+eV7GYVHLlXjGuajggPRioj0J8/PJK5fk5dJkilD/xtPG
+UbDxFjCxpQPWk7IKOAHQwl/IOSj9BcWNZTwsM+ZRR9jmZTt8jiJOCn5hqkdCGlTY
+LoHp+QCLRRC3eCRdj+GKa97yHbAQyaJG/qM1nh1id8YinRWWY2JLhazNu3I23Ztr
+o6SzFY/vlLV0bvUPQjqDScUeQNQtIpD/cavaF3/XbUVuzI14862B/2aUtgsLQ2Ii
+fPeXBlX0D3g7LSIHheDpzLMCAwEAAQ==
+-----END PUBLIC KEY-----`;
+
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+
+async function importPubKey(pem) {
+  const der = Uint8Array.from(atob(pem.replace(/-----[^-]+-----|\s/g, '')), c => c.charCodeAt(0));
+  return crypto.subtle.importKey('spki', der,
+    { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']);
+}
+
+async function sealPayload(obj, pubKey) {
+  const aesKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const pt = new TextEncoder().encode(JSON.stringify(obj));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, pt);
+  const rawKey = await crypto.subtle.exportKey('raw', aesKey);
+  const wrapped = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, pubKey, rawKey);
+  return { wrapped_key: b64(wrapped), iv: b64(iv), ciphertext: b64(ct) };
+}
+
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const s = document.getElementById('s');
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+  s.className = ''; s.textContent = 'Encrypting and dispatching...';
+  const d = Object.fromEntries(new FormData(e.target));
+  try {
+    const pubKey = await importPubKey(PUBLIC_KEY_PEM);
+    const sealed = await sealPayload(
+      { tenant_url: d.tenant_url, api_key: d.api_key, api_id: d.api_id,
+        nonce: crypto.randomUUID(), issued_at: new Date().toISOString() },
+      pubKey
+    );
+    const r = await fetch(`https://api.github.com/repos/${REPO}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${d.gh_pat}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event_type: 'deploy-tenant', client_payload: sealed }),
+    });
+    if (r.status === 204) {
+      s.className = 'ok';
+      s.innerHTML = `Deployment queued. <a href="https://github.com/${REPO}/actions" target="_blank">View progress</a>`;
+      e.target.reset();
+    } else {
+      s.className = 'err';
+      s.textContent = `Error ${r.status}: ${await r.text()}`;
+    }
+  } catch (err) {
+    s.className = 'err';
+    s.textContent = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script></body></html>
