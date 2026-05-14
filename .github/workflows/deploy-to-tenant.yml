@@ -1,0 +1,62 @@
+name: Deploy to Tenant
+on:
+  repository_dispatch:
+    types: [deploy-tenant]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install demisto-sdk cryptography
+
+      - name: Decrypt and validate tenant credentials
+        env:
+          PAYLOAD_PRIVATE_KEY: ${{ secrets.PAYLOAD_PRIVATE_KEY }}
+          WRAPPED_KEY: ${{ github.event.client_payload.wrapped_key }}
+          IV:          ${{ github.event.client_payload.iv }}
+          CIPHERTEXT:  ${{ github.event.client_payload.ciphertext }}
+        run: |
+          python3 <<'PY'
+          import base64, json, os, sys
+          from datetime import datetime, timezone, timedelta
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+          priv = serialization.load_pem_private_key(
+              os.environ['PAYLOAD_PRIVATE_KEY'].encode(), password=None)
+          aes_key = priv.decrypt(
+              base64.b64decode(os.environ['WRAPPED_KEY']),
+              padding.OAEP(mgf=padding.MGF1(hashes.SHA256()),
+                           algorithm=hashes.SHA256(), label=None))
+          pt = AESGCM(aes_key).decrypt(
+              base64.b64decode(os.environ['IV']),
+              base64.b64decode(os.environ['CIPHERTEXT']), None)
+          data = json.loads(pt)
+
+          # Replay protection: reject payloads older than 5 minutes.
+          issued = datetime.fromisoformat(data['issued_at'].replace('Z', '+00:00'))
+          age = datetime.now(timezone.utc) - issued
+          if age > timedelta(minutes=5):
+              print(f'::error::Payload too old ({age.total_seconds():.0f}s); refusing replay')
+              sys.exit(1)
+
+          # Mask all sensitive values before writing to env so nothing leaks to logs.
+          for k in ('tenant_url', 'api_key', 'api_id'):
+              print(f'::add-mask::{data[k]}')
+
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'DEMISTO_BASE_URL={data["tenant_url"]}\n')
+              f.write(f'DEMISTO_API_KEY={data["api_key"]}\n')
+              f.write(f'XSIAM_AUTH_ID={data["api_id"]}\n')
+          PY
+
+      - name: Push soc-framework-manager
+        run: demisto-sdk upload -i Packs/soc-framework-manager -x --reattach
