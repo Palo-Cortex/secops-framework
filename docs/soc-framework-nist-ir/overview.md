@@ -14,6 +14,7 @@
 
 Reference documentation for the schemas this pack defines.
 
+- [SOCFrameworkNormalizeMap_NIST_IR](SOCFrameworkNormalizeMap_NIST_IR.md)
 - [SOCFrameworkPhaseContract_V3](SOCFrameworkPhaseContract_V3.md)
 
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
