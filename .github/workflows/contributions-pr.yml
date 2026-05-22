@@ -211,22 +211,24 @@ jobs:
         # against the new content — stale approval is worse than no approval.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
           for L in intake:passed intake:failed intake:approved; do
-            gh pr edit "$PR" --remove-label "$L" 2>/dev/null || true
+            gh pr edit "$PR" -R "$REPO" --remove-label "$L" 2>/dev/null || true
           done
 
       - name: Apply outcome label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           INTAKE_RESULT: ${{ needs.intake.result }}
         run: |
           if [ "$INTAKE_RESULT" = "success" ]; then
-            gh pr edit "$PR" --add-label intake:passed
+            gh pr edit "$PR" -R "$REPO" --add-label intake:passed
           else
-            gh pr edit "$PR" --add-label intake:failed
+            gh pr edit "$PR" -R "$REPO" --add-label intake:failed
           fi
 
       - name: Post or update sticky PR comment
@@ -293,7 +295,7 @@ jobs:
               print(f"Updated existing intake comment {existing['id']}.")
           else:
               subprocess.run(
-                  ["gh", "pr", "comment", pr, "--body", body],
+                  ["gh", "pr", "comment", pr, "-R", repo, "--body", body],
                   check=True,
               )
               print("Posted new intake comment.")
