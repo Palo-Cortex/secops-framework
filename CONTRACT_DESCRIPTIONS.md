@@ -1,7 +1,8 @@
 # Adding Descriptions to Contract Schemas
 
-The two contract schemas (`SOCFrameworkPhaseContract_V3.yaml` and
-`SOCFrameworkNormalizeMap_V3.yaml`) drive the most important docs in the
+The two contract schemas (`SOCFrameworkPhaseContract_V3.yaml` and the
+per-lifecycle normalize maps, e.g. `SOCFrameworkNormalizeMap_NIST_IR.yaml`)
+drive the most important docs in the
 site, but their entries currently have no `description:` fields. Adding them
 is the highest-value docs work you can do.
 
@@ -71,26 +72,33 @@ routing:
 
 12 entries covers all phase × category combinations. Quick to fill in.
 
-### `SOCFrameworkNormalizeMap_V3.yaml` — `mappings:` (~101 entries)
+### `SOCFrameworkNormalizeMap_<LIFECYCLE>.yaml` — `categories.<cat>.mappings:`
 
-The biggest block but also the most repetitive — many of these are
-straightforward passthroughs that don't need explanation:
+Per-lifecycle normalize maps (e.g. `SOCFrameworkNormalizeMap_NIST_IR.yaml`)
+nest mappings under `categories.<category>.mappings`. The biggest block but
+also the most repetitive — many are straightforward passthroughs that don't
+need explanation:
 
 ```yaml
-- { category: endpoint, target: Endpoint.hostname, issue_field: agent_hostname, shape: flat }
+categories:
+  endpoint:
+    mappings:
+      - { target: Endpoint.hostname, issue_field: hostname, shape: flat }
 ```
 
 Focus descriptions on the non-obvious ones — array-flattening, computed
 fields, anything where the mapping isn't 1:1:
 
 ```yaml
-- category: endpoint
-  target: Artifacts.File
-  issue_field: filesha256.[0]
-  shape: structured
-  description: >-
-    XSOAR DT array index — the issue_field is array-typed; we take the
-    first element only. Other hashes are surfaced via Artifacts.Files (plural).
+categories:
+  endpoint:
+    mappings:
+      - target: Artifacts.File
+        issue_field: filesha256.[0]
+        shape: structured
+        description: >-
+          XSOAR DT array index — the issue_field is array-typed; we take the
+          first element only. Other hashes are surfaced via Artifacts.Files (plural).
 ```
 
 ## Order of value

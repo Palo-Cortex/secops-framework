@@ -18,24 +18,45 @@ pswd: ''
 signature: ''
 scripttarget: 0
 comment: |
-  Data-driven SOC Framework normalizer. Reads SOCFrameworkNormalizeMap_V3
-  and applies the per-category contract (mappings, stamps, mirrors)
-  replacing the static Foundation_-_Normalize_<Category>_V3 task chains.
-  Edit the schema YAML to change normalization behavior — never edit
-  this script for per-field changes.
+  Data-driven SOC Framework normalizer. Resolves the lifecycle's contract
+  list (SOCFrameworkNormalizeMap_<LIFECYCLE>) and applies the requested
+  category's mappings, stamps, and mirrors. Replaces the static
+  Foundation_-_Normalize_<Category>_V3 task chains and the per-category
+  dispatch. Edit the lifecycle schema YAML to change normalization behavior —
+  never edit this script for per-field changes. Adding a lifecycle is a new
+  schema/list in that lifecycle's pack; this script does not change.
 args:
   - name: category
-    description: Product category section to apply (endpoint, email, identity, ...)
-    required: true
+    description: >-
+      Product category section to apply within the lifecycle's contract list.
+      Empty or unrecognized falls back to the 'generic' section. Case-insensitive.
+    required: false
     auto: PREDEFINED
     predefined:
       - endpoint
       - email
       - identity
+      - network
+      - cloud
+      - generic
+      - posture_patch
+      - posture_vuln
+      - posture_exposure
+    supportedModules: []
+  - name: lifecycle
+    description: >-
+      Lifecycle token (default nist_ir). Selects which contract list to read by
+      naming convention: SOCFrameworkNormalizeMap_<LIFECYCLE.upper()>
+      (e.g. nist_ir -> SOCFrameworkNormalizeMap_NIST_IR). A new lifecycle ships
+      its own list under that name in its own pack; the engine finds it with no
+      change here.
+    required: false
+    defaultValue: nist_ir
     supportedModules: []
   - name: list_name
-    description: List name to read. Defaults to SOCFrameworkNormalizeMap_V3.
-    defaultValue: SOCFrameworkNormalizeMap_V3
+    description: >-
+      Explicit override of the list name. When omitted it is resolved from the
+      lifecycle by the naming convention above.
     supportedModules: []
   - name: normalization_source
     description: |

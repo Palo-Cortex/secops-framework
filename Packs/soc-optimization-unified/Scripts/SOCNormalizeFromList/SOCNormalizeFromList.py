@@ -17,10 +17,24 @@ PHASES (run in order):
                  visible)
 
 ARGS
-  category              required — endpoint | email | identity (or future)
-  list_name             optional — defaults to SOCFrameworkNormalizeMap_V3
+  category              required — product category within the lifecycle's contract
+                                   (endpoint | email | identity | network | cloud |
+                                   generic | posture_* | future). Empty or unknown
+                                   falls back to the 'generic' section. Case-insensitive.
+  lifecycle             optional — lifecycle token (default 'nist_ir'). Selects WHICH
+                                   contract list to read, by naming convention:
+                                       SOCFrameworkNormalizeMap_<LIFECYCLE.upper()>
+                                   e.g. nist_ir -> SOCFrameworkNormalizeMap_NIST_IR.
+                                   This is the plug-and-play hook: a new lifecycle ships
+                                   its own list under that name in its own pack, and this
+                                   script finds it with no change to the engine.
+  list_name             optional — explicit override of the resolved list name.
   normalization_source  optional — used to filter branched stamps
                                    (e.g. 'email' vs 'mail_listener')
+
+LIST SHAPE (per-lifecycle — current)
+  { lifecycle: <name>, categories: { <cat>: {mappings:[...], stamps:[...], mirrors:[...]} } }
+  Legacy flat (v2) and nested (v1) shapes are still read for transition safety.
 
 OUTPUTS
   SOCFramework.<target> writes per the list contract
@@ -118,45 +132,68 @@ def load_list_section(list_name, category):
 
     cat_lc = category.lower()
 
-    # ── v2 (flat) detection: top-level mappings/stamps/mirrors are arrays ──
+    def _bands(section):
+        """Return only the apply_* bands from a category section."""
+        return {b: (section.get(b) or []) for b in ("mappings", "stamps", "mirrors")}
+
+    # ── per-lifecycle (current): categories[<cat>] is a dict holding the bands ──
+    cats = data.get("categories")
+    if isinstance(cats, dict) and cats and all(isinstance(v, dict) for v in cats.values()) \
+            and any(("mappings" in v or "stamps" in v or "mirrors" in v) for v in cats.values()):
+        known = {k.lower(): k for k in cats.keys()}
+        fellback = False
+        if cat_lc not in known:
+            if "generic" in known:
+                demisto.debug(f"SOCNormalizeFromList: no '{category}' section in {list_name}; "
+                              f"falling back to 'generic'.")
+                cat_lc = "generic"
+                fellback = True
+            else:
+                raise ValueError(
+                    f"category {category!r} not in {list_name} and no 'generic' fallback; "
+                    f"available: {sorted(cats.keys())}"
+                )
+        return _bands(cats[known[cat_lc]]), cat_lc, fellback
+
+    # ── v2 (legacy flat): top-level mappings/stamps/mirrors arrays, category-tagged ──
     if (isinstance(data.get("mappings"), list)
             and isinstance(data.get("stamps"), list)
             and isinstance(data.get("mirrors"), list)):
-        # Validate against the categories block when present so a typo'd
-        # category arg gets a useful error instead of silently filtering to []
         categories_block = data.get("categories")
-        if isinstance(categories_block, dict) and categories_block:
+        known = set()
+        if isinstance(categories_block, dict):
             known = {k.lower() for k in categories_block.keys()}
-            if cat_lc not in known:
-                available = sorted(categories_block.keys())
-                raise ValueError(
-                    f"category {category!r} not in {list_name}; available: {available}"
-                )
-        elif isinstance(categories_block, list) and categories_block:
+        elif isinstance(categories_block, list):
             known = {str(k).lower() for k in categories_block}
-            if cat_lc not in known:
-                available = sorted(categories_block)
+        fellback = False
+        if known and cat_lc not in known:
+            if "generic" in known:
+                demisto.debug(f"SOCNormalizeFromList: no '{category}' in {list_name}; "
+                              f"falling back to 'generic'.")
+                cat_lc = "generic"
+                fellback = True
+            else:
                 raise ValueError(
-                    f"category {category!r} not in {list_name}; available: {available}"
+                    f"category {category!r} not in {list_name}; available: {sorted(known)}"
                 )
-
-        return {
-            "mappings": [r for r in data["mappings"]
-                         if (r.get("category") or "").lower() == cat_lc],
-            "stamps":   [r for r in data["stamps"]
-                         if (r.get("category") or "").lower() == cat_lc],
-            "mirrors":  [r for r in data["mirrors"]
-                         if (r.get("category") or "").lower() == cat_lc],
+        section = {
+            "mappings": [r for r in data["mappings"] if (r.get("category") or "").lower() == cat_lc],
+            "stamps":   [r for r in data["stamps"]   if (r.get("category") or "").lower() == cat_lc],
+            "mirrors":  [r for r in data["mirrors"]  if (r.get("category") or "").lower() == cat_lc],
         }
+        return section, cat_lc, fellback
 
     # ── v1 (legacy nested): data[category] is the section dict ──
+    fellback = False
     if category not in data:
-        # Filter to dict-valued keys to surface only real category sections,
-        # not metadata like 'id' / 'name'
-        available = sorted(k for k, v in data.items() if isinstance(v, dict))
-        raise ValueError(f"category {category!r} not in {list_name}; available: {available}")
-
-    return data[category]
+        if isinstance(data.get("generic"), dict):
+            demisto.debug(f"SOCNormalizeFromList: no '{category}' in {list_name}; falling back to 'generic'.")
+            category = "generic"
+            fellback = True
+        else:
+            available = sorted(k for k, v in data.items() if isinstance(v, dict))
+            raise ValueError(f"category {category!r} not in {list_name}; available: {available}")
+    return _bands(data[category]), category, fellback
 
 
 # ---------------------------------------------------------------------------
@@ -217,16 +254,20 @@ def main():
     args = demisto.args() or {}
     category = (args.get("category") or "").strip()
     if not category:
-        return_error("SOCNormalizeFromList: 'category' arg is required")
+        demisto.debug("SOCNormalizeFromList: empty 'category'; defaulting to 'generic'")
+        category = "generic"
 
-    list_name = (args.get("list_name") or "SOCFrameworkNormalizeMap_V3").strip()
+    lifecycle = (args.get("lifecycle") or "nist_ir").strip() or "nist_ir"
+    # Resolve the contract list by lifecycle naming convention unless explicitly overridden.
+    list_name = (args.get("list_name") or "").strip() \
+        or f"SOCFrameworkNormalizeMap_{lifecycle.upper()}"
     normalization_source = (args.get("normalization_source") or "").strip() or None
 
-    demisto.debug(f"SOCNormalizeFromList: category={category} list={list_name} "
-                  f"normalization_source={normalization_source}")
+    demisto.debug(f"SOCNormalizeFromList: lifecycle={lifecycle} category={category} "
+                  f"list={list_name} normalization_source={normalization_source}")
 
     try:
-        section = load_list_section(list_name, category)
+        section, effective_category, fellback = load_list_section(list_name, category)
     except ValueError as e:
         return_error(f"SOCNormalizeFromList: {e}")
         return
@@ -246,7 +287,10 @@ def main():
         demisto.setContext(f"SOCFramework.{target}", value)
 
     summary = {
+        "lifecycle": lifecycle,
         "category": category,
+        "effective_category": effective_category,
+        "fellback_to_generic": fellback,
         "list_name": list_name,
         "normalization_source": normalization_source,
         "writes_applied": len(writes),
@@ -256,8 +300,9 @@ def main():
         "skipped_filtered": skipped["filtered"],
     }
 
+    fb = "  _(fell back to generic)_" if fellback else ""
     readable = (
-        f"### SOCNormalizeFromList — {category}\n"
+        f"### SOCNormalizeFromList — {lifecycle} / {effective_category}{fb}\n"
         f"- writes applied: **{len(writes)}**\n"
         f"- skipped (empty source): {len(skipped['empty'])}\n"
         f"- skipped (filtered/branched): {len(skipped['filtered'])}\n"

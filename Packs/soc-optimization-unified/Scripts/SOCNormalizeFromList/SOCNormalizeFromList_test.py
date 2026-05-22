@@ -13,7 +13,7 @@ WHAT IT VERIFIES
   - Stamps always write, including empty strings
   - Branched stamps filter by normalization_source
   - Mirrors read from the in-script accumulator (mappings just written)
-  - End-to-end against the real SOCFrameworkNormalizeMap_V3 payload
+  - End-to-end against an inline per-lifecycle payload (self-contained)
 """
 from __future__ import annotations
 
@@ -26,7 +26,8 @@ class _Demisto:
     def debug(self, *a, **kw): pass
     def args(self): return {}
     def incident(self): return {}
-    def executeCommand(self, *a, **kw): return [{"Contents": "{}"}]
+    list_payload = {}
+    def executeCommand(self, *a, **kw): return [{"Contents": json.dumps(self.list_payload)}]
     def setContext(self, *a, **kw): pass
 demisto = _Demisto()
 def return_error(msg): raise RuntimeError(msg)
@@ -45,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from SOCNormalizeFromList import (
     read_source, is_empty,
     apply_mappings, apply_stamps, apply_mirrors,
+    load_list_section,
 )
 
 PASS, FAIL = "✓", "✗"
@@ -141,36 +143,65 @@ check("mirror copies from in-script writes", writes.get("Artifacts.Email.From"),
 check("mirror with empty source skipped", "Artifacts.Email.Missing" not in writes, True)
 
 
-# --- END-TO-END against real SOCFrameworkNormalizeMap_V3_data.json ---
-print("end-to-end (real list payload):")
-LIST_PATH = Path(__file__).parents[2] / "Lists" / "SOCFrameworkNormalizeMap_V3" / "SOCFrameworkNormalizeMap_V3_data.json"
-list_data = json.loads(LIST_PATH.read_text())
+# --- END-TO-END against an inline per-lifecycle payload ---
+# Self-contained: exercises load_list_section + apply_* together against the
+# per-lifecycle contract shape (lifecycle + categories), without reaching across
+# packs into the soc-framework-nist-ir list file. Same inline pattern as the
+# loader tests below — the list payload lives here, not on disk in another pack.
+print("end-to-end (inline per-lifecycle payload):")
+demisto.list_payload = {
+    "lifecycle": "nist_ir",
+    "categories": {
+        "endpoint": {
+            "status": "complete",
+            "mappings": [
+                {"target": "Endpoint.hostname", "issue_field": "hostname"},
+                {"target": "Artifacts.Hash", "issue_field": "filesha256.[0]"},
+                {"target": "Artifacts.Process.PID", "issue_field": "initiatorpid.[0]"},
+                {"target": "Artifacts.Process.Name", "issue_field": "initiatedby.[0]"},
+            ],
+            "stamps": [
+                {"target": "Endpoint.normalization_source", "value": "endpoint"},
+                {"target": "Artifacts.Process.Verdict", "value": ""},  # empty stamp must still write
+            ],
+            "mirrors": [],
+        },
+        "email": {
+            "status": "partial",
+            "mappings": [
+                {"target": "Email.sender", "issue_field": "emailsender"},
+                {"target": "Email.messageid", "issue_field": "emailmessageid"},
+                {"target": "Email.subject", "issue_field": "emailsubject"},
+            ],
+            "stamps": [
+                # Branched (>1 value for one target) → requires normalization_source
+                {"target": "Email.normalization_source", "value": "email"},
+                {"target": "Email.normalization_source", "value": "mail_listener"},
+            ],
+            "mirrors": [
+                {"target": "Artifacts.Email.From", "source": "Email.sender"},
+                {"target": "Artifacts.Email.MessageID", "source": "Email.messageid"},
+                {"target": "Artifacts.Email.Subject", "source": "Email.subject"},
+            ],
+        },
+    },
+}
 
 # Synthetic incident exercising endpoint normalizer
 endpoint_custom = {
-    "agent_hostname": "DESKTOP-ABC",
-    "agent_id": "agent-uuid-001",
-    "ostype": "Windows 10",
-    "action_local_ip": "10.0.0.5",
-    "agentid": "agent-uuid-001",
     "hostname": "desktop-abc.corp",
     "filesha256": ["abc123sha256deadbeef", "second-sha"],
-    "filepath": ["/tmp/malware.exe"],
     "initiatorpid": [4242],
     "initiatedby": ["powershell.exe"],
-    "hostip": ["10.0.0.5", "192.168.1.1"],
-    "username": ["alice"],
-    "module": ["xdr"],
-    "action": ["BLOCKED"],
 }
-section = list_data["endpoint"]
+section, _e, _f = load_list_section("SOCFrameworkNormalizeMap_NIST_IR", "endpoint")
 writes, skipped = {}, {"empty": [], "filtered": []}
 apply_mappings(section, endpoint_custom, writes, skipped)
 apply_stamps(section, None, writes, skipped)
 apply_mirrors(section, writes, skipped)
 
 # Check key writes
-check("E2E: Endpoint.hostname populated", writes.get("Endpoint.hostname"), "DESKTOP-ABC")
+check("E2E: Endpoint.hostname flat mapping", writes.get("Endpoint.hostname"), "desktop-abc.corp")
 check("E2E: Artifacts.Hash takes [0]", writes.get("Artifacts.Hash"), "abc123sha256deadbeef")
 check("E2E: Artifacts.Process.PID takes [0]", writes.get("Artifacts.Process.PID"), 4242)
 check("E2E: Artifacts.Process.Name takes [0]", writes.get("Artifacts.Process.Name"), "powershell.exe")
@@ -180,13 +211,10 @@ check("E2E: empty Verdict stamp writes ''", writes.get("Artifacts.Process.Verdic
 # Synthetic email incident
 email_custom = {
     "emailsender": "phisher@evil.example",
-    "emailrecipient": "victim@corp.example",
     "emailsubject": "URGENT: click now",
     "emailmessageid": "<msg-id-xyz>",
-    "socfwemailthreattype": "phish",
-    "socfwemailthreaturl": "http://evil.example/login",
 }
-section = list_data["email"]
+section, _e, _f = load_list_section("SOCFrameworkNormalizeMap_NIST_IR", "email")
 writes, skipped = {}, {"empty": [], "filtered": []}
 apply_mappings(section, email_custom, writes, skipped)
 apply_stamps(section, "email", writes, skipped)  # specify branch
@@ -196,8 +224,25 @@ check("E2E email: flat sender from issue.emailsender", writes.get("Email.sender"
 check("E2E email: branched stamp wrote 'email'", writes.get("Email.normalization_source"), "email")
 check("E2E email: mirror Artifacts.Email.From from Email.sender", writes.get("Artifacts.Email.From"), "phisher@evil.example")
 check("E2E email: mirror Artifacts.Email.MessageID", writes.get("Artifacts.Email.MessageID"), "<msg-id-xyz>")
-check("E2E email: mirror skipped if source empty (no Subject ever set)",
-      writes.get("Artifacts.Email.Subject"), "URGENT: click now")  # subject is set, so this should populate
+check("E2E email: mirror Artifacts.Email.Subject", writes.get("Artifacts.Email.Subject"), "URGENT: click now")
+
+# --- loader: per-lifecycle shape + generic fallback ---
+print("loader (per-lifecycle shape):")
+demisto.list_payload = {
+    "lifecycle": "nist_ir",
+    "categories": {
+        "endpoint": {"mappings": [{"target": "Endpoint.hostname", "issue_field": "hostname"}],
+                     "stamps": [], "mirrors": []},
+        "generic":  {"mappings": [{"target": "Generic.alert_name", "issue_field": "name"}],
+                     "stamps": [], "mirrors": []},
+    },
+}
+_sec, _eff, _fb = load_list_section("SOCFrameworkNormalizeMap_NIST_IR", "endpoint")
+check("per-lifecycle: endpoint section resolves", [m["target"] for m in _sec["mappings"]], ["Endpoint.hostname"])
+check("per-lifecycle: known category does not fall back", _fb, False)
+_sec, _eff, _fb = load_list_section("SOCFrameworkNormalizeMap_NIST_IR", "Nonexistent")
+check("per-lifecycle: unknown category falls back to generic", (_eff, _fb), ("generic", True))
+
 
 # --- Summary ---
 print()
