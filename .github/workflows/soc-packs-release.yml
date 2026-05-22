@@ -141,6 +141,8 @@ jobs:
         id: changed
         env:
           MANUAL_PACKS: ${{ github.event.inputs.packs }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
         run: |
           python - << 'PY'
           import json, os, subprocess
@@ -154,9 +156,19 @@ jobs:
               packs = {p.strip() for p in manual.split(",") if p.strip()}
               print("Manual pack override:", packs)
           else:
-              # push: auto-detect from last commit
+              # push: detect across the whole push range, not just the tip commit.
+              # A rebase merge of a multi-commit PR can land a docs-only commit as
+              # the tip while pack changes sit earlier in the range, so HEAD~1..HEAD
+              # would miss them. Diff github.event.before..after instead.
+              ZERO = "0" * 40
+              before = (os.environ.get("EVENT_BEFORE") or "").strip()
+              after = (os.environ.get("EVENT_AFTER") or "").strip() or "HEAD"
+              if not before or before == ZERO:
+                  # New branch / unknown base — fall back to the tip commit.
+                  before = f"{after}~1"
+              print(f"Push range: {before}..{after}")
               changed_files = subprocess.check_output(
-                  ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
+                  ["git", "diff", "--name-only", before, after], text=True
               ).splitlines()
               packs = set()
               for f in changed_files:
