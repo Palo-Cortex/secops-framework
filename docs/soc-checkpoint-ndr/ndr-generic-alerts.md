@@ -61,9 +61,9 @@ What each XDM field is, where it sources from, what issue field it surfaces on, 
 | `xdm.alert.severity` | `json_extract_scalar(_alert_data, "$.severity")` | `_alert_data` | `severity` | Raw Check Point severity (SEV_0X0_X). The correlation rule's pre_alter does the standard severity-string mapping; this XDM field preserves the raw vendor value for analytics. |
 | `xdm.alert.category` | `arrayindex(split(insight, "."), 0)` | `insight` |  | First dot-segment of insight: "Behavioral" / "Threat" / "Reputation" / "Anomaly" — Check Point's top-level alert family. |
 | `xdm.alert.subcategory` | `arrayindex(split(insight, "."), 1)` | `insight` |  | Second dot-segment: "Geo" / "Port" / etc. — the analytic dimension within the family. |
-| `xdm.source.ipv4` | `arrayindex(json_extract_array(_alert_data, "$.sourceips"), 0)` | `_alert_data` | `action_remote_ip` |  |
-| `xdm.target.ipv4` | `arrayindex(json_extract_array(_alert_data, "$.destinationips"), 0)` | `_alert_data` | `action_local_ip` |  |
-| `xdm.target.port` | `to_integer(arrayindex(json_extract_array(_alert_data, "$.dstports"), 0))` | `_alert_data` | `action_remote_port` |  |
+| `xdm.source.ipv4` | `json_extract_scalar(_alert_data, "$.sourceips[0]")` | `_alert_data` | `action_remote_ip` |  |
+| `xdm.target.ipv4` | `json_extract_scalar(_alert_data, "$.destinationips[0]")` | `_alert_data` | `action_local_ip` |  |
+| `xdm.target.port` | `to_integer(json_extract_scalar(_alert_data, "$.dstports[0]"))` | `_alert_data` | `action_remote_port` |  |
 
 ### Contributes (Artifacts.*)
 
@@ -180,14 +180,9 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 //   sourceips[0]      = external attacker  → action_remote_ip
 //   destinationips[0] = target / asset     → action_local_ip
 | alter
-        source_ips    = json_extract_array(_alert_data, "$.sourceips"),
-        dest_ips      = json_extract_array(_alert_data, "$.destinationips"),
-        dst_ports_arr = json_extract_array(_alert_data, "$.dstports")
-
-| alter
-        src_ip   = arrayindex(source_ips, 0),
-        dst_ip   = arrayindex(dest_ips, 0),
-        dst_port = arrayindex(dst_ports_arr, 0)
+        src_ip   = json_extract_scalar(_alert_data, "$.sourceips[0]"),
+        dst_ip   = json_extract_scalar(_alert_data, "$.destinationips[0]"),
+        dst_port = json_extract_scalar(_alert_data, "$.dstports[0]")
 
 // Extract enrichment from data.statistics. top_protection_name may
 // be empty for Behavioral subtypes that don't have a Threat
