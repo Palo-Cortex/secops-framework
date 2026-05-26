@@ -137,17 +137,17 @@ modeling_rule:
     # and action_local_ip respectively.
 
     - xdm_path: xdm.source.ipv4
-      expression: 'arrayindex(json_extract_array(_alert_data, "$.sourceips"), 0)'
+      expression: 'json_extract_scalar(_alert_data, "$.sourceips[0]")'
       sources: [_alert_data]
       issue_field: action_remote_ip
 
     - xdm_path: xdm.target.ipv4
-      expression: 'arrayindex(json_extract_array(_alert_data, "$.destinationips"), 0)'
+      expression: 'json_extract_scalar(_alert_data, "$.destinationips[0]")'
       sources: [_alert_data]
       issue_field: action_local_ip
 
     - xdm_path: xdm.target.port
-      expression: 'to_integer(arrayindex(json_extract_array(_alert_data, "$.dstports"), 0))'
+      expression: 'to_integer(json_extract_scalar(_alert_data, "$.dstports[0]"))'
       sources: [_alert_data]
       issue_field: action_remote_port
 
@@ -244,14 +244,9 @@ correlation_rules:
       //   sourceips[0]      = external attacker  → action_remote_ip
       //   destinationips[0] = target / asset     → action_local_ip
       | alter
-              source_ips    = json_extract_array(_alert_data, "$.sourceips"),
-              dest_ips      = json_extract_array(_alert_data, "$.destinationips"),
-              dst_ports_arr = json_extract_array(_alert_data, "$.dstports")
-
-      | alter
-              src_ip   = arrayindex(source_ips, 0),
-              dst_ip   = arrayindex(dest_ips, 0),
-              dst_port = arrayindex(dst_ports_arr, 0)
+              src_ip   = json_extract_scalar(_alert_data, "$.sourceips[0]"),
+              dst_ip   = json_extract_scalar(_alert_data, "$.destinationips[0]"),
+              dst_port = json_extract_scalar(_alert_data, "$.dstports[0]")
 
       // Extract enrichment from data.statistics. top_protection_name may
       // be empty for Behavioral subtypes that don't have a Threat
