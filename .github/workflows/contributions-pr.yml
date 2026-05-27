@@ -1,8 +1,9 @@
 name: SOC Packs — Contribution Intake
 
 # ─────────────────────────────────────────────────────────────────
-# Pre-merge intake stage. Runs on every PR targeting main BEFORE
-# the existing soc-packs-pr-gate workflow is allowed to proceed.
+# Pre-merge intake stage. Runs ONLY on PRs from external forks.
+# Internal-branch PRs (same repo) bypass this workflow entirely;
+# the soc-packs-pr-gate workflow is the only gate for those.
 #
 # Job 1 · guard      — skip if head commit is from the bot itself
 #                      (prevents an infinite loop after auto-commit)
@@ -46,27 +47,41 @@ concurrency:
 jobs:
 
   # ── JOB 1: GUARD ────────────────────────────────────────────────
+  # Skip the entire workflow on:
+  #   - Internal-branch PRs (head repo == base repo) — those go through
+  #     the standard PR Gate only. Intake is for external contributions.
+  #   - Bot commits (avoids infinite loop after auto-normalize push)
   guard:
-    name: Guard — skip bot commits
+    name: Guard — fork PRs and non-bot commits only
     runs-on: ubuntu-latest
     outputs:
       proceed: ${{ steps.check.outputs.proceed }}
     steps:
-      - name: Inspect head commit author
+      - name: Inspect PR source and head commit author
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          # Gate 1: fork-only. Internal branches use PR Gate, not Intake.
+          if [ "${HEAD_REPO}" = "${REPO}" ]; then
+            echo "Skipping intake — PR is from an internal branch (${HEAD_REPO}), not a fork."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Gate 2: skip the bot's own auto-normalize commits.
           AUTHOR_NAME=$(gh api "repos/${REPO}/commits/${HEAD_SHA}" --jq '.commit.author.name')
           echo "Head commit author: ${AUTHOR_NAME}"
           if [ "${AUTHOR_NAME}" = "github-actions[bot]" ]; then
             echo "Skipping intake — head commit is from the auto-normalize bot."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
 
   # ── JOB 2: DETECT CHANGED PACKS ────────────────────────────────
   detect:
@@ -219,6 +234,10 @@ jobs:
           done
 
       - name: Apply outcome label
+        # Tolerate the label not existing on the repo (|| true). If the
+        # repo administrator hasn't created intake:passed / intake:failed
+        # yet, we don't want this job to fail the whole PR over it — the
+        # sticky comment below carries the actual outcome regardless.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -226,9 +245,9 @@ jobs:
           INTAKE_RESULT: ${{ needs.intake.result }}
         run: |
           if [ "$INTAKE_RESULT" = "success" ]; then
-            gh pr edit "$PR" -R "$REPO" --add-label intake:passed
+            gh pr edit "$PR" -R "$REPO" --add-label intake:passed || true
           else
-            gh pr edit "$PR" -R "$REPO" --add-label intake:failed
+            gh pr edit "$PR" -R "$REPO" --add-label intake:failed || true
           fi
 
       - name: Post or update sticky PR comment
