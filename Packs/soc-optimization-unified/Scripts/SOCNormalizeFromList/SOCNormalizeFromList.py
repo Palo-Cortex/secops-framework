@@ -266,87 +266,126 @@ def main():
     demisto.debug(f"SOCNormalizeFromList: lifecycle={lifecycle} category={category} "
                   f"list={list_name} normalization_source={normalization_source}")
 
+    # Upon Trigger contract: errors here are VISIBLE but NEVER stop execution.
+    # A single broad try/except wraps the entire normalization pass. On any
+    # failure — missing list, JSON corruption, malformed section, unexpected
+    # row shape, anything raising downstream — we surface the failure to the
+    # war room, write a NormalizeStatus fallback flag for downstream visibility,
+    # and return success so the parent playbook keeps walking. Downstream
+    # consumers that read SOCFramework.Artifacts.* see missing keys (the safe
+    # degrade — missing is better than wrong); Foundation - Dedup and
+    # Foundation - Enrichment fall back to their list-backed defaults from
+    # SOCOptimizationConfig_V3 via their playbook input chains.
     try:
         section, effective_category, fellback = load_list_section(list_name, category)
-    except ValueError as e:
-        return_error(f"SOCNormalizeFromList: {e}")
-        return
 
-    incident = demisto.incident() or {}
-    custom_fields = incident.get("CustomFields") or {}
+        incident = demisto.incident() or {}
+        custom_fields = incident.get("CustomFields") or {}
 
-    writes = {}
-    skipped = {"empty": [], "filtered": []}
+        writes = {}
+        skipped = {"empty": [], "filtered": []}
 
-    apply_mappings(section, custom_fields, writes, skipped)
-    apply_stamps(section, normalization_source, writes, skipped)
-    apply_mirrors(section, writes, skipped)
+        apply_mappings(section, custom_fields, writes, skipped)
+        apply_stamps(section, normalization_source, writes, skipped)
+        apply_mirrors(section, writes, skipped)
 
-    # Atomic apply — setContext per key (in-process; persisted on script return)
-    for target, value in writes.items():
-        demisto.setContext(f"SOCFramework.{target}", value)
+        # Atomic apply — setContext per key (in-process; persisted on script return)
+        for target, value in writes.items():
+            demisto.setContext(f"SOCFramework.{target}", value)
 
-    # Dedup field projection — Foundation - Dedup consumes these via inputs (the
-    # consumer stays dumb: it just uses what this pass already resolved). Identity
-    # rows are tagged dedup_key: true with a dedup_match hint (text|json) selecting
-    # the DBotFindSimilarAlerts bucket. This is per (lifecycle, category) by
-    # construction, since `section` is the already-resolved category section.
-    dedup_text, dedup_json = [], []
-    for m in section.get("mappings", []) or []:
-        if not m.get("dedup_key"):
-            continue
-        fld = m.get("issue_field")
-        if not fld:
-            continue
-        # DBotFindSimilarAlerts compares bare alert field names; normalize's
-        # array accessors (e.g. 'username.[0]') aren't valid there.
-        idx = fld.find(".[")
-        if idx >= 0:
-            fld = fld[:idx]
-        if (m.get("dedup_match") or "text").strip().lower() == "json":
-            dedup_json.append(fld)
-        else:
-            dedup_text.append(fld)
-    # Emit context only when the contract carries dedup tags. When untagged,
-    # leave context unset so the consumer's playbook input default (list-backed
-    # baseline from SOCOptimizationConfig_V3.Dedup.fields) fires — single source
-    # of truth for defaults, no Python-side configuration.
-    if dedup_text or dedup_json:
-        # order-preserving dedupe (schema may have multiple rows touching the
-        # same alert field; DBot only needs each field once)
-        dedup_text = list(dict.fromkeys(dedup_text))
-        dedup_json = list(dict.fromkeys(dedup_json))
-        demisto.setContext("SOCFramework.Dedup.SimilarTextField", ",".join(dedup_text))
-        demisto.setContext("SOCFramework.Dedup.SimilarJsonField", ",".join(dedup_json))
+        # Dedup field projection — Foundation - Dedup consumes these via inputs (the
+        # consumer stays dumb: it just uses what this pass already resolved). Identity
+        # rows are tagged dedup_key: true with a dedup_match hint (text|json) selecting
+        # the DBotFindSimilarAlerts bucket. This is per (lifecycle, category) by
+        # construction, since `section` is the already-resolved category section.
+        dedup_text, dedup_json = [], []
+        for m in section.get("mappings", []) or []:
+            if not m.get("dedup_key"):
+                continue
+            fld = m.get("issue_field")
+            if not fld:
+                continue
+            # DBotFindSimilarAlerts compares bare alert field names; normalize's
+            # array accessors (e.g. 'username.[0]') aren't valid there.
+            idx = fld.find(".[")
+            if idx >= 0:
+                fld = fld[:idx]
+            if (m.get("dedup_match") or "text").strip().lower() == "json":
+                dedup_json.append(fld)
+            else:
+                dedup_text.append(fld)
+        # Emit context only when the contract carries dedup tags. When untagged,
+        # leave context unset so the consumer's playbook input default (list-backed
+        # baseline from SOCOptimizationConfig_V3.Dedup.fields) fires — single source
+        # of truth for defaults, no Python-side configuration.
+        if dedup_text or dedup_json:
+            # order-preserving dedupe (schema may have multiple rows touching the
+            # same alert field; DBot only needs each field once)
+            dedup_text = list(dict.fromkeys(dedup_text))
+            dedup_json = list(dict.fromkeys(dedup_json))
+            demisto.setContext("SOCFramework.Dedup.SimilarTextField", ",".join(dedup_text))
+            demisto.setContext("SOCFramework.Dedup.SimilarJsonField", ",".join(dedup_json))
 
-    summary = {
-        "lifecycle": lifecycle,
-        "category": category,
-        "effective_category": effective_category,
-        "fellback_to_generic": fellback,
-        "list_name": list_name,
-        "normalization_source": normalization_source,
-        "writes_applied": len(writes),
-        "skipped_empty_count": len(skipped["empty"]),
-        "skipped_filtered_count": len(skipped["filtered"]),
-        "skipped_empty": skipped["empty"],
-        "skipped_filtered": skipped["filtered"],
-    }
+        summary = {
+            "status": "ok",
+            "lifecycle": lifecycle,
+            "category": category,
+            "effective_category": effective_category,
+            "fellback_to_generic": fellback,
+            "list_name": list_name,
+            "normalization_source": normalization_source,
+            "writes_applied": len(writes),
+            "skipped_empty_count": len(skipped["empty"]),
+            "skipped_filtered_count": len(skipped["filtered"]),
+            "skipped_empty": skipped["empty"],
+            "skipped_filtered": skipped["filtered"],
+        }
 
-    fb = "  _(fell back to generic)_" if fellback else ""
-    readable = (
-        f"### SOCNormalizeFromList — {lifecycle} / {effective_category}{fb}\n"
-        f"- writes applied: **{len(writes)}**\n"
-        f"- skipped (empty source): {len(skipped['empty'])}\n"
-        f"- skipped (filtered/branched): {len(skipped['filtered'])}\n"
-        f"- list: `{list_name}`"
-    )
+        fb = "  _(fell back to generic)_" if fellback else ""
+        readable = (
+            f"### SOCNormalizeFromList — {lifecycle} / {effective_category}{fb}\n"
+            f"- writes applied: **{len(writes)}**\n"
+            f"- skipped (empty source): {len(skipped['empty'])}\n"
+            f"- skipped (filtered/branched): {len(skipped['filtered'])}\n"
+            f"- list: `{list_name}`"
+        )
 
-    return_results(CommandResults(
-        readable_output=readable,
-        outputs_prefix="SOCFramework.NormalizeFromList",
-        outputs=summary,
-    ))
+        return_results(CommandResults(
+            readable_output=readable,
+            outputs_prefix="SOCFramework.NormalizeFromList",
+            outputs=summary,
+        ))
+
+    except Exception as e:  # noqa: BLE001 — Upon Trigger contract requires broad catch
+        # Never raise out of main(). Surface the failure visibly (war room error
+        # log + NormalizeStatus context flag + warning entry) but return success
+        # so Upon Trigger keeps walking. Artifacts stay unwritten — downstream
+        # sees missing keys rather than wrong keys, which is the safe degrade.
+        fallback = {
+            "status": "fallback",
+            "lifecycle": lifecycle,
+            "category": category,
+            "list_name": list_name,
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }
+        demisto.setContext("SOCFramework.NormalizeStatus", fallback)
+        demisto.error(f"SOCNormalizeFromList degraded: {type(e).__name__}: {e}")
+        readable = (
+            f"### ⚠️ SOCNormalizeFromList — degraded (continuing)\n"
+            f"- lifecycle: `{lifecycle}`\n"
+            f"- category: `{category}`\n"
+            f"- list: `{list_name}`\n"
+            f"- error: `{type(e).__name__}: {e}`\n\n"
+            f"_Upon Trigger continues. Artifacts unwritten; Foundation - Dedup "
+            f"and Foundation - Enrichment use their list-backed defaults from "
+            f"`SOCOptimizationConfig_V3`._"
+        )
+        return_results(CommandResults(
+            readable_output=readable,
+            outputs_prefix="SOCFramework.NormalizeStatus",
+            outputs=fallback,
+        ))
 
 
 if __name__ in ("__main__", "__builtin__", "builtins"):
