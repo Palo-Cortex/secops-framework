@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-checkpoint-ndr` |
-| Version | `1.0.1` |
+| Version | `1.0.2` |
 | Category | Network Security |
 | Pack Path | `Packs/soc-checkpoint-ndr` |
 | Manifest | [`Packs/soc-checkpoint-ndr/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-checkpoint-ndr/xsoar_config.json) |
@@ -22,4 +22,4 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-checkpoint-ndr.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-checkpoint-ndr-v1.0.1/soc-checkpoint-ndr-v1.0.1.zip) |
+| `soc-checkpoint-ndr.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-checkpoint-ndr-v1.0.2/soc-checkpoint-ndr-v1.0.2.zip) |
