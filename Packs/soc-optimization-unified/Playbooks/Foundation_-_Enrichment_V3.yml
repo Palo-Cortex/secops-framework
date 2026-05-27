@@ -503,12 +503,14 @@ inputs:
 - key: CategoryType
   value:
     complex:
-      root: issue
-      accessor: categoryname
+      root: SOCFramework.Product
+      accessor: category
       transformers:
       - operator: toLowerCase
   required: false
-  description: What Category of Alert is this? (malware, phishing, etc.)
+  description: Normalized product category from Foundation - Product Classification
+    (SOCFramework.Product.category). Replaces the prior raw issue.categoryname read,
+    which was unreliable across sources.
   playbookInputQuery: null
 - key: ip
   value:
@@ -534,6 +536,14 @@ inputs:
   required: false
   description: ''
   playbookInputQuery: null
+- key: Lifecycle
+  value:
+    simple: ${SOCFramework.lifecycle}
+  required: false
+  description: Lifecycle token (e.g. nist_ir, posture). Empty today (not yet stamped
+    upstream) and defaults to nist_ir downstream. Wired as part of the black-box
+    contract so enrichment internals can key on lifecycle when needed.
+  playbookInputQuery: null
 inputSections:
 - inputs:
   - CategoryType
@@ -541,13 +551,27 @@ inputSections:
   - file
   - url
   - domain
+  - Lifecycle
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
-- outputs: []
+- outputs:
+  - SOCFramework.Artifacts.IP
+  - SOCFramework.Artifacts.File
+  - SOCFramework.Artifacts.URL
+  - SOCFramework.Artifacts.Domain
   name: General (Outputs group)
   description: Generic group for outputs
-outputs: []
+outputs:
+- contextPath: SOCFramework.Artifacts.IP
+  description: IP artifact, enriched in place (enrichment data attached to the same
+    artifact surface that was fed in).
+- contextPath: SOCFramework.Artifacts.File
+  description: File/hash artifact, enriched in place.
+- contextPath: SOCFramework.Artifacts.URL
+  description: URL artifact, enriched in place.
+- contextPath: SOCFramework.Artifacts.Domain
+  description: Domain artifact, enriched in place.
 sourceplaybookid: Foundation - Enrichment_V3
 dirtyInputs: true
 adopted: true

@@ -115,9 +115,9 @@ tasks:
       query:
         simple: case_id=${parentIncidentFields.incident_id}
       similarJsonField:
-        simple: username,hostip
+        simple: ${inputs.SimilarJsonField}
       similarTextField:
-        simple: name,type
+        simple: ${inputs.SimilarTextField}
     separatecontext: false
     continueonerror: true
     continueonerrortype: errorPath
@@ -786,5 +786,59 @@ inputs:
   required: false
   description: 'If parent incident predicted_score is at or above this value, dedup
     is bypassed. Read from SOCOptimizationConfig_V3. Default: 70.'
+  playbookInputQuery: null
+- key: SimilarTextField
+  value:
+    complex:
+      root: lists
+      accessor: SOCOptimizationConfig_V3
+      transformers:
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: Dedup
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: fields
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: SimilarTextField
+  required: false
+  description: 'Comma-separated alert text fields for DBotFindSimilarAlerts. Resolved
+    per (lifecycle, product category) by Foundation - Normalize Artifacts when the
+    contract carries dedup-tagged rows; otherwise falls back to
+    SOCOptimizationConfig_V3.Dedup.fields.SimilarTextField.'
+  playbookInputQuery: null
+- key: SimilarJsonField
+  value:
+    complex:
+      root: lists
+      accessor: SOCOptimizationConfig_V3
+      transformers:
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: Dedup
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: fields
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: SimilarJsonField
+  required: false
+  description: 'Comma-separated alert JSON fields for DBotFindSimilarAlerts. Resolved
+    per (lifecycle, product category) by Foundation - Normalize Artifacts when the
+    contract carries dedup-tagged rows; otherwise falls back to
+    SOCOptimizationConfig_V3.Dedup.fields.SimilarJsonField.'
   playbookInputQuery: null
 outputs: []

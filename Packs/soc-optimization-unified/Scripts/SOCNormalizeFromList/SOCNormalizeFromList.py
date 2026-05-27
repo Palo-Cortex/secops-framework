@@ -286,6 +286,39 @@ def main():
     for target, value in writes.items():
         demisto.setContext(f"SOCFramework.{target}", value)
 
+    # Dedup field projection — Foundation - Dedup consumes these via inputs (the
+    # consumer stays dumb: it just uses what this pass already resolved). Identity
+    # rows are tagged dedup_key: true with a dedup_match hint (text|json) selecting
+    # the DBotFindSimilarAlerts bucket. This is per (lifecycle, category) by
+    # construction, since `section` is the already-resolved category section.
+    dedup_text, dedup_json = [], []
+    for m in section.get("mappings", []) or []:
+        if not m.get("dedup_key"):
+            continue
+        fld = m.get("issue_field")
+        if not fld:
+            continue
+        # DBotFindSimilarAlerts compares bare alert field names; normalize's
+        # array accessors (e.g. 'username.[0]') aren't valid there.
+        idx = fld.find(".[")
+        if idx >= 0:
+            fld = fld[:idx]
+        if (m.get("dedup_match") or "text").strip().lower() == "json":
+            dedup_json.append(fld)
+        else:
+            dedup_text.append(fld)
+    # Emit context only when the contract carries dedup tags. When untagged,
+    # leave context unset so the consumer's playbook input default (list-backed
+    # baseline from SOCOptimizationConfig_V3.Dedup.fields) fires — single source
+    # of truth for defaults, no Python-side configuration.
+    if dedup_text or dedup_json:
+        # order-preserving dedupe (schema may have multiple rows touching the
+        # same alert field; DBot only needs each field once)
+        dedup_text = list(dict.fromkeys(dedup_text))
+        dedup_json = list(dict.fromkeys(dedup_json))
+        demisto.setContext("SOCFramework.Dedup.SimilarTextField", ",".join(dedup_text))
+        demisto.setContext("SOCFramework.Dedup.SimilarJsonField", ",".join(dedup_json))
+
     summary = {
         "lifecycle": lifecycle,
         "category": category,
