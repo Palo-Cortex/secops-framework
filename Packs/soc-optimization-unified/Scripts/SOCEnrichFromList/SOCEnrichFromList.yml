@@ -1,0 +1,78 @@
+commonfields:
+  id: SOCEnrichFromList
+  version: -1
+name: SOCEnrichFromList
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.12.5490952
+runas: DBotWeakRole
+runonce: false
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+sourcescripid: SOCEnrichFromList
+pswd: ''
+signature: ''
+scripttarget: 0
+comment: |
+  Data-driven SOC Framework Upon Trigger enrichment engine. Resolves the
+  lifecycle's enrichment list (SOCFrameworkEnrichmentMap_<LIFECYCLE>) and fires
+  a built-in reputation command per lane whose source paths resolve to at least
+  one non-empty value on the SOCFramework.Artifacts.* surface. Lifecycle-
+  agnostic — adding a lifecycle is a new schema/list in that lifecycle's pack;
+  this script does not change. Edit the lifecycle schema YAML to change
+  enrichment behavior — never edit this script for per-lane changes.
+args:
+  - name: lifecycle
+    description: >-
+      Lifecycle token (default nist_ir). Selects which enrichment list to read
+      by naming convention: SOCFrameworkEnrichmentMap_<LIFECYCLE.upper()>
+      (e.g. nist_ir -> SOCFrameworkEnrichmentMap_NIST_IR). A new lifecycle ships
+      its own list under that name in its own pack; the engine finds it with no
+      change here.
+    required: false
+    defaultValue: nist_ir
+    supportedModules: []
+  - name: list_name
+    description: >-
+      Explicit override of the list name. When omitted it is resolved from the
+      lifecycle by the naming convention above.
+    required: false
+    supportedModules: []
+outputs:
+  - contextPath: SOCFramework.EnrichFromList.lifecycle
+    description: Lifecycle resolved at runtime.
+    type: String
+  - contextPath: SOCFramework.EnrichFromList.list_name
+    description: Enrichment list resolved at runtime.
+    type: String
+  - contextPath: SOCFramework.EnrichFromList.lanes_fired
+    description: Count of lanes that fired (non-empty source values).
+    type: Number
+  - contextPath: SOCFramework.EnrichFromList.lanes_skipped_empty
+    description: Count of lanes skipped because all source paths resolved empty.
+    type: Number
+  - contextPath: SOCFramework.EnrichFromList.lanes_errored
+    description: Count of lanes where the built-in command returned an error.
+    type: Number
+  - contextPath: SOCFramework.EnrichFromList.fired
+    description: Per-lane records for lanes that fired (lane, values, value_count, message).
+    type: Unknown
+  - contextPath: SOCFramework.EnrichFromList.skipped_empty
+    description: Per-lane records for lanes skipped (lane, reason).
+    type: Unknown
+  - contextPath: SOCFramework.EnrichFromList.errored
+    description: Per-lane records for lanes that errored (lane, values, value_count, message).
+    type: Unknown
+scripttype: python
+marketplaces:
+  - marketplacev2
+supportedModules:
+  - X1
+  - X3
+  - X5
+  - ENT_PLUS
+  - agentix

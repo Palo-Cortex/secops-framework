@@ -1,36 +1,40 @@
-fromversion: 8.0.0
+adopted: true
+fromversion: 5.0.0
 id: Foundation - Enrichment_V3
-version: 13
+version: -1
 contentitemexportablefields:
   contentitemfields:
     packID: soc-optimization-unified
     packName: SOC Framework Unified
-    itemVersion: 3.3.13
-    fromServerVersion: 8.0.0
+    itemVersion: 3.10.2
+    fromServerVersion: 5.0.0
     toServerVersion: ''
     definitionid: ''
     prevname: ''
     isoverridable: false
     supportedModules: []
-vcShouldKeepItemLegacyProdMachine: false
 name: Foundation - Enrichment_V3
-description: 'Identifies the core fields present and starts tailored enrichment pipelines
-
-  Generates threat flags based on findings (ex: if we identify a domain controller
-  or admin account)
-
-  '
+description: Data-driven Foundation enrichment dispatcher. A single SOCEnrichFromList
+  task fires built-in reputation commands (|||ip, |||file, |||domain, |||url, ...)
+  per the alert's lifecycle, reading the per-lifecycle SOCFrameworkEnrichmentMap_<LIFECYCLE>
+  list. Lane key is both the command and its argument by convention. Adding a new
+  lifecycle or a new lane is a list-row change only — never edits this playbook.
+  Read-only by definition (reputation lookups); no shadow_mode concept here; no
+  dataset writes (Upon Trigger stays lightweight). Heavier multi-vendor enrichment
+  lives in Analysis-tier hydration.
 tags:
 - SOC
 - SOC_Framework_Unified
+- Foundation
+- Enrichment
 starttaskid: '0'
 tasks:
   '0':
     id: '0'
-    taskid: 8492b25a-a19c-4593-8191-9cb60e4d3007
+    taskid: 4b0e7c1a-9c11-4e3b-9e2d-7f3a1c0a8e21
     type: start
     task:
-      id: 8492b25a-a19c-4593-8191-9cb60e4d3007
+      id: 4b0e7c1a-9c11-4e3b-9e2d-7f3a1c0a8e21
       version: -1
       name: ''
       iscommand: false
@@ -39,10 +43,10 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '33'
+      - '10'
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 725,\n    \"y\": 50\n  }\n}"
+    view: '{"position": {"x": 0, "y": 50}}'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -52,10 +56,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '4':
     id: '4'
-    taskid: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+    taskid: 7a82d3f1-58e6-4d9e-8b13-c9a4e7e2a4b6
     type: title
     task:
-      id: 6b3dbf1c-9a22-4bd4-8593-bc8d49dcc7c0
+      id: 7a82d3f1-58e6-4d9e-8b13-c9a4e7e2a4b6
       version: -1
       name: Done
       type: title
@@ -65,7 +69,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 725,\n    \"y\": 945\n  }\n}"
+    view: '{"position": {"x": 0, "y": 640}}'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -73,22 +77,22 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  '33':
-    id: '33'
-    taskid: 1f0c81cc-a8a6-4836-ba9b-9852cbbb38e7
+  '10':
+    id: '10'
+    taskid: e1f6c293-31a4-4a52-b78b-65d8b1e1c0d2
     type: regular
     task:
-      id: 1f0c81cc-a8a6-4836-ba9b-9852cbbb38e7
+      id: e1f6c293-31a4-4a52-b78b-65d8b1e1c0d2
       version: -1
-      name: Set Issue Category Type
-      description: "Set a value in context under the key you entered. If no value\
-        \ is entered, the script doesn't do anything.\n\nThis automation runs using\
-        \ the default Limited User role, unless you explicitly change the permissions.\n\
-        For more information, see the section about permissions here:\n- For Cortex\
-        \ XSOAR 6 see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/6.x/Cortex-XSOAR-Playbook-Design-Guide/Automations\
-        \ \n- For Cortex XSOAR 8 Cloud see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8/Cortex-XSOAR-Cloud-Documentation/Create-a-script\n\
-        - For Cortex XSOAR 8.7 On-prem see https://docs-cortex.paloaltonetworks.com/r/Cortex-XSOAR/8.7/Cortex-XSOAR-On-prem-Documentation/Create-a-script"
-      scriptName: SetAndHandleEmpty
+      name: Enrich from contract
+      description: Applies the SOCFrameworkEnrichmentMap_<LIFECYCLE> contract for
+        this alert's lifecycle via SOCEnrichFromList. For each lane in the list,
+        gathers values from the lane's source paths on SOCFramework.Artifacts.*,
+        and fires the built-in reputation command (|||<lane>) if any value is
+        non-empty. Adding a new lane or lifecycle is a list-row change only and
+        never requires editing this playbook. continueonerror is true — enrichment
+        failures never block Upon Trigger.
+      script: SOCEnrichFromList
       type: regular
       iscommand: false
       brand: ''
@@ -96,398 +100,14 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '35'
-      - '36'
-      - '37'
-      - '38'
-    scriptarguments:
-      key:
-        simple: SOCFramework.Artifacts.CategoryType
-      value:
-        complex:
-          root: inputs.CategoryType
-          transformers:
-          - operator: toLowerCase
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 725,\n    \"y\": 220\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-    continueonerror: true
-  '34':
-    id: '34'
-    taskid: f7cde516-6e1d-44e2-8f1c-b5ef9aa96043
-    type: regular
-    task:
-      id: f7cde516-6e1d-44e2-8f1c-b5ef9aa96043
-      version: -1
-      name: IP Enrichment
-      description: Enrich IP via all installed reputation integrations
-      script: '|||ip'
-      type: regular
-      iscommand: true
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
       - '4'
     scriptarguments:
-      ip:
-        simple: ${inputs.ip}
+      lifecycle:
+        simple: ${inputs.Lifecycle}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 162.5,\n    \"y\": 760\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: true
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '35':
-    id: '35'
-    taskid: 37628802-8657-4cf7-a814-a3b8bc575aec
-    type: title
-    task:
-      id: 37628802-8657-4cf7-a814-a3b8bc575aec
-      version: -1
-      name: IP Enrichment
-      type: title
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '60'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 405\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '36':
-    id: '36'
-    taskid: c72e9cd9-c249-4f15-bf89-342db82a1582
-    type: title
-    task:
-      id: c72e9cd9-c249-4f15-bf89-342db82a1582
-      version: -1
-      name: File Enrichment
-      type: title
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '61'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 405\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '37':
-    id: '37'
-    taskid: b53b1c04-cf3f-4c65-b7d4-106dbac0baa0
-    type: title
-    task:
-      id: b53b1c04-cf3f-4c65-b7d4-106dbac0baa0
-      version: -1
-      name: Domain Enrichment
-      type: title
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '62'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 405\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '38':
-    id: '38'
-    taskid: e302e37a-9558-4b02-aaa4-5f24b080ed77
-    type: title
-    task:
-      id: e302e37a-9558-4b02-aaa4-5f24b080ed77
-      version: -1
-      name: URL Enrichment
-      type: title
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '63'
-    separatecontext: false
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1400,\n    \"y\": 405\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '39':
-    id: '39'
-    taskid: bb97b6f3-559f-4731-bab7-8d454b4c2f78
-    type: regular
-    task:
-      id: bb97b6f3-559f-4731-bab7-8d454b4c2f78
-      version: -1
-      name: File Enrichment
-      description: Enrich file hash via all installed reputation integrations
-      script: '|||file'
-      type: regular
-      iscommand: true
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '4'
-    scriptarguments:
-      file:
-        simple: ${inputs.file}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 612.5,\n    \"y\": 760\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: true
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '40':
-    id: '40'
-    taskid: cfa98a28-1030-459a-a79d-89e1bd04ce44
-    type: regular
-    task:
-      id: cfa98a28-1030-459a-a79d-89e1bd04ce44
-      version: -1
-      name: Domain Enrichment
-      description: Enrich domain via all installed reputation integrations
-      script: '|||domain'
-      type: regular
-      iscommand: true
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '4'
-    scriptarguments:
-      domain:
-        simple: ${inputs.domain}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1062.5,\n    \"y\": 760\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: true
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '41':
-    id: '41'
-    taskid: deda62f3-f012-4979-b74b-ee58fc0d9a65
-    type: regular
-    task:
-      id: deda62f3-f012-4979-b74b-ee58fc0d9a65
-      version: -1
-      name: URL Enrichment
-      description: Enrich URL via all installed reputation integrations
-      script: '|||url'
-      type: regular
-      iscommand: true
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - '4'
-    scriptarguments:
-      url:
-        simple: ${inputs.url}
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1512.5,\n    \"y\": 760\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: true
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '60':
-    id: '60'
-    taskid: a0f1115c-df89-4c3e-a5fc-6b1fb4e99b55
-    type: condition
-    task:
-      id: a0f1115c-df89-4c3e-a5fc-6b1fb4e99b55
-      version: -1
-      name: IP artifact exists?
-      type: condition
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - '4'
-      'yes':
-      - '34'
-    separatecontext: false
-    conditions:
-    - label: 'yes'
-      condition:
-      - - operator: isNotEmpty
-          left:
-            value:
-              simple: SOCFramework.Artifacts.IP
-            iscontext: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 575\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '61':
-    id: '61'
-    taskid: 9ae6f523-58c3-4342-be37-9bb2954b74cc
-    type: condition
-    task:
-      id: 9ae6f523-58c3-4342-be37-9bb2954b74cc
-      version: -1
-      name: File artifact exists?
-      type: condition
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - '4'
-      'yes':
-      - '39'
-    separatecontext: false
-    conditions:
-    - label: 'yes'
-      condition:
-      - - operator: isNotEmpty
-          left:
-            value:
-              simple: SOCFramework.Artifacts.File
-            iscontext: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 500,\n    \"y\": 575\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '62':
-    id: '62'
-    taskid: 0769440e-5e1d-4c04-ac8c-d7e47800e8e2
-    type: condition
-    task:
-      id: 0769440e-5e1d-4c04-ac8c-d7e47800e8e2
-      version: -1
-      name: Domain artifact exists?
-      type: condition
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - '4'
-      'yes':
-      - '40'
-    separatecontext: false
-    conditions:
-    - label: 'yes'
-      condition:
-      - - operator: isNotEmpty
-          left:
-            value:
-              simple: SOCFramework.Artifacts.Domain
-            iscontext: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 950,\n    \"y\": 575\n  }\n}"
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  '63':
-    id: '63'
-    taskid: a4b3e53b-60ce-441a-bde5-51b883ea8908
-    type: condition
-    task:
-      id: a4b3e53b-60ce-441a-bde5-51b883ea8908
-      version: -1
-      name: URL artifact exists?
-      type: condition
-      iscommand: false
-      brand: ''
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - '4'
-      'yes':
-      - '41'
-    separatecontext: false
-    conditions:
-    - label: 'yes'
-      condition:
-      - - operator: isNotEmpty
-          left:
-            value:
-              simple: SOCFramework.Artifacts.URL
-            iscontext: true
-    continueonerrortype: ''
-    view: "{\n  \"position\": {\n    \"x\": 1400,\n    \"y\": 575\n  }\n}"
+    view: '{"position": {"x": 0, "y": 430}}'
     note: false
     timertriggers: []
     ignoreworker: false
@@ -496,82 +116,24 @@ tasks:
     isoversize: false
     isautoswitchedtoquietmode: false
 system: true
-view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n \
-  \     \"height\": 955,\n      \"width\": 1842.5,\n      \"x\": 50,\n      \"y\"\
-  : 50\n    }\n  }\n}"
+view: '{"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 700, "width": 400, "x": 0, "y": 50}}}'
 inputs:
-- key: CategoryType
-  value:
-    complex:
-      root: SOCFramework.Product
-      accessor: category
-      transformers:
-      - operator: toLowerCase
-  required: false
-  description: Normalized product category from Foundation - Product Classification
-    (SOCFramework.Product.category). Replaces the prior raw issue.categoryname read,
-    which was unreliable across sources.
-  playbookInputQuery: null
-- key: ip
-  value:
-    simple: ${SOCFramework.Artifacts.IP}
-  required: false
-  description: ''
-  playbookInputQuery: null
-- key: file
-  value:
-    simple: ${SOCFramework.Artifacts.File}
-  required: false
-  description: ''
-  playbookInputQuery: null
-- key: url
-  value:
-    simple: ${SOCFramework.Artifacts.URL}
-  required: false
-  description: ''
-  playbookInputQuery: null
-- key: domain
-  value:
-    simple: ${SOCFramework.Artifacts.Domain}
-  required: false
-  description: ''
-  playbookInputQuery: null
 - key: Lifecycle
   value:
     simple: ${SOCFramework.lifecycle}
   required: false
-  description: Lifecycle token (e.g. nist_ir, posture). Empty today (not yet stamped
-    upstream) and defaults to nist_ir downstream. Wired as part of the black-box
-    contract so enrichment internals can key on lifecycle when needed.
+  description: |
+    Lifecycle token (default nist_ir downstream). Selects which
+    enrichment list SOCEnrichFromList reads by naming convention:
+    SOCFrameworkEnrichmentMap_<LIFECYCLE.upper()>. Defaults to
+    SOCFramework.lifecycle set by Foundation - Upon Trigger.
   playbookInputQuery: null
-inputSections:
-- inputs:
-  - CategoryType
-  - ip
-  - file
-  - url
-  - domain
-  - Lifecycle
-  name: General (Inputs group)
-  description: Generic group for inputs
-outputSections:
-- outputs:
-  - SOCFramework.Artifacts.IP
-  - SOCFramework.Artifacts.File
-  - SOCFramework.Artifacts.URL
-  - SOCFramework.Artifacts.Domain
-  name: General (Outputs group)
-  description: Generic group for outputs
-outputs:
-- contextPath: SOCFramework.Artifacts.IP
-  description: IP artifact, enriched in place (enrichment data attached to the same
-    artifact surface that was fed in).
-- contextPath: SOCFramework.Artifacts.File
-  description: File/hash artifact, enriched in place.
-- contextPath: SOCFramework.Artifacts.URL
-  description: URL artifact, enriched in place.
-- contextPath: SOCFramework.Artifacts.Domain
-  description: Domain artifact, enriched in place.
-sourceplaybookid: Foundation - Enrichment_V3
-dirtyInputs: true
-adopted: true
+outputs: []
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+- ENT_PLUS
+- agentix
