@@ -1,0 +1,41 @@
+# ============================================================================
+# SOC Framework Enrichment Map — NIST IR lifecycle
+# One enrichment lane map per lifecycle. This file is the NIST IR contract.
+# Engine (SOCEnrichFromList) + thin playbook (Foundation_-_Enrichment_V3) live
+# in soc-optimization-unified and are lifecycle-agnostic; a new lifecycle ships
+# its own file like this one.
+#
+# Convention: lane key is BOTH the built-in reputation command name AND its
+# argument name (|||ip ip=..., |||file file=..., etc.). Source paths read from
+# the SOCFramework.Artifacts.* surface populated by Normalize. Lane fires when
+# at least one source path is non-empty; values are comma-joined and the
+# built-in command tokenises and dedupes.
+#
+# This is schema-source-of-truth. To change enrichment behavior, edit this YAML
+# and regenerate the SOCFrameworkEnrichmentMap_NIST_IR list — never edit the
+# engine for per-lifecycle changes.
+# ============================================================================
+lifecycle: nist_ir
+pack: soc-framework-nist-ir
+list_name: SOCFrameworkEnrichmentMap_NIST_IR
+description: Upon Trigger enrichment lanes for the NIST IR lifecycle. Each lane
+  fires a built-in reputation command (|||<lane>) against the union of its source
+  paths from SOCFramework.Artifacts.*. Lifecycle-agnostic engine + thin dispatcher
+  in soc-optimization-unified.
+
+lanes:
+  ip:
+    - Artifacts.Network.IP              # endpoint category (from NormalizeMap)
+    - Artifacts.Network.Source.IP       # network category
+    - Artifacts.Network.Destination.IP  # network category
+    - Artifacts.Identity.Source.IP      # identity category
+  file:
+    - Artifacts.Process.SHA256          # endpoint category
+    - Artifacts.Process.MD5             # endpoint category
+    - Artifacts.Target.SHA256           # endpoint category
+  domain:
+    - Artifacts.Endpoint.Domain                # endpoint category
+    - Artifacts.Network.Destination.Hostname   # network category — may carry IP; |||domain rejects non-domains cleanly
+    - Artifacts.Network.DNS.Query              # network category
+  url:
+    - Artifacts.Email.ThreatURL         # email category (sole URL source in current contract)
