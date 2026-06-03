@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-framework-nist-ir` |
-| Version | `1.6.1` |
+| Version | `1.6.3` |
 | Category | Utility |
 | Pack Path | `Packs/soc-framework-nist-ir` |
 | Manifest | [`Packs/soc-framework-nist-ir/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir/xsoar_config.json) |
@@ -32,4 +32,4 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-framework-nist-ir.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-v1.6.1/soc-framework-nist-ir-v1.6.1.zip) |
+| `soc-framework-nist-ir.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-v1.6.3/soc-framework-nist-ir-v1.6.3.zip) |
