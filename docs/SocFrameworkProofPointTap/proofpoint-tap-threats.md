@@ -19,32 +19,32 @@ Fields available in the raw ingest dataset.
 
 | Field | Type | Array | Status | JSON Subfields |
 |---|---|---|---|---|
-| `ccaddresses` | `string` | ✓ | declared |  |
-| `fromaddress` | `string` | ✓ | declared |  |
-| `guid` | `string` |  | declared |  |
-| `messageid` | `string` |  | declared |  |
-| `messageparts` | `string` | ✓ | declared | filename, md5, sha256 |
-| `messagetime` | `datetime` |  | declared |  |
-| `recipient` | `string` | ✓ | declared |  |
+| `ccAddresses` | `string` |  | declared |  |
+| `fromAddress` | `string` |  | declared |  |
+| `GUID` | `string` |  | declared |  |
+| `messageID` | `string` |  | declared |  |
+| `messageParts` | `string` |  | declared | filename, md5, sha256 |
+| `messageTime` | `datetime` |  | declared |  |
+| `recipient` | `string` |  | declared |  |
 | `sender` | `string` |  | declared |  |
-| `senderip` | `string` |  | declared |  |
+| `senderIP` | `string` |  | declared |  |
 | `subject` | `string` |  | declared |  |
-| `threatsinfomap` | `string` | ✓ | declared | threatID, classification, threatType, threatStatus, threatUrl, threatURL, threat |
-| `clickip` | `string` |  | declared |  |
-| `clicktime` | `datetime` |  | declared |  |
-| `type` | `string` |  | inferred_from_correlation |  |
-| `threatstatus` | `string` |  | inferred_from_correlation |  |
-| `url` | `string` |  | inferred_from_correlation |  |
-| `campaignid` | `string` |  | inferred_from_correlation |  |
-| `phishscore` | `int` |  | inferred_from_correlation |  |
-| `malwarescore` | `int` |  | inferred_from_correlation |  |
-| `spamscore` | `int` |  | inferred_from_correlation |  |
-| `impostorscore` | `int` |  | inferred_from_correlation |  |
-| `threattime` | `datetime` |  | inferred_from_correlation |  |
-| `headerfrom` | `string` |  | inferred_from_correlation |  |
-| `headerreplyto` | `string` |  | inferred_from_correlation |  |
-| `replytoaddress` | `string` |  | inferred_from_correlation |  |
-| `messagesize` | `int` |  | inferred_from_correlation |  |
+| `threatsInfoMap` | `string` |  | declared | threatID, classification, threatType, threatStatus, threatUrl, threatURL, threat |
+| `clickIP` | `string` |  | declared |  |
+| `clickTime` | `datetime` |  | declared |  |
+| `type` | `string` |  | confirmed |  |
+| `threatStatus` | `string` |  | confirmed |  |
+| `url` | `string` |  | confirmed |  |
+| `campaignId` | `string` |  | inferred_from_correlation |  |
+| `phishScore` | `int` |  | inferred_from_correlation |  |
+| `malwareScore` | `int` |  | inferred_from_correlation |  |
+| `spamScore` | `int` |  | inferred_from_correlation |  |
+| `impostorScore` | `int` |  | inferred_from_correlation |  |
+| `threatTime` | `datetime` |  | inferred_from_correlation |  |
+| `headerFrom` | `string` |  | inferred_from_correlation |  |
+| `headerReplyTo` | `string` |  | inferred_from_correlation |  |
+| `replyToAddress` | `string` |  | inferred_from_correlation |  |
+| `messageSize` | `int` |  | inferred_from_correlation |  |
 | `xmailer` | `string` |  | inferred_from_correlation |  |
 | `id` | `string` |  | inferred_from_correlation |  |
 | `_alert_data` | `json` |  | inferred_from_correlation | severity, alert_category, linkedCount |
@@ -64,17 +64,17 @@ What each XDM field is, where it sources from, what issue field it surfaces on, 
 
 | XDM Path | Expression | Sources | Issue Field | Description |
 |---|---|---|---|---|
-| `xdm.email.cc` | `json_extract_array(ccaddresses, "$.")` | `ccaddresses` | `emailcc` |  |
+| `xdm.email.cc` | `json_extract_array(ccAddresses, "$.")` | `ccAddresses` | `emailcc` |  |
 | `xdm.email.recipients` | `json_extract_array(recipient, "$.")` | `recipient` | `emailrecipients` |  |
-| `xdm.email.sender` | `arrayindex(json_extract_array(fromaddress, "$."), 0)` | `fromaddress` | `emailsender` | fromaddress is array-typed in the raw dataset. xdm.email.sender is scalar — first element only. Other addresses preserved in xdm.email.cc / xdm.email.recipients. |
+| `xdm.email.sender` | `arrayindex(json_extract_array(fromAddress, "$."), 0)` | `fromAddress` | `emailsender` | fromAddress is array-typed in the raw dataset. xdm.email.sender is scalar — first element only. Other addresses preserved in xdm.email.cc / xdm.email.recipients. |
 | `xdm.email.return_path` | `sender` | `sender` | `emailreturnpath` |  |
 | `xdm.email.subject` | `subject` | `subject` | `emailsubject` |  |
-| `xdm.email.message_id` | `messageid` | `messageid` | `emailmessageid` |  |
-| `xdm.email.delivery_timestamp` | `parse_timestamp("%Y-%m-%dT%H:%M:%E*SZ", messagetime)` | `messagetime` | `emaildeliverytimestamp` | TAP's messageTime is ISO 8601 string. XDM.email.delivery_timestamp is typed `date`. Use parse_timestamp() — to_timestamp() only accepts numeric epochs. Format string %E*S matches seconds with optional fractional component, final Z is literal. Without this cast install fails: "Field xdm.email.delivery_timestamp for model xdm is invalid. Expected date but received string." |
-| `xdm.email.attachment.filename` | `json_extract_scalar(messageparts, "$[0].filename")` | `messageparts` | `emailattachmentfilename` | xdm.email.attachment.filename is scalar; only the first message part is mapped here. All parts are surfaced via the correlation rule's proofpointfilename / proofpointsha256 / proofpointmd5 alert_fields (comma-joined arraystrings). |
-| `xdm.email.attachment.md5` | `json_extract_scalar(messageparts, "$[0].md5")` | `messageparts` | `emailattachmentmd5` |  |
-| `xdm.email.attachment.sha256` | `json_extract_scalar(messageparts, "$[0].sha256")` | `messageparts` | `emailattachmentsha256` |  |
-| `xdm.source.ipv4` | `senderip` | `senderip` | `emailsenderip` |  |
+| `xdm.email.message_id` | `messageID` | `messageID` | `emailmessageid` |  |
+| `xdm.email.delivery_timestamp` | `messageTime` | `messageTime` | `emaildeliverytimestamp` | TAP's messageTime is ISO 8601 string. XDM.email.delivery_timestamp is typed `date`. Use parse_timestamp() — to_timestamp() only accepts numeric epochs. Format string %E*S matches seconds with optional fractional component, final Z is literal. Without this cast install fails: "Field xdm.email.delivery_timestamp for model xdm is invalid. Expected date but received string." |
+| `xdm.email.attachment.filename` | `json_extract_scalar(messageParts, "$[0].filename")` | `messageParts` | `emailattachmentfilename` | xdm.email.attachment.filename is scalar; only the first message part is mapped here. All parts are surfaced via the correlation rule's proofpointfilename / proofpointsha256 / proofpointmd5 alert_fields (comma-joined arraystrings). |
+| `xdm.email.attachment.md5` | `json_extract_scalar(messageParts, "$[0].md5")` | `messageParts` | `emailattachmentmd5` |  |
+| `xdm.email.attachment.sha256` | `json_extract_scalar(messageParts, "$[0].sha256")` | `messageParts` | `emailattachmentsha256` |  |
+| `xdm.source.ipv4` | `senderIP` | `senderIP` | `emailsenderip` |  |
 
 ### Contributes (Artifacts.*)
 
@@ -100,9 +100,9 @@ Fields populated for downstream lifecycle Artifacts schemas:
 |---|---|
 | global_rule_id | `SOC Proofpoint TAP - Threat Detected` |
 | subtype | `passthrough` |
-| fromversion | `6.10.0` |
+| fromversion | `8.0.0` |
 
-Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection. Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields). Legacy fields marked for removal when old phishing pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon and other endpoint sources): actor_effective_username (UPN format, e.g. "Gunter@SKT.LOCAL", matches CrowdStrike's user_name field byte-for-byte), user_principal (full UPN, parallel pivot), action_local_ip (clickip → endpoint local_ip), and action_file_sha256 (attachment hash). The username contract across all framework vendor rules is full UPN -- vendors that emit bare SAM or DOMAIN\user must normalize to UPN in their own pre_alter block.
+Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection. Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields). Legacy fields marked for removal when old phishing pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon and other endpoint sources): actor_effective_username (UPN format, e.g. "Gunter@SKT.LOCAL", matches CrowdStrike's user_name field byte-for-byte), user_principal (full UPN, parallel pivot), action_local_ip (clickIP → endpoint local_ip), and action_file_sha256 (attachment hash). The username contract across all framework vendor rules is full UPN -- vendors that emit bare SAM or DOMAIN\user must normalize to UPN in their own pre_alter block.
 
 **Tags:** `SOCFramework`, `Detection`, `Email`, `ProofpointTAP`, `T1566`, `T1114`
 
@@ -177,8 +177,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `filehash` | `proofpointsha256` | `computed` |  |
 | `dns_query_name` | `dns_name` | `computed` |  |
 | `fw_url_domain` | `domain` | `computed` |  |
-| `emailmessageid` | `messageid` | `raw` |  |
-| `emailsenderip` | `senderip` | `raw` |  |
+| `emailmessageid` | `messageID` | `raw` |  |
+| `emailsenderip` | `senderIP` | `raw` |  |
 | `emailsource` | `sender` | `raw` |  |
 | `fw_email_recipient` | `recipient` | `raw` |  |
 | `fw_email_sender` | `sender` | `raw` |  |
@@ -192,31 +192,31 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `socfwemailthreatstatus` | `threat_statuses` | `computed` |  |
 | `socfwemailthreatid` | `threat_ids` | `computed` |  |
 | `socfwemailclassification` | `classification_all` | `computed` |  |
-| `socfwemailphishscore` | `phishscore` | `raw` |  |
-| `socfwemailmalwarescore` | `malwarescore` | `raw` |  |
-| `socfwemailcampaignid` | `campaignid` | `raw` |  |
-| `socfwemailclickip` | `clickip` | `raw` |  |
-| `socfwemailclicktime` | `clicktime` | `raw` |  |
-| `proofpointtapcampaignid` | `campaignid` | `raw` |  |
-| `proofpointtapclickip` | `clickip` | `raw` |  |
-| `proofpointtapclicktime` | `clicktime` | `raw` |  |
-| `proofpointtapguid` | `guid` | `raw` |  |
-| `proofpointtapheadersfrom` | `headerfrom` | `raw` |  |
-| `proofpointtapheadersreplyto` | `headerreplyto` | `raw` |  |
+| `socfwemailphishscore` | `phishScore` | `raw` |  |
+| `socfwemailmalwarescore` | `malwareScore` | `raw` |  |
+| `socfwemailcampaignid` | `campaignId` | `raw` |  |
+| `socfwemailclickip` | `clickIP` | `raw` |  |
+| `socfwemailclicktime` | `clickTime` | `raw` |  |
+| `proofpointtapcampaignid` | `campaignId` | `raw` |  |
+| `proofpointtapclickip` | `clickIP` | `raw` |  |
+| `proofpointtapclicktime` | `clickTime` | `raw` |  |
+| `proofpointtapguid` | `GUID` | `raw` |  |
+| `proofpointtapheadersfrom` | `headerFrom` | `raw` |  |
+| `proofpointtapheadersreplyto` | `headerReplyTo` | `raw` |  |
 | `proofpointtapid` | `id` | `raw` |  |
-| `proofpointtapimposterscore` | `impostorscore` | `raw` |  |
-| `proofpointtapmalwarescore` | `malwarescore` | `raw` |  |
-| `proofpointtapmessageid` | `messageid` | `raw` |  |
-| `proofpointtapmessageparts` | `messageparts` | `raw` |  |
-| `proofpointtapmessagesize` | `messagesize` | `raw` |  |
-| `proofpointtapphishingscore` | `phishscore` | `raw` |  |
-| `proofpointtapreplytoaddress` | `replytoaddress` | `raw` |  |
-| `proofpointtapsenderip` | `senderip` | `raw` |  |
+| `proofpointtapimposterscore` | `impostorScore` | `raw` |  |
+| `proofpointtapmalwarescore` | `malwareScore` | `raw` |  |
+| `proofpointtapmessageid` | `messageID` | `raw` |  |
+| `proofpointtapmessageparts` | `messageParts` | `raw` |  |
+| `proofpointtapmessagesize` | `messageSize` | `raw` |  |
+| `proofpointtapphishingscore` | `phishScore` | `raw` |  |
+| `proofpointtapreplytoaddress` | `replyToAddress` | `raw` |  |
+| `proofpointtapsenderip` | `senderIP` | `raw` |  |
 | `proofpointtapsmtpsender` | `sender` | `raw` |  |
-| `proofpointtapspamscore` | `spamscore` | `raw` |  |
+| `proofpointtapspamscore` | `spamScore` | `raw` |  |
 | `proofpointtapsubject` | `subject` | `raw` |  |
-| `proofpointtapthreatstatus` | `threatstatus` | `raw` |  |
-| `proofpointtapthreattime` | `threattime` | `raw` |  |
+| `proofpointtapthreatstatus` | `threatStatus` | `raw` |  |
+| `proofpointtapthreattime` | `threatTime` | `raw` |  |
 | `proofpointtaptype` | `type` | `raw` |  |
 | `proofpointtapxmailer` | `xmailer` | `raw` |  |
 | `proofpointtapthreatid` | `bc_threatid` | `computed` |  |
@@ -255,12 +255,17 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | filter type in ("messages delivered", "clicks permitted")
 
 // Gate 2: actionable threats only
-| alter threatsInfoMap_str = threatsinfomap
+| alter threatsInfoMap_str = threatsInfoMap
 | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
 | filter (
     first_threat_status in ("active", "malicious")
-    or threatstatus in ("active", "malicious")
+    or threatStatus in ("active", "malicious")
 )
+
+// Normalize recipient (JSON-array string) to a bare UPN for cross-vendor
+// grouping. to_string() leaves the ["x@y"] brackets; arrayindex+extract
+// yields "x@y" to match CrowdStrike/XDR user_name byte-for-byte.
+| alter recipient_upn = arrayindex(json_extract_array(recipient, "$."), 0)
 
 // Alert identity and naming
 | alter
@@ -272,8 +277,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
                            "Email Security"),
     alert_name = if(
         type = "clicks permitted",
-        concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Malicious Link Clicked"),
-        concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Threat Email Delivered")
+        concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Malicious Link Clicked"),
+        concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Threat Email Delivered")
     ),
     alert_type = if(
         type = "clicks permitted",
@@ -302,9 +307,9 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 // Attachment fields (all parts)
 | alter
-    proofpointsha256   = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
-    proofpointmd5      = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
-    proofpointfilename = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
+    proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
+    proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
+    proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
 
 // Domain extraction
 | alter
@@ -325,13 +330,12 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     ),
     bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
 
-| alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)
+| alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", GUID)
 
 // Cross-rule username contract: emit full UPN to match CrowdStrike's
-// user_name (which Falcon delivers as e.g. "Gunter@SKT.LOCAL"). The
-// earlier "recipient_local" trick stripped the @domain to bare SAM,
-// which broke pivot grouping with CrowdStrike on the Turla scenario.
-// recipient is array-typed in raw_schema; to_string coerces to scalar.
+// user_name (which Falcon delivers as e.g. "Gunter@SKT.LOCAL"). recipient
+// is a JSON-array string ('["x@y"]'); recipient_upn (extracted above)
+// holds the bare UPN so grouping matches CrowdStrike/XDR byte-for-byte.
 // See investigation in tools/correlation_rule_grouping_check notes.
 
 // ============================================================
@@ -349,7 +353,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter
         vendor                              = vendor_name,
         product                             = product_name,
-        originalalertid                     = guid,
+        originalalertid                     = GUID,
         originalalertname                   = alert_name,
         originalalertsource                 = "Proofpoint TAP",
         externallink                        = null,
@@ -362,7 +366,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         agent_hostname                      = null,
         agent_id                            = null,
         agent_device_domain                 = domain,
-        actor_effective_username            = to_string(recipient),
+        actor_effective_username            = recipient_upn,
         actor_process_image_name            = null,
         actor_process_image_path            = null,
         actor_process_image_sha256          = null,
@@ -374,7 +378,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_file_name                    = proofpointfilename,
         action_file_path                    = null,
         action_file_sha256                  = proofpointsha256,
-        action_local_ip                     = clickip,
+        action_local_ip                     = clickIP,
         action_remote_ip                    = null
 
 // Vendor-specific pivots beyond canonical core.
@@ -384,5 +388,5 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // user_principal explicit avoids regressions if the canonical-core
 // username field's semantics change.
 | alter
-        user_principal                      = recipient
+        user_principal                      = recipient_upn
 ```

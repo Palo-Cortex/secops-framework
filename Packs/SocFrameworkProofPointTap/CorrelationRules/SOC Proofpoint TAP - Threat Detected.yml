@@ -46,8 +46,8 @@ alert_fields:
   filehash: proofpointsha256
   dns_query_name: dns_name
   fw_url_domain: domain
-  emailmessageid: messageid
-  emailsenderip: senderip
+  emailmessageid: messageID
+  emailsenderip: senderIP
   emailsource: sender
   fw_email_recipient: recipient
   fw_email_sender: sender
@@ -61,31 +61,31 @@ alert_fields:
   socfwemailthreatstatus: threat_statuses
   socfwemailthreatid: threat_ids
   socfwemailclassification: classification_all
-  socfwemailphishscore: phishscore
-  socfwemailmalwarescore: malwarescore
-  socfwemailcampaignid: campaignid
-  socfwemailclickip: clickip
-  socfwemailclicktime: clicktime
-  proofpointtapcampaignid: campaignid
-  proofpointtapclickip: clickip
-  proofpointtapclicktime: clicktime
-  proofpointtapguid: guid
-  proofpointtapheadersfrom: headerfrom
-  proofpointtapheadersreplyto: headerreplyto
+  socfwemailphishscore: phishScore
+  socfwemailmalwarescore: malwareScore
+  socfwemailcampaignid: campaignId
+  socfwemailclickip: clickIP
+  socfwemailclicktime: clickTime
+  proofpointtapcampaignid: campaignId
+  proofpointtapclickip: clickIP
+  proofpointtapclicktime: clickTime
+  proofpointtapguid: GUID
+  proofpointtapheadersfrom: headerFrom
+  proofpointtapheadersreplyto: headerReplyTo
   proofpointtapid: id
-  proofpointtapimposterscore: impostorscore
-  proofpointtapmalwarescore: malwarescore
-  proofpointtapmessageid: messageid
-  proofpointtapmessageparts: messageparts
-  proofpointtapmessagesize: messagesize
-  proofpointtapphishingscore: phishscore
-  proofpointtapreplytoaddress: replytoaddress
-  proofpointtapsenderip: senderip
+  proofpointtapimposterscore: impostorScore
+  proofpointtapmalwarescore: malwareScore
+  proofpointtapmessageid: messageID
+  proofpointtapmessageparts: messageParts
+  proofpointtapmessagesize: messageSize
+  proofpointtapphishingscore: phishScore
+  proofpointtapreplytoaddress: replyToAddress
+  proofpointtapsenderip: senderIP
   proofpointtapsmtpsender: sender
-  proofpointtapspamscore: spamscore
+  proofpointtapspamscore: spamScore
   proofpointtapsubject: subject
-  proofpointtapthreatstatus: threatstatus
-  proofpointtapthreattime: threattime
+  proofpointtapthreatstatus: threatStatus
+  proofpointtapthreattime: threatTime
   proofpointtaptype: type
   proofpointtapxmailer: xmailer
   proofpointtapthreatid: bc_threatid
@@ -129,7 +129,7 @@ description: >-
   pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon
   and other endpoint sources): actor_effective_username (UPN format, e.g.
   "Gunter@SKT.LOCAL", matches CrowdStrike's user_name field byte-for-byte),
-  user_principal (full UPN, parallel pivot), action_local_ip (clickip → endpoint
+  user_principal (full UPN, parallel pivot), action_local_ip (clickIP → endpoint
   local_ip), and action_file_sha256 (attachment hash). The username contract
   across all framework vendor rules is full UPN -- vendors that emit bare SAM or
   DOMAIN\user must normalize to UPN in their own pre_alter block.
@@ -161,12 +161,14 @@ xql_query: |
 
   | filter type in ("messages delivered", "clicks permitted")
 
-  | alter threatsInfoMap_str = threatsinfomap
+  | alter threatsInfoMap_str = threatsInfoMap
   | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
   | filter (
       first_threat_status in ("active", "malicious")
-      or threatstatus in ("active", "malicious")
+      or threatStatus in ("active", "malicious")
   )
+
+  | alter recipient_upn = arrayindex(json_extract_array(recipient, "$."), 0)
 
   | alter
       alert_severity    = if(_alert_data -> severity != null and _alert_data -> severity != "",
@@ -177,8 +179,8 @@ xql_query: |
                              "Email Security"),
       alert_name = if(
           type = "clicks permitted",
-          concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Malicious Link Clicked"),
-          concat("[Email] ", coalesce(to_string(recipient), "Unknown"), " - Initial Access: Threat Email Delivered")
+          concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Malicious Link Clicked"),
+          concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Threat Email Delivered")
       ),
       alert_type = if(
           type = "clicks permitted",
@@ -204,9 +206,9 @@ xql_query: |
       threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
 
   | alter
-      proofpointsha256   = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
-      proofpointmd5      = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
-      proofpointfilename = arraystring(arraymap(json_extract_array(messageparts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
+      proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
+      proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
+      proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
 
   | alter
       domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
@@ -225,12 +227,12 @@ xql_query: |
       ),
       bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
 
-  | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", guid)
+  | alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", GUID)
 
   | alter
           vendor                              = vendor_name,
           product                             = product_name,
-          originalalertid                     = guid,
+          originalalertid                     = GUID,
           originalalertname                   = alert_name,
           originalalertsource                 = "Proofpoint TAP",
           externallink                        = null,
@@ -243,7 +245,7 @@ xql_query: |
           agent_hostname                      = null,
           agent_id                            = null,
           agent_device_domain                 = domain,
-          actor_effective_username            = to_string(recipient),
+          actor_effective_username            = recipient_upn,
           actor_process_image_name            = null,
           actor_process_image_path            = null,
           actor_process_image_sha256          = null,
@@ -255,8 +257,8 @@ xql_query: |
           action_file_name                    = proofpointfilename,
           action_file_path                    = null,
           action_file_sha256                  = proofpointsha256,
-          action_local_ip                     = clickip,
+          action_local_ip                     = clickIP,
           action_remote_ip                    = null
 
   | alter
-          user_principal                      = recipient
+          user_principal                      = recipient_upn
