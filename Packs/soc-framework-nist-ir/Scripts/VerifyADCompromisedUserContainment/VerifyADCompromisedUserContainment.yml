@@ -1,0 +1,86 @@
+commonfields:
+  id: VerifyADCompromisedUserContainment
+  version: -1
+name: VerifyADCompromisedUserContainment
+script: "import traceback\nfrom typing import Any, Optional\n\nAD_QUERY_COMMAND = \"ad-get-user\"\n\ndef parse_args(args:\
+  \ dict[str, Any]) -> str:\n    sam = args.get(\"sam_account_name\")\n    if not sam or not str(sam).strip():\n        raise\
+  \ DemistoException(\"sam_account_name is required.\")\n    return str(sam).strip()\n\ndef command_failed(result: Any) ->\
+  \ bool:\n    return is_error(result)\n\ndef first_entry_contents(result: list[Any]) -> dict[str, Any]:\n    if not result:\n\
+  \        return {}\n    entry = result[0] or {}\n    contents = entry.get(\"Contents\", {})\n    if isinstance(contents,\
+  \ list):\n        return contents[0] if contents and isinstance(contents[0], dict) else {}\n    return contents if isinstance(contents,\
+  \ dict) else {}\n\ndef to_bool(value: Any) -> Optional[bool]:\n    if value is None:\n        return None\n    if isinstance(value,\
+  \ bool):\n        return value\n    if isinstance(value, str):\n        lowered = value.strip().lower()\n        if lowered\
+  \ in (\"true\", \"yes\", \"1\", \"disabled\", \"expired\"):\n            return True\n        if lowered in (\"false\",\
+  \ \"no\", \"0\", \"enabled\", \"not expired\"):\n            return False\n    return None\n\ndef pick_first(data: dict[str,\
+  \ Any], keys: list[str]) -> Any:\n    for key in keys:\n        if key in data:\n            return data.get(key)\n    return\
+  \ None\n\ndef query_ad_user(sam_account_name: str) -> tuple[dict[str, Any], list[str]]:\n    errors = []\n    result = demisto.executeCommand(AD_QUERY_COMMAND,\
+  \ {\"sam_account_name\": sam_account_name})\n\n    if command_failed(result):\n        errors.append(get_error(result))\n\
+  \        return {}, errors\n\n    user = first_entry_contents(result)\n    if not user:\n        errors.append(\"AD query\
+  \ returned no user data.\")\n    return user, errors\n\ndef evaluate_user(user: dict[str, Any], errors: list[str]) -> dict[str,\
+  \ Any]:\n    disabled_raw = pick_first(user, [\n        \"disabled\",\n        \"account_disabled\",\n        \"AccountDisabled\"\
+  ,\n        \"userAccountControlDisabled\",\n        \"enabled\",\n        \"Enabled\"\n    ])\n\n    disabled = to_bool(disabled_raw)\n\
+  \    if disabled is None and str(disabled_raw).lower() in (\"enabled\", \"true\", \"false\"):\n        disabled = not to_bool(disabled_raw)\n\
+  \n    enabled = to_bool(pick_first(user, [\"enabled\", \"Enabled\"]))\n    if disabled is None and enabled is not None:\n\
+  \        disabled = not enabled\n\n    password_expired = to_bool(pick_first(user, [\n        \"password_expired\",\n  \
+  \      \"PasswordExpired\",\n        \"pwdLastSetZero\",\n        \"must_change_password\",\n        \"MustChangePassword\"\
+  ,\n        \"change_password_at_next_logon\",\n        \"ChangePasswordAtNextLogon\"\n    ]))\n\n    details = []\n    if\
+  \ disabled is True:\n        details.append(\"AD account appears disabled.\")\n    elif disabled is False:\n        details.append(\"\
+  AD account does not appear disabled.\")\n    else:\n        details.append(\"Unable to determine AD disabled status from\
+  \ returned fields.\")\n\n    if password_expired is True:\n        details.append(\"Password expiration/change-required\
+  \ status appears present.\")\n    elif password_expired is False:\n        details.append(\"Password expiration/change-required\
+  \ status does not appear present.\")\n    else:\n        details.append(\"Unable to determine password expiration/change-required\
+  \ status from returned fields.\")\n\n    if errors:\n        details.append(\"Verification errors: \" + \" | \".join(errors))\n\
+  \n    if errors and not user:\n        status = \"Unknown\"\n    elif disabled is True and password_expired is True:\n \
+  \       status = \"Success\"\n    elif disabled is True or password_expired is True:\n        status = \"Partial\"\n   \
+  \ elif disabled is False or password_expired is False:\n        status = \"Failed\"\n    else:\n        status = \"Unknown\"\
+  \n\n    return {\n        \"status\": status,\n        \"disabled\": disabled,\n        \"password_expired\": password_expired,\n\
+  \        \"details\": \" \".join(details),\n        \"ad_disable\": \"verified\" if disabled is True else \"not_verified\"\
+  \ if disabled is False else \"unknown\",\n        \"ad_password_expire\": \"verified\" if password_expired is True else\
+  \ \"not_verified\" if password_expired is False else \"unknown\",\n    }\n\ndef main():\n    try:\n        sam = parse_args(demisto.args())\n\
+  \        user, errors = query_ad_user(sam)\n        evaluation = evaluate_user(user, errors)\n\n        outputs = {\n  \
+  \          \"CompromisedUserContainment\": {\n                \"AD\": {\n                    \"status\": evaluation[\"status\"\
+  ],\n                    \"disabled\": evaluation[\"disabled\"],\n                    \"password_expired\": evaluation[\"\
+  password_expired\"],\n                    \"details\": evaluation[\"details\"],\n                },\n                \"\
+  Actions\": {\n                    \"ad_disable\": evaluation[\"ad_disable\"],\n                    \"ad_password_expire\"\
+  : evaluation[\"ad_password_expire\"],\n                }\n            }\n        }\n\n        readable = tableToMarkdown(\n\
+  \            \"AD Compromised User Containment Verification\",\n            [{\n                \"sam_account_name\": sam,\n\
+  \                \"status\": evaluation[\"status\"],\n                \"disabled\": evaluation[\"disabled\"],\n        \
+  \        \"password_expired\": evaluation[\"password_expired\"],\n                \"details\": evaluation[\"details\"],\n\
+  \            }]\n        )\n\n        return_results(CommandResults(\n            readable_output=readable,\n          \
+  \  outputs=outputs,\n            outputs_prefix=\"\",\n            raw_response={\"user\": user, \"errors\": errors}\n \
+  \       ))\n\n    except Exception as ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"VerifyADCompromisedUserContainment\
+  \ failed. Error: {ex}\")\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()\n"
+type: python
+tags:
+- compromised-user-containment
+comment: Verifies AD containment for a compromised user after disable and password-expire actions.
+enabled: true
+args:
+- supportedModules: []
+  name: sam_account_name
+  required: true
+  description: AD sAMAccountName of the compromised user.
+outputs:
+- contextPath: CompromisedUserContainment.AD.status
+  description: Success, Partial, Failed, or Unknown.
+  type: string
+- contextPath: CompromisedUserContainment.AD.disabled
+  description: Whether the AD account appears disabled.
+  type: boolean
+- contextPath: CompromisedUserContainment.AD.password_expired
+  description: Whether password expiration/change-required status appears present.
+  type: boolean
+- contextPath: CompromisedUserContainment.AD.details
+  description: Human-readable verification details and captured errors.
+  type: string
+- contextPath: CompromisedUserContainment.Actions.ad_disable
+  description: AD disable verification result.
+  type: string
+- contextPath: CompromisedUserContainment.Actions.ad_password_expire
+  description: AD password expiration verification result.
+  type: string
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.14.92207
+runas: DBotWeakRole
