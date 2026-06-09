@@ -1,0 +1,231 @@
+# ============================================================================
+# Wiz — SOCFW vendor mapping (generator input)
+# data_source: wiz_generic_alert_raw   |   from custom rule #20 (Wiz_Alert(custom))
+# (#3 "Wiz Alerts (automatically generated) (Copy)" is a stock copy — skipped.)
+# ----------------------------------------------------------------------------
+# SCOPE: This is the IR-OVERLAP portion of Wiz — it rides the existing NIST IR
+# lifecycle (SP 800-61) in the **Cloud** product category, routed via
+# SOCProductCategoryMap like any other IR source. It is NOT the posture lifecycle
+# (SP 800-40); do not route it there.
+#
+# Wiz carries no host/process/file-hash/user — it carries a cloud resource, the
+# cloud account, and the finding. The Cloud category's Artifacts schema is still
+# being defined, so the cloud issue_field names below are PROPOSED and should be
+# ratified as the Cloud contract — but this is normal IR content, not a new
+# lifecycle.
+#
+# NOTE on the sample: rule #20's data is posture/attack-path shaped
+# (type = TOXIC_COMBINATION, config findings). If the IR-overlap you mean is
+# specifically Wiz Defend *runtime threat* findings, a TSV of those will ground
+# the IR fields better than this config-finding sample.
+# ----------------------------------------------------------------------------
+vendor: wiz
+product: Wiz Cloud
+data_source: wiz_generic_alert_raw
+category: Cloud
+lifecycle: nist-ir
+pack: soc-wiz-cloud
+
+raw_schema:
+  _alert_data:    {type: json,   is_array: false}
+  entitysnapshot: {type: json,   is_array: false}   # the cloud resource
+  sourcerule:     {type: json,   is_array: false}   # the Wiz Control / finding
+  severity:       {type: string, is_array: false}
+  status:         {type: string, is_array: false}
+  type:           {type: string, is_array: false}
+
+modeling_rule:
+  fromversion: "6.10.0"
+  modeling_rule_id: Wiz_ModelingRule
+  modeling_rule_name: Wiz Findings Modeling Rule
+  directory_name: Wiz_ModelingRule
+  filter:
+    expression: '_alert_data != null'
+  fields:
+    - xdm_path: xdm.alert.name
+      issue_field: alertname
+      sources: [sourcerule]
+      expression: 'json_extract_scalar(sourcerule, "$.name")'
+    - xdm_path: xdm.alert.description
+      issue_field: eventdescription
+      sources: [sourcerule]
+      expression: 'json_extract_scalar(sourcerule, "$.description")'
+    - xdm_path: xdm.alert.severity
+      issue_field: severity
+      sources: [severity]
+      expression: 'lowercase(severity)'
+    - xdm_path: xdm.cloud.provider
+      issue_field: cloudprovider
+      sources: [entitysnapshot]
+      expression: 'json_extract_scalar(entitysnapshot, "$.cloudPlatform")'
+    - xdm_path: xdm.cloud.project_id
+      issue_field: cloudaccount
+      sources: [entitysnapshot]
+      expression: 'coalesce(json_extract_scalar(entitysnapshot, "$.subscriptionExternalId"), json_extract_scalar(entitysnapshot, "$.subscriptionName"))'
+    - xdm_path: xdm.cloud.region
+      issue_field: cloudregion
+      sources: [entitysnapshot]
+      expression: 'json_extract_scalar(entitysnapshot, "$.region")'
+    - xdm_path: xdm.target.resource.name
+      issue_field: resourcename
+      sources: [entitysnapshot]
+      expression: 'json_extract_scalar(entitysnapshot, "$.name")'
+    - xdm_path: xdm.target.resource.type
+      issue_field: resourcetype
+      sources: [entitysnapshot]
+      expression: 'coalesce(json_extract_scalar(entitysnapshot, "$.nativeType"), json_extract_scalar(entitysnapshot, "$.type"))'
+    - xdm_path: xdm.target.resource.id
+      issue_field: resourceid
+      sources: [entitysnapshot]
+      expression: 'coalesce(json_extract_scalar(entitysnapshot, "$.externalId"), json_extract_scalar(entitysnapshot, "$.id"))'
+    - xdm_path: xdm.observer.vendor
+      issue_field: observervendor
+      sources: []
+      expression: '"Wiz"'
+    - xdm_path: xdm.observer.product
+      issue_field: observerproduct
+      sources: []
+      expression: '"Wiz Cloud"'
+  contributes:
+    - Cloud.Provider          # PROPOSED Cloud-category keys (ratify with Cloud contract)
+    - Cloud.Account
+    - Cloud.Region
+    - Cloud.Resource.Name
+    - Cloud.Resource.Type
+    - Cloud.Resource.ID
+    - Vendor
+    - Product
+  not_contributed_by_modeling_rule:
+    - "(endpoint canonical fields — Wiz carries no host/process/file/user)"
+
+correlation_rules:
+  - subtype: passthrough
+    fromversion: "8.0.0"
+    global_rule_id: 'SOC Wiz Finding'
+    name: 'SOC Wiz Finding'
+    description: >-
+      Creates an XSIAM passthrough alert for each Wiz finding, normalized to the
+      SOC Framework Cloud-category contract and routed through NIST IR.
+    tags: [SOCFramework, Passthrough, Cloud, Wiz]
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: REAL_TIME
+      mapping_strategy: CUSTOM
+      user_defined_category: finding_type
+      user_defined_severity: severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+    alert_name: '$alert_name'
+    alert_description: '$alert_description'
+    suppression:
+      enabled: true
+      duration: 1 hours
+      fields: [finding_id]
+      notes: Wiz Control id (wc-id-…) scopes dedup to a single finding.
+    pre_alter: |
+      | filter _alert_data != null
+      | alter
+          vendor_name  = "Wiz",
+          product_name = "Wiz Cloud",
+          vendor       = "Wiz",
+          product      = "Wiz Cloud",
+          severity = lowercase(severity),
+          finding_type   = type,
+          finding_status = status,
+          finding_id     = json_extract_scalar(sourcerule, "$.id"),
+          finding_name   = json_extract_scalar(sourcerule, "$.name"),
+          alert_description = coalesce(
+              json_extract_scalar(sourcerule, "$.description"),
+              json_extract_scalar(to_json_string(_alert_data), "$.alert_description")),
+          recommendation = json_extract_scalar(sourcerule, "$.resolutionRecommendation"),
+          cloud_provider = json_extract_scalar(entitysnapshot, "$.cloudPlatform"),
+          cloud_account  = coalesce(
+              json_extract_scalar(entitysnapshot, "$.subscriptionExternalId"),
+              json_extract_scalar(entitysnapshot, "$.subscriptionName")),
+          cloud_region   = json_extract_scalar(entitysnapshot, "$.region"),
+          resource_name  = json_extract_scalar(entitysnapshot, "$.name"),
+          resource_type  = coalesce(
+              json_extract_scalar(entitysnapshot, "$.nativeType"),
+              json_extract_scalar(entitysnapshot, "$.type")),
+          resource_id    = coalesce(
+              json_extract_scalar(entitysnapshot, "$.externalId"),
+              json_extract_scalar(entitysnapshot, "$.id"))
+      | alter
+          originalalertid     = finding_id,
+          originalalertname   = finding_name,
+          originalalertsource = product,
+          alert_name = concat(
+              "[Cloud] ",
+              coalesce(cloud_provider, "Cloud"), " | ",
+              coalesce(resource_type, "Resource"), " | ",
+              coalesce(finding_name, "Finding"))
+    final_projection:
+      - _time
+      - vendor_name
+      - product_name
+      - vendor
+      - product
+      - severity
+      - finding_type
+      - finding_status
+      - finding_id
+      - finding_name
+      - alert_description
+      - recommendation
+      - cloud_provider
+      - cloud_account
+      - cloud_region
+      - resource_name
+      - resource_type
+      - resource_id
+      - alert_name
+      - originalalertid
+      - originalalertname
+      - originalalertsource
+    alert_fields:
+      # canonical core (vendor-agnostic)
+      - {issue_field: vendor,              source: vendor,              bucket: computed}
+      - {issue_field: product,             source: product,             bucket: computed}
+      - {issue_field: severity,            source: severity,            bucket: computed}
+      - {issue_field: alert_description,   source: alert_description,   bucket: computed}
+      - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
+      - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: alert_name,          source: alert_name,          bucket: computed}
+      # Cloud surface — PROPOSED issue_field names, ratify with Cloud contract
+      - {issue_field: cloudprovider,  source: cloud_provider,  bucket: computed}
+      - {issue_field: cloudaccount,   source: cloud_account,   bucket: computed}
+      - {issue_field: cloudregion,    source: cloud_region,    bucket: computed}
+      - {issue_field: resourcename,   source: resource_name,   bucket: computed}
+      - {issue_field: resourcetype,   source: resource_type,   bucket: computed}
+      - {issue_field: resourceid,     source: resource_id,     bucket: computed}
+      - {issue_field: alertcategory,  source: finding_type,    bucket: computed}
+      - {issue_field: findingstatus,  source: finding_status,  bucket: computed}
+      - {issue_field: recommendation, source: recommendation,  bucket: computed}
+    mitre_defs: {}    # Wiz uses compliance frameworks (securitySubCategories), not ATT&CK
+    investigation_query_link: |-
+      dataset = wiz_generic_alert_raw
+      | filter json_extract_scalar(sourcerule, "$.id") = "$originalalertid"
+      | fields *
+    contributes:
+      - Cloud.Provider
+      - Cloud.Account
+      - Cloud.Region
+      - Cloud.Resource.Name
+      - Cloud.Resource.Type
+      - Cloud.Resource.ID
+
+# ============================================================================
+# OPEN ITEMS
+#  - Routes via SOCProductCategoryMap as Cloud, into the existing NIST IR
+#    lifecycle (SP 800-61). NOT the posture lifecycle.
+#  - Cloud-category Artifacts schema is still being defined; the issue_field
+#    names above (cloudprovider/resourcename/...) are PROPOSED -- ratify them.
+#  - Foundation Normalize needs a Cloud branch to read these.
+#  - If the IR-overlap subset is specifically Wiz Defend runtime threats, ground
+#    on a TSV of those rather than this config/attack-path sample.
+# ============================================================================

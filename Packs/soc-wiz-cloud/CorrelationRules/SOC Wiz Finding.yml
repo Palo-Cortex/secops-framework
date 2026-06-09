@@ -1,0 +1,98 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Cloud
+  - Wiz
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor
+  product: product
+  severity: severity
+  alert_description: alert_description
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  alert_name: alert_name
+  cloudprovider: cloud_provider
+  cloudaccount: cloud_account
+  cloudregion: cloud_region
+  resourcename: resource_name
+  resourcetype: resource_type
+  resourceid: resource_id
+  alertcategory: finding_type
+  findingstatus: finding_status
+  recommendation: recommendation
+alert_name: $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+name: SOC Wiz Finding
+description: >-
+  Creates an XSIAM passthrough alert for each Wiz finding, normalized to the SOC
+  Framework Cloud-category contract and routed through NIST IR.
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC Wiz Finding
+investigation_query_link: |-
+  dataset = wiz_generic_alert_raw
+  | filter json_extract_scalar(sourcerule, "$.id") = "$originalalertid"
+  | fields *
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs: {}
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- finding_id
+timezone: null
+user_defined_category: finding_type
+user_defined_severity: severity
+xql_query: |
+  dataset = wiz_generic_alert_raw
+  | filter _alert_data != null
+  | alter
+      vendor_name  = "Wiz",
+      product_name = "Wiz Cloud",
+      vendor       = "Wiz",
+      product      = "Wiz Cloud",
+      severity = lowercase(severity),
+      finding_type   = type,
+      finding_status = status,
+      finding_id     = json_extract_scalar(sourcerule, "$.id"),
+      finding_name   = json_extract_scalar(sourcerule, "$.name"),
+      alert_description = coalesce(
+          json_extract_scalar(sourcerule, "$.description"),
+          json_extract_scalar(to_json_string(_alert_data), "$.alert_description")),
+      recommendation = json_extract_scalar(sourcerule, "$.resolutionRecommendation"),
+      cloud_provider = json_extract_scalar(entitysnapshot, "$.cloudPlatform"),
+      cloud_account  = coalesce(
+          json_extract_scalar(entitysnapshot, "$.subscriptionExternalId"),
+          json_extract_scalar(entitysnapshot, "$.subscriptionName")),
+      cloud_region   = json_extract_scalar(entitysnapshot, "$.region"),
+      resource_name  = json_extract_scalar(entitysnapshot, "$.name"),
+      resource_type  = coalesce(
+          json_extract_scalar(entitysnapshot, "$.nativeType"),
+          json_extract_scalar(entitysnapshot, "$.type")),
+      resource_id    = coalesce(
+          json_extract_scalar(entitysnapshot, "$.externalId"),
+          json_extract_scalar(entitysnapshot, "$.id"))
+  | alter
+      originalalertid     = finding_id,
+      originalalertname   = finding_name,
+      originalalertsource = product,
+      alert_name = concat(
+          "[Cloud] ",
+          coalesce(cloud_provider, "Cloud"), " | ",
+          coalesce(resource_type, "Resource"), " | ",
+          coalesce(finding_name, "Finding"))
+  | fields
+      _time, vendor_name, product_name, vendor, product, severity, finding_type, finding_status, finding_id, finding_name, alert_description, recommendation, cloud_provider, cloud_account, cloud_region, resource_name, resource_type, resource_id, alert_name, originalalertid, originalalertname, originalalertsource
