@@ -1,0 +1,179 @@
+# ============================================================================
+# SOC Framework Normalize Map — Posture (Cloud Posture Management)
+# One normalization schema per lifecycle. This file is the Posture contract.
+# Engine (SOCNormalizeFromList) + dispatcher live in soc-optimization-unified
+# and are lifecycle-agnostic; the per-lifecycle file ships its own categories.
+# Read top-down: each category lists its mappings, stamps, and mirrors.
+# ============================================================================
+lifecycle: posture
+pack: soc-framework-posture
+list_name: SOCFrameworkNormalizeMap_POSTURE
+description: Maps issue.<field> -> SOCFramework.<target> per product category for the
+  Cloud Posture Management lifecycle. mappings (issue.* passthrough),
+  stamps (literal initializers), mirrors (flat -> structured Artifacts.* tree).
+
+roles:
+  canonical:    { description: The V3 contract name we agree to read, retention: forever }
+  legacy_alias: { description: Older target kept for in-flight consumers, retention: deletable }
+source_origins:
+  native:       { description: Registered XSIAM incident-field cliName }
+  socfw_custom: { description: SOC Framework custom field prefixed socfw }
+dedup_match:
+  text: { description: Free-text similarity. Use for finding descriptions. }
+  json: { description: Exact value match. Use for identifiers (ResourceID, RuleID, AccountID). }
+
+categories:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # posture_misconfig — the bulk of CSPM findings (misconfigurations, drift
+  # from baseline, policy violations not tied to a specific compliance framework)
+  # ─────────────────────────────────────────────────────────────────────────
+  posture_misconfig:
+    status: complete
+    mappings:
+      # Cloud provider context
+      - { target: CloudPosture.cloud_provider, issue_field: cloudprovider, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.account_id, issue_field: cloudaccountid, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.account_name, issue_field: cloudaccountname, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.region, issue_field: cloudregion, shape: flat, role: canonical, source_origin: native }
+
+      # Resource identity (canonical for dedup)
+      - { target: CloudPosture.resource_id, issue_field: cloudresourceid, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.resource_arn, issue_field: cloudresourcearn, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.resource_type, issue_field: cloudresourcetype, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.resource_name, issue_field: cloudresourcename, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.resource_tags, issue_field: cloudresourcetags, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.resource_owner, issue_field: cloudresourceowner, shape: flat, role: canonical, source_origin: native }
+
+      # Finding identity (canonical for dedup)
+      - { target: CloudPosture.finding_id, issue_field: socfwposturefindingid, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.rule_id, issue_field: socfwpostureruleid, shape: flat, role: canonical, source_origin: socfw_custom, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.rule_name, issue_field: socfwposturerulename, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.severity, issue_field: socfwpostureseverity, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.risk_score, issue_field: socfwpostureriskscore, shape: flat, role: canonical, source_origin: socfw_custom }
+
+      # Config delta
+      - { target: CloudPosture.current_value, issue_field: socfwposturecurrentvalue, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.expected_value, issue_field: socfwpostureexpectedvalue, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.config_path, issue_field: socfwpostureconfigpath, shape: flat, role: canonical, source_origin: socfw_custom }
+
+      # Remediation
+      - { target: CloudPosture.remediation_guidance, issue_field: socfwpostureremediationguidance, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.auto_remediable, issue_field: socfwpostureautoremediable, shape: flat, role: canonical, source_origin: socfw_custom }
+
+      # Mirrors to Artifacts.CloudPosture.* (structured)
+      - { target: Artifacts.CloudPosture.CloudProvider, issue_field: cloudprovider, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.AccountID, issue_field: cloudaccountid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.AccountName, issue_field: cloudaccountname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.Region, issue_field: cloudregion, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceID, issue_field: cloudresourceid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceARN, issue_field: cloudresourcearn, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceType, issue_field: cloudresourcetype, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceName, issue_field: cloudresourcename, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceTags, issue_field: cloudresourcetags, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceOwner, issue_field: cloudresourceowner, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.FindingID, issue_field: socfwposturefindingid, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.RuleID, issue_field: socfwpostureruleid, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.RuleName, issue_field: socfwposturerulename, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.Severity, issue_field: socfwpostureseverity, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.RiskScore, issue_field: socfwpostureriskscore, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.CurrentValue, issue_field: socfwposturecurrentvalue, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ExpectedValue, issue_field: socfwpostureexpectedvalue, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ConfigPath, issue_field: socfwpostureconfigpath, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.RemediationGuidance, issue_field: socfwpostureremediationguidance, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.AutoRemediable, issue_field: socfwpostureautoremediable, shape: structured, role: canonical, source_origin: socfw_custom }
+    stamps:
+      - { target: CloudPosture.normalization_source, value: posture_misconfig }
+      - { target: CloudPosture.finding_class, value: misconfiguration }
+    mirrors:
+      []
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # posture_compliance — compliance framework findings (CIS, NIST 800-53, SOC2)
+  # ─────────────────────────────────────────────────────────────────────────
+  posture_compliance:
+    status: complete
+    mappings:
+      - { target: CloudPosture.cloud_provider, issue_field: cloudprovider, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.account_id, issue_field: cloudaccountid, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.region, issue_field: cloudregion, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.resource_id, issue_field: cloudresourceid, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.resource_type, issue_field: cloudresourcetype, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.finding_id, issue_field: socfwposturefindingid, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.severity, issue_field: socfwpostureseverity, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.compliance_framework, issue_field: socfwposturecomplianceframework, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.compliance_control_id, issue_field: socfwposturecompliancecontrolid, shape: flat, role: canonical, source_origin: socfw_custom, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.compliance_control_title, issue_field: socfwposturecompliancecontroltitle, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.compliance_status, issue_field: socfwposturecompliancestatus, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.CloudProvider, issue_field: cloudprovider, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.AccountID, issue_field: cloudaccountid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.Region, issue_field: cloudregion, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceID, issue_field: cloudresourceid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceType, issue_field: cloudresourcetype, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.FindingID, issue_field: socfwposturefindingid, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.Severity, issue_field: socfwpostureseverity, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ComplianceFramework, issue_field: socfwposturecomplianceframework, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ComplianceControlID, issue_field: socfwposturecompliancecontrolid, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ComplianceControlTitle, issue_field: socfwposturecompliancecontroltitle, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ComplianceStatus, issue_field: socfwposturecompliancestatus, shape: structured, role: canonical, source_origin: socfw_custom }
+    stamps:
+      - { target: CloudPosture.normalization_source, value: posture_compliance }
+      - { target: CloudPosture.finding_class, value: compliance }
+    mirrors:
+      []
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # posture_drift — IaC vs runtime drift
+  # ─────────────────────────────────────────────────────────────────────────
+  posture_drift:
+    status: complete
+    mappings:
+      - { target: CloudPosture.cloud_provider, issue_field: cloudprovider, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.account_id, issue_field: cloudaccountid, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.resource_id, issue_field: cloudresourceid, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
+      - { target: CloudPosture.resource_type, issue_field: cloudresourcetype, shape: flat, role: canonical, source_origin: native }
+      - { target: CloudPosture.finding_id, issue_field: socfwposturefindingid, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.severity, issue_field: socfwpostureseverity, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.current_value, issue_field: socfwposturecurrentvalue, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.expected_value, issue_field: socfwpostureexpectedvalue, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.iac_source, issue_field: socfwpostureiacsource, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.iac_repo, issue_field: socfwpostureiacrepo, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.iac_file_path, issue_field: socfwpostureiacfilepath, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.iac_commit_sha, issue_field: socfwpostureiaccommitsha, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.drift_detected_at, issue_field: socfwposturedriftdetectedat, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.CloudProvider, issue_field: cloudprovider, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.AccountID, issue_field: cloudaccountid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceID, issue_field: cloudresourceid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.ResourceType, issue_field: cloudresourcetype, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.FindingID, issue_field: socfwposturefindingid, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.Severity, issue_field: socfwpostureseverity, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.CurrentValue, issue_field: socfwposturecurrentvalue, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ExpectedValue, issue_field: socfwpostureexpectedvalue, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.IaCSource, issue_field: socfwpostureiacsource, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.IaCRepo, issue_field: socfwpostureiacrepo, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.IaCFilePath, issue_field: socfwpostureiacfilepath, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.IaCCommitSHA, issue_field: socfwpostureiaccommitsha, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.DriftDetectedAt, issue_field: socfwposturedriftdetectedat, shape: structured, role: canonical, source_origin: socfw_custom }
+    stamps:
+      - { target: CloudPosture.normalization_source, value: posture_drift }
+      - { target: CloudPosture.finding_class, value: drift }
+    mirrors:
+      []
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # generic — fallback for unknown categories / vendors not yet mapped
+  # ─────────────────────────────────────────────────────────────────────────
+  generic:
+    status: complete
+    mappings:
+      - { target: CloudPosture.finding_id, issue_field: socfwposturefindingid, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.severity, issue_field: socfwpostureseverity, shape: flat, role: canonical, source_origin: socfw_custom }
+      - { target: CloudPosture.resource_id, issue_field: cloudresourceid, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.CloudPosture.FindingID, issue_field: socfwposturefindingid, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.Severity, issue_field: socfwpostureseverity, shape: structured, role: canonical, source_origin: socfw_custom }
+      - { target: Artifacts.CloudPosture.ResourceID, issue_field: cloudresourceid, shape: structured, role: canonical, source_origin: native }
+    stamps:
+      - { target: CloudPosture.normalization_source, value: generic }
+      - { target: CloudPosture.finding_class, value: unknown }
+    mirrors:
+      []

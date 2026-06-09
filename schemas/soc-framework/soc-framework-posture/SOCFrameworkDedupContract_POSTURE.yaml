@@ -1,0 +1,23 @@
+# SOC Framework Dedup Contract — Posture (Cloud Posture Management)
+# Per-lifecycle dedup contract for the new SOCDedupFromList engine.
+#
+# Cloud Posture dedup is time-windowless: the same misconfig on the same
+# resource is the SAME finding forever (until remediated). CSPM scanners
+# re-detect every 4-6 hours; without time-windowless dedup, every scan
+# cycle would create new incidents.
+
+lifecycle: posture
+pack: soc-framework-posture
+list_name: SOCFrameworkDedupContract_POSTURE
+description: |
+  Dedup contract for Cloud Posture Management. Time-windowless: same misconfig
+  on same resource is the same finding regardless of when re-detected.
+
+key_fields:
+  - Artifacts.CloudPosture.AccountID
+  - Artifacts.CloudPosture.ResourceID
+  - Artifacts.CloudPosture.RuleID
+
+time_window_value: null
+time_window_unit: null
+duplicate_action: link_as_child

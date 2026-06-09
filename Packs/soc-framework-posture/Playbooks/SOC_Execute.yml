@@ -1,0 +1,335 @@
+adopted: true
+id: SOC_Execute
+version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-posture
+    packName: SOC Framework Posture Lifecycle
+    itemVersion: 1.0.0
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOC_Execute
+description: |-
+  Execute phase (NIST posture lifecycle). Routes on product category
+  (SOCFramework.Product.category) to the per-category Workflow playbook,
+  gated by SOCExecutionList_POSTURE execute_branch.
+tags:
+- SOC
+- SOC_Framework_Unified
+- Posture
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: soc-execute-start
+    type: start
+    task:
+      id: soc-execute-start
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 450, "y": 50}}
+  "1":
+    id: "1"
+    taskid: soc-execute-category
+    type: condition
+    task:
+      id: soc-execute-category
+      version: -1
+      name: Product Category
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      posture_misconfig:
+      - "2"
+      posture_compliance:
+      - "4"
+      posture_drift:
+      - "6"
+    separatecontext: false
+    conditions:
+    - label: posture_misconfig
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: posture_misconfig
+    - label: posture_compliance
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: posture_compliance
+    - label: posture_drift
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: posture_drift
+    view: |-
+      {"position": {"x": 450, "y": 200}}
+  "2":
+    id: "2"
+    taskid: soc-execute-branch-misconfig
+    type: condition
+    task:
+      id: soc-execute-branch-misconfig
+      version: -1
+      name: Misconfig Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      Run:
+      - "3"
+    separatecontext: false
+    conditions:
+    - label: Run
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC_Misconfig_Execute
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    view: |-
+      {"position": {"x": 150, "y": 360}}
+  "3":
+    id: "3"
+    taskid: soc-execute-wf-misconfig
+    type: playbook
+    task:
+      id: soc-execute-wf-misconfig
+      version: -1
+      name: SOC_Misconfig_Execute
+      playbookName: SOC_Misconfig_Execute
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 150, "y": 520}}
+  "4":
+    id: "4"
+    taskid: soc-execute-branch-compliance
+    type: condition
+    task:
+      id: soc-execute-branch-compliance
+      version: -1
+      name: Compliance Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      Run:
+      - "5"
+    separatecontext: false
+    conditions:
+    - label: Run
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC_Compliance_Execute
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    view: |-
+      {"position": {"x": 450, "y": 360}}
+  "5":
+    id: "5"
+    taskid: soc-execute-wf-compliance
+    type: playbook
+    task:
+      id: soc-execute-wf-compliance
+      version: -1
+      name: SOC_Compliance_Execute
+      playbookName: SOC_Compliance_Execute
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 450, "y": 520}}
+  "6":
+    id: "6"
+    taskid: soc-execute-branch-drift
+    type: condition
+    task:
+      id: soc-execute-branch-drift
+      version: -1
+      name: Drift Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      Run:
+      - "7"
+    separatecontext: false
+    conditions:
+    - label: Run
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC_Drift_Execute
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    view: |-
+      {"position": {"x": 750, "y": 360}}
+  "7":
+    id: "7"
+    taskid: soc-execute-wf-drift
+    type: playbook
+    task:
+      id: soc-execute-wf-drift
+      version: -1
+      name: SOC_Drift_Execute
+      playbookName: SOC_Drift_Execute
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 750, "y": 520}}
+  "8":
+    id: "8"
+    taskid: soc-execute-done
+    type: title
+    task:
+      id: soc-execute-done
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    view: |-
+      {"position": {"x": 450, "y": 700}}
+view: |-
+  {"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 720, "width": 980, "x": 140, "y": 40}}}
+inputs:
+- key: ExecutionBranch
+  value:
+    simple: ${lists.SOCExecutionList_POSTURE}
+  required: false
+  description: Branch-routing list (execute_branch per Workflow playbook).
+  playbookInputQuery: null
+- key: ProductCategory
+  value:
+    simple: ${SOCFramework.Product.category}
+  required: false
+  description: Routed posture product category.
+  playbookInputQuery: null
+outputs:
+- contextPath: Execute.attempted
+  type: unknown
+- contextPath: Execute.success
+  type: unknown
+- contextPath: Execute.execution_mode
+  type: unknown
+- contextPath: Execute.remediation_action_taken
+  type: unknown
+- contextPath: Execute.remediation_artifact
+  type: unknown
+- contextPath: Execute.executed_at
+  type: unknown
+- contextPath: Execute.executed_by
+  type: unknown
+- contextPath: Execute.error
+  type: unknown
+- contextPath: Execute.story
+  type: unknown
+- contextPath: Execute.config_change_id
+  type: unknown
+- contextPath: Execute.compliance_evidence_link
+  type: unknown
+- contextPath: Execute.iac_pr_url
+  type: unknown
+- contextPath: Execute.iac_pr_merged
+  type: unknown
+fromversion: 5.0.0
+marketplaces:
+- marketplacev2
+system: true

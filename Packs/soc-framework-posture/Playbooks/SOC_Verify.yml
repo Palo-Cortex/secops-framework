@@ -1,0 +1,325 @@
+adopted: true
+id: SOC_Verify
+version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-posture
+    packName: SOC Framework Posture Lifecycle
+    itemVersion: 1.0.0
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOC_Verify
+description: |-
+  Verify phase (NIST posture lifecycle). Routes on product category
+  (SOCFramework.Product.category) to the per-category Workflow playbook,
+  gated by SOCExecutionList_POSTURE execute_branch.
+tags:
+- SOC
+- SOC_Framework_Unified
+- Posture
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: soc-verify-start
+    type: start
+    task:
+      id: soc-verify-start
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 450, "y": 50}}
+  "1":
+    id: "1"
+    taskid: soc-verify-category
+    type: condition
+    task:
+      id: soc-verify-category
+      version: -1
+      name: Product Category
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      posture_misconfig:
+      - "2"
+      posture_compliance:
+      - "4"
+      posture_drift:
+      - "6"
+    separatecontext: false
+    conditions:
+    - label: posture_misconfig
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: posture_misconfig
+    - label: posture_compliance
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: posture_compliance
+    - label: posture_drift
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.ProductCategory
+            iscontext: true
+          right:
+            value:
+              simple: posture_drift
+    view: |-
+      {"position": {"x": 450, "y": 200}}
+  "2":
+    id: "2"
+    taskid: soc-verify-branch-misconfig
+    type: condition
+    task:
+      id: soc-verify-branch-misconfig
+      version: -1
+      name: Misconfig Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      Run:
+      - "3"
+    separatecontext: false
+    conditions:
+    - label: Run
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC_Misconfig_Verify
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    view: |-
+      {"position": {"x": 150, "y": 360}}
+  "3":
+    id: "3"
+    taskid: soc-verify-wf-misconfig
+    type: playbook
+    task:
+      id: soc-verify-wf-misconfig
+      version: -1
+      name: SOC_Misconfig_Verify
+      playbookName: SOC_Misconfig_Verify
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 150, "y": 520}}
+  "4":
+    id: "4"
+    taskid: soc-verify-branch-compliance
+    type: condition
+    task:
+      id: soc-verify-branch-compliance
+      version: -1
+      name: Compliance Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      Run:
+      - "5"
+    separatecontext: false
+    conditions:
+    - label: Run
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC_Compliance_Verify
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    view: |-
+      {"position": {"x": 450, "y": 360}}
+  "5":
+    id: "5"
+    taskid: soc-verify-wf-compliance
+    type: playbook
+    task:
+      id: soc-verify-wf-compliance
+      version: -1
+      name: SOC_Compliance_Verify
+      playbookName: SOC_Compliance_Verify
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 450, "y": 520}}
+  "6":
+    id: "6"
+    taskid: soc-verify-branch-drift
+    type: condition
+    task:
+      id: soc-verify-branch-drift
+      version: -1
+      name: Drift Execution Branch
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      Run:
+      - "7"
+    separatecontext: false
+    conditions:
+    - label: Run
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              complex:
+                root: inputs.ExecutionBranch
+                transformers:
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: SOC_Drift_Verify
+                - operator: getField
+                  args:
+                    field:
+                      value:
+                        simple: execute_branch
+            iscontext: true
+          right:
+            value:
+              simple: default
+    view: |-
+      {"position": {"x": 750, "y": 360}}
+  "7":
+    id: "7"
+    taskid: soc-verify-wf-drift
+    type: playbook
+    task:
+      id: soc-verify-wf-drift
+      version: -1
+      name: SOC_Drift_Verify
+      playbookName: SOC_Drift_Verify
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "8"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 750, "y": 520}}
+  "8":
+    id: "8"
+    taskid: soc-verify-done
+    type: title
+    task:
+      id: soc-verify-done
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    view: |-
+      {"position": {"x": 450, "y": 700}}
+view: |-
+  {"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 720, "width": 980, "x": 140, "y": 40}}}
+inputs:
+- key: ExecutionBranch
+  value:
+    simple: ${lists.SOCExecutionList_POSTURE}
+  required: false
+  description: Branch-routing list (execute_branch per Workflow playbook).
+  playbookInputQuery: null
+- key: ProductCategory
+  value:
+    simple: ${SOCFramework.Product.category}
+  required: false
+  description: Routed posture product category.
+  playbookInputQuery: null
+outputs:
+- contextPath: Verify.attempted
+  type: unknown
+- contextPath: Verify.passed
+  type: unknown
+- contextPath: Verify.verification_method
+  type: unknown
+- contextPath: Verify.verified_at
+  type: unknown
+- contextPath: Verify.regression_detected
+  type: unknown
+- contextPath: Verify.story
+  type: unknown
+- contextPath: Verify.compliance_status_after_fix
+  type: unknown
+- contextPath: Verify.drift_resolved
+  type: unknown
+fromversion: 5.0.0
+marketplaces:
+- marketplacev2
+system: true
