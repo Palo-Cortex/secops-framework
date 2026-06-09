@@ -1,0 +1,139 @@
+# EP_Posture
+# Entry Point playbook for the Posture lifecycle.
+# Scaffolded by tools/scaffold_lifecycle.py.
+#
+# CONTRACT (do not remove):
+#   Task '1' MUST stamp SOCFramework.lifecycle as the very first thing.
+#   Every framework engine (SOCNormalizeFromList, SOCEnrichFromList,
+#   SOCDedupFromList, SOCCommandWrapper) reads this key to resolve
+#   the lifecycle's schemas, dataset, and System XQL HTTP Collector instance.
+#   See docs/architecture/cross-lifecycle-surfaces.md V4.
+
+adopted: true
+id: EP_Posture
+version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-posture
+    packName: SOC Framework Posture Lifecycle
+    itemVersion: 1.0.0
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: EP_Posture
+description: |
+  Entry Point for the Posture lifecycle. Stamps lifecycle
+  context, runs Foundation playbooks, dispatches to the lifecycle controller.
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: ep-posture-start
+    type: start
+    task:
+      id: ep-posture-start
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 50, "y": 50}}
+  "1":
+    id: "1"
+    taskid: ep-posture-stamp-lifecycle
+    type: regular
+    task:
+      id: ep-posture-stamp-lifecycle
+      version: -1
+      name: Stamp SOCFramework.lifecycle
+      description: |
+        Required by all framework engines. Do not remove or relocate.
+        See cross-lifecycle-surfaces.md V4.
+      script: Set
+      type: regular
+      iscommand: false
+      brand: ""
+    scriptarguments:
+      key:
+        simple: SOCFramework.lifecycle
+      value:
+        simple: posture
+    nexttasks:
+      '#none#':
+      - "2"
+    separatecontext: false
+    continueonerror: false
+    view: |-
+      {"position": {"x": 50, "y": 200}}
+  "2":
+    id: "2"
+    taskid: ep-posture-foundation
+    type: playbook
+    task:
+      id: ep-posture-foundation
+      version: -1
+      name: Foundation - Upon Trigger V3
+      description: |
+        Shared Foundation pipeline (Normalize, Enrich, Dedup).
+        TODO: Confirm Foundation_-_Upon_Trigger_V3 is the right entry for
+        this lifecycle or substitute the appropriate Foundation playbook.
+      playbookName: Foundation - Upon Trigger V3
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "3"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 50, "y": 360}}
+  "3":
+    id: "3"
+    taskid: ep-posture-dispatch
+    type: playbook
+    task:
+      id: ep-posture-dispatch
+      version: -1
+      name: SOC_Posture
+      description: |
+        Lifecycle controller (phase router). Orchestrates the posture
+        phases in order: Identify, Plan, Execute, Verify.
+      playbookName: SOC_Posture
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "4"
+    separatecontext: false
+    view: |-
+      {"position": {"x": 50, "y": 520}}
+  "4":
+    id: "4"
+    taskid: ep-posture-done
+    type: title
+    task:
+      id: ep-posture-done
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    view: |-
+      {"position": {"x": 50, "y": 680}}
+view: |-
+  {"linkLabelsPosition": {}, "paper": {"dimensions": {"height": 700, "width": 380, "x": 40, "y": 40}}}
+inputs: []
+outputs: []
+fromversion: 5.0.0
+marketplaces:
+- marketplacev2
+system: true

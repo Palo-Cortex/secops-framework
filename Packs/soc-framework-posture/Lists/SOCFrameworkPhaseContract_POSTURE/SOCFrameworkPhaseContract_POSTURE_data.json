@@ -1,0 +1,260 @@
+{
+  "lifecycle": "posture",
+  "phases": {
+    "identify": {
+      "status": "complete",
+      "writes": [
+        {
+          "target": "Identify.finding_acknowledged",
+          "init": false
+        },
+        {
+          "target": "Identify.classification",
+          "init": ""
+        },
+        {
+          "target": "Identify.first_detected_at",
+          "init": ""
+        },
+        {
+          "target": "Identify.detection_source",
+          "init": ""
+        },
+        {
+          "target": "Identify.exploitability_assessment",
+          "init": ""
+        },
+        {
+          "target": "Identify.story",
+          "init": []
+        }
+      ],
+      "writes_by_category": {
+        "posture_misconfig": [
+          {
+            "target": "Identify.misconfig_summary",
+            "init": ""
+          }
+        ],
+        "posture_compliance": [
+          {
+            "target": "Identify.compliance_summary",
+            "init": ""
+          },
+          {
+            "target": "Identify.failed_control_id",
+            "init": ""
+          }
+        ],
+        "posture_drift": [
+          {
+            "target": "Identify.drift_summary",
+            "init": ""
+          },
+          {
+            "target": "Identify.iac_commit_sha_observed",
+            "init": ""
+          }
+        ]
+      },
+      "reads_from_phases": []
+    },
+    "plan": {
+      "status": "complete",
+      "writes": [
+        {
+          "target": "Plan.risk_score",
+          "init": 0
+        },
+        {
+          "target": "Plan.business_impact",
+          "init": ""
+        },
+        {
+          "target": "Plan.blast_radius",
+          "init": ""
+        },
+        {
+          "target": "Plan.remediation_approach",
+          "init": ""
+        },
+        {
+          "target": "Plan.approval_required",
+          "init": false
+        },
+        {
+          "target": "Plan.approval_obtained",
+          "init": false
+        },
+        {
+          "target": "Plan.approval_obtained_by",
+          "init": ""
+        },
+        {
+          "target": "Plan.target_remediation_deadline",
+          "init": ""
+        },
+        {
+          "target": "Plan.story",
+          "init": []
+        }
+      ],
+      "writes_by_category": {
+        "posture_misconfig": [],
+        "posture_compliance": [
+          {
+            "target": "Plan.compliance_deadline_driven",
+            "init": false
+          }
+        ],
+        "posture_drift": [
+          {
+            "target": "Plan.iac_repo_pr_target_branch",
+            "init": ""
+          }
+        ]
+      },
+      "reads_from_phases": [
+        {
+          "from_phase": "identify",
+          "source": "Identify.classification"
+        },
+        {
+          "from_phase": "identify",
+          "source": "Identify.exploitability_assessment"
+        }
+      ]
+    },
+    "execute": {
+      "status": "complete",
+      "writes": [
+        {
+          "target": "Execute.attempted",
+          "init": false
+        },
+        {
+          "target": "Execute.success",
+          "init": false
+        },
+        {
+          "target": "Execute.execution_mode",
+          "init": ""
+        },
+        {
+          "target": "Execute.remediation_action_taken",
+          "init": ""
+        },
+        {
+          "target": "Execute.remediation_artifact",
+          "init": ""
+        },
+        {
+          "target": "Execute.executed_at",
+          "init": ""
+        },
+        {
+          "target": "Execute.executed_by",
+          "init": ""
+        },
+        {
+          "target": "Execute.error",
+          "init": ""
+        },
+        {
+          "target": "Execute.story",
+          "init": []
+        }
+      ],
+      "writes_by_category": {
+        "posture_misconfig": [
+          {
+            "target": "Execute.config_change_id",
+            "init": ""
+          }
+        ],
+        "posture_compliance": [
+          {
+            "target": "Execute.compliance_evidence_link",
+            "init": ""
+          }
+        ],
+        "posture_drift": [
+          {
+            "target": "Execute.iac_pr_url",
+            "init": ""
+          },
+          {
+            "target": "Execute.iac_pr_merged",
+            "init": false
+          }
+        ]
+      },
+      "reads_from_phases": [
+        {
+          "from_phase": "plan",
+          "source": "Plan.remediation_approach"
+        },
+        {
+          "from_phase": "plan",
+          "source": "Plan.approval_obtained"
+        }
+      ]
+    },
+    "verify": {
+      "status": "complete",
+      "writes": [
+        {
+          "target": "Verify.attempted",
+          "init": false
+        },
+        {
+          "target": "Verify.passed",
+          "init": false
+        },
+        {
+          "target": "Verify.verification_method",
+          "init": ""
+        },
+        {
+          "target": "Verify.verified_at",
+          "init": ""
+        },
+        {
+          "target": "Verify.regression_detected",
+          "init": false
+        },
+        {
+          "target": "Verify.story",
+          "init": []
+        }
+      ],
+      "writes_by_category": {
+        "posture_misconfig": [],
+        "posture_compliance": [
+          {
+            "target": "Verify.compliance_status_after_fix",
+            "init": ""
+          }
+        ],
+        "posture_drift": [
+          {
+            "target": "Verify.drift_resolved",
+            "init": false
+          }
+        ]
+      },
+      "reads_from_phases": [
+        {
+          "from_phase": "execute",
+          "source": "Execute.attempted"
+        },
+        {
+          "from_phase": "execute",
+          "source": "Execute.success"
+        }
+      ]
+    }
+  },
+  "id": "SOCFrameworkPhaseContract_POSTURE",
+  "name": "SOCFrameworkPhaseContract_POSTURE"
+}
