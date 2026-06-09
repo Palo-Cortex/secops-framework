@@ -1,0 +1,159 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Endpoint
+  - SentinelOne
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor_name
+  product: product_name
+  severity: severity
+  alert_description: alert_description
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  agent_device_domain: agent_device_domain
+  actor_effective_username: actor_effective_username
+  actor_process_image_name: actor_process_image_name
+  actor_process_image_path: actor_process_image_path
+  actor_process_image_sha256: actor_process_image_sha256
+  actor_process_command_line: actor_process_command_line
+  actor_process_os_pid: actor_process_os_pid
+  causality_actor_process_image_name: causality_actor_process_image_name
+  causality_actor_process_image_sha256: causality_actor_process_image_sha256
+  action_file_name: action_file_name
+  action_file_sha256: action_file_sha256
+  action_local_ip: action_local_ip
+  alert_name: alert_name
+  actor_process_signature_vendor: actor_process_signature_vendor
+  deviceosname: deviceosname
+  deviceexternalips: deviceexternalips
+  filesha1: file_sha1
+  filemd5: file_md5
+  sentinelonethreatid: threat_id
+  username: actor_effective_username
+  hostname: agent_hostname
+  domain: agent_device_domain
+  agentid: agent_id
+  initiatedby: actor_process_image_name
+  initiatorpath: actor_process_image_path
+  initiatorsha256: actor_process_image_sha256
+  initiatorcmd: actor_process_command_line
+  initiatorpid: actor_process_os_pid
+  cgosha256: causality_actor_process_image_sha256
+  filename: action_file_name
+  filesha256: action_file_sha256
+  localip: action_local_ip
+alert_name: $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+name: SOC SentinelOne Threat
+description: >-
+  Creates an XSIAM passthrough alert for each SentinelOne Singularity threat,
+  normalized to the SOC Framework endpoint contract.
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC SentinelOne Threat
+investigation_query_link: |-
+  dataset = sentinelone_v2_generic_alert_raw
+  | filter json_extract_scalar(threatinfo, "$.threatId") = "$originalalertid"
+  | fields *
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0002 - Execution:
+  - T1059 - Command and Scripting Interpreter
+  TA0005 - Defense Evasion:
+  - T1027 - Obfuscated Files or Information
+  - T1036 - Masquerading
+  TA0040 - Impact:
+  - T1486 - Data Encrypted for Impact
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- threat_id
+timezone: null
+user_defined_category: tactic
+user_defined_severity: severity
+xql_query: |
+  dataset = sentinelone_v2_generic_alert_raw
+  | filter _alert_data != null
+  | alter
+      vendor_name  = "SentinelOne",
+      product_name = "SentinelOne Singularity",
+      severity = lowercase(json_extract_scalar(_alert_data, "$.severity")),
+      alert_description = json_extract_scalar(_alert_data, "$.alert_description"),
+      threat_id   = json_extract_scalar(threatinfo, "$.threatId"),
+      threat_name = json_extract_scalar(threatinfo, "$.threatName"),
+      classification = json_extract_scalar(threatinfo, "$.classification"),
+      confidence  = json_extract_scalar(threatinfo, "$.confidenceLevel")
+
+  | alter
+      agent_hostname      = json_extract_scalar(agentrealtimeinfo, "$.agentComputerName"),
+      agent_id            = json_extract_scalar(agentrealtimeinfo, "$.agentId"),
+      agent_device_domain = json_extract_scalar(agentrealtimeinfo, "$.agentDomain"),
+      deviceosname        = json_extract_scalar(agentrealtimeinfo, "$.agentOsName"),
+      action_local_ip     = json_extract_scalar(agentdetectioninfo, "$.agentIpV4"),
+      deviceexternalips   = json_extract_scalar(agentdetectioninfo, "$.externalIp")
+
+  | alter
+      user_candidate = coalesce(
+          json_extract_scalar(threatinfo, "$.rootProcessUpn"),
+          json_extract_scalar(sourceprocessinfo, "$.user"))
+  | alter
+      actor_effective_username = if(
+          user_candidate = null, null,
+          lowercase(user_candidate) contains "nt authority", null,
+          lowercase(user_candidate) in ("system", "local service", "network service"), null,
+          user_candidate)
+
+  | alter
+      actor_process_image_name       = json_extract_scalar(sourceprocessinfo, "$.name"),
+      actor_process_image_path       = json_extract_scalar(sourceprocessinfo, "$.filePath"),
+      actor_process_image_sha256     = json_extract_scalar(sourceprocessinfo, "$.fileHashSha256"),
+      actor_process_command_line     = json_extract_scalar(sourceprocessinfo, "$.commandline"),
+      actor_process_os_pid           = json_extract_scalar(sourceprocessinfo, "$.pid"),
+      actor_process_signature_vendor = json_extract_scalar(sourceprocessinfo, "$.fileSignerIdentity")
+
+  | alter
+      causality_actor_process_image_name   = json_extract_scalar(sourceparentprocessinfo, "$.name"),
+      causality_actor_process_image_path   = json_extract_scalar(sourceparentprocessinfo, "$.filePath"),
+      causality_actor_process_image_sha256 = json_extract_scalar(sourceparentprocessinfo, "$.fileHashSha256"),
+      causality_actor_causality_id         = coalesce(
+          json_extract_scalar(threatinfo, "$.storyline"),
+          json_extract_scalar(sourceprocessinfo, "$.storyline"))
+
+  | alter
+      action_file_name   = threat_name,
+      action_file_sha256 = json_extract_scalar(threatinfo, "$.sha256"),
+      file_sha1          = json_extract_scalar(threatinfo, "$.sha1"),
+      file_md5           = json_extract_scalar(threatinfo, "$.md5")
+
+  | alter
+      mitretacticname  = arraystring(arraymap(arrayfilter(indicators -> [], array_length("@element" -> tactics[]) > 0), "@element" -> category), ", "),
+      mitretacticid    = null,
+      mitretechniqueid = null
+  | alter
+      originalalertid     = threat_id,
+      originalalertname   = threat_name,
+      alert_name = concat(
+          "[Endpoint] ",
+          coalesce(agent_hostname, "Unknown Host"), " | ",
+          coalesce(classification, "Threat"), " | ",
+          coalesce(threat_name, "Detection"))
+  | fields
+      _time, vendor_name, product_name, severity, alert_description, threat_id, threat_name, classification, confidence, alert_name, agent_hostname, agent_id, agent_device_domain, deviceosname, action_local_ip, deviceexternalips, actor_effective_username, actor_process_image_name, actor_process_image_path, actor_process_image_sha256, actor_process_command_line, actor_process_os_pid, actor_process_signature_vendor, causality_actor_process_image_name, causality_actor_process_image_path, causality_actor_process_image_sha256, causality_actor_causality_id, action_file_name, action_file_sha256, file_sha1, file_md5, mitretacticname, mitretacticid, mitretechniqueid, originalalertid, originalalertname

@@ -1,0 +1,29 @@
+[MODEL: dataset=sentinelone_v2_generic_alert_raw]
+filter _alert_data != null
+| alter
+    xdm.source.user.username = if(
+  coalesce(
+    json_extract_scalar(threatinfo, "$.rootProcessUpn"),
+    json_extract_scalar(sourceprocessinfo, "$.user")) = null, null,
+  lowercase(coalesce(
+    json_extract_scalar(threatinfo, "$.rootProcessUpn"),
+    json_extract_scalar(sourceprocessinfo, "$.user"))) contains "nt authority", null,
+  lowercase(coalesce(
+    json_extract_scalar(threatinfo, "$.rootProcessUpn"),
+    json_extract_scalar(sourceprocessinfo, "$.user"))) in ("system", "local service", "network service"), null,
+  coalesce(
+    json_extract_scalar(threatinfo, "$.rootProcessUpn"),
+    json_extract_scalar(sourceprocessinfo, "$.user"))
+),
+    xdm.target.host.hostname = json_extract_scalar(agentrealtimeinfo, "$.agentComputerName"),
+    xdm.target.host.device_id = json_extract_scalar(agentrealtimeinfo, "$.agentId"),
+    xdm.source.process.name = json_extract_scalar(sourceprocessinfo, "$.name"),
+    xdm.source.process.executable.path = json_extract_scalar(sourceprocessinfo, "$.filePath"),
+    xdm.source.process.executable.sha256 = json_extract_scalar(sourceprocessinfo, "$.fileHashSha256"),
+    xdm.target.file.sha256 = json_extract_scalar(threatinfo, "$.sha256"),
+    xdm.target.file.filename = json_extract_scalar(threatinfo, "$.threatName"),
+    xdm.alert.name = coalesce(json_extract_scalar(_alert_data, "$.alert_name"), json_extract_scalar(threatinfo, "$.threatName")),
+    xdm.alert.severity = lowercase(json_extract_scalar(_alert_data, "$.severity")),
+    xdm.alert.description = json_extract_scalar(_alert_data, "$.alert_description"),
+    xdm.observer.vendor = "SentinelOne",
+    xdm.observer.product = "SentinelOne Singularity";
