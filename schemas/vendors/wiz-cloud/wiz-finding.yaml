@@ -27,9 +27,12 @@ lifecycle: nist-ir
 pack: soc-wiz-cloud
 
 raw_schema:
-  _alert_data:    {type: json,   is_array: false}
-  entitysnapshot: {type: json,   is_array: false}   # the cloud resource
-  sourcerule:     {type: json,   is_array: false}   # the Wiz Control / finding
+  # generic_alert datasets type JSON-blob columns as `string` and read them
+  # with json_extract_scalar — confirmed against the shipped checkpointndr and
+  # proofpoint_tap generic_alert packs. NOT `json`.
+  _alert_data:    {type: string, is_array: false}
+  entitysnapshot: {type: string, is_array: false}
+  sourcerule:     {type: string, is_array: false}
   severity:       {type: string, is_array: false}
   status:         {type: string, is_array: false}
   type:           {type: string, is_array: false}
@@ -42,6 +45,16 @@ modeling_rule:
   filter:
     expression: '_alert_data != null'
   fields:
+    # Mirrors the shipped Defender / Checkpoint generic_alert modeling rules:
+    # alert/event/observer XDM targets only, string blobs read with
+    # json_extract_scalar. No xdm.cloud.* / xdm.target.resource.* — no shipped
+    # pack uses those and the data model has no such fields. The cloud surface
+    # (provider/account/region/resource) rides the correlation rule's alert
+    # fields, not XDM.
+    - xdm_path: xdm.event.type
+      issue_field: eventtype
+      sources: [type]
+      expression: 'type'
     - xdm_path: xdm.alert.name
       issue_field: alertname
       sources: [sourcerule]
@@ -53,31 +66,15 @@ modeling_rule:
     - xdm_path: xdm.alert.severity
       issue_field: severity
       sources: [severity]
-      expression: 'lowercase(severity)'
-    - xdm_path: xdm.cloud.provider
-      issue_field: cloudprovider
-      sources: [entitysnapshot]
-      expression: 'json_extract_scalar(entitysnapshot, "$.cloudPlatform")'
-    - xdm_path: xdm.cloud.project_id
-      issue_field: cloudaccount
-      sources: [entitysnapshot]
-      expression: 'coalesce(json_extract_scalar(entitysnapshot, "$.subscriptionExternalId"), json_extract_scalar(entitysnapshot, "$.subscriptionName"))'
-    - xdm_path: xdm.cloud.region
-      issue_field: cloudregion
-      sources: [entitysnapshot]
-      expression: 'json_extract_scalar(entitysnapshot, "$.region")'
-    - xdm_path: xdm.target.resource.name
-      issue_field: resourcename
-      sources: [entitysnapshot]
-      expression: 'json_extract_scalar(entitysnapshot, "$.name")'
-    - xdm_path: xdm.target.resource.type
-      issue_field: resourcetype
-      sources: [entitysnapshot]
-      expression: 'coalesce(json_extract_scalar(entitysnapshot, "$.nativeType"), json_extract_scalar(entitysnapshot, "$.type"))'
-    - xdm_path: xdm.target.resource.id
-      issue_field: resourceid
-      sources: [entitysnapshot]
-      expression: 'coalesce(json_extract_scalar(entitysnapshot, "$.externalId"), json_extract_scalar(entitysnapshot, "$.id"))'
+      expression: 'severity'
+    - xdm_path: xdm.alert.category
+      issue_field: alertcategory
+      sources: [type]
+      expression: 'type'
+    - xdm_path: xdm.alert.original_alert_id
+      issue_field: originalalertid
+      sources: [sourcerule]
+      expression: 'json_extract_scalar(sourcerule, "$.id")'
     - xdm_path: xdm.observer.vendor
       issue_field: observervendor
       sources: []
@@ -87,15 +84,19 @@ modeling_rule:
       sources: []
       expression: '"Wiz Cloud"'
   contributes:
-    - Cloud.Provider          # PROPOSED Cloud-category keys (ratify with Cloud contract)
-    - Cloud.Account
-    - Cloud.Region
-    - Cloud.Resource.Name
-    - Cloud.Resource.Type
-    - Cloud.Resource.ID
+    - Event.Type
+    - Alert.Name
+    - Alert.Description
+    - Alert.Severity
+    - Alert.Category
+    - Alert.OriginalID
     - Vendor
     - Product
   not_contributed_by_modeling_rule:
+    # Cloud provider / account / region / resource-type / resource-id have no
+    # valid XDM target field. They are carried as correlation-rule alert fields
+    # (pulled straight from entitysnapshot — the actual raw fields), not XDM.
+    - "Cloud.Provider / Account / Region / Resource.Type / Resource.ID"
     - "(endpoint canonical fields — Wiz carries no host/process/file/user)"
 
 correlation_rules:
@@ -131,8 +132,6 @@ correlation_rules:
       | alter
           vendor_name  = "Wiz",
           product_name = "Wiz Cloud",
-          vendor       = "Wiz",
-          product      = "Wiz Cloud",
           severity = lowercase(severity),
           finding_type   = type,
           finding_status = status,
@@ -157,7 +156,6 @@ correlation_rules:
       | alter
           originalalertid     = finding_id,
           originalalertname   = finding_name,
-          originalalertsource = product,
           alert_name = concat(
               "[Cloud] ",
               coalesce(cloud_provider, "Cloud"), " | ",
@@ -167,8 +165,6 @@ correlation_rules:
       - _time
       - vendor_name
       - product_name
-      - vendor
-      - product
       - severity
       - finding_type
       - finding_status
@@ -185,16 +181,15 @@ correlation_rules:
       - alert_name
       - originalalertid
       - originalalertname
-      - originalalertsource
     alert_fields:
-      # canonical core (vendor-agnostic)
-      - {issue_field: vendor,              source: vendor,              bucket: computed}
-      - {issue_field: product,             source: product,             bucket: computed}
+      # canonical core (vendor-agnostic) — issue fields vendor/product sourced
+      # from the single vendor_name/product_name columns, exactly like S1.
+      - {issue_field: vendor,              source: vendor_name,         bucket: computed}
+      - {issue_field: product,             source: product_name,        bucket: computed}
       - {issue_field: severity,            source: severity,            bucket: computed}
       - {issue_field: alert_description,   source: alert_description,   bucket: computed}
       - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
       - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
-      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
       - {issue_field: alert_name,          source: alert_name,          bucket: computed}
       # Cloud surface — PROPOSED issue_field names, ratify with Cloud contract
       - {issue_field: cloudprovider,  source: cloud_provider,  bucket: computed}
