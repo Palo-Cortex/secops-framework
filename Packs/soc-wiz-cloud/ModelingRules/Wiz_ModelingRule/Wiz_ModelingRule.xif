@@ -1,14 +1,11 @@
 [MODEL: dataset=wiz_generic_alert_raw]
 filter _alert_data != null
 | alter
+    xdm.event.type = type,
     xdm.alert.name = json_extract_scalar(sourcerule, "$.name"),
     xdm.alert.description = json_extract_scalar(sourcerule, "$.description"),
-    xdm.alert.severity = lowercase(severity),
-    xdm.cloud.provider = json_extract_scalar(entitysnapshot, "$.cloudPlatform"),
-    xdm.cloud.project_id = coalesce(json_extract_scalar(entitysnapshot, "$.subscriptionExternalId"), json_extract_scalar(entitysnapshot, "$.subscriptionName")),
-    xdm.cloud.region = json_extract_scalar(entitysnapshot, "$.region"),
-    xdm.target.resource.name = json_extract_scalar(entitysnapshot, "$.name"),
-    xdm.target.resource.type = coalesce(json_extract_scalar(entitysnapshot, "$.nativeType"), json_extract_scalar(entitysnapshot, "$.type")),
-    xdm.target.resource.id = coalesce(json_extract_scalar(entitysnapshot, "$.externalId"), json_extract_scalar(entitysnapshot, "$.id")),
+    xdm.alert.severity = severity,
+    xdm.alert.category = type,
+    xdm.alert.original_alert_id = json_extract_scalar(sourcerule, "$.id"),
     xdm.observer.vendor = "Wiz",
     xdm.observer.product = "Wiz Cloud";

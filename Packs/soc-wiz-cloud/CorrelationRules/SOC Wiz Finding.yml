@@ -1,5 +1,5 @@
 rule_id: 0
-fromversion: 6.10.0
+fromversion: 8.0.0
 tags:
   - SOCFramework
   - Passthrough
@@ -10,13 +10,12 @@ alert_category: User Defined
 alert_description: $alert_description
 alert_domain: DOMAIN_SECURITY
 alert_fields:
-  vendor: vendor
-  product: product
+  vendor: vendor_name
+  product: product_name
   severity: severity
   alert_description: alert_description
   originalalertid: originalalertid
   originalalertname: originalalertname
-  originalalertsource: originalalertsource
   alert_name: alert_name
   cloudprovider: cloud_provider
   cloudaccount: cloud_account
@@ -62,8 +61,6 @@ xql_query: |
   | alter
       vendor_name  = "Wiz",
       product_name = "Wiz Cloud",
-      vendor       = "Wiz",
-      product      = "Wiz Cloud",
       severity = lowercase(severity),
       finding_type   = type,
       finding_status = status,
@@ -88,11 +85,10 @@ xql_query: |
   | alter
       originalalertid     = finding_id,
       originalalertname   = finding_name,
-      originalalertsource = product,
       alert_name = concat(
           "[Cloud] ",
           coalesce(cloud_provider, "Cloud"), " | ",
           coalesce(resource_type, "Resource"), " | ",
           coalesce(finding_name, "Finding"))
   | fields
-      _time, vendor_name, product_name, vendor, product, severity, finding_type, finding_status, finding_id, finding_name, alert_description, recommendation, cloud_provider, cloud_account, cloud_region, resource_name, resource_type, resource_id, alert_name, originalalertid, originalalertname, originalalertsource
+      _time, vendor_name, product_name, severity, finding_type, finding_status, finding_id, finding_name, alert_description, recommendation, cloud_provider, cloud_account, cloud_region, resource_name, resource_type, resource_id, alert_name, originalalertid, originalalertname
