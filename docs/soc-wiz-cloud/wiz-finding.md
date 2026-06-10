@@ -19,9 +19,9 @@ Fields available in the raw ingest dataset.
 
 | Field | Type | Array | Status | JSON Subfields |
 |---|---|---|---|---|
-| `_alert_data` | `json` |  | declared |  |
-| `entitysnapshot` | `json` |  | declared |  |
-| `sourcerule` | `json` |  | declared |  |
+| `_alert_data` | `string` |  | declared |  |
+| `entitysnapshot` | `string` |  | declared |  |
+| `sourcerule` | `string` |  | declared |  |
 | `severity` | `string` |  | declared |  |
 | `status` | `string` |  | declared |  |
 | `type` | `string` |  | declared |  |
@@ -41,15 +41,12 @@ What each XDM field is, where it sources from, what issue field it surfaces on, 
 
 | XDM Path | Expression | Sources | Issue Field | Description |
 |---|---|---|---|---|
+| `xdm.event.type` | `type` | `type` | `eventtype` |  |
 | `xdm.alert.name` | `json_extract_scalar(sourcerule, "$.name")` | `sourcerule` | `alertname` |  |
 | `xdm.alert.description` | `json_extract_scalar(sourcerule, "$.description")` | `sourcerule` | `eventdescription` |  |
-| `xdm.alert.severity` | `lowercase(severity)` | `severity` | `severity` |  |
-| `xdm.cloud.provider` | `json_extract_scalar(entitysnapshot, "$.cloudPlatform")` | `entitysnapshot` | `cloudprovider` |  |
-| `xdm.cloud.project_id` | `coalesce(json_extract_scalar(entitysnapshot, "$.subscriptionExternalId"), jso...` | `entitysnapshot` | `cloudaccount` |  |
-| `xdm.cloud.region` | `json_extract_scalar(entitysnapshot, "$.region")` | `entitysnapshot` | `cloudregion` |  |
-| `xdm.target.resource.name` | `json_extract_scalar(entitysnapshot, "$.name")` | `entitysnapshot` | `resourcename` |  |
-| `xdm.target.resource.type` | `coalesce(json_extract_scalar(entitysnapshot, "$.nativeType"), json_extract_sc...` | `entitysnapshot` | `resourcetype` |  |
-| `xdm.target.resource.id` | `coalesce(json_extract_scalar(entitysnapshot, "$.externalId"), json_extract_sc...` | `entitysnapshot` | `resourceid` |  |
+| `xdm.alert.severity` | `severity` | `severity` | `severity` |  |
+| `xdm.alert.category` | `type` | `type` | `alertcategory` |  |
+| `xdm.alert.original_alert_id` | `json_extract_scalar(sourcerule, "$.id")` | `sourcerule` | `originalalertid` |  |
 | `xdm.observer.vendor` | `"Wiz"` |  | `observervendor` |  |
 | `xdm.observer.product` | `"Wiz Cloud"` |  | `observerproduct` |  |
 
@@ -57,12 +54,12 @@ What each XDM field is, where it sources from, what issue field it surfaces on, 
 
 Fields populated for downstream lifecycle Artifacts schemas:
 
-- `Cloud.Provider`
-- `Cloud.Account`
-- `Cloud.Region`
-- `Cloud.Resource.Name`
-- `Cloud.Resource.Type`
-- `Cloud.Resource.ID`
+- `Event.Type`
+- `Alert.Name`
+- `Alert.Description`
+- `Alert.Severity`
+- `Alert.Category`
+- `Alert.OriginalID`
 - `Vendor`
 - `Product`
 
@@ -112,13 +109,12 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 | Issue Field | Source | Bucket | Description |
 |---|---|---|---|
-| `vendor` | `vendor` | `computed` |  |
-| `product` | `product` | `computed` |  |
+| `vendor` | `vendor_name` | `computed` |  |
+| `product` | `product_name` | `computed` |  |
 | `severity` | `severity` | `computed` |  |
 | `alert_description` | `alert_description` | `computed` |  |
 | `originalalertid` | `originalalertid` | `computed` |  |
 | `originalalertname` | `originalalertname` | `computed` |  |
-| `originalalertsource` | `originalalertsource` | `computed` |  |
 | `alert_name` | `alert_name` | `computed` |  |
 | `cloudprovider` | `cloud_provider` | `computed` |  |
 | `cloudaccount` | `cloud_account` | `computed` |  |
@@ -137,8 +133,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter
     vendor_name  = "Wiz",
     product_name = "Wiz Cloud",
-    vendor       = "Wiz",
-    product      = "Wiz Cloud",
     severity = lowercase(severity),
     finding_type   = type,
     finding_status = status,
@@ -163,7 +157,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter
     originalalertid     = finding_id,
     originalalertname   = finding_name,
-    originalalertsource = product,
     alert_name = concat(
         "[Cloud] ",
         coalesce(cloud_provider, "Cloud"), " | ",
