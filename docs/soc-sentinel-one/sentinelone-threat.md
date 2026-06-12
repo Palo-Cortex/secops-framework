@@ -142,7 +142,14 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `action_file_sha256` | `action_file_sha256` | `computed` |  |
 | `action_local_ip` | `action_local_ip` | `computed` |  |
 | `alert_name` | `alert_name` | `computed` |  |
+| `causality_actor_causality_id` | `causality_actor_causality_id` | `computed` |  |
+| `xdmsourceprocesscausalityid` | `causality_actor_causality_id` | `computed` |  |
+| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |  |
+| `causality_actor_process_command_line` | `causality_actor_process_command_line` | `computed` |  |
+| `user_principal` | `user_principal` | `computed` |  |
 | `actor_process_signature_vendor` | `actor_process_signature_vendor` | `computed` |  |
+| `initiatorsigner` | `actor_process_signature_vendor` | `computed` |  |
+| `filehash` | `action_file_sha256` | `computed` |  |
 | `deviceosname` | `deviceosname` | `computed` |  |
 | `deviceexternalips` | `deviceexternalips` | `computed` |  |
 | `filesha1` | `file_sha1` | `computed` |  |
@@ -191,11 +198,20 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         json_extract_scalar(threatinfo, "$.rootProcessUpn"),
         json_extract_scalar(sourceprocessinfo, "$.user"))
 | alter
-    actor_effective_username = if(
+    user_filtered = if(
         user_candidate = null, null,
         lowercase(user_candidate) contains "nt authority", null,
         lowercase(user_candidate) in ("system", "local service", "network service"), null,
         user_candidate)
+// Username normalization: lowercase, DOMAIN\-prefix-stripped, full
+// principal. rootProcessUpn cases emit lowercase full UPN (matches TAP and
+// CrowdStrike); DOMAIN\user cases strip to bare sam (best available --
+// string ops only, REAL_TIME forbids the identity-map join, 101704).
+// user_principal keeps the raw-case UPN as the parallel pivot.
+| alter
+    actor_effective_username = lowercase(
+        arrayindex(regextract(coalesce(user_filtered, ""), "(?:.*\\)?(.+)"), 0)),
+    user_principal = if(user_filtered contains "@", user_filtered, null)
 // ---- initiator process ----
 | alter
     actor_process_image_name       = json_extract_scalar(sourceprocessinfo, "$.name"),
@@ -209,6 +225,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     causality_actor_process_image_name   = json_extract_scalar(sourceparentprocessinfo, "$.name"),
     causality_actor_process_image_path   = json_extract_scalar(sourceparentprocessinfo, "$.filePath"),
     causality_actor_process_image_sha256 = json_extract_scalar(sourceparentprocessinfo, "$.fileHashSha256"),
+    causality_actor_process_command_line = json_extract_scalar(sourceparentprocessinfo, "$.commandline"),
     causality_actor_causality_id         = coalesce(
         json_extract_scalar(threatinfo, "$.storyline"),
         json_extract_scalar(sourceprocessinfo, "$.storyline"))

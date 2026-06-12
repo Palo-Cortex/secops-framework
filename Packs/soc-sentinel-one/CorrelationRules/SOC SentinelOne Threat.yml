@@ -34,7 +34,14 @@ alert_fields:
   action_file_sha256: action_file_sha256
   action_local_ip: action_local_ip
   alert_name: alert_name
+  causality_actor_causality_id: causality_actor_causality_id
+  xdmsourceprocesscausalityid: causality_actor_causality_id
+  causality_actor_process_image_path: causality_actor_process_image_path
+  causality_actor_process_command_line: causality_actor_process_command_line
+  user_principal: user_principal
   actor_process_signature_vendor: actor_process_signature_vendor
+  initiatorsigner: actor_process_signature_vendor
+  filehash: action_file_sha256
   deviceosname: deviceosname
   deviceexternalips: deviceexternalips
   filesha1: file_sha1
@@ -115,11 +122,16 @@ xql_query: |
           json_extract_scalar(threatinfo, "$.rootProcessUpn"),
           json_extract_scalar(sourceprocessinfo, "$.user"))
   | alter
-      actor_effective_username = if(
+      user_filtered = if(
           user_candidate = null, null,
           lowercase(user_candidate) contains "nt authority", null,
           lowercase(user_candidate) in ("system", "local service", "network service"), null,
           user_candidate)
+
+  | alter
+      actor_effective_username = lowercase(
+          arrayindex(regextract(coalesce(user_filtered, ""), "(?:.*\\)?(.+)"), 0)),
+      user_principal = if(user_filtered contains "@", user_filtered, null)
 
   | alter
       actor_process_image_name       = json_extract_scalar(sourceprocessinfo, "$.name"),
@@ -133,6 +145,7 @@ xql_query: |
       causality_actor_process_image_name   = json_extract_scalar(sourceparentprocessinfo, "$.name"),
       causality_actor_process_image_path   = json_extract_scalar(sourceparentprocessinfo, "$.filePath"),
       causality_actor_process_image_sha256 = json_extract_scalar(sourceparentprocessinfo, "$.fileHashSha256"),
+      causality_actor_process_command_line = json_extract_scalar(sourceparentprocessinfo, "$.commandline"),
       causality_actor_causality_id         = coalesce(
           json_extract_scalar(threatinfo, "$.storyline"),
           json_extract_scalar(sourceprocessinfo, "$.storyline"))
@@ -156,4 +169,4 @@ xql_query: |
           coalesce(classification, "Threat"), " | ",
           coalesce(threat_name, "Detection"))
   | fields
-      _time, vendor_name, product_name, severity, alert_description, threat_id, threat_name, classification, confidence, alert_name, agent_hostname, agent_id, agent_device_domain, deviceosname, action_local_ip, deviceexternalips, actor_effective_username, actor_process_image_name, actor_process_image_path, actor_process_image_sha256, actor_process_command_line, actor_process_os_pid, actor_process_signature_vendor, causality_actor_process_image_name, causality_actor_process_image_path, causality_actor_process_image_sha256, causality_actor_causality_id, action_file_name, action_file_sha256, file_sha1, file_md5, mitretacticname, mitretacticid, mitretechniqueid, originalalertid, originalalertname
+      _time, vendor_name, product_name, severity, alert_description, threat_id, threat_name, classification, confidence, alert_name, agent_hostname, agent_id, agent_device_domain, deviceosname, action_local_ip, deviceexternalips, actor_effective_username, actor_process_image_name, actor_process_image_path, actor_process_image_sha256, actor_process_command_line, actor_process_os_pid, actor_process_signature_vendor, user_principal, causality_actor_process_image_name, causality_actor_process_image_path, causality_actor_process_image_sha256, causality_actor_process_command_line, causality_actor_causality_id, action_file_name, action_file_sha256, file_sha1, file_md5, mitretacticname, mitretacticid, mitretechniqueid, originalalertid, originalalertname

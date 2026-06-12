@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-sentinel-one` |
-| Version | `1.0.2` |
+| Version | `1.0.3` |
 | Category | Endpoint |
 | Pack Path | `Packs/soc-sentinel-one` |
 | Manifest | [`Packs/soc-sentinel-one/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-sentinel-one/xsoar_config.json) |
