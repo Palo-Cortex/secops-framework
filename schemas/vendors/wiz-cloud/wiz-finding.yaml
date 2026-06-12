@@ -153,6 +153,16 @@ correlation_rules:
           resource_id    = coalesce(
               json_extract_scalar(entitysnapshot, "$.externalId"),
               json_extract_scalar(entitysnapshot, "$.id"))
+      // Conditional hostname pivot: when the resource is a compute
+      // instance, resource_name is the VM hostname -- a posture finding then
+      // groups with EDR runtime detections on the same host. Null for non-compute
+      // (buckets, IAM) so no junk pivots. DELIBERATELY the only grouping field:
+      // posture findings must not be aggressively glued into IR cases.
+      // Heuristic regex over nativeType -- tighten to exact tenant values via:
+      //   dataset = wiz_generic_alert_raw | alter rt = coalesce(...nativeType, ...type) | comp count() by rt
+      | alter agent_hostname = if(
+          lowercase(coalesce(resource_type, "")) ~= "virtualmachine|instance|vm|compute|ec2",
+          resource_name, null)
       | alter
           originalalertid     = finding_id,
           originalalertname   = finding_name,
@@ -178,6 +188,7 @@ correlation_rules:
       - resource_name
       - resource_type
       - resource_id
+      - agent_hostname
       - alert_name
       - originalalertid
       - originalalertname
@@ -191,6 +202,9 @@ correlation_rules:
       - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
       - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
       - {issue_field: alert_name,          source: alert_name,          bucket: computed}
+      # Conditional compute-hostname grouping pivot (see pre_alter note)
+      - {issue_field: agent_hostname,      source: agent_hostname,      bucket: computed}
+      - {issue_field: hostname,            source: agent_hostname,      bucket: computed}
       # Cloud surface — PROPOSED issue_field names, ratify with Cloud contract
       - {issue_field: cloudprovider,  source: cloud_provider,  bucket: computed}
       - {issue_field: cloudaccount,   source: cloud_account,   bucket: computed}
@@ -223,4 +237,8 @@ correlation_rules:
 #  - Foundation Normalize needs a Cloud branch to read these.
 #  - If the IR-overlap subset is specifically Wiz Defend runtime threats, ground
 #    on a TSV of those rather than this config/attack-path sample.
+#  - agent_hostname compute heuristic needs tightening to exact tenant
+#    nativeType values; hostname-format drift vs EDR (case / FQDN) untested.
+#  - When grouping-engine names for cloud instance id / asset id are confirmed,
+#    map resource_id there -- the robust replacement for the hostname heuristic.
 # ============================================================================

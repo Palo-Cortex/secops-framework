@@ -1,5 +1,5 @@
 rule_id: 0
-fromversion: 8.0.0
+fromversion: 6.10.0
 tags:
   - SOCFramework
   - Passthrough
@@ -17,6 +17,8 @@ alert_fields:
   originalalertid: originalalertid
   originalalertname: originalalertname
   alert_name: alert_name
+  agent_hostname: agent_hostname
+  hostname: agent_hostname
   cloudprovider: cloud_provider
   cloudaccount: cloud_account
   cloudregion: cloud_region
@@ -82,6 +84,10 @@ xql_query: |
       resource_id    = coalesce(
           json_extract_scalar(entitysnapshot, "$.externalId"),
           json_extract_scalar(entitysnapshot, "$.id"))
+
+  | alter agent_hostname = if(
+      lowercase(coalesce(resource_type, "")) ~= "virtualmachine|instance|vm|compute|ec2",
+      resource_name, null)
   | alter
       originalalertid     = finding_id,
       originalalertname   = finding_name,
@@ -91,4 +97,4 @@ xql_query: |
           coalesce(resource_type, "Resource"), " | ",
           coalesce(finding_name, "Finding"))
   | fields
-      _time, vendor_name, product_name, severity, finding_type, finding_status, finding_id, finding_name, alert_description, recommendation, cloud_provider, cloud_account, cloud_region, resource_name, resource_type, resource_id, alert_name, originalalertid, originalalertname
+      _time, vendor_name, product_name, severity, finding_type, finding_status, finding_id, finding_name, alert_description, recommendation, cloud_provider, cloud_account, cloud_region, resource_name, resource_type, resource_id, agent_hostname, alert_name, originalalertid, originalalertname

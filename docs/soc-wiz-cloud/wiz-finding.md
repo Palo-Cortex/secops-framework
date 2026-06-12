@@ -116,6 +116,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `originalalertid` | `originalalertid` | `computed` |  |
 | `originalalertname` | `originalalertname` | `computed` |  |
 | `alert_name` | `alert_name` | `computed` |  |
+| `agent_hostname` | `agent_hostname` | `computed` |  |
+| `hostname` | `agent_hostname` | `computed` |  |
 | `cloudprovider` | `cloud_provider` | `computed` |  |
 | `cloudaccount` | `cloud_account` | `computed` |  |
 | `cloudregion` | `cloud_region` | `computed` |  |
@@ -154,6 +156,16 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     resource_id    = coalesce(
         json_extract_scalar(entitysnapshot, "$.externalId"),
         json_extract_scalar(entitysnapshot, "$.id"))
+// Conditional hostname pivot: when the resource is a compute
+// instance, resource_name is the VM hostname -- a posture finding then
+// groups with EDR runtime detections on the same host. Null for non-compute
+// (buckets, IAM) so no junk pivots. DELIBERATELY the only grouping field:
+// posture findings must not be aggressively glued into IR cases.
+// Heuristic regex over nativeType -- tighten to exact tenant values via:
+//   dataset = wiz_generic_alert_raw | alter rt = coalesce(...nativeType, ...type) | comp count() by rt
+| alter agent_hostname = if(
+    lowercase(coalesce(resource_type, "")) ~= "virtualmachine|instance|vm|compute|ec2",
+    resource_name, null)
 | alter
     originalalertid     = finding_id,
     originalalertname   = finding_name,
