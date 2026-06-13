@@ -52,7 +52,7 @@ def _resolve_ctx_string(s, ctx):
 
     m = CTX_REF_RE.match(s)
     if m:
-        return demisto.get(ctx, m.group(1))
+        return _resolve_ctx_path(ctx, m.group(1))
 
     if (
             s.startswith("SOCFramework.")
@@ -61,13 +61,48 @@ def _resolve_ctx_string(s, ctx):
             or s.startswith("issue.")
             or s.startswith("parentIncidentFields.")
     ):
-        val = demisto.get(ctx, s)
-        # Context values are often stored as lists — extract first non-empty element
-        if isinstance(val, list):
-            val = next((v for v in val if v not in (None, "", [], {})), None)
-        return val
+        return _resolve_ctx_path(ctx, s)
 
     return s
+
+
+def _resolve_ctx_path(ctx, path):
+    """
+    Resolve a dotted context path, traversing intermediate lists.
+
+    demisto.get() only walks dict keys, so a path like
+    SOCFramework.Email.threat_id resolves to None whenever an
+    intermediate node (e.g. SOCFramework.Email) is stored as a list —
+    which Normalize/Enrich frequently produce. Walk segment by segment,
+    flattening list nodes as we go, then return the first non-empty
+    scalar (matching prior leaf-list behavior).
+    """
+    node = ctx
+
+    for segment in path.split("."):
+        if isinstance(node, list):
+            # Flatten: collect this segment from every dict element
+            collected = []
+            for item in node:
+                if isinstance(item, dict) and segment in item:
+                    v = item[segment]
+                    if isinstance(v, list):
+                        collected.extend(v)
+                    else:
+                        collected.append(v)
+            node = collected
+        elif isinstance(node, dict):
+            node = node.get(segment)
+        else:
+            return None
+
+        if node in (None, "", [], {}):
+            return None
+
+    if isinstance(node, list):
+        node = next((v for v in node if v not in (None, "", [], {})), None)
+
+    return node
 
 
 def _resolve_templates(obj, ctx):
@@ -838,7 +873,13 @@ def main():
             tags
         )
 
-        execute_args = dict(inline_args)
+        # Drop args that failed context resolution — sending empty values
+        # to vendor APIs causes 4xx errors (e.g. Proofpoint TAP 400 when
+        # threatId/campaignId are present-but-empty).
+        execute_args = {
+            k: v for k, v in inline_args.items()
+            if v not in (None, "", [], {})
+        }
         if using:
             execute_args["using"] = using
 
