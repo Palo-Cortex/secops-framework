@@ -52,6 +52,33 @@ Fields available in the raw ingest dataset.
 | `dns_requests` | `json` | ✓ | inferred_from_correlation |  |
 | `network_accesses` | `json` | ✓ | inferred_from_correlation |  |
 | `files_written` | `json` | ✓ | inferred_from_correlation |  |
+| `source_account_name` | `string` |  | confirmed |  |
+| `source_account_upn` | `string` |  | confirmed |  |
+| `source_account_object_sid` | `string` |  | confirmed |  |
+| `source_endpoint_host_name` | `string` |  | confirmed |  |
+| `source_endpoint_address_ip4` | `string` |  | confirmed |  |
+| `source_endpoint_address_ip6` | `string` |  | confirmed |  |
+| `source_endpoint_sensor_id` | `string` |  | confirmed |  |
+| `target_account_name` | `string` |  | confirmed |  |
+| `target_account_object_sid` | `string` |  | confirmed |  |
+| `target_endpoint_host_name` | `string` |  | confirmed |  |
+| `target_endpoint_sensor_id` | `string` |  | confirmed |  |
+| `logon_domain` | `string` |  | confirmed |  |
+| `destination_ips` | `json` |  | confirmed |  |
+| `sso_application_identifier` | `string` |  | confirmed |  |
+| `sso_application_uri` | `string` |  | confirmed |  |
+| `idp_policy_rule_name` | `string` |  | confirmed |  |
+| `idp_policy_rule_action` | `string` |  | confirmed |  |
+| `idp_policy_rule_trigger` | `string` |  | confirmed |  |
+| `idp_policy_mfa_provider` | `string` |  | confirmed |  |
+| `idp_policy_mfa_factor_type` | `string` |  | confirmed |  |
+| `display_name` | `string` |  | confirmed |  |
+| `tactic` | `string` |  | confirmed |  |
+| `tactic_id` | `string` |  | confirmed |  |
+| `technique` | `string` |  | confirmed |  |
+| `technique_id` | `string` |  | confirmed |  |
+| `location_country_code` | `string` |  | confirmed |  |
+| `pattern_disposition` | `string` |  | confirmed |  |
 
 ## Modeling Rule — SOC CrowdStrike Falcon Modeling Rule
 
@@ -72,13 +99,20 @@ What each XDM field is, where it sources from, what issue field it surfaces on, 
 | `xdm.event.original_event_type` | `incident_type` | `incident_type` | `original_event_type` |  |
 | `xdm.event.type` | `incident_type` | `incident_type` | `event_type` | Same source as original_event_type — duplicate mapping, intentional. |
 | `xdm.event.description` | `description` | `description` | `alert_description` |  |
-| `xdm.source.host.hostname` | `device->hostname` | `device` | `hostname` |  |
+| `xdm.source.host.hostname` | `coalesce(device->hostname, source_endpoint_host_name)` | `device, source_endpoint_host_name` | `hostname` | epp device struct; idp flat source endpoint column. |
 | `xdm.source.host.fqdn` | `device->machine_domain` | `device` | `hostfqdn` | machine_domain is being mapped to fqdn here AND to user.domain below. In Falcon's schema it's the AD domain — fqdn would be hostname + machine_domain concatenated. Flag for review. |
 | `xdm.source.host.os_family` | `device->os_version` | `device` | `hostos` | os_version is the OS version string (e.g., "Windows 10 Pro"); os_family should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain. |
-| `xdm.source.ipv4` | `device->local_ip` | `device` | `hostip` |  |
-| `xdm.source.user.username` | `user_name` | `user_name` | `username` |  |
-| `xdm.source.user.domain` | `device->machine_domain` | `device` | `userdomain` |  |
+| `xdm.source.ipv4` | `coalesce(device->local_ip, source_endpoint_address_ip4)` | `device, source_endpoint_address_ip4` | `hostip` |  |
+| `xdm.source.user.username` | `coalesce(user_name, source_account_name)` | `user_name, source_account_name` | `username` |  |
+| `xdm.source.user.domain` | `coalesce(device->machine_domain, logon_domain)` | `device, logon_domain` | `userdomain` |  |
 | `xdm.source.user.groups` | `device->groups[]` | `device` | `usergroups` |  |
+| `xdm.source.user.upn` | `coalesce(user_principal, source_account_upn)` | `user_principal, source_account_upn` | `userupn` |  |
+| `xdm.source.user.identifier` | `source_account_object_sid` | `source_account_object_sid` | `usersid` |  |
+| `xdm.target.user.username` | `target_account_name` | `target_account_name` | `targetuser` |  |
+| `xdm.target.user.identifier` | `target_account_object_sid` | `target_account_object_sid` | `targetusersid` |  |
+| `xdm.target.host.hostname` | `target_endpoint_host_name` | `target_endpoint_host_name` | `targethostname` |  |
+| `xdm.target.agent.identifier` | `target_endpoint_sensor_id` | `target_endpoint_sensor_id` | `targetagentid` |  |
+| `xdm.source.agent.identifier` | `coalesce(agent_id, source_endpoint_sensor_id)` | `agent_id, source_endpoint_sensor_id` | `agentid` | Falcon aid; epp flat agent_id, idp source sensor id — same value space. |
 | `xdm.source.process.pid` | `to_integer(local_process_id)` | `local_process_id` | `initiatorpid` |  |
 | `xdm.source.process.name` | `parent_details->filename` | `parent_details` | `initiatedby` | Currently mapping PARENT process name into source.process slot. |
 | `xdm.source.process.executable.path` | `parent_details->filepath` | `parent_details` | `initiatorpath` |  |
@@ -356,4 +390,178 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_file_sha256                  = sha256,
         action_local_ip                     = local_ip,
         action_remote_ip                    = remote_ips
+```
+
+### SOC CrowdStrike Falcon - IDP Alerts
+
+| Field | Value |
+|---|---|
+| global_rule_id | `SOC CrowdStrike Falcon - IDP Alerts` |
+| subtype | `passthrough` |
+| fromversion | `8.0.0` |
+
+Creates an XSIAM alert for each CrowdStrike Identity Protection (IDP) detection. SINGLE consolidated rule: all MITRE tactics, all severities, vendor severity passed through unmodified. Replaces the per-tactic v1 fleet (Initial Access / Credential Access / ...) -- user_defined_category on tactic preserves per-tactic categorization without per-tactic rules, mirroring the epp consolidation. Two-sided identity contract: source principal/endpoint mapped to the standard grouping fields, target side to dst_agent_id / dst hostname / destination username so lateral-movement detections group with both the attacking endpoint's EPP alerts and the victim host. Sensor ids are Falcon aids — the same values the epp rule emits in agent_id, closing the endpoint↔IDP agent pivot. cid is the Falcon customer (tenant) id and must NEVER be used as a grouping key: it is identical on every event in the environment.
+
+**Tags:** `SOCFramework`, `Detection`, `Identity`, `CrowdStrikeIDP`
+
+#### Schema Constants
+
+| Field | Value |
+|---|---|
+| rule_id | `0` |
+| alert_category | `User Defined` |
+| alert_domain | `DOMAIN_SECURITY` |
+| action | `ALERTS` |
+| execution_mode | `SCHEDULED` |
+| mapping_strategy | `CUSTOM` |
+| user_defined_category | `tactic` |
+| user_defined_severity | `alert_severity` |
+| is_enabled | `✓` |
+| drilldown_query_timeframe | `ALERT` |
+| severity | `User Defined` |
+
+#### Suppression
+
+| Field | Value |
+|---|---|
+| enabled | `✓` |
+| duration | `1 hours` |
+| fields | `composite_id` |
+
+composite_id is CrowdStrike's per-detection unique identifier.
+
+#### Alert Fields
+
+Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
+
+| Issue Field | Source | Bucket | Description |
+|---|---|---|---|
+| `vendor` | `vendor` | `computed` |  |
+| `product` | `product` | `computed` |  |
+| `severity` | `severity` | `computed` |  |
+| `alert_description` | `alert_description` | `computed` |  |
+| `originalalertid` | `originalalertid` | `computed` |  |
+| `originalalertname` | `originalalertname` | `computed` |  |
+| `originalalertsource` | `originalalertsource` | `computed` |  |
+| `externallink` | `externallink` | `computed` |  |
+| `mitretacticid` | `mitretacticid` | `computed` |  |
+| `mitretacticname` | `mitretacticname` | `computed` |  |
+| `mitretechniqueid` | `mitretechniqueid` | `computed` |  |
+| `mitretechniquename` | `mitretechniquename` | `computed` |  |
+| `agent_hostname` | `agent_hostname` | `computed` |  |
+| `agent_id` | `agent_id` | `computed` |  |
+| `agent_device_domain` | `agent_device_domain` | `computed` |  |
+| `actor_effective_username` | `actor_effective_username` | `computed` |  |
+| `action_local_ip` | `action_local_ip` | `computed` |  |
+| `action_remote_ip` | `action_remote_ip` | `computed` |  |
+| `causality_actor_causality_id` | `causality_id` | `computed` |  |
+| `xdmsourceprocesscausalityid` | `causality_id` | `computed` |  |
+| `user_principal` | `user_principal` | `raw` |  |
+| `dst_agent_id` | `dst_sensor_id` | `computed` |  |
+| `dst_hostname` | `dst_host` | `computed` |  |
+| `dst_username` | `dst_account_name` | `computed` |  |
+| `username` | `actor_effective_username` | `computed` |  |
+| `hostname` | `agent_hostname` | `computed` |  |
+| `domain` | `agent_device_domain` | `computed` |  |
+| `agentid` | `agent_id` | `computed` |  |
+| `localip` | `action_local_ip` | `computed` |  |
+| `remoteip` | `action_remote_ip` | `computed` |  |
+| `usersid` | `src_account_sid` | `computed` |  |
+| `socfwidentitysourceaccount` | `src_account_name` | `computed` |  |
+| `socfwidentitysourcesid` | `src_account_sid` | `computed` |  |
+| `socfwidentitysourcehost` | `src_host` | `computed` |  |
+| `socfwidentitysourceip` | `src_ip` | `computed` |  |
+| `socfwidentitytargetaccount` | `dst_account_name` | `computed` |  |
+| `socfwidentitytargetsid` | `dst_account_sid` | `computed` |  |
+| `socfwidentitytargethost` | `dst_host` | `computed` |  |
+| `socfwidentityssoapp` | `sso_application_identifier` | `raw` |  |
+| `socfwidentitypolicyrule` | `idp_policy_rule_name` | `raw` |  |
+| `socfwidentitypolicyaction` | `idp_policy_rule_action` | `raw` |  |
+| `socfwidentitypolicytrigger` | `idp_policy_rule_trigger` | `raw` |  |
+| `socfwidentitymfaprovider` | `idp_policy_mfa_provider` | `raw` |  |
+| `socfwidentitymfafactor` | `idp_policy_mfa_factor_type` | `raw` |  |
+| `scenario` | `scenario` | `raw` |  |
+| `objective` | `objective` | `raw` |  |
+| `externalconfidence` | `confidence` | `raw` |  |
+| `locationregion` | `location_country_code` | `raw` |  |
+| `alertaction` | `pattern_disposition` | `raw` |  |
+| `employeedisplayname` | `display_name` | `raw` |  |
+| `alert_name` | `alert_name` | `computed` |  |
+
+#### Pre-Alter XQL
+
+```xql
+| alter vendor_name = "CrowdStrike", product_name = "Falcon Identity Protection"
+
+| filter product = "idp"
+| filter timestamp_diff(time_frame_end(), _time, "MINUTE") <= 15
+
+// Severity passthrough -- vendor severity unmodified. (The per-tactic v1
+// fleet demoted Medium->Low; tenant-level tuning like that belongs in
+// Issue Exclusions or per-tenant overrides, not framework content.)
+| alter alert_severity = severity_name
+
+// IDP-specific extraction (flat source_*/target_* columns). Coalesce
+// with the epp-shaped fields so one rule body serves whichever columns
+// the event populates.
+| alter src_account_name = source_account_name,
+        src_account_upn  = source_account_upn,
+        src_account_sid  = source_account_object_sid,
+        src_host         = source_endpoint_host_name,
+        src_ip           = source_endpoint_address_ip4,
+        src_ip_v6        = source_endpoint_address_ip6,
+        src_sensor_id    = source_endpoint_sensor_id,
+        dst_account_name = target_account_name,
+        dst_account_sid  = target_account_object_sid,
+        dst_host         = target_endpoint_host_name,
+        dst_sensor_id    = target_endpoint_sensor_id,
+        idp_logon_domain = logon_domain
+
+// destination_ips is a json array; first IPv4 for the remote-ip pivot
+| alter dst_ip = arrayindex(regextract(to_json_string(destination_ips), "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"), 0)
+
+// Username normalization: lowercase full principal, UPN preferred.
+| alter user_canon = lowercase(coalesce(user_principal, source_account_upn, user_name, source_account_name))
+
+// Identity context for layout richness: who -> what -> where
+| alter idp_context = concat(
+    "Source: ", coalesce(src_account_name, "Unknown"),
+    " @ ", coalesce(src_host, "Unknown"), " (", coalesce(src_ip, "n/a"), ")",
+    " -> Target: ", coalesce(dst_account_name, "n/a"),
+    " @ ", coalesce(dst_host, "n/a"),
+    " | App: ", coalesce(sso_application_identifier, sso_application_uri, "n/a"),
+    " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
+    " (", coalesce(idp_policy_rule_action, "no action"), ")",
+    " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
+  )
+
+| alter alert_name = concat(
+    "[Identity] ",
+    coalesce(user_canon, display_name, src_host, "Unknown"),
+    " - ", coalesce(tactic, "Detection"),
+    ": ", coalesce(technique, name)),
+  alert_description = concat(
+    coalesce(description, name),
+    " | Severity: ", coalesce(severity_name, "Unknown"),
+    " | ", idp_context)
+
+| alter
+        vendor                   = vendor_name,
+        product                  = product_name,
+        originalalertid          = composite_id,
+        originalalertname        = alert_name,
+        originalalertsource      = "CrowdStrike Falcon Identity Protection",
+        externallink             = falcon_host_link,
+        severity                 = severity_name,
+        mitretacticid            = tactic_id,
+        mitretacticname          = tactic,
+        mitretechniqueid         = technique_id,
+        mitretechniquename       = technique,
+        agent_hostname           = coalesce(src_host, device -> hostname),
+        agent_id                 = coalesce(src_sensor_id, agent_id),
+        agent_device_domain      = coalesce(idp_logon_domain, device -> machine_domain),
+        actor_effective_username = user_canon,
+        action_local_ip          = coalesce(src_ip, device -> local_ip),
+        action_remote_ip         = dst_ip,
+        causality_id             = aggregate_id
 ```

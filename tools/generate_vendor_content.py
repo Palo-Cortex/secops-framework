@@ -49,6 +49,19 @@ REQUIRED_CORRELATION_BLOCK_FIELDS = {
     "schema_constants", "alert_name", "alert_description", "alert_fields",
     "contributes",
 }
+# Every key the emitter actually consumes from a correlation_rules entry.
+# A key outside this set is silently ignored at emit — which previously let a
+# nested `schedule:` block emit a SCHEDULED rule with null search_window /
+# simple_schedule and fail platform install (101704). Guard fails the emit
+# loudly with the offending key name instead.
+ALLOWED_CORRELATION_KEYS = {
+    "subtype", "fromversion", "global_rule_id", "name", "description",
+    "tags", "schema_constants", "alert_name", "alert_description",
+    "alert_type", "alert_fields", "crontab", "dataset",
+    "investigation_query_link", "mitre_defs", "search_window",
+    "simple_schedule", "suppression", "timezone", "pre_alter",
+    "final_projection", "contributes",
+}
 
 
 # ----------------------------- IO helpers ------------------------------------
@@ -112,6 +125,16 @@ def validate_mapping(doc: dict) -> list[str]:
         for f in REQUIRED_CORRELATION_BLOCK_FIELDS:
             if f not in cr:
                 errors.append(f"{prefix}.{f} is required")
+
+        unknown = set(cr) - ALLOWED_CORRELATION_KEYS
+        if unknown:
+            errors.append(
+                f"{prefix}: unrecognized key(s) {sorted(unknown)} — the emitter "
+                f"does not consume these, so their values would be silently "
+                f"dropped. Remove them or hoist to a recognized key "
+                f"(e.g. nest schedule values as top-level search_window / "
+                f"simple_schedule)."
+            )
 
         subtype = cr.get("subtype")
         mitre_defs = cr.get("mitre_defs", {})

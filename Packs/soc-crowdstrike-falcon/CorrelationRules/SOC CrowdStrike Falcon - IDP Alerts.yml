@@ -1,0 +1,171 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Detection
+  - Identity
+  - CrowdStrikeIDP
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor
+  product: product
+  severity: severity
+  alert_description: alert_description
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  agent_device_domain: agent_device_domain
+  actor_effective_username: actor_effective_username
+  action_local_ip: action_local_ip
+  action_remote_ip: action_remote_ip
+  causality_actor_causality_id: causality_id
+  xdmsourceprocesscausalityid: causality_id
+  user_principal: user_principal
+  dst_agent_id: dst_sensor_id
+  dst_hostname: dst_host
+  dst_username: dst_account_name
+  username: actor_effective_username
+  hostname: agent_hostname
+  domain: agent_device_domain
+  agentid: agent_id
+  localip: action_local_ip
+  remoteip: action_remote_ip
+  usersid: src_account_sid
+  socfwidentitysourceaccount: src_account_name
+  socfwidentitysourcesid: src_account_sid
+  socfwidentitysourcehost: src_host
+  socfwidentitysourceip: src_ip
+  socfwidentitytargetaccount: dst_account_name
+  socfwidentitytargetsid: dst_account_sid
+  socfwidentitytargethost: dst_host
+  socfwidentityssoapp: sso_application_identifier
+  socfwidentitypolicyrule: idp_policy_rule_name
+  socfwidentitypolicyaction: idp_policy_rule_action
+  socfwidentitypolicytrigger: idp_policy_rule_trigger
+  socfwidentitymfaprovider: idp_policy_mfa_provider
+  socfwidentitymfafactor: idp_policy_mfa_factor_type
+  scenario: scenario
+  objective: objective
+  externalconfidence: confidence
+  locationregion: location_country_code
+  alertaction: pattern_disposition
+  employeedisplayname: display_name
+  alert_name: alert_name
+alert_name: CrowdStrike Falcon - $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+name: SOC CrowdStrike Falcon - IDP Alerts
+description: >-
+  Creates an XSIAM alert for each CrowdStrike Identity Protection (IDP)
+  detection. SINGLE consolidated rule: all MITRE tactics, all severities, vendor
+  severity passed through unmodified. Replaces the per-tactic v1 fleet (Initial
+  Access / Credential Access / ...) -- user_defined_category on tactic preserves
+  per-tactic categorization without per-tactic rules, mirroring the epp
+  consolidation. Two-sided identity contract: source principal/endpoint mapped
+  to the standard grouping fields, target side to dst_agent_id / dst hostname /
+  destination username so lateral-movement detections group with both the
+  attacking endpoint's EPP alerts and the victim host. Sensor ids are Falcon
+  aids — the same values the epp rule emits in agent_id, closing the
+  endpoint↔IDP agent pivot. cid is the Falcon customer (tenant) id and must
+  NEVER be used as a grouping key: it is identical on every event in the
+  environment.
+drilldown_query_timeframe: ALERT
+execution_mode: SCHEDULED
+global_rule_id: SOC CrowdStrike Falcon - IDP Alerts
+investigation_query_link: |-
+  dataset = crowdstrike_falcon_event_raw
+  | filter product = "idp" and composite_id = "$originalalertid"
+  | fields *
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs: {}
+search_window: 25 hours
+severity: User Defined
+simple_schedule: 10 minutes
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- composite_id
+timezone: null
+user_defined_category: tactic
+user_defined_severity: alert_severity
+xql_query: |
+  dataset = crowdstrike_falcon_event_raw
+  | alter vendor_name = "CrowdStrike", product_name = "Falcon Identity Protection"
+
+  | filter product = "idp"
+  | filter timestamp_diff(time_frame_end(), _time, "MINUTE") <= 15
+
+  | alter alert_severity = severity_name
+
+  | alter src_account_name = source_account_name,
+          src_account_upn  = source_account_upn,
+          src_account_sid  = source_account_object_sid,
+          src_host         = source_endpoint_host_name,
+          src_ip           = source_endpoint_address_ip4,
+          src_ip_v6        = source_endpoint_address_ip6,
+          src_sensor_id    = source_endpoint_sensor_id,
+          dst_account_name = target_account_name,
+          dst_account_sid  = target_account_object_sid,
+          dst_host         = target_endpoint_host_name,
+          dst_sensor_id    = target_endpoint_sensor_id,
+          idp_logon_domain = logon_domain
+
+  | alter dst_ip = arrayindex(regextract(to_json_string(destination_ips), "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"), 0)
+
+  | alter user_canon = lowercase(coalesce(user_principal, source_account_upn, user_name, source_account_name))
+
+  | alter idp_context = concat(
+      "Source: ", coalesce(src_account_name, "Unknown"),
+      " @ ", coalesce(src_host, "Unknown"), " (", coalesce(src_ip, "n/a"), ")",
+      " -> Target: ", coalesce(dst_account_name, "n/a"),
+      " @ ", coalesce(dst_host, "n/a"),
+      " | App: ", coalesce(sso_application_identifier, sso_application_uri, "n/a"),
+      " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
+      " (", coalesce(idp_policy_rule_action, "no action"), ")",
+      " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
+    )
+
+  | alter alert_name = concat(
+      "[Identity] ",
+      coalesce(user_canon, display_name, src_host, "Unknown"),
+      " - ", coalesce(tactic, "Detection"),
+      ": ", coalesce(technique, name)),
+    alert_description = concat(
+      coalesce(description, name),
+      " | Severity: ", coalesce(severity_name, "Unknown"),
+      " | ", idp_context)
+
+  | alter
+          vendor                   = vendor_name,
+          product                  = product_name,
+          originalalertid          = composite_id,
+          originalalertname        = alert_name,
+          originalalertsource      = "CrowdStrike Falcon Identity Protection",
+          externallink             = falcon_host_link,
+          severity                 = severity_name,
+          mitretacticid            = tactic_id,
+          mitretacticname          = tactic,
+          mitretechniqueid         = technique_id,
+          mitretechniquename       = technique,
+          agent_hostname           = coalesce(src_host, device -> hostname),
+          agent_id                 = coalesce(src_sensor_id, agent_id),
+          agent_device_domain      = coalesce(idp_logon_domain, device -> machine_domain),
+          actor_effective_username = user_canon,
+          action_local_ip          = coalesce(src_ip, device -> local_ip),
+          action_remote_ip         = dst_ip,
+          causality_id             = aggregate_id
+  | fields
+      _time, vendor_name, product_name, severity, alert_severity, alert_name, alert_description, idp_context, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_ip_v6, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, user_canon, user_principal, causality_id, composite_id, aggregate_id, falcon_host_link, tactic, tactic_id, technique, technique_id, sso_application_identifier, sso_application_uri, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, display_name, scenario, objective, confidence, location_country_code, pattern_disposition
