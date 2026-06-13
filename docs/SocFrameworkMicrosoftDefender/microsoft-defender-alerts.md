@@ -151,7 +151,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `action_file_sha256` | `action_file_sha256` | `computed` |  |
 | `action_local_ip` | `action_local_ip` | `computed` |  |
 | `action_remote_ip` | `action_remote_ip` | `computed` |  |
-| `samaccountname` | `evidence_user_upn` | `computed` |  |
 | `usersid` | `evidence_user_userSid` | `computed` |  |
 | `actor_process_signature_vendor` | `evidence_process_signer` | `computed` |  |
 | `processid` | `evidence_process_pid` | `computed` |  |
@@ -164,6 +163,11 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `deviceexternalips` | `evidence_device_externalip` | `computed` |  |
 | `deviceosname` | `evidence_device_os` | `computed` |  |
 | `action_remote_ip_v6` | `evidence_remote_ipv6` | `computed` |  |
+| `user_principal` | `user_principal` | `computed` |  |
+| `causality_actor_causality_id` | `causality_synth` | `computed` |  |
+| `xdmsourceprocesscausalityid` | `causality_synth` | `computed` |  |
+| `samaccountname` | `evidence_loggedon_user` | `computed` |  |
+| `userid` | `evidence_user_upn` | `computed` |  |
 | `alertaction` | `evidence_process_action` | `computed` |  |
 | `detectionid` | `detectorId` | `raw` |  |
 | `alert_name` | `alert_name` | `computed` |  |
@@ -264,6 +268,14 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     evidence_local_ipv4        = deviceEvidence -> lastIpAddress,
     evidence_device_dnsdomain  = deviceEvidence -> deviceDnsName
 
+// Mailbox evidence (some XDR email-flavored alerts carry it) -- feeds the
+// username coalesce when user evidence is absent, i.e. exactly the alerts
+// that should pivot against Proofpoint TAP.
+| alter
+    mailboxEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "mailboxEvidence"), 0)
+| alter
+    evidence_mailbox_address = mailboxEvidence -> primaryAddress
+
 // User evidence
 | alter
     evidence_user_upn      = userEvidence -> userAccount.userPrincipalName,
@@ -278,9 +290,19 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     evidence_remote_ipv6 = if(ipEvidence -> ipAddress ~= "^[0-9a-f:]+$",
                               ipEvidence -> ipAddress, null)
 
-// Unified source_user + SOC Framework grouping keys
+// Unified source_user + SOC Framework grouping keys.
+// Username normalization: lowercase full principal, UPN preferred.
+// userPrincipalName arrives mixed-case (e.g. "Jane.Doe@example.com") and
+// accountName bare (e.g. "jane.doe"); lowercasing avoids a casing
+// pivot-killer. user_principal keeps raw-case UPN as the parallel pivot.
+// causality_synth: Graph alerts carry no process-causality id, but
+// Microsoft already correlated them into incidents -- namespaced
+// msgraph-incident-<id> makes alerts of one Defender incident case-group
+// in XSIAM, and can never collide with process-causality GUIDs.
 | alter
-    source_user           = coalesce(evidence_loggedon_user, evidence_user_upn),
+    source_user           = lowercase(coalesce(evidence_user_upn, evidence_mailbox_address, evidence_loggedon_user)),
+    user_principal        = evidence_user_upn,
+    causality_synth       = if(incidentId != null, concat("msgraph-incident-", to_string(incidentId)), null),
     cid                   = incidentId,
     initiator_sha256      = evidence_process_sha256,
     cgo_sha256            = evidence_parent_process_sha256,

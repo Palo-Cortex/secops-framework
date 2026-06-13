@@ -278,6 +278,14 @@ correlation_rules:
           evidence_local_ipv4        = deviceEvidence -> lastIpAddress,
           evidence_device_dnsdomain  = deviceEvidence -> deviceDnsName
 
+      // Mailbox evidence (some XDR email-flavored alerts carry it) -- feeds the
+      // username coalesce when user evidence is absent, i.e. exactly the alerts
+      // that should pivot against Proofpoint TAP.
+      | alter
+          mailboxEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "mailboxEvidence"), 0)
+      | alter
+          evidence_mailbox_address = mailboxEvidence -> primaryAddress
+
       // User evidence
       | alter
           evidence_user_upn      = userEvidence -> userAccount.userPrincipalName,
@@ -292,9 +300,19 @@ correlation_rules:
           evidence_remote_ipv6 = if(ipEvidence -> ipAddress ~= "^[0-9a-f:]+$",
                                     ipEvidence -> ipAddress, null)
 
-      // Unified source_user + SOC Framework grouping keys
+      // Unified source_user + SOC Framework grouping keys.
+      // Username normalization: lowercase full principal, UPN preferred.
+      // userPrincipalName arrives mixed-case (e.g. "Jane.Doe@example.com") and
+      // accountName bare (e.g. "jane.doe"); lowercasing avoids a casing
+      // pivot-killer. user_principal keeps raw-case UPN as the parallel pivot.
+      // causality_synth: Graph alerts carry no process-causality id, but
+      // Microsoft already correlated them into incidents -- namespaced
+      // msgraph-incident-<id> makes alerts of one Defender incident case-group
+      // in XSIAM, and can never collide with process-causality GUIDs.
       | alter
-          source_user           = coalesce(evidence_loggedon_user, evidence_user_upn),
+          source_user           = lowercase(coalesce(evidence_user_upn, evidence_mailbox_address, evidence_loggedon_user)),
+          user_principal        = evidence_user_upn,
+          causality_synth       = if(incidentId != null, concat("msgraph-incident-", to_string(incidentId)), null),
           cid                   = incidentId,
           initiator_sha256      = evidence_process_sha256,
           cgo_sha256            = evidence_parent_process_sha256,
@@ -386,6 +404,9 @@ correlation_rules:
       - file_sha256
       - remote_ip
       - source_user
+      - user_principal
+      - causality_synth
+      - evidence_mailbox_address
       - evidence_user_upn
       - evidence_user_userSid
       - evidence_process_name
@@ -451,7 +472,6 @@ correlation_rules:
       # Preserved as shipped. Defender XSIAM-XDR fields and MDE-specific surfacing.
 
       # User
-      - {issue_field: samaccountname, source: evidence_user_upn, bucket: computed}
       - {issue_field: usersid, source: evidence_user_userSid, bucket: computed}
 
       # Process — additional XSIAM XDR fields
@@ -472,6 +492,15 @@ correlation_rules:
 
       # Network — IPv6 not in canonical core
       - {issue_field: action_remote_ip_v6, source: evidence_remote_ipv6, bucket: computed}
+
+      # Cross-rule grouping pivots
+      - {issue_field: user_principal,               source: user_principal,  bucket: computed}
+      - {issue_field: causality_actor_causality_id, source: causality_synth, bucket: computed}
+      - {issue_field: xdmsourceprocesscausalityid,  source: causality_synth, bucket: computed}
+      # samaccountname is the SAM account (evidence_loggedon_user); the UPN
+      # rides userid below.
+      - {issue_field: samaccountname, source: evidence_loggedon_user, bucket: computed}
+      - {issue_field: userid,         source: evidence_user_upn,      bucket: computed}
 
       # Alert metadata
       - {issue_field: alertaction, source: evidence_process_action, bucket: computed}
@@ -511,8 +540,8 @@ correlation_rules:
       - {issue_field: initiatorpid                    , source: actor_process_os_pid                    , bucket: computed}  # ← actor_process_os_pid
 
       # ---- Causality (CGO) ----
-      # Note: causality_actor_causality_id is not produced by this vendor's pre_alter,
-      # so xdmsourceprocesscausalityid is not aliased here. CrowdStrike's pack handles it.
+      # causality_actor_causality_id IS produced (causality_synth, see pre_alter)
+      # and mapped in the grouping-pivots block above.
       - {issue_field: cgosha256                       , source: causality_actor_process_image_sha256    , bucket: computed}  # ← causality_actor_process_image_sha256
 
       # ---- Action target (file) ----

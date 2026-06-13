@@ -39,7 +39,6 @@ alert_fields:
   action_file_sha256: action_file_sha256
   action_local_ip: action_local_ip
   action_remote_ip: action_remote_ip
-  samaccountname: evidence_user_upn
   usersid: evidence_user_userSid
   actor_process_signature_vendor: evidence_process_signer
   processid: evidence_process_pid
@@ -52,6 +51,11 @@ alert_fields:
   deviceexternalips: evidence_device_externalip
   deviceosname: evidence_device_os
   action_remote_ip_v6: evidence_remote_ipv6
+  user_principal: user_principal
+  causality_actor_causality_id: causality_synth
+  xdmsourceprocesscausalityid: causality_synth
+  samaccountname: evidence_loggedon_user
+  userid: evidence_user_upn
   alertaction: evidence_process_action
   detectionid: detectorId
   alert_name: alert_name
@@ -209,6 +213,11 @@ xql_query: |
       evidence_device_dnsdomain  = deviceEvidence -> deviceDnsName
 
   | alter
+      mailboxEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "mailboxEvidence"), 0)
+  | alter
+      evidence_mailbox_address = mailboxEvidence -> primaryAddress
+
+  | alter
       evidence_user_upn      = userEvidence -> userAccount.userPrincipalName,
       evidence_user_domain   = userEvidence -> userAccount.domainName,
       evidence_user_userSid  = userEvidence -> userAccount.userSid,
@@ -221,7 +230,9 @@ xql_query: |
                                 ipEvidence -> ipAddress, null)
 
   | alter
-      source_user           = coalesce(evidence_loggedon_user, evidence_user_upn),
+      source_user           = lowercase(coalesce(evidence_user_upn, evidence_mailbox_address, evidence_loggedon_user)),
+      user_principal        = evidence_user_upn,
+      causality_synth       = if(incidentId != null, concat("msgraph-incident-", to_string(incidentId)), null),
       cid                   = incidentId,
       initiator_sha256      = evidence_process_sha256,
       cgo_sha256            = evidence_parent_process_sha256,
@@ -272,4 +283,4 @@ xql_query: |
           action_local_ip                     = evidence_local_ipv4,
           action_remote_ip                    = evidence_remote_ipv4
   | fields
-      _time, incidentId, productName, vendor_name, product_name, title, description, severity, tactic, alert_name, category, alertWebUrl, providerAlertId, detectorId, mitreTechniques, mitre_str, cat_norm, mitre_tactic, mitre_tactic_id, mitre_technique, mitre_technique_id, cid, initiator_sha256, cgo_sha256, target_process_sha256, file_sha256, remote_ip, source_user, evidence_user_upn, evidence_user_userSid, evidence_process_name, evidence_process_path, evidence_process_command_line, evidence_process_signer, evidence_process_sha256, evidence_process_pid, evidence_parent_process_name, evidence_parent_process_path, evidence_parent_process_sha256, evidence_parent_process_pid, evidence_file_name, evidence_file_sha256, evidence_device_hostname, evidence_device_ntdomain, evidence_device_os, evidence_device_agentid, evidence_local_ipv4, evidence_remote_ipv4, evidence_remote_ipv6, evidence_device_externalip, evidence_parent_process_signer, evidence_process_starttime, evidence_process_action
+      _time, incidentId, productName, vendor_name, product_name, title, description, severity, tactic, alert_name, category, alertWebUrl, providerAlertId, detectorId, mitreTechniques, mitre_str, cat_norm, mitre_tactic, mitre_tactic_id, mitre_technique, mitre_technique_id, cid, initiator_sha256, cgo_sha256, target_process_sha256, file_sha256, remote_ip, source_user, user_principal, causality_synth, evidence_mailbox_address, evidence_user_upn, evidence_user_userSid, evidence_process_name, evidence_process_path, evidence_process_command_line, evidence_process_signer, evidence_process_sha256, evidence_process_pid, evidence_parent_process_name, evidence_parent_process_path, evidence_parent_process_sha256, evidence_parent_process_pid, evidence_file_name, evidence_file_sha256, evidence_device_hostname, evidence_device_ntdomain, evidence_device_os, evidence_device_agentid, evidence_local_ipv4, evidence_remote_ipv4, evidence_remote_ipv6, evidence_device_externalip, evidence_parent_process_signer, evidence_process_starttime, evidence_process_action
