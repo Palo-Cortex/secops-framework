@@ -64,16 +64,6 @@ What each XDM field is, where it sources from, what issue field it surfaces on, 
 
 | XDM Path | Expression | Sources | Issue Field | Description |
 |---|---|---|---|---|
-| `xdm.email.cc` | `json_extract_array(ccAddresses, "$.")` | `ccAddresses` | `emailcc` |  |
-| `xdm.email.recipients` | `json_extract_array(recipient, "$.")` | `recipient` | `emailrecipients` |  |
-| `xdm.email.sender` | `arrayindex(json_extract_array(fromAddress, "$."), 0)` | `fromAddress` | `emailsender` | fromAddress is array-typed in the raw dataset. xdm.email.sender is scalar — first element only. Other addresses preserved in xdm.email.cc / xdm.email.recipients. |
-| `xdm.email.return_path` | `sender` | `sender` | `emailreturnpath` |  |
-| `xdm.email.subject` | `subject` | `subject` | `emailsubject` |  |
-| `xdm.email.message_id` | `messageID` | `messageID` | `emailmessageid` |  |
-| `xdm.email.delivery_timestamp` | `messageTime` | `messageTime` | `emaildeliverytimestamp` | TAP's messageTime is ISO 8601 string. XDM.email.delivery_timestamp is typed `date`. Use parse_timestamp() — to_timestamp() only accepts numeric epochs. Format string %E*S matches seconds with optional fractional component, final Z is literal. Without this cast install fails: "Field xdm.email.delivery_timestamp for model xdm is invalid. Expected date but received string." |
-| `xdm.email.attachment.filename` | `json_extract_scalar(messageParts, "$[0].filename")` | `messageParts` | `emailattachmentfilename` | xdm.email.attachment.filename is scalar; only the first message part is mapped here. All parts are surfaced via the correlation rule's proofpointfilename / proofpointsha256 / proofpointmd5 alert_fields (comma-joined arraystrings). |
-| `xdm.email.attachment.md5` | `json_extract_scalar(messageParts, "$[0].md5")` | `messageParts` | `emailattachmentmd5` |  |
-| `xdm.email.attachment.sha256` | `json_extract_scalar(messageParts, "$[0].sha256")` | `messageParts` | `emailattachmentsha256` |  |
 | `xdm.source.ipv4` | `senderIP` | `senderIP` | `emailsenderip` |  |
 
 ### Contributes (Artifacts.*)
@@ -102,7 +92,7 @@ Fields populated for downstream lifecycle Artifacts schemas:
 | subtype | `passthrough` |
 | fromversion | `8.0.0` |
 
-Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection. Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields). Legacy fields marked for removal when old phishing pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon and other endpoint sources): actor_effective_username (UPN format, e.g. "Gunter@SKT.LOCAL", matches CrowdStrike's user_name field byte-for-byte), user_principal (full UPN, parallel pivot), action_local_ip (clickIP → endpoint local_ip), and action_file_sha256 (attachment hash). The username contract across all framework vendor rules is full UPN -- vendors that emit bare SAM or DOMAIN\user must normalize to UPN in their own pre_alter block.
+Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection. Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields). Legacy fields marked for removal when old phishing pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon and other endpoint sources): actor_effective_username (lowercase full principal -- UPN when the vendor has it), user_principal (raw-case UPN, parallel pivot), action_local_ip (clickIP → endpoint local_ip), and action_file_sha256 (attachment hash). Username normalization: lowercase, DOMAIN\-prefix-stripped, full principal. UPN when the vendor delivers one; bare SAM only when it genuinely doesn't. Lowercase is mandatory -- exact-equality grouping makes casing a silent pivot-killer.
 
 **Tags:** `SOCFramework`, `Detection`, `Email`, `ProofpointTAP`, `T1566`, `T1114`
 
@@ -128,8 +118,14 @@ Unified Proofpoint TAP alert rule covering messages delivered and clicks permitt
 |---|---|
 | enabled | `✓` |
 | duration | `24 hours` |
-| fields | `GUID` |
+| fields | `GUID, type` |
 
+GUID + type: a click event reuses its delivered message's GUID, so
+GUID-only suppression swallowed the click alert whenever the user
+clicked within 24h of delivery -- exactly the escalation signal an
+analyst needs. Keying on type as well lets delivered and clicked
+suppress independently; the GUID dedup itself is correct and loses
+nothing.
 GUID is assigned per individual email delivery event in Proofpoint TAP.
 A mass email to N recipients generates N distinct GUIDs. Suppressing on
 GUID scopes deduplication to a single delivery event only — zero effect
@@ -330,13 +326,14 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     ),
     bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
 
-| alter description = concat("Proofpoint TAP threat detected: ", type, " -- GUID: ", GUID)
+| alter description = concat("Proofpoint TAP threat detected: ", type, " | Recipient: ", coalesce(recipient_upn, "Unknown"), " -- GUID: ", GUID)
 
-// Cross-rule username contract: emit full UPN to match CrowdStrike's
-// user_name (which Falcon delivers as e.g. "Gunter@SKT.LOCAL"). recipient
-// is a JSON-array string ('["x@y"]'); recipient_upn (extracted above)
-// holds the bare UPN so grouping matches CrowdStrike/XDR byte-for-byte.
-// See investigation in tools/correlation_rule_grouping_check notes.
+// Cross-rule username normalization: lowercase full principal.
+// recipient is a JSON-array string ('["x@y"]'); recipient_upn (extracted
+// above) holds the bare UPN; lowercase() at the canonical alter kills the
+// casing pitfall (exact-equality grouping). user_principal keeps raw case
+// for display/parallel pivot. CrowdStrike user_name is UPN-formatted per
+// tools/correlation_rule_grouping_check.
 
 // ============================================================
 // CANONICAL CORE NORMALIZATION
@@ -346,6 +343,10 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // all read from this normalized surface.
 //
 // TAP is email-only — host/process/network-host fields are null.
+// agent_device_domain is null on purpose: it is the AD machine domain
+// (an EDR concept). Mapping the URL registered domain there caused a
+// semantic clash and a false-grouping path when a threat URL domain
+// equals an AD domain. The URL registered domain rides fw_url_domain.
 // MITRE is hardcoded: TAP fires on phishing detections (messages
 // delivered with active/malicious threat status, clicks permitted).
 // Both event types map to T1566 Phishing under TA0001 Initial Access.
@@ -365,8 +366,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         mitretechniquename                  = "Phishing",
         agent_hostname                      = null,
         agent_id                            = null,
-        agent_device_domain                 = domain,
-        actor_effective_username            = recipient_upn,
+        agent_device_domain                 = null,
+        actor_effective_username            = lowercase(recipient_upn),
         actor_process_image_name            = null,
         actor_process_image_path            = null,
         actor_process_image_sha256          = null,
