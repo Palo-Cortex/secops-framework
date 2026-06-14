@@ -1,3 +1,5 @@
+import demistomock as demisto  # noqa: F401
+from CommonServerPython import *  # noqa: F401
 import json
 import time
 
@@ -5,6 +7,9 @@ import time
 # 100 is the get_incidents per-request ceiling. War-room arrays may show a
 # cosmetic truncation note at this size, but the forEach close loop is unaffected.
 BATCH_SIZE = 100
+# How many incident IDs to bundle into a single bulk update_incident call.
+# Each emitted batch is a ready-to-post JSON array string for incident_id_list.
+CLOSE_CHUNK_SIZE = 100
 API_URI = '/public_api/v1/incidents/get_incidents'
 FIELDS = [
     'incident_id', 'aggregated_score', 'creation_time',
@@ -37,21 +42,19 @@ def _is_unstarred(value):
     return False
 
 
-def fetch_batch(search_from: int, cutoff_ms: int) -> dict:
-    """Fetch one batch of unstarred New incidents created on/before cutoff_ms,
-    oldest first.
+def fetch_batch(upper_ms: int, batch_size: int) -> dict:
+    """Fetch the newest unstarred New incidents created at or before upper_ms.
 
-    The age gate is pushed SERVER-SIDE via a creation_time `lte` filter so the
-    result set only ever contains age-eligible cases. We then walk that set
-    NEWEST-first: the oldest unstarred New cases skew high-score (low-score cases
-    get auto-closed and age out), so oldest-first would burn the scan budget on
-    cases that never qualify. Newest-of-the-eligible-first reaches closeable
-    cases sooner; a full drain still requires paging to exhaustion (raise
-    max_batches), which is unaffected by sort order.
+    KEYSET pagination: callers walk the age-eligible set downward by
+    creation_time, always querying from offset 0 with a shrinking creation_time
+    upper bound. This keeps every call O(batch_size) instead of O(offset) — deep
+    offset pagination (search_from=30000) makes the API skip every preceding row
+    and gets progressively slower, which is what times the job out on large
+    backlogs. There is no growing search_from here.
 
     Contract notes (confirmed):
       - status value is case-sensitive: "New".
-      - `in` operator -> array value; `lte`/`eq` -> scalar value.
+      - `in` operator -> array value; `lte` -> scalar value.
       - aggregated_score is NOT filterable server-side -> gated client-side.
       - `sort_by_creation_time` is the documented working sort key.
     """
@@ -60,12 +63,12 @@ def fetch_batch(search_from: int, cutoff_ms: int) -> dict:
             'filters': [
                 {'field': 'status', 'operator': 'in', 'value': ['New']},
                 {'field': 'starred', 'operator': 'in', 'value': [False]},
-                {'field': 'creation_time', 'operator': 'lte', 'value': int(cutoff_ms)},
+                {'field': 'creation_time', 'operator': 'lte', 'value': int(upper_ms)},
             ],
             'fields': FIELDS,
             'sort_by_creation_time': 'desc',
-            'search_from': search_from,
-            'search_to': search_from + BATCH_SIZE
+            'search_from': 0,
+            'search_to': batch_size
         }
     })
     result = execute_command('core-api-post', {'uri': API_URI, 'body': body})
@@ -81,9 +84,11 @@ def main():
     # pass score_threshold explicitly so the policy lives in one obvious place.
     threshold = args.get('score_threshold', '40')
     window_hours = args.get('window_hours', '6')
-    # Generous default; with the server-side age filter the eligible set is small,
-    # but this guarantees a busy tenant's backlog is fully walked in one run.
-    max_batches = args.get('max_batches', '50')
+    # Default high enough to page the whole age-eligible backlog to exhaustion
+    # on any tenant (the loop stops on its own when a short page comes back).
+    # This is the safety ceiling, not the normal cost. For this to apply, the
+    # JOB task must NOT pass a literal max_batches (a typed value overrides it).
+    max_batches = args.get('max_batches', '200')
 
     threshold = _to_float(threshold)
     if threshold is None:
@@ -96,7 +101,17 @@ def main():
     try:
         max_batches = int(max_batches)
     except (ValueError, TypeError):
-        max_batches = 50
+        max_batches = 200
+    if max_batches < 1:
+        max_batches = 200
+
+    # batch_size is tunable but hard-capped at the get_incidents per-request
+    # ceiling of 100, and floored at 1. Junk/blank falls back to BATCH_SIZE.
+    try:
+        batch_size = int(args.get('batch_size', BATCH_SIZE))
+    except (ValueError, TypeError):
+        batch_size = BATCH_SIZE
+    batch_size = max(1, min(batch_size, BATCH_SIZE))
 
     # creation_time from the API is epoch milliseconds (13-digit).
     cutoff_ms = int((time.time() - (window_hours * 3600)) * 1000)
@@ -105,11 +120,12 @@ def main():
     skipped = []
     total_scanned = 0
     batches_run = 0
+    seen_ids = set()
+    cursor_ms = cutoff_ms  # creation_time upper bound; walks downward each batch
 
     for batch_num in range(max_batches):
-        search_from = batch_num * BATCH_SIZE
         try:
-            result = fetch_batch(search_from, cutoff_ms)
+            result = fetch_batch(cursor_ms, batch_size)
         except Exception as e:
             demisto.debug(f'Batch {batch_num} API call failed: {e}')
             break
@@ -121,14 +137,23 @@ def main():
             demisto.debug(f'Batch {batch_num}: no incidents returned, stopping.')
             break
 
-        batches_run += 1
-        total_scanned += len(incidents)
+        # Dedup against the boundary record(s) carried over by the <= cursor.
+        new_incidents = [i for i in incidents
+                         if str(i.get('incident_id', '')) not in seen_ids]
+        if not new_incidents:
+            # No forward progress (entire page already seen) -> stop.
+            break
 
-        for inc in incidents:
+        batches_run += 1
+        total_scanned += len(new_incidents)
+        page_min_ct = None
+
+        for inc in new_incidents:
             # One malformed incident must never abort the run and leave the rest
             # of the backlog unprocessed.
             try:
                 incident_id = inc.get('incident_id', 'unknown')
+                seen_ids.add(str(incident_id))
                 aggregated_score = _to_float(inc.get('aggregated_score'))
                 manual_score = inc.get('manual_score')
                 creation_time = inc.get('creation_time', 0)
@@ -136,6 +161,8 @@ def main():
                     creation_time = int(creation_time)
                 except (ValueError, TypeError):
                     creation_time = 0
+                if creation_time and (page_min_ct is None or creation_time < page_min_ct):
+                    page_min_ct = creation_time
 
                 # HARD SAFETY BACKSTOP — never auto-close a starred case.
                 # This does not trust the server-side starred filter; it
@@ -179,8 +206,13 @@ def main():
                 continue
 
         # Fewer than a full page means the eligible set is exhausted.
-        if len(incidents) < BATCH_SIZE:
+        if len(incidents) < batch_size:
             break
+        # Advance the cursor strictly below the oldest creation_time seen so the
+        # next page is the next-older slice (keyset, offset stays 0).
+        if page_min_ct is None:
+            break
+        cursor_ms = page_min_ct - 1
 
     # Write one row per passed incident to the active execution dataset.
     if passed:
@@ -215,18 +247,32 @@ def main():
         except Exception as e:
             demisto.debug(f'Dataset write failed: {e}')
 
+    # Build bulk-close batches: each entry is a ready-to-post JSON array string
+    # of incident IDs (<= CLOSE_CHUNK_SIZE), so the close playbook can drop it
+    # straight into incident_id_list without the array-to-JSON interpolation
+    # problem. 32k eligible -> ~320 bulk calls instead of 32k single calls.
+    passed_ids = [str(inc.get('incident_id', '')) for inc in passed
+                  if str(inc.get('incident_id', ''))]
+    close_batches = [
+        json.dumps(passed_ids[i:i + CLOSE_CHUNK_SIZE])
+        for i in range(0, len(passed_ids), CLOSE_CHUNK_SIZE)
+    ]
+
     return_results(CommandResults(
         outputs_prefix='AutoTriage',
         outputs={
             'filtered_incidents': passed,
+            'close_batches': close_batches,
             'skipped_incidents': skipped,
             'passed_count': len(passed),
+            'batch_count': len(close_batches),
             'skipped_count': len(skipped),
             'total_scanned': total_scanned,
             'batches_run': batches_run
         },
         readable_output=(
-            f'Score filter complete: {len(passed)} passed, {len(skipped)} skipped '
+            f'Score filter complete: {len(passed)} passed in {len(close_batches)} '
+            f'close batch(es), {len(skipped)} skipped '
             f'(threshold: {threshold}, window: {window_hours}h, '
             f'scanned: {total_scanned} across {batches_run} batches)'
         )

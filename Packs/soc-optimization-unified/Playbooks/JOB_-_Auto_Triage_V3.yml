@@ -76,7 +76,7 @@ tasks:
           - - operator: isExists
               left:
                 value:
-                  simple: AutoTriage.filtered_incidents.incident_id
+                  simple: AutoTriage.close_batches
                 iscontext: true
               right:
                 value: {}
@@ -142,11 +142,8 @@ tasks:
       '#none#':
         - "9"
     scriptarguments:
-      incident_id:
-        simple: ${AutoTriage.filtered_incidents.incident_id}
-      resolve_comment:
-        simple: 'SOC Framework Auto Triage: case exceeded age threshold, aggregated_score
-          below threshold, no analyst activity detected. Auto-closed by JOB.'
+      incident_id_list:
+        simple: ${AutoTriage.close_batches}
     separatecontext: true
     continueonerror: true
     continueonerrortype: ""
@@ -154,7 +151,7 @@ tasks:
       iscommand: false
       exitCondition: ""
       wait: 1
-      max: 100
+      max: 1000
       forEach: true
     view: |-
       {
@@ -268,7 +265,45 @@ tasks:
                   value:
                     simple: TriageWindowHours
       max_batches:
-        simple: "5"
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Triage Incidents JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: TriageMaxBatches
+      batch_size:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Triage Incidents JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: TriageBatchSize
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
