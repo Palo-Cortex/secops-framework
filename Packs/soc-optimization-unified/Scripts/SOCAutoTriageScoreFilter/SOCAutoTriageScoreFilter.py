@@ -53,7 +53,9 @@ def fetch_batch(upper_ms: int, batch_size: int) -> dict:
     backlogs. There is no growing search_from here.
 
     Contract notes (confirmed):
-      - status value is case-sensitive: "New".
+      - status value is the lowercase public-API enum: "new" (the Cases UI
+        capitalizes "New" for display, but the get_incidents filter enum is
+        lowercase). Sending "New" matches zero rows.
       - `in` operator -> array value; `lte` -> scalar value.
       - aggregated_score is NOT filterable server-side -> gated client-side.
       - `sort_by_creation_time` is the documented working sort key.
@@ -61,7 +63,7 @@ def fetch_batch(upper_ms: int, batch_size: int) -> dict:
     body = json.dumps({
         'request_data': {
             'filters': [
-                {'field': 'status', 'operator': 'in', 'value': ['New']},
+                {'field': 'status', 'operator': 'in', 'value': ['new']},
                 {'field': 'starred', 'operator': 'in', 'value': [False]},
                 {'field': 'creation_time', 'operator': 'lte', 'value': int(upper_ms)},
             ],
@@ -113,6 +115,10 @@ def main():
         batch_size = BATCH_SIZE
     batch_size = max(1, min(batch_size, BATCH_SIZE))
 
+    # dry_run = Shadow Mode for triage: select eligible cases and report what
+    # WOULD close, but emit nothing to the close path so the JOB closes nothing.
+    dry_run = str(args.get('dry_run', 'false')).strip().lower() in ('true', '1', 'yes')
+
     # creation_time from the API is epoch milliseconds (13-digit).
     cutoff_ms = int((time.time() - (window_hours * 3600)) * 1000)
 
@@ -127,7 +133,18 @@ def main():
         try:
             result = fetch_batch(cursor_ms, batch_size)
         except Exception as e:
-            demisto.debug(f'Batch {batch_num} API call failed: {e}')
+            # If the very first fetch fails we have scanned nothing — that is an
+            # auth/API failure (e.g. 401 unauthorized), NOT an empty backlog.
+            # Surface it loudly; a silent zero here is indistinguishable from
+            # "nothing to close" and hid a gateway 401 for an entire session.
+            if batches_run == 0:
+                return_error(f'get_incidents failed on the first batch; nothing was '
+                             f'scanned. This is an API/auth failure, not an empty '
+                             f'backlog. Underlying error: {e}')
+            # Mid-run failure: stop and report what we have, but make the partial
+            # state explicit rather than swallowing it.
+            demisto.debug(f'Batch {batch_num} API call failed after {batches_run} '
+                          f'batches: {e}')
             break
 
         incidents = demisto.get(result, 'response.reply.incidents')
@@ -214,7 +231,9 @@ def main():
             break
         cursor_ms = page_min_ct - 1
 
-    # Write one row per passed incident to the active execution dataset.
+    # Write one row per passed incident to the active execution dataset. In a
+    # dry run these are tagged as shadow so dashboards/audits can see what the
+    # job WOULD have closed without it actually closing anything.
     if passed:
         rows = []
         for inc in passed:
@@ -222,15 +241,15 @@ def main():
                 'timestamp': str(int(time.time())),
                 'event_type': 'auto_triage',
                 'universal_command': 'auto_close_incident',
-                'action_taken': 'auto_triage_closed',
-                'action_status': 'success',
-                'execution_mode': 'production',
-                'shadow_mode_state': 'not_applicable',
+                'action_taken': 'auto_triage_would_close' if dry_run else 'auto_triage_closed',
+                'action_status': 'dry_run' if dry_run else 'success',
+                'execution_mode': 'shadow' if dry_run else 'production',
+                'shadow_mode_state': 'shadow' if dry_run else 'not_applicable',
                 'lifecycle': 'AUTO_TRIAGE',
                 'phase': 'triage',
                 'incident_id': str(inc.get('incident_id', '')),
                 'aggregated_score': str(inc.get('aggregated_score', '')),
-                'tags': ['auto_triage_closed'],
+                'tags': ['auto_triage_would_close' if dry_run else 'auto_triage_closed'],
                 'has_error': False,
                 'error_type': '',
                 'error_message': ''
@@ -253,29 +272,50 @@ def main():
     # problem. 32k eligible -> ~320 bulk calls instead of 32k single calls.
     passed_ids = [str(inc.get('incident_id', '')) for inc in passed
                   if str(inc.get('incident_id', ''))]
-    close_batches = [
+    all_batches = [
         json.dumps(passed_ids[i:i + CLOSE_CHUNK_SIZE])
         for i in range(0, len(passed_ids), CLOSE_CHUNK_SIZE)
     ]
 
-    return_results(CommandResults(
-        outputs_prefix='AutoTriage',
-        outputs={
-            'filtered_incidents': passed,
-            'close_batches': close_batches,
-            'skipped_incidents': skipped,
-            'passed_count': len(passed),
-            'batch_count': len(close_batches),
-            'skipped_count': len(skipped),
-            'total_scanned': total_scanned,
-            'batches_run': batches_run
-        },
-        readable_output=(
+    # In dry run, hand the close path NOTHING so neither the bulk loop nor a
+    # per-case loop can close anything; surface the would-close set separately.
+    close_batches = [] if dry_run else all_batches
+    filtered_incidents = [] if dry_run else passed
+
+    outputs = {
+        'dry_run': dry_run,
+        'filtered_incidents': filtered_incidents,
+        'close_batches': close_batches,
+        'skipped_incidents': skipped,
+        'passed_count': len(passed),
+        'batch_count': len(close_batches),
+        'skipped_count': len(skipped),
+        'total_scanned': total_scanned,
+        'batches_run': batches_run
+    }
+    if dry_run:
+        outputs['would_close_count'] = len(passed_ids)
+        outputs['would_close_ids'] = passed_ids[:500]  # capped sample for visibility
+
+    if dry_run:
+        readable = (
+            f'DRY RUN — would close {len(passed_ids)} case(s); closed 0. '
+            f'{len(skipped)} skipped (threshold: {threshold}, window: {window_hours}h, '
+            f'scanned: {total_scanned} across {batches_run} batches). '
+            f'Set dry_run=false to close for real.'
+        )
+    else:
+        readable = (
             f'Score filter complete: {len(passed)} passed in {len(close_batches)} '
             f'close batch(es), {len(skipped)} skipped '
             f'(threshold: {threshold}, window: {window_hours}h, '
             f'scanned: {total_scanned} across {batches_run} batches)'
         )
+
+    return_results(CommandResults(
+        outputs_prefix='AutoTriage',
+        outputs=outputs,
+        readable_output=readable
     ))
 
 
