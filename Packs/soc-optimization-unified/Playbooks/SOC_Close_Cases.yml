@@ -56,7 +56,7 @@ tasks:
     task:
       id: 958e2c9a-4f9e-41f8-a617-1ca32f65d965
       version: -1
-      name: Close Cases (bulk)
+      name: Close Case
       description: send HTTP POST request.
       script: '|||core-api-post'
       type: regular
@@ -71,7 +71,7 @@ tasks:
       - "6"
     scriptarguments:
       body:
-        simple: '{"request_data":{"incident_id_list":${inputs.incident_id_list},"update_data":{"status":"resolved_other","resolve_comment":"Resolved
+        simple: '{"request_data":{"incident_id":"${inputs.incident_id}","update_data":{"status":"resolved_other","resolve_comment":"Resolved
           by the Auto Triage Job"}}}'
       uri:
         simple: /public_api/v1/incidents/update_incident
@@ -179,7 +179,7 @@ tasks:
       - - operator: isNotEmpty
           left:
             value:
-              simple: inputs.incident_id_list
+              simple: inputs.incident_id
             iscontext: true
     continueonerrortype: ""
     view: |-
@@ -210,16 +210,15 @@ view: |-
     }
   }
 inputs:
-- key: incident_id_list
+- key: incident_id
   value: {}
   required: true
-  description: A JSON array string of incident IDs to bulk-close in one update_incident
-    call, e.g. AutoTriage.close_batches (each batch is one such string). Posted
-    verbatim into request_data.incident_id_list.
+  description: A single incident ID to close via update_incident. The JOB loops this
+    sub-playbook per eligible incident_id (update_incident takes one ID, not a list).
   playbookInputQuery:
 inputSections:
 - inputs:
-  - incident_id_list
+  - incident_id
   name: General (Inputs group)
   description: Generic group for inputs
 outputSections:
