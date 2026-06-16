@@ -51,50 +51,6 @@ tasks:
     isoversize: false
     isautoswitchedtoquietmode: false
 
-  "5":
-    id: "5"
-    taskid: 11786de0-5a13-412d-8a8a-1ab69922d510
-    type: condition
-    task:
-      id: 11786de0-5a13-412d-8a8a-1ab69922d510
-      version: -1
-      name: Cases to Triage?
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-        - "9"
-      "yes":
-        - "8"
-    separatecontext: false
-    conditions:
-      - label: "yes"
-        condition:
-          - - operator: isExists
-              left:
-                value:
-                  simple: AutoTriage.filtered_incidents.incident_id
-                iscontext: true
-              right:
-                value: {}
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 420
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
   "7":
     id: "7"
     taskid: 6ae6dff9-3719-4b2e-8758-d1cf54a24c13
@@ -115,52 +71,6 @@ tasks:
         "position": {
           "x": 50,
           "y": 1160
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "8":
-    id: "8"
-    taskid: 481cd8d5-7bca-4923-8cd0-77d48d883e8f
-    type: playbook
-    task:
-      id: 481cd8d5-7bca-4923-8cd0-77d48d883e8f
-      version: -1
-      name: SOC Close Cases_V3
-      playbookName: SOC Close Cases_V3
-      type: playbook
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-        - "9"
-    scriptarguments:
-      incident_id:
-        simple: ${AutoTriage.filtered_incidents.incident_id}
-      resolve_comment:
-        simple: 'SOC Framework Auto Triage: case exceeded age threshold, aggregated_score
-          below threshold, no analyst activity detected. Auto-closed by JOB.'
-    separatecontext: true
-    continueonerror: true
-    continueonerrortype: ""
-    loop:
-      iscommand: false
-      exitCondition: ""
-      wait: 1
-      max: 500
-      forEach: true
-    view: |-
-      {
-        "position": {
-          "x": 162.5,
-          "y": 610
         }
       }
     note: false
@@ -211,12 +121,12 @@ tasks:
     task:
       id: ba55380b-2e2c-44ef-8fcf-d828bfbfa09a
       version: -1
-      name: Fetch and Filter Cases by Score Threshold
-      description: Fetches unstarred new cases via core-api-post in paginated batches
-        of 100, sorted by creation_time asc. Skips cases with aggregated_score above
-        TriageScoreThreshold. Applies age window filter (TriageWindowHours) and skips
-        analyst-touched cases. Stops when eligible cases are found or max_batches
-        reached. Passes only eligible cases to the close loop.
+      name: Fetch, Filter, and Close Cases by Score Threshold
+      description: Fetches unstarred new cases via core-api-post using offset
+        pagination, gated by TriageScoreThreshold / TriageWindowHours / no analyst
+        activity, then closes each eligible case in-process via update_incident
+        (one ID per call) and writes one execution-dataset row per close result.
+        A wall-clock budget caps the run; partial runs resume next schedule.
       script: SOCAutoTriageScoreFilter
       type: regular
       iscommand: false
@@ -225,7 +135,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-        - "5"
+        - "9"
     scriptarguments:
       score_threshold:
         complex:
@@ -327,9 +237,7 @@ tasks:
 system: true
 view: |-
   {
-    "linkLabelsPosition": {
-      "5_9_#default#": 0.82
-    },
+    "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
         "height": 1170,

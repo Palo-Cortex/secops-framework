@@ -20,11 +20,16 @@ tags:
 - SOC
 - SOC_Framework_Unified
 comment: |-
-  Fetches unstarred new cases via core-api-post in paginated batches of 100,
-  sorted by creation_time asc. Filters by aggregated_score <= threshold,
-  creation_time outside window, and manual_score is null. Skips above-threshold
-  cases without holding them in memory. Stops when eligible cases are found or
-  max_batches reached. Part of JOB - Auto Triage V3.
+  Fetches unstarred new cases via core-api-post using offset pagination
+  (get_incidents cannot sort, so keyset paging is unsafe). Server-side filters:
+  status=new, starred=false, creation_time <= now-window_hours. Client-side
+  gates: aggregated_score <= threshold (not filterable server-side) and
+  manual_score is null; every skip is recorded with a reason. Closes each
+  passing case in-process via update_incident (one ID per call — the API has no
+  bulk close), one dataset row per actual close result. A wall-clock budget caps
+  both fetch and close; partial runs are safe because closed cases leave
+  status=new and the next run resumes. dry_run selects and reports without
+  closing. Part of JOB - Auto Triage V3.
   VD3: frees analyst time by auto-closing low-signal noise cases.
 enabled: true
 args:
@@ -41,16 +46,46 @@ args:
 - supportedModules: []
   name: max_batches
   required: false
-  description: Maximum number of 100-case batches to fetch from the API per run.
-    Default 5 (scans up to 500 cases). Increase if backlog consistently exceeds 500.
-  defaultValue: "5"
+  description: Per-run cap on 100-case offset pages (deepest offset = max_batches*100).
+    With offset pagination each page is O(offset), so this is a cost ceiling, not a
+    full-backlog drain — large backlogs clear over repeated scheduled runs. A wall-clock
+    guard stops the run before the automation timeout regardless of this value.
+  defaultValue: "20"
+- supportedModules: []
+  name: batch_size
+  required: false
+  description: Incidents to fetch per get_incidents call. Hard-capped at the API
+    per-request ceiling of 100 and floored at 1. Junk/blank falls back to 100.
+  defaultValue: "100"
+- supportedModules: []
+  name: dry_run
+  required: false
+  description: When true, select eligible cases and report what WOULD close but
+    emit nothing to the close path and tag dataset rows as shadow. Use for safe
+    testing. Accepts true/1/yes. Default false.
+  defaultValue: "false"
 outputs:
-- contextPath: AutoTriage.filtered_incidents
-  description: Incident objects that passed both gates (score <= threshold, manual_score
-    is null)
+- contextPath: AutoTriage.closed_count
+  description: Number of cases actually closed this run (0 in a dry run).
+  type: Number
+- contextPath: AutoTriage.failed_count
+  description: Number of cases whose update_incident close call failed this run.
+  type: Number
+- contextPath: AutoTriage.closed_ids
+  description: Capped sample of incident IDs closed this run.
   type: Unknown
+- contextPath: AutoTriage.failed
+  description: Capped sample of {incident_id, error} for closes that failed.
+  type: Unknown
+- contextPath: AutoTriage.dry_run
+  description: Whether this run was a dry run (selected but closed nothing).
+  type: Boolean
+- contextPath: AutoTriage.would_close_count
+  description: In a dry run, the number of cases that would have closed.
+  type: Number
 - contextPath: AutoTriage.skipped_incidents
-  description: Incident objects that failed one or both gates with reason
+  description: Incident objects that failed a gate, each with a reason (includes
+    score-based skips).
   type: Unknown
 - contextPath: AutoTriage.passed_count
   description: Count of incidents that passed the score filter
