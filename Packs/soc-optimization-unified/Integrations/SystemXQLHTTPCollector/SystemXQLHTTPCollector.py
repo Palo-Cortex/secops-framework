@@ -1,8 +1,3 @@
-# Load these for testing, but ignore in operation
-# Universal Command allows multiple Vendor commands to be used by a single Universal Command
-import demistomock as demisto  # type: ignore
-from CommonServerPython import *  # type: ignore
-
 import json
 
 
