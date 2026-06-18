@@ -1,0 +1,380 @@
+# ============================================================================
+# SentinelOne Singularity — SOCFW vendor mapping (generator input)
+# data_source: sentinelone_v2_generic_alert_raw
+# Reference rule: SOC SentinelOne Threat (rule 62, brumxdr / sce-xsiam-pov)
+# ----------------------------------------------------------------------------
+# Forensic detail lives in PROMOTED COLUMNS accessed via the -> operator
+# (camelCase column names required — confirmed on tenant). _alert_data holds
+# the alert envelope (severity / alert_name / alert_description).
+# ============================================================================
+vendor: sentinelone
+product: SentinelOne Singularity
+data_source: sentinelone_v2_generic_alert_raw
+category: Endpoint
+pack: soc-sentinel-one
+
+raw_schema:
+  _alert_data:              {type: json,  is_array: false}
+  threatInfo:               {type: json,  is_array: false,  notes: "camelCase — use -> operator"}
+  sourceProcessInfo:        {type: json,  is_array: false,  notes: "camelCase — use -> operator"}
+  sourceParentProcessInfo:  {type: json,  is_array: false,  notes: "camelCase — use -> operator"}
+  agentRealtimeInfo:        {type: json,  is_array: false,  notes: "camelCase — use -> operator"}
+  indicators:               {type: json,  is_array: true,   notes: "sparse; categories sometimes present, ATT&CK rarely"}
+
+# ----------------------------------------------------------------------------
+# MODELING RULE
+# ----------------------------------------------------------------------------
+modeling_rule:
+  fromversion: "8.0.0"
+  modeling_rule_id: SentinelOne_V2_ModelingRule
+  modeling_rule_name: SentinelOne Singularity Modeling Rule
+  directory_name: SentinelOneV2_ModelingRule
+  filter:
+    expression: '_alert_data != null'
+
+  fields:
+    - xdm_path: xdm.observer.vendor
+      expression: '"SentinelOne"'
+
+    - xdm_path: xdm.observer.product
+      expression: '"SentinelOne Singularity"'
+
+    - xdm_path: xdm.alert.severity
+      expression: 'lowercase(json_extract_scalar(_alert_data, "$.severity"))'
+
+    - xdm_path: xdm.alert.name
+      expression: 'json_extract_scalar(_alert_data, "$.alert_name")'
+
+    - xdm_path: xdm.alert.description
+      expression: 'json_extract_scalar(_alert_data, "$.alert_description")'
+
+    - xdm_path: xdm.source.user.username
+      expression: >-
+        lowercase(coalesce(
+          threatInfo -> processUser,
+          sourceProcessInfo -> effectiveUser,
+          sourceProcessInfo -> user))
+      notes: |
+        Filters SYSTEM / NT AUTHORITY / service accounts to null.
+        No domain-strip — REAL_TIME forbids the identity-map join.
+
+    - xdm_path: xdm.source.host.hostname
+      expression: 'agentRealtimeInfo -> agentComputerName'
+
+    - xdm_path: xdm.source.agent.identifier
+      expression: 'json_extract_scalar(_alert_data, "$.agent_id")'
+
+    - xdm_path: xdm.source.host.device_id
+      expression: 'json_extract_scalar(_alert_data, "$.agent_id")'
+
+    - xdm_path: xdm.source.process.name
+      expression: 'coalesce(threatInfo -> originatorProcess, sourceProcessInfo -> name)'
+
+    - xdm_path: xdm.source.process.executable.path
+      expression: 'coalesce(threatInfo -> filePath, sourceProcessInfo -> filePath)'
+
+    - xdm_path: xdm.source.process.executable.sha256
+      expression: 'coalesce(threatInfo -> sha256, sourceProcessInfo -> fileHashSha256)'
+
+    - xdm_path: xdm.source.process.command_line
+      expression: 'coalesce(sourceProcessInfo -> commandline, threatInfo -> maliciousProcessArguments)'
+
+    - xdm_path: xdm.source.process.pid
+      expression: 'sourceProcessInfo -> pid'
+
+    - xdm_path: xdm.source.process.executable.signer
+      expression: 'coalesce(threatInfo -> publisherName, sourceProcessInfo -> fileSignerIdentity)'
+
+    - xdm_path: xdm.source.process.parent_process.executable.name
+      expression: 'sourceParentProcessInfo -> name'
+
+    - xdm_path: xdm.source.process.parent_process.executable.path
+      expression: 'sourceParentProcessInfo -> filePath'
+
+    - xdm_path: xdm.source.process.parent_process.executable.sha256
+      expression: 'sourceParentProcessInfo -> fileHashSha256'
+
+    - xdm_path: xdm.source.process.causality_id
+      expression: 'coalesce(sourceProcessInfo -> storyline, sourceParentProcessInfo -> storyline)'
+      notes: "S1 storyline is the causality pivot — the strongest cross-alert grouping key."
+
+    - xdm_path: xdm.target.file.filename
+      expression: 'threatInfo -> threatName'
+
+    - xdm_path: xdm.target.file.sha256
+      expression: 'coalesce(threatInfo -> sha256, sourceProcessInfo -> fileHashSha256)'
+
+    - xdm_path: xdm.target.file.sha1
+      expression: 'coalesce(threatInfo -> sha1, sourceProcessInfo -> fileHashSha1)'
+
+    - xdm_path: xdm.target.file.md5
+      expression: 'coalesce(threatInfo -> md5, sourceProcessInfo -> fileHashMd5)'
+
+  contributes:
+    - Vendor
+    - Product
+    - User
+    - Endpoint.Hostname
+    - Endpoint.AgentID
+    - Process.Name
+    - Process.Path
+    - Process.SHA256
+    - Process.CommandLine
+    - Process.PID
+    - Process.Signer
+    - Process.Parent.Name
+    - Process.Parent.Path
+    - Process.Parent.SHA256
+    - Process.Causality.ID
+    - Target.File
+    - Target.SHA256
+  not_contributed_by_modeling_rule:
+    - MITRE.Tactic       # sparse — indicators.category when present; null otherwise
+    - MITRE.Technique    # not present in feed
+    - Network.LocalIP    # no IP field in S1 generic alert (confirmed in dump)
+
+# ----------------------------------------------------------------------------
+# CORRELATION RULE
+# ----------------------------------------------------------------------------
+correlation_rules:
+  - subtype: passthrough
+    fromversion: "8.0.0"
+    global_rule_id: SOC SentinelOne Threat
+    name: SOC SentinelOne Threat
+    description: >-
+      Creates an XSIAM passthrough alert for each SentinelOne Singularity threat,
+      normalized to the SOC Framework endpoint contract for cross-vendor case grouping.
+    tags: [SOCFramework, Passthrough, Endpoint, SentinelOne]
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: REAL_TIME
+      mapping_strategy: CUSTOM
+      user_defined_category: alert_cat
+      user_defined_severity: severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    alert_name: '$alert_name'
+    alert_description: >-
+      Classification: $classification
+      Threat: $threat_name
+      Process: $actor_process_image_name
+      User: $actor_effective_username
+      Indicators: $indicator_descriptions
+
+    suppression:
+      enabled: true
+      duration: 1 hours
+      fields: [s1_threat_id]
+
+    pre_alter: |
+      | filter _alert_data != null
+      | filter json_extract_scalar(_alert_data, "$.alert_name") ~= "Sentinel One Threat"
+
+      | alter
+          vendor            = "SentinelOne",
+          product           = "SentinelOne Singularity",
+          severity          = lowercase(coalesce(json_extract_scalar(_alert_data, "$.severity"), "medium")),
+          s1_threat_id      = id,
+          classification    = threatInfo -> classification,
+          confidence        = threatInfo -> confidenceLevel,
+          detection_type    = threatInfo -> detectionType,
+          threat_name       = threatInfo -> threatName
+
+      | alter
+          agent_hostname      = agentRealtimeInfo -> agentComputerName,
+          agent_id            = _alert_data -> agent_id,
+          agent_device_domain = agentRealtimeInfo -> agentDomain,
+          deviceosname        = agentRealtimeInfo -> agentOsName
+
+      | alter
+          user_raw                 = coalesce(threatInfo -> processUser, sourceProcessInfo -> effectiveUser, sourceProcessInfo -> user),
+          actor_effective_username = lowercase(coalesce(threatInfo -> processUser, sourceProcessInfo -> effectiveUser, sourceProcessInfo -> user)),
+          user_principal           = if(coalesce(threatInfo -> processUser, sourceProcessInfo -> user, "") contains "@",
+                                         coalesce(threatInfo -> processUser, sourceProcessInfo -> user), null)
+
+      | alter
+          actor_process_image_name       = coalesce(threatInfo -> originatorProcess, sourceProcessInfo -> name),
+          actor_process_image_path       = coalesce(threatInfo -> filePath, sourceProcessInfo -> filePath),
+          actor_process_image_sha256     = coalesce(threatInfo -> sha256, sourceProcessInfo -> fileHashSha256),
+          actor_process_command_line     = coalesce(sourceProcessInfo -> commandline, threatInfo -> maliciousProcessArguments),
+          actor_process_os_pid           = sourceProcessInfo -> pid,
+          actor_process_signature_vendor = coalesce(threatInfo -> publisherName, sourceProcessInfo -> fileSignerIdentity)
+
+      | alter
+          causality_actor_process_image_name   = sourceParentProcessInfo -> name,
+          causality_actor_process_image_path   = sourceParentProcessInfo -> filePath,
+          causality_actor_process_image_sha256 = sourceParentProcessInfo -> fileHashSha256,
+          causality_actor_process_command_line = sourceParentProcessInfo -> commandline,
+          causality_actor_causality_id         = coalesce(sourceProcessInfo -> storyline, sourceParentProcessInfo -> storyline)
+
+      | alter
+          action_file_name   = threat_name,
+          action_file_sha256 = coalesce(threatInfo -> sha256, sourceProcessInfo -> fileHashSha256),
+          file_sha1          = coalesce(threatInfo -> sha1, sourceProcessInfo -> fileHashSha1),
+          file_md5           = coalesce(threatInfo -> md5, sourceProcessInfo -> fileHashMd5)
+
+      | alter
+          indicator_descriptions = arraystring(arraydistinct(arraymap(json_extract_array(to_json_string(indicators), "$."), concat("@element" -> description, " (", "@element" -> category, ")"))), ", "),
+          mitre_tactic           = arraystring(arraydistinct(arraymap(json_extract_array(to_json_string(indicators), "$."), "@element" -> category)), ", "),
+          mitre_tactic_id        = null,
+          mitre_ids_str          = null
+
+      | alter
+          alert_cat         = coalesce(classification, "Threat"),
+          alert_description = coalesce(json_extract_scalar(_alert_data, "$.alert_description"),
+                                       concat("SentinelOne threat: ", coalesce(threat_name, "Detection"))),
+          originalalertid   = s1_threat_id,
+          originalalertname = threat_name,
+          alert_name = concat(
+              "[Endpoint] ",
+              coalesce(agent_hostname, "Unknown Host"), " | ",
+              coalesce(classification, "Threat"), " | ",
+              coalesce(threat_name, "Detection"))
+
+    final_projection:
+      - _time
+      - vendor
+      - product
+      - severity
+      - alert_description
+      - alert_cat
+      - s1_threat_id
+      - classification
+      - confidence
+      - detection_type
+      - threat_name
+      - alert_name
+      - agent_hostname
+      - agent_id
+      - agent_device_domain
+      - deviceosname
+      - user_raw
+      - actor_effective_username
+      - user_principal
+      - actor_process_image_name
+      - actor_process_image_path
+      - actor_process_image_sha256
+      - actor_process_command_line
+      - actor_process_os_pid
+      - actor_process_signature_vendor
+      - causality_actor_process_image_name
+      - causality_actor_process_image_path
+      - causality_actor_process_image_sha256
+      - causality_actor_process_command_line
+      - causality_actor_causality_id
+      - action_file_name
+      - action_file_sha256
+      - file_sha1
+      - file_md5
+      - indicator_descriptions
+      - mitre_tactic
+      - mitre_tactic_id
+      - mitre_ids_str
+      - originalalertid
+      - originalalertname
+
+    alert_fields:
+      - {issue_field: vendor,                               source: vendor}
+      - {issue_field: product,                              source: product}
+      - {issue_field: severity,                             source: severity}
+      - {issue_field: alert_description,                    source: alert_description}
+      - {issue_field: alert_name,                           source: alert_name}
+      - {issue_field: originalalertid,                      source: originalalertid}
+      - {issue_field: originalalertname,                    source: originalalertname}
+      - {issue_field: sentinelonethreatid,                  source: s1_threat_id}
+      - {issue_field: mitretacticid,                        source: mitre_tactic_id}
+      - {issue_field: mitretacticname,                      source: mitre_tactic}
+      - {issue_field: mitretechniqueid,                     source: mitre_ids_str}
+      - {issue_field: mitretechniquename,                   source: mitre_ids_str}
+      - {issue_field: agent_hostname,                       source: agent_hostname}
+      - {issue_field: hostname,                             source: agent_hostname}
+      - {issue_field: agent_id,                             source: agent_id}
+      - {issue_field: agentid,                              source: agent_id}
+      - {issue_field: agent_device_domain,                  source: agent_device_domain}
+      - {issue_field: domain,                               source: agent_device_domain}
+      - {issue_field: deviceosname,                         source: deviceosname}
+      - {issue_field: actor_effective_username,             source: actor_effective_username}
+      - {issue_field: username,                             source: actor_effective_username}
+      - {issue_field: user_principal,                       source: user_principal}
+      - {issue_field: actor_process_image_name,             source: actor_process_image_name}
+      - {issue_field: initiatedby,                          source: actor_process_image_name}
+      - {issue_field: actor_process_image_path,             source: actor_process_image_path}
+      - {issue_field: initiatorpath,                        source: actor_process_image_path}
+      - {issue_field: actor_process_image_sha256,           source: actor_process_image_sha256}
+      - {issue_field: initiatorsha256,                      source: actor_process_image_sha256}
+      - {issue_field: actor_process_command_line,           source: actor_process_command_line}
+      - {issue_field: initiatorcmd,                         source: actor_process_command_line}
+      - {issue_field: actor_process_os_pid,                 source: actor_process_os_pid}
+      - {issue_field: initiatorpid,                         source: actor_process_os_pid}
+      - {issue_field: actor_process_signature_vendor,       source: actor_process_signature_vendor}
+      - {issue_field: initiatorsigner,                      source: actor_process_signature_vendor}
+      - {issue_field: causality_actor_process_image_name,   source: causality_actor_process_image_name}
+      - {issue_field: causality_actor_process_image_path,   source: causality_actor_process_image_path}
+      - {issue_field: causality_actor_process_image_sha256, source: causality_actor_process_image_sha256}
+      - {issue_field: cgosha256,                            source: causality_actor_process_image_sha256}
+      - {issue_field: causality_actor_process_command_line, source: causality_actor_process_command_line}
+      - {issue_field: causality_actor_causality_id,         source: causality_actor_causality_id}
+      - {issue_field: xdmsourceprocesscausalityid,          source: causality_actor_causality_id}
+      - {issue_field: action_file_name,                     source: action_file_name}
+      - {issue_field: filename,                             source: action_file_name}
+      - {issue_field: action_file_sha256,                   source: action_file_sha256}
+      - {issue_field: filesha256,                           source: action_file_sha256}
+      - {issue_field: filehash,                             source: action_file_sha256}
+      - {issue_field: file_sha1,                            source: file_sha1}
+      - {issue_field: filesha1,                             source: file_sha1}
+      - {issue_field: filemd5,                              source: file_md5}
+
+    mitre_defs:
+      TA0002 - Execution:
+        - T1059 - Command and Scripting Interpreter
+        - T1204 - User Execution
+      TA0005 - Defense Evasion:
+        - T1027 - Obfuscated Files or Information
+        - T1036 - Masquerading
+        - T1562 - Impair Defenses
+      TA0040 - Impact:
+        - T1486 - Data Encrypted for Impact
+
+    investigation_query_link: |-
+      dataset = sentinelone_v2_generic_alert_raw
+      | filter id = "$originalalertid"
+      | fields *
+
+    contributes:
+      - Vendor
+      - Product
+      - User
+      - Endpoint.Hostname
+      - Endpoint.AgentID
+      - Endpoint.OS
+      - Process.Name
+      - Process.Path
+      - Process.SHA256
+      - Process.CommandLine
+      - Process.PID
+      - Process.Signer
+      - Process.Parent.Name
+      - Process.Parent.Path
+      - Process.Parent.SHA256
+      - Process.Causality.ID
+      - Target.File
+      - Target.SHA256
+
+# ============================================================================
+# OPEN ITEMS
+#  - Username: bare lowercase only. Cross-vendor pivot (CrowdStrike/Proofpoint)
+#    requires socfw_identity_map canonicalization — blocked on REAL_TIME→SCHEDULED
+#    decision. Until then S1 names won't pivot against other vendors.
+#  - MITRE: best-effort from indicators[].category. Static S1 detections rarely
+#    carry ATT&CK. tactic_id and technique fields have no source in the feed.
+#  - No IP fields: confirmed absent in sentinelone_v2_generic_alert_raw dump.
+#    action_local_ip / action_remote_ip cannot be populated for this source.
+#  - processUser: rule uses effectiveUser/user fallback; processUser dropped as
+#    primary — verify on your tenant whether encoding corruption is still present.
+# ============================================================================
