@@ -15,6 +15,7 @@
 Reference documentation for the schemas this pack defines.
 
 - [SentinelOne Singularity (sentinelone)](sentinelone-threat.md)
+- [SentinelOne Singularity (sentinelone)](soc-sentinelone-threat.md)
 
 ## Custom Packs Installed
 

@@ -28,6 +28,12 @@
         "inline_args": {
           "agent_id": "${SOCFramework.Artifacts.EndPointID}"
         }
+      },
+      "SentinelOne V2": {
+        "command": "sentinelone-disconnect-agent",
+        "inline_args": {
+          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
+        }
       }
     },
     "shadow_mode": true
@@ -48,6 +54,12 @@
       },
       "CrowdStrike Falcon": {
         "command": "cs-falcon-lift-host-containment",
+        "inline_args": {
+          "agent_id": "${SOCFramework.Artifacts.EndPointID}"
+        }
+      },
+      "SentinelOne V2": {
+        "command": "sentinelone-connect-agent",
         "inline_args": {
           "agent_id": "${SOCFramework.Artifacts.EndPointID}"
         }
@@ -395,6 +407,12 @@
         "inline_args": {
           "machine_id": "${SOCFramework.Artifacts.EndPointID}"
         }
+      },
+      "SentinelOne V2": {
+        "command": "sentinelone-list-agents",
+        "inline_args": {
+          "computer_name": "${SOCFramework.Primary.Endpoint}"
+        }
       }
     },
     "shadow_mode": false
@@ -430,6 +448,15 @@
         "output_map": {
           "UC.Enrich.File.verdict": "VirusTotal.File.Verdict",
           "UC.Enrich.File.hash_prevalence_count": "VirusTotal.File.DetectionEngines"
+        }
+      },
+      "SentinelOne V2": {
+        "command": "sentinelone-get-hash",
+        "inline_args": {
+          "hash": "${SOCFramework.Artifacts.Hash}"
+        },
+        "output_map": {
+          "UC.Enrich.File.verdict": "SentinelOne.Hash.Verdict"
         }
       }
     },
@@ -849,6 +876,18 @@
           "action": "AlertAndBlock",
           "title": "SOCFramework Block",
           "description": "Blocked by SOC Framework eradication"
+        }
+      },
+      "SentinelOne V2": {
+        "command": "sentinelone-add-hash-to-blocklist",
+        "inline_args": {
+          "sha256Value": "${SOCFramework.Artifacts.File}",
+          "os_type": "windows",
+          "source": "SOC Framework",
+          "description": "SOC Framework -- eradication block"
+        },
+        "output_map": {
+          "UC.Endpoint.BlockIndicator.status": "SentinelOne.AddHashToBlocklist.hash"
         }
       }
     }
