@@ -1,5 +1,5 @@
 rule_id: 0
-fromversion: 8.0.0
+fromversion: 6.10.0
 tags:
   - SOCFramework
   - Passthrough
@@ -13,17 +13,10 @@ alert_fields:
   vendor: vendor_name
   product: product_name
   severity: severity
-  alert_description: alert_description
   originalalertid: originalalertid
   originalalertname: originalalertname
-  alert_name: alert_name
-  posture_category: posture_category
-  alertcategory: issue_type
-  findingstatus: issue_status
   recommendation: remediation
   impact: impact
-  identify_finding_acknowledged: identify_finding_acknowledged
-  identify_misconfig_summary: identify_misconfig_summary
 alert_name: $alert_name
 alert_type: null
 crontab: null
@@ -32,11 +25,12 @@ name: SOC Cortex Xpanse Posture Finding
 description: >-
   Creates an XSIAM passthrough alert for each Cortex Xpanse attack-surface
   issue, normalized to the SOC Framework Posture lifecycle contract. Routes via
-  SOCProductCategoryMap_V3 to the Posture category, dispatching through
-  EP_Posture -> SOC_Posture -> SOC_Misconfig_{Identify,Plan, Execute,Verify}
-  phase playbooks. Pre-loads Identify-phase context keys
-  (Identify.finding_acknowledged, Identify.misconfig_summary) consumed by the
-  seeded SOC_Misconfig_Identify Set tasks.
+  SOCProductCategoryMap_V3 (ds_panw_asm: Posture) to the Posture category,
+  dispatching through EP_Posture -> SOC_Posture ->
+  SOC_Misconfig_{Identify,Plan,Execute,Verify} phase playbooks. The lifecycle's
+  Identify-phase context (Identify.finding_acknowledged,
+  Identify.misconfig_summary) is set by SOC_Misconfig_Identify at execution time
+  via its Set tasks - not preloaded on this alert.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
 global_rule_id: SOC Cortex Xpanse Posture Finding
@@ -48,7 +42,10 @@ investigation_query_link: |-
 is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-mitre_defs: {}
+mitre_defs:
+  TA0043 - Reconnaissance:
+  - T1595 - Active Scanning
+  - T1596 - Search Open Technical Databases
 search_window: null
 severity: User Defined
 simple_schedule: null
@@ -57,7 +54,7 @@ suppression_enabled: true
 suppression_fields:
 - originalalertid
 timezone: null
-user_defined_category: posture_category
+user_defined_category: issue_type
 user_defined_severity: severity
 xql_query: |
   dataset = issues
@@ -80,15 +77,10 @@ xql_query: |
       target_ipv4_raw = json_extract_scalar(xdm.issue.normalized_fields, "$['xdm.target.host.ipv4_addresses'][0]"),
       target_country  = json_extract_scalar(xdm.issue.normalized_fields, "$['xdm.source.location.country'][0]")
 
-  | alter posture_category = "posture_misconfig"
-
-  | alter
-      identify_finding_acknowledged = true,
-      identify_misconfig_summary    = concat(coalesce(issue_type, "Finding"), " | ", coalesce(finding_name, "Unspecified"), " | Severity: ", coalesce(xdm.issue.severity, "Unknown"))
   | alter
       originalalertid   = finding_id,
       originalalertname = finding_name,
       alert_name = concat("[Posture] Cortex Xpanse | ", coalesce(issue_type, "Finding"), " | ", coalesce(finding_name, "Unspecified target")),
       alert_description = coalesce(finding_description, "Cortex Xpanse attack-surface posture finding")
   | fields
-      _time, vendor_name, product_name, severity, finding_id, finding_name, finding_description, issue_type, issue_category, issue_status, remediation, impact, target_ipv4_raw, target_country, asset_id_primary, posture_category, identify_finding_acknowledged, identify_misconfig_summary, alert_name, alert_description, originalalertid, originalalertname
+      _time, vendor_name, product_name, severity, finding_id, finding_name, finding_description, issue_type, issue_category, issue_status, remediation, impact, target_ipv4_raw, target_country, asset_id_primary, alert_name, alert_description, originalalertid, originalalertname
