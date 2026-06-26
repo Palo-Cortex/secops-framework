@@ -195,24 +195,68 @@ def rebase_timestamps(
 
 # ---------- Sender (unchanged API) ----------
 
-def send_events(events, api_url: str, api_key: str):
+def send_events(events, api_url: str, api_key: str,
+                batch_size: int = 5, max_body_bytes: int = 512_000):
     """
     Pure sender: assumes events already have whatever timestamps you want.
-    """
-    body = "\n".join(json.dumps(ev) for ev in events)
 
+    Batches the POST. A single large body (e.g. 138 CrowdStrike EPP events at
+    ~17KB each = 2.3MB) returns HTTP 200 but is silently dropped by the HTTP
+    collector — nothing lands in the dataset. Small sources (2-event Proofpoint)
+    work because the body is trivial. To avoid that, send in chunks.
+
+    Two ceilings are enforced per POST, whichever is hit first:
+      - batch_size: max events per POST (default 5)
+      - max_body_bytes: max serialized body size per POST (default ~512KB)
+
+    Events are NDJSON (one JSON object per line), unchanged from before.
+    """
     headers = {
         "Authorization": api_key,  # bare api_key as before
         "Content-Type": "application/json",
     }
 
-    print(f"[*] Sending {len(events)} events to {api_url}")
-    resp = requests.post(api_url, headers=headers, data=body, timeout=30)
-    print(f"[+] HTTP {resp.status_code}")
-    try:
-        print(resp.text)
-    except Exception:
-        pass
+    total = len(events)
+    print(f"[*] Sending {total} events to {api_url} "
+          f"(batch_size={batch_size}, max_body={max_body_bytes}B)")
+
+    # Build batches honoring both the count cap and the byte cap.
+    batches = []
+    cur, cur_bytes = [], 0
+    for ev in events:
+        line = json.dumps(ev)
+        ln = len(line) + 1  # +1 for the newline join
+        # flush if adding this event would breach either ceiling
+        if cur and (len(cur) >= batch_size or cur_bytes + ln > max_body_bytes):
+            batches.append(cur)
+            cur, cur_bytes = [], 0
+        cur.append(ev)
+        cur_bytes += ln
+    if cur:
+        batches.append(cur)
+
+    sent = 0
+    failures = 0
+    for i, batch in enumerate(batches, 1):
+        body = "\n".join(json.dumps(ev) for ev in batch)
+        try:
+            resp = requests.post(api_url, headers=headers, data=body, timeout=30)
+            ok = 200 <= resp.status_code < 300
+            sent += len(batch) if ok else 0
+            failures += 0 if ok else 1
+            print(f"    batch {i}/{len(batches)}: {len(batch)} events "
+                  f"({len(body)}B) → HTTP {resp.status_code} {resp.text.strip()[:80]}")
+            if not ok:
+                print(f"    [!] batch {i} failed; stopping.")
+                break
+        except requests.RequestException as e:
+            failures += 1
+            print(f"    [!] batch {i} POST error: {e}")
+            break
+
+    print(f"[+] Done: {sent}/{total} events accepted across "
+          f"{len(batches)} batch(es); {failures} failed batch(es).")
+    return failures == 0
 
 
 # ---------- CLI ----------
