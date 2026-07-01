@@ -1,0 +1,90 @@
+rule_id: 0
+fromversion: 6.10.0
+action: ALERTS
+alert_category: User Defined
+alert_description: '$description | User: $actor_effective_username | UPN: $idr_upn | Email: $idr_email | Display Name: $idr_display_name | Domain: $idr_domain_name | SID: $idr_sid | MITRE: $mitre_ids_str | Source IP: $local_ip | ASN: $asn ($asn_name) | Country: $country'
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  userid: user_principal
+  rawjson: rawjson
+  usersid: idr_sid
+  rawevent: rawjson
+  severity: severity_name
+  username: actor_effective_username
+  externallink: falcon_host_link
+  employeeemail: idr_email
+  mitretacticid: mitre_tactic_id
+  samaccountname: crowdstrike_original_user_name
+  sourceInstance: mirror_instance
+  action_local_ip: local_ip
+  mitretacticname: mitre_tactic
+  originalalertid: composite_id
+  externalseverity: severity
+  mitretechniqueid: mitre_ids_str
+  external_pivot_url: falcon_host_link
+  mitretechniquename: mitre_ids_str
+  contactemailaddress: idr_email
+  employeedisplayname: idr_display_name
+  originalalertsource: correlation_rule_id
+  actor_effective_username: actor_effective_username
+  causality_actor_causality_id: cid
+alert_name: $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+name: CrowdStrike Falcon - Shield SaaS All Alerts (non-CIE)
+description: >-
+  Creates an XSIAM alert for each CrowdStrike Falcon Shield SaaS Alert
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: CrowdStrike Falcon - Shield SaaS All Alerts (non-CIE)
+investigation_query_link: |-
+  dataset = crowdstrike_falcon_event_raw | filter composite_id = $composite_id | fields *
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs: {}
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 2 hours
+suppression_enabled: true
+suppression_fields:
+- composite_id
+timezone: null
+user_defined_category: category
+user_defined_severity: severity_name
+xql_query: |
+  dataset = crowdstrike_falcon_event_raw
+  | filter product = "saas-security"
+  | alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
+  | filter display_name not in ("Anonymized IP")
+
+  | alter alert_name = display_name
+
+  | alter mitre_json          = json_extract_array(to_json_string(mitre_attack), "$")
+  | alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar("@element", "$.technique_id"))
+  | alter mitre_tech_names    = arraymap(mitre_json, json_extract_scalar("@element", "$.technique"))
+  | alter mitre_tactic_ids    = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic_id"))
+  | alter mitre_tactic_names  = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic"))
+  | alter mitre_ids_str       = arraystring(arraydistinct(mitre_tech_ids), ",")
+  | alter mitre_tech_name_str = arraystring(arraydistinct(mitre_tech_names), ",")
+  | alter mitre_tactic_id     = arrayindex(arraydistinct(mitre_tactic_ids), 0)
+  | alter mitre_tactic        = arrayindex(arraydistinct(mitre_tactic_names), 0)
+
+  | alter tmp_user_names  = json_extract_array(to_json_string(user_names), "$")
+  | alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)
+  | alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+\"([^\"]+)\""), 0)
+  | alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
+  | alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
+  | alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
+  | alter crowdstrike_original_user_name = user_name
+  | alter actor_effective_username = user_name
+
+  | alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
+
+  | alter idu_join_key = lowercase(if(user_name contains "@", user_name, null))
+
+  | alter actor_effective_username = lowercase(coalesce(if(user_name contains "@", user_name, null), user_name))
+  | alter idr_email = if(user_name contains "@", lowercase(user_name), null), idr_upn = user_name, idr_sid = null, idr_netbios = null, idr_display_name = null
+  | alter email = idr_email
