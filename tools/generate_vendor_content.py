@@ -568,6 +568,126 @@ def _normalize(text: str) -> str:
     return "\n".join(out)
 
 
+# ----------------------- Emit-time tenant schema check -----------------------
+
+# Identifiers that appear in XQL bodies as grammar/keywords, never as columns.
+_XQL_NONCOLUMN = {
+    "dataset", "alter", "fields", "filter", "comp", "join", "dedup", "sort",
+    "limit", "as", "by", "asc", "desc", "and", "or", "not", "in", "contains",
+    "between", "preset", "config", "window", "over", "partition", "to",
+    "null", "true", "false", "nulls", "first", "last",
+}
+
+
+def _assemble_xql_body(doc: dict, cr: dict) -> str:
+    """Reconstruct the emitted XQL exactly as _build_correlation_yml does, so
+    the field check sees what actually ships in the rule."""
+    parts = [f'dataset = {doc["data_source"]}']
+    if cr.get("pre_alter"):
+        parts.append(_strip_xql_comments(cr["pre_alter"]))
+    if cr.get("final_projection"):
+        parts.append("| fields " + ", ".join(
+            "*" if c == "*" else c for c in cr["final_projection"]))
+    return "\n".join(parts)
+
+
+def _referenced_columns(xql_body: str) -> set:
+    """Best-effort set of raw dataset columns referenced in an XQL body.
+
+    Advisory heuristic: strips quoted strings, drops function-call names
+    (identifier immediately followed by '(') and XQL grammar words. Whatever
+    remains is treated as a dataset column reference."""
+    s = re.sub(r"'(?:[^'\\]|\\.)*'", " ", xql_body)
+    s = re.sub(r'"(?:[^"\\]|\\.)*"', " ", s)
+    s = re.sub(r"->\s*[A-Za-z_][A-Za-z0-9_]*", " ", s)   # drop nested-field accessors
+    cols = set()
+    for m in re.finditer(r"(?<![\w.])([A-Za-z_][A-Za-z0-9_]*)", s):
+        tok = m.group(1)
+        if tok in _XQL_NONCOLUMN:
+            continue
+        if s[m.end():].lstrip()[:1] == "(":   # function call, not a column
+            continue
+        cols.add(tok)
+    return cols
+
+
+def _fetch_tenant_columns(dataset: str, sample: int = 500):
+    """Union of columns observed in `sample` rows of `dataset` on the tenant
+    named by DEMISTO_BASE_URL / DEMISTO_API_KEY / XSIAM_AUTH_ID.
+
+    Advisory only. Returns None (check skipped) if creds are absent or any part
+    of the query fails - this must never break an offline or CI emit."""
+    import os, json as _json, time, urllib.request, urllib.error
+    base = os.environ.get("DEMISTO_BASE_URL")
+    key = os.environ.get("DEMISTO_API_KEY")
+    auth = os.environ.get("XSIAM_AUTH_ID")
+    if not (base and key and auth):
+        return None
+    base = base.rstrip("/")
+    H = {"Authorization": key, "x-xdr-auth-id": str(auth),
+         "Content-Type": "application/json"}
+
+    def _post(ep, body):
+        req = urllib.request.Request(base + ep, data=_json.dumps(body).encode(),
+                                     headers=H)
+        return _json.loads(urllib.request.urlopen(req, timeout=45).read().decode())
+
+    try:
+        q = f"dataset = {dataset} | limit {sample}"
+        r = _post("/public_api/v1/xql/start_xql_query/",
+                  {"request_data": {"query": q, "tenants": []}})
+        eid = r["reply"] if isinstance(r.get("reply"), str) \
+            else (r.get("reply") or {}).get("execution_id")
+        if not eid:
+            return None
+        for _ in range(25):
+            time.sleep(2)
+            rr = _post("/public_api/v1/xql/get_query_results/",
+                       {"request_data": {"query_id": eid, "pending_flag": True,
+                                         "format": "json"}})
+            rep = rr.get("reply", {}) if isinstance(rr, dict) else {}
+            if rep.get("status") == "SUCCESS":
+                cols = set()
+                for row in rep.get("results", {}).get("data", []) or []:
+                    cols.update(row.keys())
+                return cols or None
+            if rep.get("status") not in ("PENDING", "RUNNING"):
+                return None
+    except Exception:
+        return None
+    return None
+
+
+def emit_time_schema_check(doc: dict) -> None:
+    """Warn (never fail) when a correlation rule's XQL references a column the
+    target tenant's dataset doesn't carry - the class of gap that surfaces at
+    install time as error 101704."""
+    ds = doc.get("data_source")
+    present = _fetch_tenant_columns(ds) if ds else None
+    if present is None:
+        print("  schema-check: skipped (no DEMISTO_* tenant creds or query unavailable)")
+        return
+    print(f"  schema-check: sampled {len(present)} columns from {ds}")
+    warned = 0
+    for cr in doc.get("correlation_rules") or []:
+        try:
+            computed = _extract_computed_columns(cr.get("pre_alter", ""))
+            absent = sorted(_referenced_columns(_assemble_xql_body(doc, cr)) - present - computed - {ds})
+        except Exception:
+            # advisory only: an unanalyzable rule must never fail emit
+            print(f"  schema-check: skipped {cr.get('name', '<unnamed>')} (could not analyze XQL)")
+            continue
+        if absent:
+            warned += 1
+            print(f"  WARN  {cr.get('name', '<unnamed>')}")
+            print(f"        not in tenant schema: {', '.join(absent)}")
+    if not warned:
+        print("  schema-check: all correlation-rule fields resolve against tenant schema")
+    else:
+        print(f"  schema-check: {warned} rule(s) reference tenant-absent fields "
+              "(advisory; authored for a fuller-telemetry tenant?)")
+
+
 # ----------------------------- CLI -------------------------------------------
 
 def main(argv: list[str]) -> int:
@@ -580,6 +700,10 @@ def main(argv: list[str]) -> int:
     p_emit = sub.add_parser("emit", help="Emit all declared rules")
     p_emit.add_argument("--mapping", type=Path, required=True)
     p_emit.add_argument("--pack-root", type=Path, required=True)
+    p_emit.add_argument("--schema-check", action="store_true",
+                        help="After emit, warn on correlation-rule XQL fields "
+                             "absent from the target tenant dataset schema "
+                             "(reads DEMISTO_* env; advisory, never fails emit)")
 
     p_rt = sub.add_parser("roundtrip", help="Regenerate to temp + diff vs shipped")
     p_rt.add_argument("--mapping", type=Path, required=True)
@@ -608,6 +732,8 @@ def main(argv: list[str]) -> int:
     if args.cmd == "emit":
         for p in emit_all(doc, args.pack_root):
             print(f"  emitted: {p}")
+        if getattr(args, "schema_check", False):
+            emit_time_schema_check(doc)
         return 0
 
     if args.cmd == "roundtrip":
