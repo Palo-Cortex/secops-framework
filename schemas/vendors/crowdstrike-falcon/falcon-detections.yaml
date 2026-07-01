@@ -1,581 +1,828 @@
-# ============================================================================
-# CrowdStrike Falcon — EPP Detection Events
-# Vendor pack mapping (one file per data source)
-# ============================================================================
-# Source-of-truth contract for the SOC Framework's pack content generator.
-# The generator reads this file and emits:
-#   - ModelingRules/<id>/<id>.xif + .yml + _schema.json   (from modeling_rule)
-#   - CorrelationRules/<name>.yml                          (one per correlation_rules entry)
-#
-# Lifecycle-neutral: this file describes vendor → XDM → issue.* normalization.
-# Lifecycle-specific Artifacts schemas (NIST IR / Posture / Vuln / Threat Hunt)
-# consume the normalized output. One vendor mapping serves every lifecycle.
-# ============================================================================
 vendor: crowdstrike-falcon
 product: Falcon
 data_source: crowdstrike_falcon_event_raw
 category: Endpoint
 pack: soc-crowdstrike-falcon
 raw_schema:
-
-  # Fields currently declared in shipped _schema.json
-  product: {type: string, is_array: false}
-  severity: {type: int, is_array: false}
-  severity_name: {type: string, is_array: false}
-  incident_type: {type: string, is_array: false}
-  description: {type: string, is_array: false}
-  parent_process_id: {type: string, is_array: false, status: declared_unused}
-  user_name: {type: string, is_array: false}
-  device: {type: json, is_array: false, json_subfields: [hostname, machine_domain, os_version, local_ip, groups, mac_address, device_id, ou, external_ip]}
-  parent_details: {type: json, is_array: false, json_subfields: [filename, filepath, cmdline, sha256, local_process_id]}
-
-  # Fields referenced in xif/correlation but missing from shipped _schema.json
-  # (DRIFT — must be added to _schema.json before next pack release)
-  local_process_id: {type: string, is_array: false, status: used_undeclared}
-  agent_id:                        {type: string, is_array: false, status: inferred_from_correlation}
-  user_principal:                  {type: string, is_array: false, status: inferred_from_correlation}
-  user_id:                         {type: string, is_array: false, status: inferred_from_correlation}
-  cmdline:                         {type: string, is_array: false, status: inferred_from_correlation}
-  filename:                        {type: string, is_array: false, status: inferred_from_correlation}
-  filepath:                        {type: string, is_array: false, status: inferred_from_correlation}
-  sha256:                          {type: string, is_array: false, status: inferred_from_correlation}
-  md5:                             {type: string, is_array: false, status: inferred_from_correlation}
-  process_start_time:              {type: string, is_array: false, status: inferred_from_correlation}
-  aggregate_id:                    {type: string, is_array: false, status: inferred_from_correlation}
-  composite_id:                    {type: string, is_array: false, status: inferred_from_correlation}
-  template_instance_id:            {type: string, is_array: false, status: inferred_from_correlation}
-  pattern_disposition_description: {type: string, is_array: false, status: inferred_from_correlation}
-  pattern_disposition_details:     {type: json,   is_array: false, status: inferred_from_correlation}
-  falcon_host_link:                {type: string, is_array: false, status: inferred_from_correlation}
-  confidence:                      {type: int,    is_array: false, status: inferred_from_correlation}
-  scenario:                        {type: string, is_array: false, status: inferred_from_correlation}
-  objective:                       {type: string, is_array: false, status: inferred_from_correlation}
-  ioc_value:                       {type: string, is_array: false, status: inferred_from_correlation}
-  ioc_source:                      {type: string, is_array: false, status: inferred_from_correlation}
-  dns_requests:                    {type: json,   is_array: true,  status: inferred_from_correlation}
-  network_accesses:                {type: json,   is_array: true,  status: inferred_from_correlation}
-  files_written:                   {type: json,   is_array: true,  status: inferred_from_correlation}
-
+  product:
+    type: string
+    is_array: false
+  severity:
+    type: int
+    is_array: false
+  severity_name:
+    type: string
+    is_array: false
+  incident_type:
+    type: string
+    is_array: false
+  description:
+    type: string
+    is_array: false
+  parent_process_id:
+    type: string
+    is_array: false
+    status: declared_unused
+  user_name:
+    type: string
+    is_array: false
+  device:
+    type: json
+    is_array: false
+    json_subfields:
+    - hostname
+    - machine_domain
+    - os_version
+    - local_ip
+    - groups
+    - mac_address
+    - device_id
+    - ou
+    - external_ip
+  parent_details:
+    type: json
+    is_array: false
+    json_subfields:
+    - filename
+    - filepath
+    - cmdline
+    - sha256
+    - local_process_id
+  local_process_id:
+    type: string
+    is_array: false
+    status: used_undeclared
+  agent_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  user_principal:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  user_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  cmdline:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  filename:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  filepath:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  sha256:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  md5:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  process_start_time:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  aggregate_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  composite_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  template_instance_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  pattern_disposition_description:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  pattern_disposition_details:
+    type: json
+    is_array: false
+    status: inferred_from_correlation
+  falcon_host_link:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  confidence:
+    type: int
+    is_array: false
+    status: inferred_from_correlation
+  scenario:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  objective:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  ioc_value:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  ioc_source:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  dns_requests:
+    type: json
+    is_array: true
+    status: inferred_from_correlation
+  network_accesses:
+    type: json
+    is_array: true
+    status: inferred_from_correlation
+  files_written:
+    type: json
+    is_array: true
+    status: inferred_from_correlation
 modeling_rule:
-  fromversion: "8.3.1"
+  fromversion: 8.3.1
   modeling_rule_id: SOC_CrowdStrikeFalcon_ModelingRule
   modeling_rule_name: SOC CrowdStrike Falcon Modeling Rule
-  # Pack ships under the plural 'Rules' folder name; explicit override
-  # so the generator targets the existing path instead of creating a
-  # duplicate sibling.
   directory_name: SOCCrowdStrikeFalconModelingRules
   filter:
-    expression: 'product = "epp"'
-    notes: |
-      Restricts the rule to EPP detection events. Other Falcon products
+    expression: product = "epp"
+    notes: 'Restricts the rule to EPP detection events. Other Falcon products
+
       (CSPM, Identity Protection, etc.) ride other product values on the
+
       same dataset and are out of scope for the Endpoint category.
 
+      '
   fields:
+  - xdm_path: xdm.alert.severity
+    expression: concat(to_string(severity), " - ", severity_name)
+    sources:
+    - severity
+    - severity_name
+    issue_field: severity
+    notes: Composite — vendor int + name pair joined for analyst readability.
+  - xdm_path: xdm.event.original_event_type
+    expression: incident_type
+    sources:
+    - incident_type
+    issue_field: original_event_type
+  - xdm_path: xdm.event.type
+    expression: incident_type
+    sources:
+    - incident_type
+    issue_field: event_type
+    notes: Same source as original_event_type — duplicate mapping, intentional.
+  - xdm_path: xdm.event.description
+    expression: description
+    sources:
+    - description
+    issue_field: alert_description
+  - xdm_path: xdm.source.host.hostname
+    expression: device->hostname
+    sources:
+    - device
+    issue_field: hostname
+  - xdm_path: xdm.source.host.fqdn
+    expression: device->machine_domain
+    sources:
+    - device
+    issue_field: hostfqdn
+    notes: 'machine_domain is being mapped to fqdn here AND to user.domain below.
 
-    # ------ Alert metadata ------
+      In Falcon''s schema it''s the AD domain — fqdn would be hostname + machine_domain
 
-    - xdm_path: xdm.alert.severity
-      expression: 'concat(to_string(severity), " - ", severity_name)'
-      sources: [severity, severity_name]
-      issue_field: severity
-      notes: Composite — vendor int + name pair joined for analyst readability.
+      concatenated. Flag for review.
 
-    - xdm_path: xdm.event.original_event_type
-      expression: incident_type
-      sources: [incident_type]
-      issue_field: original_event_type
+      '
+  - xdm_path: xdm.source.host.os_family
+    expression: device->os_version
+    sources:
+    - device
+    issue_field: hostos
+    notes: 'os_version is the OS version string (e.g., "Windows 10 Pro"); os_family
 
-    - xdm_path: xdm.event.type
-      expression: incident_type
-      sources: [incident_type]
-      issue_field: event_type
-      notes: Same source as original_event_type — duplicate mapping, intentional.
+      should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain.
 
-    - xdm_path: xdm.event.description
-      expression: description
-      sources: [description]
-      issue_field: alert_description
-
-    # ------ Host ------
-
-    - xdm_path: xdm.source.host.hostname
-      expression: 'device->hostname'
-      sources: [device]
-      issue_field: hostname
-
-    - xdm_path: xdm.source.host.fqdn
-      expression: 'device->machine_domain'
-      sources: [device]
-      issue_field: hostfqdn
-      notes: |
-        machine_domain is being mapped to fqdn here AND to user.domain below.
-        In Falcon's schema it's the AD domain — fqdn would be hostname + machine_domain
-        concatenated. Flag for review.
-
-    - xdm_path: xdm.source.host.os_family
-      expression: 'device->os_version'
-      sources: [device]
-      issue_field: hostos
-      notes: |
-        os_version is the OS version string (e.g., "Windows 10 Pro"); os_family
-        should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain.
-
-    - xdm_path: xdm.source.ipv4
-      expression: 'device->local_ip'
-      sources: [device]
-      issue_field: hostip
-
-    # ------ User ------
-
-    - xdm_path: xdm.source.user.username
-      expression: user_name
-      sources: [user_name]
-      issue_field: username
-
-    - xdm_path: xdm.source.user.domain
-      expression: 'device->machine_domain'
-      sources: [device]
-      issue_field: userdomain
-
-    - xdm_path: xdm.source.user.groups
-      expression: 'device->groups[]'
-      sources: [device]
-      issue_field: usergroups
-
-    # ------ Process (ALL come from parent_details — semantic mismatch) ------
-
-    - xdm_path: xdm.source.process.pid
-      expression: 'to_integer(local_process_id)'
-      sources: [local_process_id]
-      issue_field: initiatorpid
-
-    - xdm_path: xdm.source.process.name
-      expression: 'parent_details->filename'
-      sources: [parent_details]
-      issue_field: initiatedby
-      notes: Currently mapping PARENT process name into source.process slot.
-
-    - xdm_path: xdm.source.process.executable.path
-      expression: 'parent_details->filepath'
-      sources: [parent_details]
-      issue_field: initiatorpath
-
-    - xdm_path: xdm.source.process.executable.sha256
-      expression: 'parent_details->sha256'
-      sources: [parent_details]
-      issue_field: initiatorsha256
-
-    - xdm_path: xdm.source.process.command_line
-      expression: 'parent_details->cmdline'
-      sources: [parent_details]
-      issue_field: initiatorcmd
-
-  # Coverage commitment — Artifacts category fields this modeling rule populates.
-  # Lifecycle-neutral: every consuming lifecycle's Artifacts.Endpoint schema
-  # joins against this list to compute its coverage report.
+      '
+  - xdm_path: xdm.source.ipv4
+    expression: device->local_ip
+    sources:
+    - device
+    issue_field: hostip
+  - xdm_path: xdm.source.user.username
+    expression: user_name
+    sources:
+    - user_name
+    issue_field: username
+  - xdm_path: xdm.source.user.domain
+    expression: device->machine_domain
+    sources:
+    - device
+    issue_field: userdomain
+  - xdm_path: xdm.source.user.groups
+    expression: device->groups[]
+    sources:
+    - device
+    issue_field: usergroups
+  - xdm_path: xdm.source.process.pid
+    expression: to_integer(local_process_id)
+    sources:
+    - local_process_id
+    issue_field: initiatorpid
+  - xdm_path: xdm.source.process.name
+    expression: parent_details->filename
+    sources:
+    - parent_details
+    issue_field: initiatedby
+    notes: Currently mapping PARENT process name into source.process slot.
+  - xdm_path: xdm.source.process.executable.path
+    expression: parent_details->filepath
+    sources:
+    - parent_details
+    issue_field: initiatorpath
+  - xdm_path: xdm.source.process.executable.sha256
+    expression: parent_details->sha256
+    sources:
+    - parent_details
+    issue_field: initiatorsha256
+  - xdm_path: xdm.source.process.command_line
+    expression: parent_details->cmdline
+    sources:
+    - parent_details
+    issue_field: initiatorcmd
   contributes:
-    - Endpoint.Hostname
-    - Endpoint.FQDN
-    - Endpoint.OSFamily
-    - Network.IP
-    - User
-    - Process.PID
-    - Process.Name
-    - Process.Path
-    - Process.SHA256
-    - Process.CommandLine
-
+  - Endpoint.Hostname
+  - Endpoint.FQDN
+  - Endpoint.OSFamily
+  - Network.IP
+  - User
+  - Process.PID
+  - Process.Name
+  - Process.Path
+  - Process.SHA256
+  - Process.CommandLine
 correlation_rules:
-  - subtype: passthrough
-    fromversion: "6.10.0"
-    global_rule_id: 'SOC CrowdStrike Falcon - Endpoint Alerts'
-    name: 'SOC CrowdStrike Falcon - Endpoint Alerts'
-    description: >-
-      Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection event.
-      Consolidates 15 per-tactic rules from v1.0.14 into one rule using MITRE tactic
-      as the User Defined alert category. Backwards compatible with alert field mappings
-      from all 1.0.14 per-tactic rules.
-    tags:
-      - SOCFramework
-      - Passthrough
-      - Endpoint
-      - CrowdStrike
-    schema_constants:
-      rule_id: 0
-      alert_category: User Defined
-      alert_domain: DOMAIN_SECURITY
-      action: ALERTS
-      execution_mode: REAL_TIME
-      mapping_strategy: CUSTOM
-      user_defined_category: tactic
-      user_defined_severity: severity_name
-      is_enabled: true
-      drilldown_query_timeframe: ALERT
-      severity: User Defined
-    alert_name: 'SOC CrowdStrike Falcon - $alert_name'
-    alert_description: '$alert_description'
-    suppression:
-      enabled: true
-      duration: 1 hours
-      fields: [composite_id]
-      notes: |
-        composite_id is CrowdStrike Falcon's unique identifier per detection event.
-    pre_alter: |
-      // Vendor / product (required for SOCProductCategoryMap routing)
-      | alter vendor_name = "CrowdStrike", product_name = "Falcon"
+- subtype: passthrough
+  fromversion: 6.10.0
+  global_rule_id: SOC CrowdStrike Falcon - Endpoint All Alerts (non-CIE)
+  name: SOC CrowdStrike Falcon - Endpoint All Alerts (non-CIE)
+  description: Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection event. Consolidates 15 per-tactic rules from v1.0.14 into one rule using MITRE tactic as the User Defined alert category. Backwards compatible with alert field mappings from all 1.0.14 per-tactic rules.
+  alert_name: SOC CrowdStrike Falcon - $alert_name
+  alert_description: '''$alert_description | User: $actor_effective_username | Display Name: $display_name | Email: $idr_email | UPN: $idr_upn | Domain: $idr_domain_name | SAM: $idr_sam_account_name | SID: $idr_sid | On-Prem SID: $idr_on_prem_sid | NetBIOS: $idr_netbios'''
+  alert_type: null
+  crontab: null
+  search_window: null
+  simple_schedule: null
+  timezone: null
+  mitre_defs: {}
+  investigation_query_link: 'dataset = xdr_data
 
-      // Filter to EPP detection events only
-      | filter product = "epp"
+    | filter agent_hostname = $hostname
 
-      // Capture the full raw event as JSON before any transformations
-      | alter originalrawlog = to_json_string(rawJSON)
+    | fields *'
+  schema_constants:
+    rule_id: 0
+    action: ALERTS
+    alert_category: User Defined
+    alert_domain: DOMAIN_SECURITY
+    execution_mode: REAL_TIME
+    is_enabled: true
+    mapping_strategy: CUSTOM
+    severity: User Defined
+    drilldown_query_timeframe: ALERT
+    user_defined_category: tactic
+    user_defined_severity: severity_name
+  suppression:
+    enabled: true
+    duration: 1 hours
+    fields:
+    - composite_id
+  pre_alter: "| alter vendor_name = \"CrowdStrike\", product_name = \"Falcon\"\n\n| filter product = \"epp\"\n\n| alter originalrawlog = to_json_string(rawJSON)\n\n| alter severity_int_raw = severity\n\n| alter\n        tactic                 = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic           = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic_id        = tactic_id,\n        mitre_technique        = technique,\n        mitre_technique_id     = technique_id\n\n| alter mitre_ids_str = if(\n    technique_id != null and technique != null,\n    concat(technique_id, \" - \", technique),\n    coalesce(technique_id, technique)\n  )\n\n| alter\n        hostname                     = device->hostname,\n        domain                       = device->machine_domain,\n        local_ip                     = device->local_ip,\n        external_ip                  = device->external_ip,\n        mac_address                  = device->mac_address,\n        device_id                    = device->device_id,\n        device_ou                    = device->ou[],\n        parent_process_name          = parent_details->filename,\n        parent_process_cmd           = parent_details->cmdline,\n        parent_process_path          = parent_details->filepath,\n        parent_process_sha256        = parent_details->sha256,\n        parent_local_process_id      = parent_details->local_process_id,\n        grandparent_process_name     = grandparent_details->filename,\n        grandparent_process_cmd      = grandparent_details->cmdline,\n        grandparent_process_path     = grandparent_details->filepath,\n        grandparent_process_sha256   = grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\n| alter device_ou_arr = arraymap(device_ou, replace(\"@element\", \"\\\"\", \"\"))\n\n| alter cgo_name = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_name,\n                      coalesce(parent_process_name, filename)),\n        cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_path,\n                      coalesce(parent_process_path, filepath)),\n        cgo_cmd  = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_cmd,\n                      coalesce(parent_process_cmd, cmdline))\n\n| alter dns_queries = dns_requests\n| alter remote_ips  = network_accesses\n\n| alter alert_name = concat(\n    \"[Endpoint] \",\n    coalesce(user_name, hostname, \"Unknown\"),\n    \" - \",\n    coalesce(tactic, \"Detection\"),\n    \": \",\n    coalesce(technique, name)\n  )\n\n| alter alert_description = concat(\n    coalesce(description, name),\n    \" | Host: \",  coalesce(hostname, \"Unknown\"),\n    \" | User: \",  coalesce(user_name, \"Unknown\"),\n    \" | Severity: \", coalesce(severity_name, \"Unknown\")\n  )\n\n| alter\n        vendor                              = vendor_name,\n        product                             = product_name,\n        originalalertid                     = composite_id,\n        originalalertname                   = alert_name,\n        originalalertsource                 = \"CrowdStrike Falcon\",\n        externallink                        = falcon_host_link,\n        alert_description                   = alert_description,\n        severity                            = severity_name,\n        mitretacticid                       = mitre_tactic_id,\n        mitretacticname                     = mitre_tactic,\n        mitretechniqueid                    = mitre_technique_id,\n        mitretechniquename                  = mitre_technique,\n        agent_hostname                      = hostname,\n        agent_id                            = agent_id,\n        agent_device_domain                 = domain,\n        actor_effective_username            = user_name,\n        actor_process_image_name            = filename,\n        actor_process_image_path            = filepath,\n        actor_process_image_sha256          = sha256,\n        actor_process_command_line          = cmdline,\n        actor_process_os_pid                = local_process_id,\n        causality_actor_process_image_name  = cgo_name,\n        causality_actor_process_image_path  = cgo_path,\n        causality_actor_process_image_sha256 = grandparent_process_sha256,\n        action_file_name                    = filename,\n        action_file_path                    = filepath,\n        action_file_sha256                  = sha256,\n        action_local_ip                     = local_ip,\n        action_remote_ip                    = remote_ips\n| fields\n    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *\n\n| alter ids_join_key = lowercase(coalesce(user_id, \"\"))\n\n| alter actor_effective_username = lowercase(coalesce(if(user_principal contains \"@\", user_principal, null), if(user_name contains \"@\", user_name, null), user_name))\n| alter idr_email = if(user_principal contains \"@\", lowercase(user_principal), if(user_name contains \"@\", lowercase(user_name), null)), idr_upn = user_principal, idr_sid = null, idr_netbios = null, idr_display_name = null\n| alter email = idr_email"
+  alert_fields:
+  - issue_field: mac
+    source: mac_address
+  - issue_field: domain
+    source: agent_device_domain
+  - issue_field: userid
+    source: user_principal
+  - issue_field: vendor
+    source: vendor
+  - issue_field: agentid
+    source: agent_id
+  - issue_field: localip
+    source: action_local_ip
+  - issue_field: product
+    source: product
+  - issue_field: usersid
+    source: idr_sid
+  - issue_field: agent_id
+    source: agent_id
+  - issue_field: deviceou
+    source: device_ou_arr
+  - issue_field: filehash
+    source: sha256
+  - issue_field: filename
+    source: action_file_name
+  - issue_field: filepath
+    source: action_file_path
+  - issue_field: hostname
+    source: agent_hostname
+  - issue_field: remoteip
+    source: action_remote_ip
+  - issue_field: scenario
+    source: scenario
+  - issue_field: severity
+    source: severity
+  - issue_field: sourceid
+    source: aggregate_id
+  - issue_field: username
+    source: actor_effective_username
+  - issue_field: cgosha256
+    source: causality_actor_process_image_sha256
+  - issue_field: objective
+    source: objective
+  - issue_field: processid
+    source: grandparent_local_process_id
+  - issue_field: _device_id
+    source: device_id
+  - issue_field: filesha256
+    source: action_file_sha256
+  - issue_field: processmd5
+    source: md5
+  - issue_field: alertaction
+    source: pattern_disposition_description
+  - issue_field: detectionid
+    source: template_instance_id
+  - issue_field: eventaction
+    source: ioc_source
+  - issue_field: initiatedby
+    source: actor_process_image_name
+  - issue_field: dns_requests
+    source: dns_requests
+  - issue_field: dnsqueryname
+    source: dns_queries
+  - issue_field: externallink
+    source: externallink
+  - issue_field: initiatorcmd
+    source: actor_process_command_line
+  - issue_field: initiatorpid
+    source: actor_process_os_pid
+  - issue_field: employeeemail
+    source: idr_email
+  - issue_field: files_written
+    source: files_written
+  - issue_field: initiatorpath
+    source: actor_process_image_path
+  - issue_field: mitretacticid
+    source: mitretacticid
+  - issue_field: agent_hostname
+    source: agent_hostname
+  - issue_field: dns_query_name
+    source: dns_queries
+  - issue_field: hostmacaddress
+    source: mac_address
+  - issue_field: originalrawlog
+    source: originalrawlog
+  - issue_field: prenatsourceip
+    source: local_ip
+  - issue_field: user_principal
+    source: user_principal
+  - issue_field: action_local_ip
+    source: action_local_ip
+  - issue_field: initiatorsha256
+    source: actor_process_image_sha256
+  - issue_field: mitretacticname
+    source: mitretacticname
+  - issue_field: originalalertid
+    source: originalalertid
+  - issue_field: parentprocessid
+    source: parent_local_process_id
+  - issue_field: action_file_name
+    source: action_file_name
+  - issue_field: action_file_path
+    source: action_file_path
+  - issue_field: action_remote_ip
+    source: action_remote_ip
+  - issue_field: externalseverity
+    source: severity_int_raw
+  - issue_field: mitretechniqueid
+    source: mitretechniqueid
+  - issue_field: network_accesses
+    source: network_accesses
+  - issue_field: parentprocesscmd
+    source: parent_process_cmd
+  - issue_field: parentprocessids
+    source: parent_local_process_id
+  - issue_field: alert_description
+    source: alert_description
+  - issue_field: deviceexternalips
+    source: external_ip
+  - issue_field: originalalertname
+    source: originalalertname
+  - issue_field: parentprocessname
+    source: parent_process_name
+  - issue_field: parentprocesspath
+    source: parent_process_path
+  - issue_field: action_file_sha256
+    source: action_file_sha256
+  - issue_field: external_pivot_url
+    source: falcon_host_link
+  - issue_field: externalconfidence
+    source: confidence
+  - issue_field: mitretechniquename
+    source: mitretechniquename
+  - issue_field: tim_main_indicator
+    source: ioc_value
+  - issue_field: agent_device_domain
+    source: agent_device_domain
+  - issue_field: contactemailaddress
+    source: idr_email
+  - issue_field: employeedisplayname
+    source: idr_display_name
+  - issue_field: originalalertsource
+    source: originalalertsource
+  - issue_field: originaldescription
+    source: alert_description
+  - issue_field: parentprocesssha256
+    source: parent_process_sha256
+  - issue_field: processcreationtime
+    source: process_start_time
+  - issue_field: actor_process_os_pid
+    source: actor_process_os_pid
+  - issue_field: additionalindicators
+    source: ioc_value
+  - issue_field: grandparentprocessid
+    source: grandparent_local_process_id
+  - issue_field: postnatdestinationip
+    source: remote_ips
+  - issue_field: grandparentprocesscmd
+    source: grandparent_process_cmd
+  - issue_field: grandparentprocessname
+    source: grandparent_process_name
+  - issue_field: grandparentprocesspath
+    source: grandparent_process_path
+  - issue_field: actor_effective_username
+    source: actor_effective_username
+  - issue_field: actor_process_image_name
+    source: actor_process_image_name
+  - issue_field: actor_process_image_path
+    source: actor_process_image_path
+  - issue_field: grandparentprocesssha256
+    source: grandparent_process_sha256
+  - issue_field: actor_process_command_line
+    source: actor_process_command_line
+  - issue_field: actor_process_image_sha256
+    source: actor_process_image_sha256
+  - issue_field: action_process_image_sha256
+    source: sha256
+  - issue_field: pattern_disposition_details
+    source: pattern_disposition_details
+  - issue_field: xdmsourceprocesscausalityid
+    source: aggregate_id
+  - issue_field: causality_actor_causality_id
+    source: aggregate_id
+  - issue_field: causality_actor_process_image_name
+    source: causality_actor_process_image_name
+  - issue_field: causality_actor_process_image_path
+    source: causality_actor_process_image_path
+  - issue_field: causality_actor_process_command_line
+    source: cgo_cmd
+  - issue_field: causality_actor_process_image_sha256
+    source: causality_actor_process_image_sha256
+  contributes:
+  - Endpoint.User
+  - Endpoint.Host
+  - Endpoint.Process
+- subtype: passthrough
+  fromversion: 6.10.0
+  global_rule_id: CrowdStrike Falcon - IDP All Alerts (non-CIE)
+  name: CrowdStrike Falcon - IDP All Alerts (non-CIE)
+  description: Creates an XSIAM alert for each CrowdStrike Identity Protection (IDP) alerts
+  alert_name: CrowdStrike Falcon - $alert_name
+  alert_description: '''$description | User: $actor_effective_username | Display Name: $display_name | Email: $idr_email | UPN: $idr_upn | Domain: $idr_domain_name | SAM: $idr_sam_account_name | SID: $idr_sid | On-Prem SID: $idr_on_prem_sid | NetBIOS: $idr_netbios'''
+  alert_type: null
+  crontab: null
+  search_window: null
+  simple_schedule: null
+  timezone: null
+  mitre_defs: {}
+  investigation_query_link: ''
+  schema_constants:
+    rule_id: 0
+    action: ALERTS
+    alert_category: User Defined
+    alert_domain: DOMAIN_SECURITY
+    execution_mode: REAL_TIME
+    is_enabled: true
+    mapping_strategy: CUSTOM
+    severity: User Defined
+    drilldown_query_timeframe: ALERT
+    user_defined_category: tactic
+    user_defined_severity: severity
+  suppression:
+    enabled: true
+    duration: 1 hours
+    fields:
+    - composite_id
+  pre_alter: "| alter vendor_name = \"CrowdStrike\", product_name = \"Falcon Identity Protection\"\n\n| filter product = \"idp\"\n\n| alter originalrawlog = to_json_string(rawJSON)\n\n| alter severity_int_raw = severity\n\n| alter\n        tactic                 = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic           = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic_id        = tactic_id,\n        mitre_technique        = technique,\n        mitre_technique_id     = technique_id\n\n| alter mitre_ids_str = if(\n    technique_id != null and technique != null,\n    concat(technique_id, \" - \", technique),\n    coalesce(technique_id, technique)\n  )\n\n| alter\n        hostname                     = device->hostname,\n        domain                       = device->machine_domain,\n        local_ip                     = device->local_ip,\n        external_ip                  = device->external_ip,\n        mac_address                  = device->mac_address,\n        device_id                    = device->device_id,\n        device_ou                    = device->ou[],\n        parent_process_name          = parent_details->filename,\n        parent_process_cmd           = parent_details->cmdline,\n        parent_process_path          = parent_details->filepath,\n        parent_process_sha256        = parent_details->sha256,\n        parent_local_process_id      = parent_details->local_process_id,\n        grandparent_process_name     = grandparent_details->filename,\n        grandparent_process_cmd      = grandparent_details->cmdline,\n        grandparent_process_path     = grandparent_details->filepath,\n        grandparent_process_sha256   = grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\n| alter src_account_name = source_account_name,\n        src_account_upn  = source_account_upn,\n        src_account_sid  = source_account_object_sid,\n        src_host         = source_endpoint_host_name,\n        src_ip           = source_endpoint_address_ip4,\n        src_sensor_id    = source_endpoint_sensor_id,\n        dst_account_name = target_account_name,\n        dst_account_sid  = target_endpoint_account_object_sid,\n        dst_host         = target_endpoint_host_name,\n        dst_sensor_id    = target_endpoint_sensor_id,\n        idp_logon_domain = logon_domain\n\n| alter dst_ip = arrayindex(regextract(to_json_string(network_accesses), \"\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\"), 0)\n\n| alter user_name      = coalesce(user_name, src_account_name),\n        user_principal = coalesce(user_principal, src_account_upn),\n        hostname       = coalesce(hostname, src_host),\n        domain         = coalesce(domain, idp_logon_domain),\n        local_ip       = coalesce(local_ip, src_ip),\n        agent_id       = coalesce(agent_id, src_sensor_id)\n\n| alter hostname = arrayindex(split(hostname, \".\"), 0)\n\n| alter device_ou_arr = arraymap(device_ou, replace(\"@element\", \"\\\"\", \"\"))\n\n| alter cgo_name = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_name,\n                      coalesce(parent_process_name, filename)),\n        cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_path,\n                      coalesce(parent_process_path, filepath)),\n        cgo_cmd  = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_cmd,\n                      coalesce(parent_process_cmd, cmdline))\n\n| alter dns_queries = dns_requests\n| alter remote_ips  = coalesce(dst_ip, network_accesses)\n\n| alter alert_name = concat(\n    \"[Identity] \",\n    coalesce(user_name, hostname, \"Unknown\"),\n    \" - \",\n    coalesce(tactic, \"Detection\"),\n    \": \",\n    coalesce(technique, name)\n  )\n\n| alter idp_context = concat(\n    \"Source: \", coalesce(src_account_name, \"Unknown\"),\n    \" @ \", coalesce(src_host, \"Unknown\"), \" (\", coalesce(src_ip, \"n/a\"), \")\",\n    \" -> Target: \", coalesce(dst_account_name, \"n/a\"),\n    \" @ \", coalesce(dst_host, \"n/a\"),\n    \" | App: \", \"n/a\",\n    \" | Policy: \", coalesce(idp_policy_rule_name, \"n/a\"),\n    \" (\", coalesce(idp_policy_rule_action, \"no action\"), \")\",\n    \" | MFA: \", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, \"n/a\")\n  )\n\n| alter alert_description = concat(\n    coalesce(description, name),\n    \" | Host: \",  coalesce(hostname, \"Unknown\"),\n    \" | User: \",  coalesce(user_name, \"Unknown\"),\n    \" | Severity: \", coalesce(severity_name, \"Unknown\"),\n    \" | \", idp_context\n  )\n\n| alter\n        vendor                              = vendor_name,\n        product                             = product_name,\n        originalalertid                     = composite_id,\n        originalalertname                   = alert_name,\n        originalalertsource                 = \"CrowdStrike Falcon Identity Protection\",\n        externallink                        = falcon_host_link,\n        alert_description                   = alert_description,\n        severity                            = severity_name,\n        mitretacticid                       = mitre_tactic_id,\n        mitretacticname                     = mitre_tactic,\n        mitretechniqueid                    = mitre_technique_id,\n        mitretechniquename                  = mitre_technique,\n        agent_hostname                      = hostname,\n        agent_id                            = agent_id,\n        agent_device_domain                 = domain,\n        actor_effective_username            = user_name,\n        actor_process_image_name            = filename,\n        actor_process_image_path            = filepath,\n        actor_process_image_sha256          = sha256,\n        actor_process_command_line          = cmdline,\n        actor_process_os_pid                = local_process_id,\n        causality_actor_process_image_name  = cgo_name,\n        causality_actor_process_image_path  = cgo_path,\n        causality_actor_process_image_sha256 = grandparent_process_sha256,\n        action_file_name                    = filename,\n        action_file_path                    = filepath,\n        action_file_sha256                  = sha256,\n        action_local_ip                     = local_ip,\n        action_remote_ip                    = remote_ips,\n        causality_id                        = aggregate_id,\n        dst_agent_id_v                      = dst_sensor_id,\n        dst_hostname_v                      = dst_host,\n        dst_user_v                          = dst_account_name\n| fields\n    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, privileges, added_privileges, ldap_search_query_attack, pattern_disposition, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *\n\n| alter socfw_event_time = _time,\n        socfw_insert_time = _insert_time\n\n| alter ids_join_key = lowercase(coalesce(source_account_object_sid, src_account_sid))\n\n| alter actor_effective_username = lowercase(coalesce(source_account_upn, if(user_principal contains \"@\", user_principal, null), source_account_name, user_name))\n| alter idr_email = coalesce(lowercase(source_account_upn), if(user_principal contains \"@\", lowercase(user_principal), null)), idr_upn = coalesce(source_account_upn, user_principal), idr_sid = source_account_object_sid, idr_netbios = null, idr_display_name = null\n| alter email = idr_email\n"
+  alert_fields:
+  - issue_field: mac
+    source: mac_address
+  - issue_field: domain
+    source: agent_device_domain
+  - issue_field: userid
+    source: user_principal
+  - issue_field: vendor
+    source: vendor
+  - issue_field: localip
+    source: action_local_ip
+  - issue_field: product
+    source: product
+  - issue_field: rawjson
+    source: rawjson
+  - issue_field: usersid
+    source: idr_sid
+  - issue_field: agent_id
+    source: agent_id
+  - issue_field: filehash
+    source: sha256
+  - issue_field: hostname
+    source: agent_hostname
+  - issue_field: remoteip
+    source: action_remote_ip
+  - issue_field: scenario
+    source: scenario
+  - issue_field: severity
+    source: severity_name
+  - issue_field: sourceid
+    source: aggregate_id
+  - issue_field: username
+    source: actor_effective_username
+  - issue_field: objective
+    source: objective
+  - issue_field: _device_id
+    source: device_id
+  - issue_field: filesha256
+    source: sha256
+  - issue_field: processmd5
+    source: md5
+  - issue_field: alertaction
+    source: pattern_disposition
+  - issue_field: detectionid
+    source: template_instance_id
+  - issue_field: eventaction
+    source: idp_policy_rule_action
+  - issue_field: initiatedby
+    source: actor_process_image_name
+  - issue_field: dnsqueryname
+    source: dns_queries
+  - issue_field: dst_agent_id
+    source: dst_agent_id_v
+  - issue_field: dst_hostname
+    source: dst_hostname_v
+  - issue_field: dst_username
+    source: dst_user_v
+  - issue_field: externallink
+    source: falcon_host_link
+  - issue_field: initiatorcmd
+    source: actor_process_command_line
+  - issue_field: employeeemail
+    source: idr_email
+  - issue_field: initiatorpath
+    source: actor_process_image_path
+  - issue_field: mitretacticid
+    source: tactic_id
+  - issue_field: agent_hostname
+    source: agent_hostname
+  - issue_field: dns_query_name
+    source: dns_queries
+  - issue_field: locationregion
+    source: location_country_code
+  - issue_field: originalrawlog
+    source: originalrawlog
+  - issue_field: samaccountname
+    source: src_account_name
+  - issue_field: sourceInstance
+    source: mirror_instance
+  - issue_field: user_principal
+    source: user_principal
+  - issue_field: action_local_ip
+    source: action_local_ip
+  - issue_field: initiatorsha256
+    source: actor_process_image_sha256
+  - issue_field: mitretacticname
+    source: tactic
+  - issue_field: originalalertid
+    source: composite_id
+  - issue_field: action_file_name
+    source: filename
+  - issue_field: action_file_path
+    source: filepath
+  - issue_field: action_remote_ip
+    source: action_remote_ip
+  - issue_field: destinationemail
+    source: dst_account_name
+  - issue_field: externalseverity
+    source: severity
+  - issue_field: mitretechniqueid
+    source: technique_id
+  - issue_field: originalalertname
+    source: originalalertname
+  - issue_field: action_file_sha256
+    source: sha256
+  - issue_field: action_local_ip_v6
+    source: source_endpoint_address_ip6
+  - issue_field: external_pivot_url
+    source: falcon_host_link
+  - issue_field: externalconfidence
+    source: confidence
+  - issue_field: mitretechniquename
+    source: technique
+  - issue_field: tim_main_indicator
+    source: ioc_value
+  - issue_field: agent_device_domain
+    source: agent_device_domain
+  - issue_field: contactemailaddress
+    source: idr_email
+  - issue_field: employeedisplayname
+    source: idr_display_name
+  - issue_field: originalalertsource
+    source: originalalertsource
+  - issue_field: originaldescription
+    source: alert_description
+  - issue_field: processcreationtime
+    source: process_start_time
+  - issue_field: actor_process_os_pid
+    source: local_process_id
+  - issue_field: additionalindicators
+    source: ioc_value
+  - issue_field: actor_effective_username
+    source: actor_effective_username
+  - issue_field: actor_process_image_name
+    source: filename
+  - issue_field: actor_process_image_path
+    source: filepath
+  - issue_field: actor_process_command_line
+    source: cmdline
+  - issue_field: actor_process_image_sha256
+    source: sha256
+  - issue_field: xdmsourceprocesscausalityid
+    source: causality_id
+  - issue_field: causality_actor_causality_id
+    source: causality_id
+  - issue_field: causality_actor_process_image_name
+    source: causality_actor_process_image_name
+  - issue_field: causality_actor_process_image_path
+    source: causality_actor_process_image_path
+  - issue_field: causality_actor_process_command_line
+    source: cgo_cmd
+  - issue_field: causality_actor_process_image_sha256
+    source: causality_actor_process_image_sha256
+  contributes:
+  - Endpoint.User
+  - Endpoint.Host
+  - Endpoint.Process
+- subtype: passthrough
+  fromversion: 6.10.0
+  global_rule_id: CrowdStrike Falcon - Shield SaaS All Alerts (non-CIE)
+  name: CrowdStrike Falcon - Shield SaaS All Alerts (non-CIE)
+  description: Creates an XSIAM alert for each CrowdStrike Falcon Shield SaaS Alert
+  alert_name: $alert_name
+  alert_description: '''$description | User: $actor_effective_username | UPN: $idr_upn | Email: $idr_email | Display Name: $idr_display_name | Domain: $idr_domain_name | SID: $idr_sid | MITRE: $mitre_ids_str | Source IP: $local_ip | ASN: $asn ($asn_name) | Country: $country'''
+  alert_type: null
+  crontab: null
+  search_window: null
+  simple_schedule: null
+  timezone: null
+  mitre_defs: {}
+  investigation_query_link: dataset = crowdstrike_falcon_event_raw | filter composite_id = $composite_id | fields *
+  schema_constants:
+    rule_id: 0
+    action: ALERTS
+    alert_category: User Defined
+    alert_domain: DOMAIN_SECURITY
+    execution_mode: REAL_TIME
+    is_enabled: true
+    mapping_strategy: CUSTOM
+    severity: User Defined
+    drilldown_query_timeframe: ALERT
+    user_defined_category: category
+    user_defined_severity: severity_name
+  suppression:
+    enabled: true
+    duration: 2 hours
+    fields:
+    - composite_id
+  pre_alter: '| filter product = "saas-security"
 
-      // Preserve the raw integer severity BEFORE downstream stages reassign
-      // 'severity' to the readable string. externalseverity issue field reads this.
-      | alter severity_int_raw = severity
+    | alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
 
-      // XSIAM MITRE Normalization
-      | alter
-              tactic                 = if(tactic = "Malware", "Execution", tactic),
-              mitre_tactic           = if(tactic = "Malware", "Execution", tactic),
-              mitre_tactic_id        = tactic_id,
-              mitre_technique        = technique,
-              mitre_technique_id     = technique_id
+    | filter display_name not in ("Anonymized IP")
 
-      | alter mitre_ids_str = if(
-          technique_id != null and technique != null,
-          concat(technique_id, " - ", technique),
-          coalesce(technique_id, technique)
-        )
 
-      | alter
-              hostname                     = device->hostname,
-              domain                       = device->machine_domain,
-              local_ip                     = device->local_ip,
-              external_ip                  = device->external_ip,
-              mac_address                  = device->mac_address,
-              device_id                    = device->device_id,
-              device_ou                    = device->ou[],
-              parent_process_name          = parent_details->filename,
-              parent_process_cmd           = parent_details->cmdline,
-              parent_process_path          = parent_details->filepath,
-              parent_process_sha256        = parent_details->sha256,
-              parent_local_process_id      = parent_details->local_process_id,
-              grandparent_process_name     = grandparent_details->filename,
-              grandparent_process_cmd      = grandparent_details->cmdline,
-              grandparent_process_path     = grandparent_details->filepath,
-              grandparent_process_sha256   = grandparent_details->sha256,
-              grandparent_local_process_id = grandparent_details->local_process_id
+    | alter alert_name = display_name
 
-      | alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
 
-      | alter cgo_name = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
-                            grandparent_process_name,
-                            coalesce(parent_process_name, filename)),
-              cgo_path = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
-                            grandparent_process_path,
-                            coalesce(parent_process_path, filepath)),
-              cgo_cmd  = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
-                            grandparent_process_cmd,
-                            coalesce(parent_process_cmd, cmdline))
+    | alter mitre_json          = json_extract_array(to_json_string(mitre_attack), "$")
 
-      | alter dns_queries = dns_requests
-      | alter remote_ips  = network_accesses
+    | alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar("@element", "$.technique_id"))
 
-      | alter alert_name = concat(
-          "[Endpoint] ",
-          coalesce(user_name, hostname, "Unknown"),
-          " - ",
-          coalesce(tactic, "Detection"),
-          ": ",
-          coalesce(technique, name)
-        )
+    | alter mitre_tech_names    = arraymap(mitre_json, json_extract_scalar("@element", "$.technique"))
 
-      | alter alert_description = concat(
-          coalesce(description, name),
-          " | Host: ",  coalesce(hostname, "Unknown"),
-          " | User: ",  coalesce(user_name, "Unknown"),
-          " | Severity: ", coalesce(severity_name, "Unknown")
-        )
+    | alter mitre_tactic_ids    = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic_id"))
 
-      // ============================================================
-      // CANONICAL CORE NORMALIZATION
-      // Produces the 29 canonical core columns every vendor pack must
-      // expose. Column names match issue field names in alert_fields.
-      // Foundation, Universal Command, and SOC Framework dashboards
-      // all read from this normalized surface.
-      // ============================================================
-      | alter
-              vendor                              = vendor_name,
-              product                             = product_name,
-              originalalertid                     = composite_id,
-              originalalertname                   = alert_name,
-              originalalertsource                 = "CrowdStrike Falcon",
-              externallink                        = falcon_host_link,
-              alert_description                   = alert_description,
-              severity                            = severity_name,
-              mitretacticid                       = mitre_tactic_id,
-              mitretacticname                     = mitre_tactic,
-              mitretechniqueid                    = mitre_technique_id,
-              mitretechniquename                  = mitre_technique,
-              agent_hostname                      = hostname,
-              agent_id                            = agent_id,
-              agent_device_domain                 = domain,
-              actor_effective_username            = user_name,
-              actor_process_image_name            = filename,
-              actor_process_image_path            = filepath,
-              actor_process_image_sha256          = sha256,
-              actor_process_command_line          = cmdline,
-              actor_process_os_pid                = local_process_id,
-              causality_actor_process_image_name  = cgo_name,
-              causality_actor_process_image_path  = cgo_path,
-              causality_actor_process_image_sha256 = grandparent_process_sha256,
-              action_file_name                    = filename,
-              action_file_path                    = filepath,
-              action_file_sha256                  = sha256,
-              action_local_ip                     = local_ip,
-              action_remote_ip                    = remote_ips
-    final_projection:
-      - device_id
-      - local_ip
-      - user_name
-      - user_principal
-      - cmdline
-      - sha256
-      - domain
-      - hostname
-      - agent_id
-      - pattern_disposition_description
-      - pattern_disposition_details
-      - cgo_cmd
-      - cgo_name
-      - cgo_path
-      - template_instance_id
-      - external_ip
-      - falcon_host_link
-      - mac_address
-      - mitre_tactic_id
-      - mitre_tactic
-      - mitre_technique_id
-      - mitre_technique
-      - mitre_ids_str
-      - tactic_id
-      - tactic
-      - technique_id
-      - technique
-      - objective
-      - composite_id
-      - parent_process_cmd
-      - parent_process_name
-      - parent_local_process_id
-      - parent_process_path
-      - parent_process_sha256
-      - grandparent_process_name
-      - grandparent_process_cmd
-      - grandparent_process_path
-      - grandparent_process_sha256
-      - grandparent_local_process_id
-      - device_ou_arr
-      - process_start_time
-      - local_process_id
-      - md5
-      - scenario
-      - severity_name
-      - aggregate_id
-      - indicator_id
-      - alert_name
-      - alert_description
-      - network_accesses
-      - dns_requests
-      - files_written
-      - originalrawlog
-      - "*"
-    alert_fields:
+    | alter mitre_tactic_names  = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic"))
 
-      # === CANONICAL CORE — identical across every vendor pack ===
-      # LHS = issue field (what Foundation reads)
-      # RHS = pre_alter column with the matching canonical name
-      - {issue_field: vendor, source: vendor, bucket: computed}
-      - {issue_field: product, source: product, bucket: computed}
-      - {issue_field: originalalertid, source: originalalertid, bucket: computed}
-      - {issue_field: originalalertname, source: originalalertname, bucket: computed}
-      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
-      - {issue_field: externallink, source: externallink, bucket: computed}
-      - {issue_field: alert_description, source: alert_description, bucket: computed}
-      - {issue_field: severity, source: severity, bucket: computed}
-      - {issue_field: mitretacticid, source: mitretacticid, bucket: computed}
-      - {issue_field: mitretacticname, source: mitretacticname, bucket: computed}
-      - {issue_field: mitretechniqueid, source: mitretechniqueid, bucket: computed}
-      - {issue_field: mitretechniquename, source: mitretechniquename, bucket: computed}
-      - {issue_field: agent_hostname, source: agent_hostname, bucket: computed}
-      - {issue_field: agent_id, source: agent_id, bucket: computed}
-      - {issue_field: agent_device_domain, source: agent_device_domain, bucket: computed}
-      - {issue_field: actor_effective_username, source: actor_effective_username, bucket: computed}
-      - {issue_field: actor_process_image_name, source: actor_process_image_name, bucket: computed}
-      - {issue_field: actor_process_image_path, source: actor_process_image_path, bucket: computed}
-      - {issue_field: actor_process_image_sha256, source: actor_process_image_sha256, bucket: computed}
-      - {issue_field: actor_process_command_line, source: actor_process_command_line, bucket: computed}
-      - {issue_field: actor_process_os_pid, source: actor_process_os_pid, bucket: computed}
-      - {issue_field: causality_actor_process_image_name, source: causality_actor_process_image_name, bucket: computed}
-      - {issue_field: causality_actor_process_image_path, source: causality_actor_process_image_path, bucket: computed}
-      - {issue_field: causality_actor_process_image_sha256, source: causality_actor_process_image_sha256, bucket: computed}
-      - {issue_field: action_file_name, source: action_file_name, bucket: computed}
-      - {issue_field: action_file_path, source: action_file_path, bucket: computed}
-      - {issue_field: action_file_sha256, source: action_file_sha256, bucket: computed}
-      - {issue_field: action_local_ip, source: action_local_ip, bucket: computed}
-      - {issue_field: action_remote_ip, source: action_remote_ip, bucket: computed}
+    | alter mitre_ids_str       = arraystring(arraydistinct(mitre_tech_ids), ",")
 
-      # === VENDOR-SPECIFIC TAIL — CrowdStrike Falcon fields beyond canonical ===
-      # Preserves XSIAM XDR fields and Falcon-specific surfacing shipped to date.
-      # No 1.x legacy (V3-native pack — never had a vendor-prefixed namespace).
-      - {issue_field: _device_id, source: device_id, bucket: computed}
-      - {issue_field: mac, source: mac_address, bucket: computed}
-      - {issue_field: prenatsourceip, source: local_ip, bucket: computed}
-      - {issue_field: postnatdestinationip, source: remote_ips, bucket: computed}
-      - {issue_field: deviceexternalips, source: external_ip, bucket: computed}
-      - {issue_field: deviceou, source: device_ou_arr, bucket: computed}
-      - {issue_field: userid, source: user_principal, bucket: raw}
-      - {issue_field: user_principal, source: user_principal, bucket: raw}
-      - {issue_field: usersid, source: user_id, bucket: raw}
-      - {issue_field: action_process_image_sha256, source: sha256, bucket: raw}
-      - {issue_field: filehash, source: sha256, bucket: raw}
-      - {issue_field: processmd5, source: md5, bucket: raw}
-      - {issue_field: processcreationtime, source: process_start_time, bucket: raw}
-      - {issue_field: parentprocessname, source: parent_process_name, bucket: computed}
-      - {issue_field: parentprocesscmd, source: parent_process_cmd, bucket: computed}
-      - {issue_field: parentprocesspath, source: parent_process_path, bucket: computed}
-      - {issue_field: parentprocesssha256, source: parent_process_sha256, bucket: computed}
-      - {issue_field: parentprocessid, source: parent_local_process_id, bucket: computed}
-      - {issue_field: parentprocessids, source: parent_local_process_id, bucket: computed}
-      - {issue_field: grandparentprocessname, source: grandparent_process_name, bucket: computed}
-      - {issue_field: grandparentprocesscmd, source: grandparent_process_cmd, bucket: computed}
-      - {issue_field: grandparentprocesspath, source: grandparent_process_path, bucket: computed}
-      - {issue_field: grandparentprocesssha256, source: grandparent_process_sha256, bucket: computed}
-      - {issue_field: grandparentprocessid, source: grandparent_local_process_id, bucket: computed}
-      - {issue_field: processid, source: grandparent_local_process_id, bucket: computed}
-      - {issue_field: causality_actor_causality_id, source: aggregate_id, bucket: raw}
-      - {issue_field: causality_actor_process_command_line, source: cgo_cmd, bucket: computed}
-      - {issue_field: sourceid, source: aggregate_id, bucket: raw}
-      - {issue_field: dns_query_name, source: dns_queries, bucket: computed}
-      - {issue_field: dns_requests, source: dns_requests, bucket: raw}
-      - {issue_field: network_accesses, source: network_accesses, bucket: raw}
-      - {issue_field: files_written, source: files_written, bucket: raw}
-      - {issue_field: additionalindicators, source: ioc_value, bucket: raw}
-      - {issue_field: tim_main_indicator, source: ioc_value, bucket: raw}
-      - {issue_field: eventaction, source: ioc_source, bucket: raw}
-      - {issue_field: originaldescription, source: alert_description, bucket: computed}
-      - {issue_field: detectionid, source: template_instance_id, bucket: raw}
-      - {issue_field: alertaction, source: pattern_disposition_description, bucket: raw}
-      - {issue_field: pattern_disposition_details, source: pattern_disposition_details, bucket: raw}
-      - {issue_field: external_pivot_url, source: falcon_host_link, bucket: raw}
-      - {issue_field: externalconfidence, source: confidence, bucket: raw}
-      - {issue_field: externalseverity, source: severity_int_raw, bucket: computed}
-      - {issue_field: scenario, source: scenario, bucket: raw}
-      - {issue_field: objective, source: objective, bucket: raw}
-      - {issue_field: originalrawlog, source: originalrawlog, bucket: computed}
+    | alter mitre_tech_name_str = arraystring(arraydistinct(mitre_tech_names), ",")
 
-      # ============================================================
-      # === cliName CONVERGENCE — additive aliases (NEW) =========
-      # ============================================================
-      # Each alias points to the SAME pre_alter source column as an
-      # existing underscored entry above. The underscored entries stay
-      # for alert.* compatibility (dashboards, alert-level XQL, layouts,
-      # in-flight playbook references). The cliName aliases below
-      # surface the same data at issue.* — which is what the SOC
-      # Framework's Foundation_-_Normalize_Endpoint_V3 reads.
-      #
-      # Every alias verified against the tenant /incidentfields registry
-      # (1,857 fields) — these are real registered cliNames.
-      #
-      # Once consumers have migrated off the underscored entries, the
-      # paired underscored entries become eligible for pruning. Track
-      # via schemas/canonical_issue_fields.yaml deprecated_alert_fields.
-      #
-      # Pairing (alias → existing underscored entry it shadows):
+    | alter mitre_tactic_id     = arrayindex(arraydistinct(mitre_tactic_ids), 0)
 
-      # ---- Endpoint identity ----
-      - {issue_field: agentid,                      source: agent_id,                            bucket: computed}  # ← agent_id
-      - {issue_field: hostname,                     source: agent_hostname,                      bucket: computed}  # ← agent_hostname
-      - {issue_field: domain,                       source: agent_device_domain,                 bucket: computed}  # ← agent_device_domain
-      - {issue_field: hostmacaddress,               source: mac_address,                         bucket: computed}  # ← mac
+    | alter mitre_tactic        = arrayindex(arraydistinct(mitre_tactic_names), 0)
 
-      # ---- Initiator process (Falcon's actor_process_*) ----
-      - {issue_field: initiatedby,                  source: actor_process_image_name,            bucket: computed}  # ← actor_process_image_name
-      - {issue_field: initiatorpath,                source: actor_process_image_path,            bucket: computed}  # ← actor_process_image_path
-      - {issue_field: initiatorsha256,              source: actor_process_image_sha256,          bucket: computed}  # ← actor_process_image_sha256
-      - {issue_field: initiatorcmd,                 source: actor_process_command_line,          bucket: computed}  # ← actor_process_command_line
-      - {issue_field: initiatorpid,                 source: actor_process_os_pid,                bucket: computed}  # ← actor_process_os_pid
 
-      # ---- Causality (CGO) ----
-      - {issue_field: xdmsourceprocesscausalityid,  source: aggregate_id,                        bucket: raw}       # ← causality_actor_causality_id
-      - {issue_field: cgosha256,                    source: causality_actor_process_image_sha256, bucket: computed} # ← causality_actor_process_image_sha256
+    | alter tmp_user_names  = json_extract_array(to_json_string(user_names), "$")
 
-      # ---- Action target (file) ----
-      - {issue_field: filename,                     source: action_file_name,                    bucket: computed}  # ← action_file_name
-      - {issue_field: filepath,                     source: action_file_path,                    bucket: computed}  # ← action_file_path
-      - {issue_field: filesha256,                   source: action_file_sha256,                  bucket: computed}  # ← action_file_sha256
+    | alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)
 
-      # ---- Action target (network) ----
-      - {issue_field: localip,                      source: action_local_ip,                     bucket: computed}  # ← action_local_ip
-      - {issue_field: remoteip,                     source: action_remote_ip,                    bucket: computed}  # ← action_remote_ip
+    | alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+\"([^\"]+)\""), 0)
 
-      # ---- User ----
-      - {issue_field: username,                     source: actor_effective_username,            bucket: computed}  # ← actor_effective_username
+    | alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
 
-      # ---- Misc ----
-      - {issue_field: dnsqueryname,                 source: dns_queries,                         bucket: computed}  # ← dns_query_name
+    | alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
 
-      # ===========================================================
-      # NOT CONVERGED (no clean registered cliName equivalent):
-      #   causality_actor_process_image_name   → no cliName for CGO process name
-      #   causality_actor_process_image_path   → no cliName for CGO process path
-      #   causality_actor_process_command_line → no cliName for CGO cmdline
-      #   action_process_image_sha256          → already aliased via filehash
-      #   pattern_disposition_details          → vendor-specific (kept verbatim)
-      #   user_principal                       → no cliName; raw field used in XQL only
-      #   dns_requests / network_accesses / files_written → raw arrays, no cliName
-      #   grandparentprocess{name,cmd,path,sha256,id} → no cliName for grandparent
-      #
-      # These remain available at alert.* for vendor-specific consumers.
-      # Re-evaluate when SOC Framework needs them downstream and we can
-      # justify creating socfwendpoint* customs.
-      # ===========================================================
+    | alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
 
-    mitre_defs: {}
-    legacy_mitre_defs_for_reference:
-      TA0001 - Initial Access: [T1566 - Phishing, T1204 - User Execution]
-      TA0002 - Execution: [T1059 - Command and Scripting Interpreter, T1129 - Shared Modules, T1204 - User Execution]
-      TA0003 - Persistence: [T1547 - Boot or Logon Autostart Execution, T1574 - Hijack Execution Flow]
-      TA0004 - Privilege Escalation: [T1547 - Boot or Logon Autostart Execution, T1574 - Hijack Execution Flow]
-      TA0005 - Defense Evasion: [T1036 - Masquerading, T1055 - Process Injection, T1574 - Hijack Execution Flow]
-      TA0006 - Credential Access: [T1003 - OS Credential Dumping, T1558 - Steal or Forge Kerberos Tickets]
-      TA0007 - Discovery: [T1033 - System Owner/User Discovery]
-      TA0008 - Lateral Movement: [T1021 - Remote Services, T1550 - Use Alternate Authentication Material]
-      TA0009 - Collection: [T1005 - Data from Local System, T1056 - Input Capture]
-      TA0010 - Exfiltration: [T1041 - Exfiltration Over C2 Channel, T1048 - Exfiltration Over Alternative Protocol]
-      TA0011 - Command and Control: [T1071 - Application Layer Protocol, T1105 - Ingress Tool Transfer]
-      TA0040 - Impact: [T1486 - Data Encrypted for Impact, T1490 - Inhibit System Recovery]
-    investigation_query_link: |-
-      // All (stitched) activity from host - assuming raw telemetry is being collected
-      dataset = xdr_data
-      | filter agent_hostname = $hostname
-      | fields *
-    contributes:
-      - Endpoint.AgentID
-      - Endpoint.MACAddress
-      - Endpoint.Domain
-      - Process.MD5
-      - Process.Causality.ID
-      - Process.Parent.PID
-      - Process.Parent.Name
-      - Process.Parent.Path
-      - Process.Parent.SHA256
-      - Process.Parent.CommandLine
-      - Target.File
-      - Target.Path
-      - Target.SHA256
-      - MITRE.Tactic
-      - MITRE.TacticID
-      - MITRE.Technique
-      - MITRE.TechniqueID
+    | alter crowdstrike_original_user_name = user_name
+
+    | alter actor_effective_username = user_name
+
+
+    | alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
+
+
+    | alter idu_join_key = lowercase(if(user_name contains "@", user_name, null))
+
+
+    | alter actor_effective_username = lowercase(coalesce(if(user_name contains "@", user_name, null), user_name))
+
+    | alter idr_email = if(user_name contains "@", lowercase(user_name), null), idr_upn = user_name, idr_sid = null, idr_netbios = null, idr_display_name = null
+
+    | alter email = idr_email'
+  alert_fields:
+  - issue_field: userid
+    source: user_principal
+  - issue_field: rawjson
+    source: rawjson
+  - issue_field: usersid
+    source: idr_sid
+  - issue_field: rawevent
+    source: rawjson
+  - issue_field: severity
+    source: severity_name
+  - issue_field: username
+    source: actor_effective_username
+  - issue_field: externallink
+    source: falcon_host_link
+  - issue_field: employeeemail
+    source: idr_email
+  - issue_field: mitretacticid
+    source: mitre_tactic_id
+  - issue_field: samaccountname
+    source: crowdstrike_original_user_name
+  - issue_field: sourceInstance
+    source: mirror_instance
+  - issue_field: action_local_ip
+    source: local_ip
+  - issue_field: mitretacticname
+    source: mitre_tactic
+  - issue_field: originalalertid
+    source: composite_id
+  - issue_field: externalseverity
+    source: severity
+  - issue_field: mitretechniqueid
+    source: mitre_ids_str
+  - issue_field: external_pivot_url
+    source: falcon_host_link
+  - issue_field: mitretechniquename
+    source: mitre_ids_str
+  - issue_field: contactemailaddress
+    source: idr_email
+  - issue_field: employeedisplayname
+    source: idr_display_name
+  - issue_field: originalalertsource
+    source: correlation_rule_id
+  - issue_field: actor_effective_username
+    source: actor_effective_username
+  - issue_field: causality_actor_causality_id
+    source: cid
+  contributes:
+  - Endpoint.User
+  - Endpoint.Host
+  - Endpoint.Process

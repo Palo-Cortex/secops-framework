@@ -102,33 +102,31 @@ Fields populated for downstream lifecycle Artifacts schemas:
 
 ## Correlation Rules
 
-### SOC CrowdStrike Falcon - Endpoint Alerts
+### SOC CrowdStrike Falcon - Endpoint All Alerts (non-CIE)
 
 | Field | Value |
 |---|---|
-| global_rule_id | `SOC CrowdStrike Falcon - Endpoint Alerts` |
+| global_rule_id | `SOC CrowdStrike Falcon - Endpoint All Alerts (non-CIE)` |
 | subtype | `passthrough` |
 | fromversion | `6.10.0` |
 
 Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection event. Consolidates 15 per-tactic rules from v1.0.14 into one rule using MITRE tactic as the User Defined alert category. Backwards compatible with alert field mappings from all 1.0.14 per-tactic rules.
-
-**Tags:** `SOCFramework`, `Passthrough`, `Endpoint`, `CrowdStrike`
 
 #### Schema Constants
 
 | Field | Value |
 |---|---|
 | rule_id | `0` |
+| action | `ALERTS` |
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
-| action | `ALERTS` |
 | execution_mode | `REAL_TIME` |
+| is_enabled | `✓` |
 | mapping_strategy | `CUSTOM` |
+| severity | `User Defined` |
+| drilldown_query_timeframe | `ALERT` |
 | user_defined_category | `tactic` |
 | user_defined_severity | `severity_name` |
-| is_enabled | `✓` |
-| drilldown_query_timeframe | `ALERT` |
-| severity | `User Defined` |
 
 #### Suppression
 
@@ -138,124 +136,119 @@ Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection even
 | duration | `1 hours` |
 | fields | `composite_id` |
 
-composite_id is CrowdStrike Falcon's unique identifier per detection event.
-
 #### Alert Fields
 
 Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
 
 | Issue Field | Source | Bucket | Description |
 |---|---|---|---|
-| `vendor` | `vendor` | `computed` |  |
-| `product` | `product` | `computed` |  |
-| `originalalertid` | `originalalertid` | `computed` |  |
-| `originalalertname` | `originalalertname` | `computed` |  |
-| `originalalertsource` | `originalalertsource` | `computed` |  |
-| `externallink` | `externallink` | `computed` |  |
-| `alert_description` | `alert_description` | `computed` |  |
-| `severity` | `severity` | `computed` |  |
-| `mitretacticid` | `mitretacticid` | `computed` |  |
-| `mitretacticname` | `mitretacticname` | `computed` |  |
-| `mitretechniqueid` | `mitretechniqueid` | `computed` |  |
-| `mitretechniquename` | `mitretechniquename` | `computed` |  |
-| `agent_hostname` | `agent_hostname` | `computed` |  |
-| `agent_id` | `agent_id` | `computed` |  |
-| `agent_device_domain` | `agent_device_domain` | `computed` |  |
-| `actor_effective_username` | `actor_effective_username` | `computed` |  |
-| `actor_process_image_name` | `actor_process_image_name` | `computed` |  |
-| `actor_process_image_path` | `actor_process_image_path` | `computed` |  |
-| `actor_process_image_sha256` | `actor_process_image_sha256` | `computed` |  |
-| `actor_process_command_line` | `actor_process_command_line` | `computed` |  |
-| `actor_process_os_pid` | `actor_process_os_pid` | `computed` |  |
-| `causality_actor_process_image_name` | `causality_actor_process_image_name` | `computed` |  |
-| `causality_actor_process_image_path` | `causality_actor_process_image_path` | `computed` |  |
-| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` | `computed` |  |
-| `action_file_name` | `action_file_name` | `computed` |  |
-| `action_file_path` | `action_file_path` | `computed` |  |
-| `action_file_sha256` | `action_file_sha256` | `computed` |  |
-| `action_local_ip` | `action_local_ip` | `computed` |  |
-| `action_remote_ip` | `action_remote_ip` | `computed` |  |
-| `_device_id` | `device_id` | `computed` |  |
-| `mac` | `mac_address` | `computed` |  |
-| `prenatsourceip` | `local_ip` | `computed` |  |
-| `postnatdestinationip` | `remote_ips` | `computed` |  |
-| `deviceexternalips` | `external_ip` | `computed` |  |
-| `deviceou` | `device_ou_arr` | `computed` |  |
-| `userid` | `user_principal` | `raw` |  |
-| `user_principal` | `user_principal` | `raw` |  |
-| `usersid` | `user_id` | `raw` |  |
-| `action_process_image_sha256` | `sha256` | `raw` |  |
-| `filehash` | `sha256` | `raw` |  |
-| `processmd5` | `md5` | `raw` |  |
-| `processcreationtime` | `process_start_time` | `raw` |  |
-| `parentprocessname` | `parent_process_name` | `computed` |  |
-| `parentprocesscmd` | `parent_process_cmd` | `computed` |  |
-| `parentprocesspath` | `parent_process_path` | `computed` |  |
-| `parentprocesssha256` | `parent_process_sha256` | `computed` |  |
-| `parentprocessid` | `parent_local_process_id` | `computed` |  |
-| `parentprocessids` | `parent_local_process_id` | `computed` |  |
-| `grandparentprocessname` | `grandparent_process_name` | `computed` |  |
-| `grandparentprocesscmd` | `grandparent_process_cmd` | `computed` |  |
-| `grandparentprocesspath` | `grandparent_process_path` | `computed` |  |
-| `grandparentprocesssha256` | `grandparent_process_sha256` | `computed` |  |
-| `grandparentprocessid` | `grandparent_local_process_id` | `computed` |  |
-| `processid` | `grandparent_local_process_id` | `computed` |  |
-| `causality_actor_causality_id` | `aggregate_id` | `raw` |  |
-| `causality_actor_process_command_line` | `cgo_cmd` | `computed` |  |
-| `sourceid` | `aggregate_id` | `raw` |  |
-| `dns_query_name` | `dns_queries` | `computed` |  |
-| `dns_requests` | `dns_requests` | `raw` |  |
-| `network_accesses` | `network_accesses` | `raw` |  |
-| `files_written` | `files_written` | `raw` |  |
-| `additionalindicators` | `ioc_value` | `raw` |  |
-| `tim_main_indicator` | `ioc_value` | `raw` |  |
-| `eventaction` | `ioc_source` | `raw` |  |
-| `originaldescription` | `alert_description` | `computed` |  |
-| `detectionid` | `template_instance_id` | `raw` |  |
-| `alertaction` | `pattern_disposition_description` | `raw` |  |
-| `pattern_disposition_details` | `pattern_disposition_details` | `raw` |  |
-| `external_pivot_url` | `falcon_host_link` | `raw` |  |
-| `externalconfidence` | `confidence` | `raw` |  |
-| `externalseverity` | `severity_int_raw` | `computed` |  |
-| `scenario` | `scenario` | `raw` |  |
-| `objective` | `objective` | `raw` |  |
-| `originalrawlog` | `originalrawlog` | `computed` |  |
-| `agentid` | `agent_id` | `computed` |  |
-| `hostname` | `agent_hostname` | `computed` |  |
-| `domain` | `agent_device_domain` | `computed` |  |
-| `hostmacaddress` | `mac_address` | `computed` |  |
-| `initiatedby` | `actor_process_image_name` | `computed` |  |
-| `initiatorpath` | `actor_process_image_path` | `computed` |  |
-| `initiatorsha256` | `actor_process_image_sha256` | `computed` |  |
-| `initiatorcmd` | `actor_process_command_line` | `computed` |  |
-| `initiatorpid` | `actor_process_os_pid` | `computed` |  |
-| `xdmsourceprocesscausalityid` | `aggregate_id` | `raw` |  |
-| `cgosha256` | `causality_actor_process_image_sha256` | `computed` |  |
-| `filename` | `action_file_name` | `computed` |  |
-| `filepath` | `action_file_path` | `computed` |  |
-| `filesha256` | `action_file_sha256` | `computed` |  |
-| `localip` | `action_local_ip` | `computed` |  |
-| `remoteip` | `action_remote_ip` | `computed` |  |
-| `username` | `actor_effective_username` | `computed` |  |
-| `dnsqueryname` | `dns_queries` | `computed` |  |
+| `mac` | `mac_address` |  |  |
+| `domain` | `agent_device_domain` |  |  |
+| `userid` | `user_principal` |  |  |
+| `vendor` | `vendor` |  |  |
+| `agentid` | `agent_id` |  |  |
+| `localip` | `action_local_ip` |  |  |
+| `product` | `product` |  |  |
+| `usersid` | `idr_sid` |  |  |
+| `agent_id` | `agent_id` |  |  |
+| `deviceou` | `device_ou_arr` |  |  |
+| `filehash` | `sha256` |  |  |
+| `filename` | `action_file_name` |  |  |
+| `filepath` | `action_file_path` |  |  |
+| `hostname` | `agent_hostname` |  |  |
+| `remoteip` | `action_remote_ip` |  |  |
+| `scenario` | `scenario` |  |  |
+| `severity` | `severity` |  |  |
+| `sourceid` | `aggregate_id` |  |  |
+| `username` | `actor_effective_username` |  |  |
+| `cgosha256` | `causality_actor_process_image_sha256` |  |  |
+| `objective` | `objective` |  |  |
+| `processid` | `grandparent_local_process_id` |  |  |
+| `_device_id` | `device_id` |  |  |
+| `filesha256` | `action_file_sha256` |  |  |
+| `processmd5` | `md5` |  |  |
+| `alertaction` | `pattern_disposition_description` |  |  |
+| `detectionid` | `template_instance_id` |  |  |
+| `eventaction` | `ioc_source` |  |  |
+| `initiatedby` | `actor_process_image_name` |  |  |
+| `dns_requests` | `dns_requests` |  |  |
+| `dnsqueryname` | `dns_queries` |  |  |
+| `externallink` | `externallink` |  |  |
+| `initiatorcmd` | `actor_process_command_line` |  |  |
+| `initiatorpid` | `actor_process_os_pid` |  |  |
+| `employeeemail` | `idr_email` |  |  |
+| `files_written` | `files_written` |  |  |
+| `initiatorpath` | `actor_process_image_path` |  |  |
+| `mitretacticid` | `mitretacticid` |  |  |
+| `agent_hostname` | `agent_hostname` |  |  |
+| `dns_query_name` | `dns_queries` |  |  |
+| `hostmacaddress` | `mac_address` |  |  |
+| `originalrawlog` | `originalrawlog` |  |  |
+| `prenatsourceip` | `local_ip` |  |  |
+| `user_principal` | `user_principal` |  |  |
+| `action_local_ip` | `action_local_ip` |  |  |
+| `initiatorsha256` | `actor_process_image_sha256` |  |  |
+| `mitretacticname` | `mitretacticname` |  |  |
+| `originalalertid` | `originalalertid` |  |  |
+| `parentprocessid` | `parent_local_process_id` |  |  |
+| `action_file_name` | `action_file_name` |  |  |
+| `action_file_path` | `action_file_path` |  |  |
+| `action_remote_ip` | `action_remote_ip` |  |  |
+| `externalseverity` | `severity_int_raw` |  |  |
+| `mitretechniqueid` | `mitretechniqueid` |  |  |
+| `network_accesses` | `network_accesses` |  |  |
+| `parentprocesscmd` | `parent_process_cmd` |  |  |
+| `parentprocessids` | `parent_local_process_id` |  |  |
+| `alert_description` | `alert_description` |  |  |
+| `deviceexternalips` | `external_ip` |  |  |
+| `originalalertname` | `originalalertname` |  |  |
+| `parentprocessname` | `parent_process_name` |  |  |
+| `parentprocesspath` | `parent_process_path` |  |  |
+| `action_file_sha256` | `action_file_sha256` |  |  |
+| `external_pivot_url` | `falcon_host_link` |  |  |
+| `externalconfidence` | `confidence` |  |  |
+| `mitretechniquename` | `mitretechniquename` |  |  |
+| `tim_main_indicator` | `ioc_value` |  |  |
+| `agent_device_domain` | `agent_device_domain` |  |  |
+| `contactemailaddress` | `idr_email` |  |  |
+| `employeedisplayname` | `idr_display_name` |  |  |
+| `originalalertsource` | `originalalertsource` |  |  |
+| `originaldescription` | `alert_description` |  |  |
+| `parentprocesssha256` | `parent_process_sha256` |  |  |
+| `processcreationtime` | `process_start_time` |  |  |
+| `actor_process_os_pid` | `actor_process_os_pid` |  |  |
+| `additionalindicators` | `ioc_value` |  |  |
+| `grandparentprocessid` | `grandparent_local_process_id` |  |  |
+| `postnatdestinationip` | `remote_ips` |  |  |
+| `grandparentprocesscmd` | `grandparent_process_cmd` |  |  |
+| `grandparentprocessname` | `grandparent_process_name` |  |  |
+| `grandparentprocesspath` | `grandparent_process_path` |  |  |
+| `actor_effective_username` | `actor_effective_username` |  |  |
+| `actor_process_image_name` | `actor_process_image_name` |  |  |
+| `actor_process_image_path` | `actor_process_image_path` |  |  |
+| `grandparentprocesssha256` | `grandparent_process_sha256` |  |  |
+| `actor_process_command_line` | `actor_process_command_line` |  |  |
+| `actor_process_image_sha256` | `actor_process_image_sha256` |  |  |
+| `action_process_image_sha256` | `sha256` |  |  |
+| `pattern_disposition_details` | `pattern_disposition_details` |  |  |
+| `xdmsourceprocesscausalityid` | `aggregate_id` |  |  |
+| `causality_actor_causality_id` | `aggregate_id` |  |  |
+| `causality_actor_process_image_name` | `causality_actor_process_image_name` |  |  |
+| `causality_actor_process_image_path` | `causality_actor_process_image_path` |  |  |
+| `causality_actor_process_command_line` | `cgo_cmd` |  |  |
+| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` |  |  |
 
 #### Pre-Alter XQL
 
 ```xql
-// Vendor / product (required for SOCProductCategoryMap routing)
 | alter vendor_name = "CrowdStrike", product_name = "Falcon"
 
-// Filter to EPP detection events only
 | filter product = "epp"
 
-// Capture the full raw event as JSON before any transformations
 | alter originalrawlog = to_json_string(rawJSON)
 
-// Preserve the raw integer severity BEFORE downstream stages reassign
-// 'severity' to the readable string. externalseverity issue field reads this.
 | alter severity_int_raw = severity
 
-// XSIAM MITRE Normalization
 | alter
         tactic                 = if(tactic = "Malware", "Execution", tactic),
         mitre_tactic           = if(tactic = "Malware", "Execution", tactic),
@@ -319,13 +312,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     " | Severity: ", coalesce(severity_name, "Unknown")
   )
 
-// ============================================================
-// CANONICAL CORE NORMALIZATION
-// Produces the 29 canonical core columns every vendor pack must
-// expose. Column names match issue field names in alert_fields.
-// Foundation, Universal Command, and SOC Framework dashboards
-// all read from this normalized surface.
-// ============================================================
 | alter
         vendor                              = vendor_name,
         product                             = product_name,
@@ -356,4 +342,386 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_file_sha256                  = sha256,
         action_local_ip                     = local_ip,
         action_remote_ip                    = remote_ips
+| fields
+    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *
+
+| alter ids_join_key = lowercase(coalesce(user_id, ""))
+
+| alter actor_effective_username = lowercase(coalesce(if(user_principal contains "@", user_principal, null), if(user_name contains "@", user_name, null), user_name))
+| alter idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)), idr_upn = user_principal, idr_sid = null, idr_netbios = null, idr_display_name = null
+| alter email = idr_email
+```
+
+### CrowdStrike Falcon - IDP All Alerts (non-CIE)
+
+| Field | Value |
+|---|---|
+| global_rule_id | `CrowdStrike Falcon - IDP All Alerts (non-CIE)` |
+| subtype | `passthrough` |
+| fromversion | `6.10.0` |
+
+Creates an XSIAM alert for each CrowdStrike Identity Protection (IDP) alerts
+
+#### Schema Constants
+
+| Field | Value |
+|---|---|
+| rule_id | `0` |
+| action | `ALERTS` |
+| alert_category | `User Defined` |
+| alert_domain | `DOMAIN_SECURITY` |
+| execution_mode | `REAL_TIME` |
+| is_enabled | `✓` |
+| mapping_strategy | `CUSTOM` |
+| severity | `User Defined` |
+| drilldown_query_timeframe | `ALERT` |
+| user_defined_category | `tactic` |
+| user_defined_severity | `severity` |
+
+#### Suppression
+
+| Field | Value |
+|---|---|
+| enabled | `✓` |
+| duration | `1 hours` |
+| fields | `composite_id` |
+
+#### Alert Fields
+
+Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
+
+| Issue Field | Source | Bucket | Description |
+|---|---|---|---|
+| `mac` | `mac_address` |  |  |
+| `domain` | `agent_device_domain` |  |  |
+| `userid` | `user_principal` |  |  |
+| `vendor` | `vendor` |  |  |
+| `localip` | `action_local_ip` |  |  |
+| `product` | `product` |  |  |
+| `rawjson` | `rawjson` |  |  |
+| `usersid` | `idr_sid` |  |  |
+| `agent_id` | `agent_id` |  |  |
+| `filehash` | `sha256` |  |  |
+| `hostname` | `agent_hostname` |  |  |
+| `remoteip` | `action_remote_ip` |  |  |
+| `scenario` | `scenario` |  |  |
+| `severity` | `severity_name` |  |  |
+| `sourceid` | `aggregate_id` |  |  |
+| `username` | `actor_effective_username` |  |  |
+| `objective` | `objective` |  |  |
+| `_device_id` | `device_id` |  |  |
+| `filesha256` | `sha256` |  |  |
+| `processmd5` | `md5` |  |  |
+| `alertaction` | `pattern_disposition` |  |  |
+| `detectionid` | `template_instance_id` |  |  |
+| `eventaction` | `idp_policy_rule_action` |  |  |
+| `initiatedby` | `actor_process_image_name` |  |  |
+| `dnsqueryname` | `dns_queries` |  |  |
+| `dst_agent_id` | `dst_agent_id_v` |  |  |
+| `dst_hostname` | `dst_hostname_v` |  |  |
+| `dst_username` | `dst_user_v` |  |  |
+| `externallink` | `falcon_host_link` |  |  |
+| `initiatorcmd` | `actor_process_command_line` |  |  |
+| `employeeemail` | `idr_email` |  |  |
+| `initiatorpath` | `actor_process_image_path` |  |  |
+| `mitretacticid` | `tactic_id` |  |  |
+| `agent_hostname` | `agent_hostname` |  |  |
+| `dns_query_name` | `dns_queries` |  |  |
+| `locationregion` | `location_country_code` |  |  |
+| `originalrawlog` | `originalrawlog` |  |  |
+| `samaccountname` | `src_account_name` |  |  |
+| `sourceInstance` | `mirror_instance` |  |  |
+| `user_principal` | `user_principal` |  |  |
+| `action_local_ip` | `action_local_ip` |  |  |
+| `initiatorsha256` | `actor_process_image_sha256` |  |  |
+| `mitretacticname` | `tactic` |  |  |
+| `originalalertid` | `composite_id` |  |  |
+| `action_file_name` | `filename` |  |  |
+| `action_file_path` | `filepath` |  |  |
+| `action_remote_ip` | `action_remote_ip` |  |  |
+| `destinationemail` | `dst_account_name` |  |  |
+| `externalseverity` | `severity` |  |  |
+| `mitretechniqueid` | `technique_id` |  |  |
+| `originalalertname` | `originalalertname` |  |  |
+| `action_file_sha256` | `sha256` |  |  |
+| `action_local_ip_v6` | `source_endpoint_address_ip6` |  |  |
+| `external_pivot_url` | `falcon_host_link` |  |  |
+| `externalconfidence` | `confidence` |  |  |
+| `mitretechniquename` | `technique` |  |  |
+| `tim_main_indicator` | `ioc_value` |  |  |
+| `agent_device_domain` | `agent_device_domain` |  |  |
+| `contactemailaddress` | `idr_email` |  |  |
+| `employeedisplayname` | `idr_display_name` |  |  |
+| `originalalertsource` | `originalalertsource` |  |  |
+| `originaldescription` | `alert_description` |  |  |
+| `processcreationtime` | `process_start_time` |  |  |
+| `actor_process_os_pid` | `local_process_id` |  |  |
+| `additionalindicators` | `ioc_value` |  |  |
+| `actor_effective_username` | `actor_effective_username` |  |  |
+| `actor_process_image_name` | `filename` |  |  |
+| `actor_process_image_path` | `filepath` |  |  |
+| `actor_process_command_line` | `cmdline` |  |  |
+| `actor_process_image_sha256` | `sha256` |  |  |
+| `xdmsourceprocesscausalityid` | `causality_id` |  |  |
+| `causality_actor_causality_id` | `causality_id` |  |  |
+| `causality_actor_process_image_name` | `causality_actor_process_image_name` |  |  |
+| `causality_actor_process_image_path` | `causality_actor_process_image_path` |  |  |
+| `causality_actor_process_command_line` | `cgo_cmd` |  |  |
+| `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` |  |  |
+
+#### Pre-Alter XQL
+
+```xql
+| alter vendor_name = "CrowdStrike", product_name = "Falcon Identity Protection"
+
+| filter product = "idp"
+
+| alter originalrawlog = to_json_string(rawJSON)
+
+| alter severity_int_raw = severity
+
+| alter
+        tactic                 = if(tactic = "Malware", "Execution", tactic),
+        mitre_tactic           = if(tactic = "Malware", "Execution", tactic),
+        mitre_tactic_id        = tactic_id,
+        mitre_technique        = technique,
+        mitre_technique_id     = technique_id
+
+| alter mitre_ids_str = if(
+    technique_id != null and technique != null,
+    concat(technique_id, " - ", technique),
+    coalesce(technique_id, technique)
+  )
+
+| alter
+        hostname                     = device->hostname,
+        domain                       = device->machine_domain,
+        local_ip                     = device->local_ip,
+        external_ip                  = device->external_ip,
+        mac_address                  = device->mac_address,
+        device_id                    = device->device_id,
+        device_ou                    = device->ou[],
+        parent_process_name          = parent_details->filename,
+        parent_process_cmd           = parent_details->cmdline,
+        parent_process_path          = parent_details->filepath,
+        parent_process_sha256        = parent_details->sha256,
+        parent_local_process_id      = parent_details->local_process_id,
+        grandparent_process_name     = grandparent_details->filename,
+        grandparent_process_cmd      = grandparent_details->cmdline,
+        grandparent_process_path     = grandparent_details->filepath,
+        grandparent_process_sha256   = grandparent_details->sha256,
+        grandparent_local_process_id = grandparent_details->local_process_id
+
+| alter src_account_name = source_account_name,
+        src_account_upn  = source_account_upn,
+        src_account_sid  = source_account_object_sid,
+        src_host         = source_endpoint_host_name,
+        src_ip           = source_endpoint_address_ip4,
+        src_sensor_id    = source_endpoint_sensor_id,
+        dst_account_name = target_account_name,
+        dst_account_sid  = target_endpoint_account_object_sid,
+        dst_host         = target_endpoint_host_name,
+        dst_sensor_id    = target_endpoint_sensor_id,
+        idp_logon_domain = logon_domain
+
+| alter dst_ip = arrayindex(regextract(to_json_string(network_accesses), "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"), 0)
+
+| alter user_name      = coalesce(user_name, src_account_name),
+        user_principal = coalesce(user_principal, src_account_upn),
+        hostname       = coalesce(hostname, src_host),
+        domain         = coalesce(domain, idp_logon_domain),
+        local_ip       = coalesce(local_ip, src_ip),
+        agent_id       = coalesce(agent_id, src_sensor_id)
+
+| alter hostname = arrayindex(split(hostname, "."), 0)
+
+| alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
+
+| alter cgo_name = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
+                      grandparent_process_name,
+                      coalesce(parent_process_name, filename)),
+        cgo_path = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
+                      grandparent_process_path,
+                      coalesce(parent_process_path, filepath)),
+        cgo_cmd  = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
+                      grandparent_process_cmd,
+                      coalesce(parent_process_cmd, cmdline))
+
+| alter dns_queries = dns_requests
+| alter remote_ips  = coalesce(dst_ip, network_accesses)
+
+| alter alert_name = concat(
+    "[Identity] ",
+    coalesce(user_name, hostname, "Unknown"),
+    " - ",
+    coalesce(tactic, "Detection"),
+    ": ",
+    coalesce(technique, name)
+  )
+
+| alter idp_context = concat(
+    "Source: ", coalesce(src_account_name, "Unknown"),
+    " @ ", coalesce(src_host, "Unknown"), " (", coalesce(src_ip, "n/a"), ")",
+    " -> Target: ", coalesce(dst_account_name, "n/a"),
+    " @ ", coalesce(dst_host, "n/a"),
+    " | App: ", "n/a",
+    " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
+    " (", coalesce(idp_policy_rule_action, "no action"), ")",
+    " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
+  )
+
+| alter alert_description = concat(
+    coalesce(description, name),
+    " | Host: ",  coalesce(hostname, "Unknown"),
+    " | User: ",  coalesce(user_name, "Unknown"),
+    " | Severity: ", coalesce(severity_name, "Unknown"),
+    " | ", idp_context
+  )
+
+| alter
+        vendor                              = vendor_name,
+        product                             = product_name,
+        originalalertid                     = composite_id,
+        originalalertname                   = alert_name,
+        originalalertsource                 = "CrowdStrike Falcon Identity Protection",
+        externallink                        = falcon_host_link,
+        alert_description                   = alert_description,
+        severity                            = severity_name,
+        mitretacticid                       = mitre_tactic_id,
+        mitretacticname                     = mitre_tactic,
+        mitretechniqueid                    = mitre_technique_id,
+        mitretechniquename                  = mitre_technique,
+        agent_hostname                      = hostname,
+        agent_id                            = agent_id,
+        agent_device_domain                 = domain,
+        actor_effective_username            = user_name,
+        actor_process_image_name            = filename,
+        actor_process_image_path            = filepath,
+        actor_process_image_sha256          = sha256,
+        actor_process_command_line          = cmdline,
+        actor_process_os_pid                = local_process_id,
+        causality_actor_process_image_name  = cgo_name,
+        causality_actor_process_image_path  = cgo_path,
+        causality_actor_process_image_sha256 = grandparent_process_sha256,
+        action_file_name                    = filename,
+        action_file_path                    = filepath,
+        action_file_sha256                  = sha256,
+        action_local_ip                     = local_ip,
+        action_remote_ip                    = remote_ips,
+        causality_id                        = aggregate_id,
+        dst_agent_id_v                      = dst_sensor_id,
+        dst_hostname_v                      = dst_host,
+        dst_user_v                          = dst_account_name
+| fields
+    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, privileges, added_privileges, ldap_search_query_attack, pattern_disposition, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
+
+| alter socfw_event_time = _time,
+        socfw_insert_time = _insert_time
+
+| alter ids_join_key = lowercase(coalesce(source_account_object_sid, src_account_sid))
+
+| alter actor_effective_username = lowercase(coalesce(source_account_upn, if(user_principal contains "@", user_principal, null), source_account_name, user_name))
+| alter idr_email = coalesce(lowercase(source_account_upn), if(user_principal contains "@", lowercase(user_principal), null)), idr_upn = coalesce(source_account_upn, user_principal), idr_sid = source_account_object_sid, idr_netbios = null, idr_display_name = null
+| alter email = idr_email
+```
+
+### CrowdStrike Falcon - Shield SaaS All Alerts (non-CIE)
+
+| Field | Value |
+|---|---|
+| global_rule_id | `CrowdStrike Falcon - Shield SaaS All Alerts (non-CIE)` |
+| subtype | `passthrough` |
+| fromversion | `6.10.0` |
+
+Creates an XSIAM alert for each CrowdStrike Falcon Shield SaaS Alert
+
+#### Schema Constants
+
+| Field | Value |
+|---|---|
+| rule_id | `0` |
+| action | `ALERTS` |
+| alert_category | `User Defined` |
+| alert_domain | `DOMAIN_SECURITY` |
+| execution_mode | `REAL_TIME` |
+| is_enabled | `✓` |
+| mapping_strategy | `CUSTOM` |
+| severity | `User Defined` |
+| drilldown_query_timeframe | `ALERT` |
+| user_defined_category | `category` |
+| user_defined_severity | `severity_name` |
+
+#### Suppression
+
+| Field | Value |
+|---|---|
+| enabled | `✓` |
+| duration | `2 hours` |
+| fields | `composite_id` |
+
+#### Alert Fields
+
+Issue-field assignments emitted by the correlation rule. The Description column captures intent — when present, this is what downstream playbooks rely on the field meaning.
+
+| Issue Field | Source | Bucket | Description |
+|---|---|---|---|
+| `userid` | `user_principal` |  |  |
+| `rawjson` | `rawjson` |  |  |
+| `usersid` | `idr_sid` |  |  |
+| `rawevent` | `rawjson` |  |  |
+| `severity` | `severity_name` |  |  |
+| `username` | `actor_effective_username` |  |  |
+| `externallink` | `falcon_host_link` |  |  |
+| `employeeemail` | `idr_email` |  |  |
+| `mitretacticid` | `mitre_tactic_id` |  |  |
+| `samaccountname` | `crowdstrike_original_user_name` |  |  |
+| `sourceInstance` | `mirror_instance` |  |  |
+| `action_local_ip` | `local_ip` |  |  |
+| `mitretacticname` | `mitre_tactic` |  |  |
+| `originalalertid` | `composite_id` |  |  |
+| `externalseverity` | `severity` |  |  |
+| `mitretechniqueid` | `mitre_ids_str` |  |  |
+| `external_pivot_url` | `falcon_host_link` |  |  |
+| `mitretechniquename` | `mitre_ids_str` |  |  |
+| `contactemailaddress` | `idr_email` |  |  |
+| `employeedisplayname` | `idr_display_name` |  |  |
+| `originalalertsource` | `correlation_rule_id` |  |  |
+| `actor_effective_username` | `actor_effective_username` |  |  |
+| `causality_actor_causality_id` | `cid` |  |  |
+
+#### Pre-Alter XQL
+
+```xql
+| filter product = "saas-security"
+| alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
+| filter display_name not in ("Anonymized IP")
+
+| alter alert_name = display_name
+
+| alter mitre_json          = json_extract_array(to_json_string(mitre_attack), "$")
+| alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar("@element", "$.technique_id"))
+| alter mitre_tech_names    = arraymap(mitre_json, json_extract_scalar("@element", "$.technique"))
+| alter mitre_tactic_ids    = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic_id"))
+| alter mitre_tactic_names  = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic"))
+| alter mitre_ids_str       = arraystring(arraydistinct(mitre_tech_ids), ",")
+| alter mitre_tech_name_str = arraystring(arraydistinct(mitre_tech_names), ",")
+| alter mitre_tactic_id     = arrayindex(arraydistinct(mitre_tactic_ids), 0)
+| alter mitre_tactic        = arrayindex(arraydistinct(mitre_tactic_names), 0)
+
+| alter tmp_user_names  = json_extract_array(to_json_string(user_names), "$")
+| alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)
+| alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+\"([^\"]+)\""), 0)
+| alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
+| alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
+| alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
+| alter crowdstrike_original_user_name = user_name
+| alter actor_effective_username = user_name
+
+| alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
+
+| alter idu_join_key = lowercase(if(user_name contains "@", user_name, null))
+
+| alter actor_effective_username = lowercase(coalesce(if(user_name contains "@", user_name, null), user_name))
+| alter idr_email = if(user_name contains "@", lowercase(user_name), null), idr_upn = user_name, idr_sid = null, idr_netbios = null, idr_display_name = null
+| alter email = idr_email
 ```
