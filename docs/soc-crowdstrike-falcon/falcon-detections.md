@@ -24,34 +24,48 @@ Fields available in the raw ingest dataset.
 | `severity_name` | `string` |  | declared |  |
 | `incident_type` | `string` |  | declared |  |
 | `description` | `string` |  | declared |  |
-| `parent_process_id` | `string` |  | declared_unused |  |
+| `parent_process_id` | `string` |  | declared |  |
 | `user_name` | `string` |  | declared |  |
-| `device` | `json` |  | declared | hostname, machine_domain, os_version, local_ip, groups, mac_address, device_i... |
-| `parent_details` | `json` |  | declared | filename, filepath, cmdline, sha256, local_process_id |
-| `local_process_id` | `string` |  | used_undeclared |  |
-| `agent_id` | `string` |  | inferred_from_correlation |  |
-| `user_principal` | `string` |  | inferred_from_correlation |  |
-| `user_id` | `string` |  | inferred_from_correlation |  |
-| `cmdline` | `string` |  | inferred_from_correlation |  |
-| `filename` | `string` |  | inferred_from_correlation |  |
-| `filepath` | `string` |  | inferred_from_correlation |  |
-| `sha256` | `string` |  | inferred_from_correlation |  |
-| `md5` | `string` |  | inferred_from_correlation |  |
-| `process_start_time` | `string` |  | inferred_from_correlation |  |
-| `aggregate_id` | `string` |  | inferred_from_correlation |  |
-| `composite_id` | `string` |  | inferred_from_correlation |  |
-| `template_instance_id` | `string` |  | inferred_from_correlation |  |
-| `pattern_disposition_description` | `string` |  | inferred_from_correlation |  |
-| `pattern_disposition_details` | `json` |  | inferred_from_correlation |  |
-| `falcon_host_link` | `string` |  | inferred_from_correlation |  |
-| `confidence` | `int` |  | inferred_from_correlation |  |
-| `scenario` | `string` |  | inferred_from_correlation |  |
-| `objective` | `string` |  | inferred_from_correlation |  |
-| `ioc_value` | `string` |  | inferred_from_correlation |  |
-| `ioc_source` | `string` |  | inferred_from_correlation |  |
-| `dns_requests` | `json` | ✓ | inferred_from_correlation |  |
-| `network_accesses` | `json` | ✓ | inferred_from_correlation |  |
-| `files_written` | `json` | ✓ | inferred_from_correlation |  |
+| `device` | `json` |  | declared |  |
+| `parent_details` | `json` |  | declared |  |
+| `local_process_id` | `string` |  | declared |  |
+| `sha256` | `string` |  | declared |  |
+| `md5` | `string` |  | declared |  |
+| `source_account_domain` | `string` |  | declared |  |
+| `source_account_sam_account_name` | `string` |  | declared |  |
+| `source_account_object_sid` | `string` |  | declared |  |
+| `target_account_name` | `string` |  | declared |  |
+| `host_names` | `string` |  | declared |  |
+| `source_endpoint_host_name` | `string` |  | declared |  |
+| `source_endpoint_address_ip4` | `string` |  | declared |  |
+| `destination_hosts` | `string` |  | declared |  |
+| `target_endpoint_host_name` | `string` |  | declared |  |
+| `target_endpoint_sensor_id` | `string` |  | declared |  |
+| `name` | `string` |  | declared |  |
+| `display_name` | `string` |  | declared |  |
+| `tactic_id` | `string` |  | declared |  |
+| `technique_id` | `string` |  | declared |  |
+| `type` | `string` |  | declared |  |
+| `id` | `string` |  | declared |  |
+| `cid` | `string` |  | declared |  |
+| `source_account_upn` | `string` |  | declared |  |
+| `source_account_name` | `string` |  | declared |  |
+| `target_account_object_sid` | `string` |  | declared |  |
+| `source_hosts` | `string` |  | declared |  |
+| `source_endpoint_account_object_guid` | `string` |  | declared |  |
+| `source_endpoint_ip_address` | `string` |  | declared |  |
+| `source_endpoint_address_ip6` | `string` |  | declared |  |
+| `location_country_code` | `string` |  | declared |  |
+| `source_ip_asn_organization` | `string` |  | declared |  |
+| `sso_application_identifier` | `string` |  | declared |  |
+| `sso_application_uri` | `string` |  | declared |  |
+| `user_names` | `string` |  | declared |  |
+| `country` | `string` |  | declared |  |
+| `asn` | `string` |  | declared |  |
+| `asn_name` | `string` |  | declared |  |
+| `category` | `string` |  | declared |  |
+| `mitre_attack` | `string` |  | declared |  |
+| `event_summary` | `string` |  | declared |  |
 
 ## Modeling Rule — SOC CrowdStrike Falcon Modeling Rule
 
@@ -62,43 +76,41 @@ Fields available in the raw ingest dataset.
 | directory_name | `SOCCrowdStrikeFalconModelingRules` |
 | fromversion | `8.3.1` |
 
-### Field Mappings
-
-What each XDM field is, where it sources from, what issue field it surfaces on, and why the mapping is shaped the way it is.
-
-| XDM Path | Expression | Sources | Issue Field | Description |
-|---|---|---|---|---|
-| `xdm.alert.severity` | `concat(to_string(severity), " - ", severity_name)` | `severity, severity_name` | `severity` | Composite — vendor int + name pair joined for analyst readability. |
-| `xdm.event.original_event_type` | `incident_type` | `incident_type` | `original_event_type` |  |
-| `xdm.event.type` | `incident_type` | `incident_type` | `event_type` | Same source as original_event_type — duplicate mapping, intentional. |
-| `xdm.event.description` | `description` | `description` | `alert_description` |  |
-| `xdm.source.host.hostname` | `device->hostname` | `device` | `hostname` |  |
-| `xdm.source.host.fqdn` | `device->machine_domain` | `device` | `hostfqdn` | machine_domain is being mapped to fqdn here AND to user.domain below. In Falcon's schema it's the AD domain — fqdn would be hostname + machine_domain concatenated. Flag for review. |
-| `xdm.source.host.os_family` | `device->os_version` | `device` | `hostos` | os_version is the OS version string (e.g., "Windows 10 Pro"); os_family should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain. |
-| `xdm.source.ipv4` | `device->local_ip` | `device` | `hostip` |  |
-| `xdm.source.user.username` | `user_name` | `user_name` | `username` |  |
-| `xdm.source.user.domain` | `device->machine_domain` | `device` | `userdomain` |  |
-| `xdm.source.user.groups` | `device->groups[]` | `device` | `usergroups` |  |
-| `xdm.source.process.pid` | `to_integer(local_process_id)` | `local_process_id` | `initiatorpid` |  |
-| `xdm.source.process.name` | `parent_details->filename` | `parent_details` | `initiatedby` | Currently mapping PARENT process name into source.process slot. |
-| `xdm.source.process.executable.path` | `parent_details->filepath` | `parent_details` | `initiatorpath` |  |
-| `xdm.source.process.executable.sha256` | `parent_details->sha256` | `parent_details` | `initiatorsha256` |  |
-| `xdm.source.process.command_line` | `parent_details->cmdline` | `parent_details` | `initiatorcmd` |  |
-
 ### Contributes (Artifacts.*)
 
 Fields populated for downstream lifecycle Artifacts schemas:
 
-- `Endpoint.Hostname`
-- `Endpoint.FQDN`
-- `Endpoint.OSFamily`
-- `Network.IP`
 - `User`
-- `Process.PID`
+- `User.UPN`
+- `User.SAM`
+- `User.SID`
+- `User.Domain`
+- `Target.User`
+- `Target.User.SID`
+- `Endpoint.Hostname`
+- `Endpoint.DeviceID`
+- `Endpoint.OS`
+- `Endpoint.IPv4`
+- `Target.Hostname`
 - `Process.Name`
 - `Process.Path`
 - `Process.SHA256`
+- `Process.MD5`
 - `Process.CommandLine`
+- `Process.PID`
+- `Network.IP`
+- `Network.Location`
+- `Network.ASN`
+- `Application`
+- `Alert.Severity`
+- `Alert.Category`
+- `Alert.Description`
+- `Alert.MITRE`
+- `Event.Type`
+- `Event.Description`
+- `Event.ID`
+- `Observer.Vendor`
+- `Observer.Product`
 
 ## Correlation Rules
 
