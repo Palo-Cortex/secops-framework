@@ -301,7 +301,6 @@ python3 tools/replay_scenario.py \
 HTTP Collector URLs are per-vendor and live in `SOCFWPoVConfig` on the
 tenant. The tool reads them via the `SOCFWPoVSend` script.
 
-#### `replay_crowdstrike_scenario.py` — CrowdStrike-specific replay
 
 Older CrowdStrike-only replay path, kept for legacy scenarios. New work
 should use `replay_scenario.py` (which handles CrowdStrike alongside
@@ -751,7 +750,6 @@ Several tools (`bump_pack_version.py`, `build_pack_catalog.py`, the
 SOCFramework scripts) lack module docstrings. Adding them would let the
 tool itself document usage rather than relying on this README.
 
-### BL-003 · Deprecate `replay_crowdstrike_scenario.py`
 
 `replay_scenario.py` covers CrowdStrike alongside every other vendor via
 the manifest format. The CrowdStrike-specific replay should be removed
