@@ -1,111 +1,76 @@
-# SOC CrowdStrike Falcon - Post-Installation Steps
+# SOC CrowdStrike Falcon — Post-Installation Steps
 
-> **Warning — Duplicate Alerts**
-> This pack (`soc-crowdstrike-falcon`) installs alongside the previous pack
-> (`soc-crowdstrike-falcon`) — it does not replace it. If any old CrowdStrike correlation
-> rules are still enabled when the new consolidated rule is enabled, every CrowdStrike
-> detection will generate two alerts. Complete Step 2 (disable old rules) before Step 3
-> (enable new rule).
-
-This pack deploys the SOC Framework correlation rule and modeling rule for CrowdStrike
-Falcon endpoint alerts. Complete the steps below after installation.
+Complete these after installing the pack: three required (enable → migrate → verify) and one
+optional (CIE enrichment). Prerequisites are in the pack **README** (*Before you install*).
 
 ---
 
-## Step 1 — Verify the CrowdStrike Falcon Integration Instance
+## Step 1 — Enable the correlation rule
 
-The CrowdStrike Falcon integration must be configured and running before alerts will
-flow into `crowdstrike_falcon_event_raw`. If not already done:
+XSIAM imports pack correlation rules **disabled** by default, regardless of pack settings.
 
-1. Navigate to **Settings → Configurations → Data Collection → Automation & Feed Integrations**
-2. Find the `CrowdstrikeFalcon_Detections_Incidents` instance and open its configuration
-3. Confirm the following are filled in:
-   - **Server URL**
-   - **Client ID**
-   - **Secret**
-4. Leave **Classifier** and **Mapper (incoming)** empty — field normalization is handled
-   by the correlation rule and modeling rule, not a mapper
-5. Click **Test** to verify connectivity, then **Save & Exit**
-6. Confirm the instance is **enabled**
-
-> **Troubleshooting:** The modeling rule requires `crowdstrike_falcon_event_raw` to exist
-> before it can register. If the pack fails to install, confirm the integration instance
-> is active and has ingested at least one event.
-
----
-
-## Step 2 — Disable Old Per-Tactic CrowdStrike Correlation Rules
-
-Previous versions of this pack (1.0.14 and earlier) installed up to 15 per-tactic
-correlation rules plus a catch-all. The SOC Framework consolidated rule replaces all of them.
-The CrowdStrike marketplace pack may also install a system-generated rule.
-
-1. Navigate to **Detection & Threat Intel → Correlations**
-2. Filter the **Name** column for `CrowdStrike`
-3. Disable all of the following if present:
-
-   | Rule to Disable |
-   |---|
-   | `CrowdStrike Falcon - Endpoint Alerts - Initial Access` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Execution` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Persistence` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Privilege Escalation` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Defense Evasion` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Credential Access` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Discovery` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Lateral Movement` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Collection` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Command and Control` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Exfiltration` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Impact` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Reconnaissance` |
-   | `CrowdStrike Falcon - Endpoint Alerts - Resource Development` |
-   | `CrowdStrike Falcon (Catch-All) - Endpoint Alerts` |
-   | `CrowdStrike Falcon - Endpoint Alerts (automatically generated)` |
-
-4. Right-click each → **Disable**
-
----
-
-## Step 3 — Enable the SOC Framework Correlation Rule
-
-The SOC Framework rule ships disabled for side-by-side validation before cutover.
-
-1. Navigate to **Detection & Threat Intel → Correlations**
+1. **Detection & Threat Intel → Correlations**
 2. Filter the **Name** column for `SOC CrowdStrike`
-3. Locate **SOC CrowdStrike Falcon - Endpoint Alerts**
-4. Right-click → **Enable**
+3. Find **`SOC CrowdStrike Falcon - Endpoint All Alerts`** → right-click → **Enable**
 
-> **What this rule does:** fires on all CrowdStrike EPP detections (`filter product = "epp"`),
-> computes a rich `[Endpoint] {user} - {tactic}: {technique}` alert name, and uses
-> `user_defined_category: tactic` to dynamically set the alert category from the MITRE
-> tactic field — replacing the 15 per-tactic rules with a single unified rule.
-> Suppression is per `composite_id` with a 1-hour window.
+> The rule ships `is_enabled: true`; if your tenant already imported it enabled, skip this step.
 
 ---
 
-## Step 4 — Verify the Modeling Rule
+## Step 2 — Disable legacy CrowdStrike rules *(migration only)*
 
-1. Navigate to **Settings → Configurations → Data Management → Data Model Rules**
-2. Confirm **SOC CrowdStrike Falcon Modeling Rule** is listed and active
-3. Validate with an XQL probe:
+If this tenant previously ran the per-tactic SOC rules or the native CrowdStrike marketplace
+rule, disable them so detections don't **double-alert**. The single consolidated rule replaces
+all of them.
 
-```xql
-datamodel dataset in("crowdstrike_falcon_event_raw")
-| fields xdm.event.id, xdm.source.host.hostname, xdm.source.user.username,
-         xdm.event.original_event_type, xdm.source.host.device_id
-| limit 5
+1. **Detection & Threat Intel → Correlations**, filter **Name** for `CrowdStrike`
+2. Disable any of these still enabled:
+   - `CrowdStrike Falcon - Endpoint Alerts - <tactic>` (the 12–15 per-tactic rules)
+   - `CrowdStrike Falcon (Catch-All) - Endpoint Alerts`
+   - `CrowdStrike Falcon - Endpoint Alerts (automatically generated)`
+
+---
+
+## Step 3 — Verify
+
+Confirm EPP detections are reshaping correctly:
+
+```
+dataset = crowdstrike_falcon_event_raw
+| filter product = "epp"
+| fields user_name, actor_effective_username, alert_name, originalalertsource
+| limit 10
 ```
 
-If rows return with populated fields, the modeling rule is working correctly.
+- `user_name` / `actor_effective_username` read as **emails** for real users (machine/`$`
+  accounts keep their name).
+- `originalalertsource` = `CrowdStrike Falcon`.
+- New issues land under **Cases**, routed to the **Endpoint** product category and NIST IR
+  lifecycle.
 
 ---
 
-## What Is Not Required
+## Step 4 — *(Optional)* Enable CIE identity enrichment
 
-| Old Requirement | Status | Reason |
+Resolve identity from `socfw_identity_map` (SID/SAM/UPN → canonical email across vendors)
+instead of the event alone.
+
+1. Confirm the CIE chain is live: Cloud Identity Engine → `pan_dss_raw` → `SOC IdentityResolve` → `socfw_identity_map` (with `SOC IdentityResolve` enabled).
+2. Edit the rule's XQL and **delete the `/*` and `*/` lines** wrapping the `CIE ENRICHMENT`
+   block.
+3. Set the rule to **Scheduled**: crontab `*/10 * * * *`, search window `25 hours`, schedule
+   `10 minutes`.
+
+The overlay coalesces `socfw_identity_map` values **over** the flat identity — the alert-field
+mappings don't change, so nothing downstream is affected. Until the chain is live the join
+no-ops and the rule keeps running flat.
+
+---
+
+## What is *not* required
+
+| Old requirement | Status | Reason |
 |---|---|---|
-| 15 per-tactic correlation rules | Removed | Replaced by single `SOC CrowdStrike Falcon - Endpoint Alerts` rule using `user_defined_category: tactic` |
-| Catch-all correlation rule | Removed | Covered by single unified rule with no tactic filter |
-| Classifier / Mapper (incoming) | Removed | Field normalization handled in correlation rule XQL via `alert_fields`; mapper deprecated in XSIAM |
-| Outgoing mapper | Removed | Not required for alert-driven workflows |
+| 12–15 per-tactic correlation rules | Removed | One consolidated `Endpoint All Alerts` rule |
+| Catch-all correlation rule | Removed | Covered by the consolidated rule |
+| Classifier / Mapper (incoming or outgoing) | Not used | Normalization is done in the correlation rule XQL via `alert_fields` |

@@ -104,7 +104,7 @@ alert_name: SOC CrowdStrike Falcon - $alert_name
 alert_type: null
 crontab: null
 dataset: alerts
-name: SOC CrowdStrike Falcon - Endpoint All Alerts (non-CIE)
+name: SOC CrowdStrike Falcon - Endpoint All Alerts
 description: >-
   Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection
   event. Consolidates 15 per-tactic rules from v1.0.14 into one rule using MITRE
@@ -112,7 +112,7 @@ description: >-
   field mappings from all 1.0.14 per-tactic rules.
 drilldown_query_timeframe: ALERT
 execution_mode: REAL_TIME
-global_rule_id: SOC CrowdStrike Falcon - Endpoint All Alerts (non-CIE)
+global_rule_id: SOC CrowdStrike Falcon - Endpoint All Alerts
 investigation_query_link: |-
   dataset = xdr_data
   | filter agent_hostname = $hostname
@@ -128,7 +128,7 @@ suppression_duration: 1 hours
 suppression_enabled: true
 suppression_fields:
 - composite_id
-timezone: null
+timezone: UTC
 user_defined_category: tactic
 user_defined_severity: severity_name
 xql_query: |
@@ -237,8 +237,65 @@ xql_query: |
   | fields
       device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *
 
-  | alter ids_join_key = lowercase(coalesce(user_id, ""))
+  | alter idr_sid = null,
+          idr_upn = user_principal,
+          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
+          idr_netbios = null,
+          idr_display_name = null,
+          idr_domain_name = null,
+          idr_sam_account_name = null,
+          idr_on_prem_sid = null
 
-  | alter actor_effective_username = lowercase(coalesce(if(user_principal contains "@", user_principal, null), if(user_name contains "@", user_name, null), user_name))
-  | alter idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)), idr_upn = user_principal, idr_sid = null, idr_netbios = null, idr_display_name = null
-  | alter email = idr_email
+  // ============== CIE ENRICHMENT (optional, OFF by default) ==============
+  // Cloud Identity Engine enrichment is disabled. To enable it:
+  //   1. Set this rule to a schedule (it ships REAL_TIME):
+  //        execution mode = SCHEDULED
+  //        crontab        = */10 * * * *
+  //        search window  = 25 hours
+  //        schedule label = 10 minutes
+  //   2. Delete the /* and */ lines that wrap the block below.
+  // The join coalesces socfw_identity_map values OVER the inline idr_* fields;
+  // the alert-field mappings do not change. Requires SOC IdentityResolve.
+  // ----------------------------------------------------------------------
+  /*
+  | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+  | alter cie_join_key = lowercase(coalesce(user_id, ""))
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter type in ("user", "computer")
+      | alter cie_join_key = lowercase(coalesce(sid, on_prem_sid))
+      | dedup cie_join_key by asc netbios_and_sam_account_name
+      | fields cie_join_key,
+               sid                          as map_sid,
+               upn                          as map_upn,
+               email                        as map_email,
+               display_name                 as map_display,
+               domain_name                  as map_domain,
+               sam_account_name             as map_sam,
+               on_prem_sid                  as map_on_prem_sid,
+               netbios_and_sam_account_name as map_netbios
+    ) as m cie_join_key = m.cie_join_key
+  | alter idr_sid              = coalesce(map_sid, idr_sid),
+          idr_upn              = coalesce(map_upn, idr_upn),
+          idr_email            = coalesce(map_email, idr_email),
+          idr_display_name     = coalesce(map_display, idr_display_name),
+          idr_domain_name      = coalesce(map_domain, idr_domain_name),
+          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
+          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
+          idr_netbios          = coalesce(map_netbios, idr_netbios)
+  | alter _time = _insert_time
+  */
+  // ===================== END CIE ENRICHMENT =============================
+  | alter original_display_name   = display_name,
+          original_user_principal = user_principal
+
+  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
+          email          = idr_email,
+          user_principal = coalesce(idr_upn, user_principal)
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
+  | alter email     = idr_email
+
+  | alter original_user_name = user_name
+  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))
