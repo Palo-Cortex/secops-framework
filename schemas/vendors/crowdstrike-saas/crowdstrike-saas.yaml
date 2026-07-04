@@ -1,0 +1,285 @@
+vendor: crowdstrike-saas
+product: Falcon SaaS
+data_source: crowdstrike_falcon_event_raw
+category: Cloud
+pack: soc-crowdstrike-saas
+raw_schema:
+  product:
+    type: string
+    is_array: false
+  severity:
+    type: int
+    is_array: false
+  severity_name:
+    type: string
+    is_array: false
+  incident_type:
+    type: string
+    is_array: false
+  description:
+    type: string
+    is_array: false
+  parent_process_id:
+    type: string
+    is_array: false
+    status: declared_unused
+  user_name:
+    type: string
+    is_array: false
+  device:
+    type: json
+    is_array: false
+    json_subfields:
+    - hostname
+    - machine_domain
+    - os_version
+    - local_ip
+    - groups
+    - mac_address
+    - device_id
+    - ou
+    - external_ip
+  parent_details:
+    type: json
+    is_array: false
+    json_subfields:
+    - filename
+    - filepath
+    - cmdline
+    - sha256
+    - local_process_id
+  local_process_id:
+    type: string
+    is_array: false
+    status: used_undeclared
+  agent_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  user_principal:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  user_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  cmdline:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  filename:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  filepath:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  sha256:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  md5:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  process_start_time:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  aggregate_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  composite_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  template_instance_id:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  pattern_disposition_description:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  pattern_disposition_details:
+    type: json
+    is_array: false
+    status: inferred_from_correlation
+  falcon_host_link:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  confidence:
+    type: int
+    is_array: false
+    status: inferred_from_correlation
+  scenario:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  objective:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  ioc_value:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  ioc_source:
+    type: string
+    is_array: false
+    status: inferred_from_correlation
+  dns_requests:
+    type: json
+    is_array: true
+    status: inferred_from_correlation
+  network_accesses:
+    type: json
+    is_array: true
+    status: inferred_from_correlation
+  files_written:
+    type: json
+    is_array: true
+    status: inferred_from_correlation
+correlation_rules:
+- subtype: passthrough
+  fromversion: 6.10.0
+  global_rule_id: SOC CrowdStrike Falcon - SaaS All Alerts
+  name: SOC CrowdStrike Falcon - SaaS All Alerts
+  description: Creates an XSIAM alert for each CrowdStrike Falcon Shield SaaS Alert
+  alert_name: $alert_name
+  alert_description: '''$description | User: $actor_effective_username | UPN: $idr_upn | Email: $idr_email | Display Name: $idr_display_name | Domain: $idr_domain_name | SID: $idr_sid | MITRE: $mitre_ids_str | Source IP: $local_ip | ASN: $asn ($asn_name) | Country: $country'''
+  alert_type: null
+  crontab: null
+  search_window: null
+  simple_schedule: null
+  timezone: null
+  mitre_defs: {}
+  investigation_query_link: dataset = crowdstrike_falcon_event_raw | filter composite_id = $composite_id | fields *
+  schema_constants:
+    rule_id: 0
+    action: ALERTS
+    alert_category: User Defined
+    alert_domain: DOMAIN_SECURITY
+    execution_mode: REAL_TIME
+    is_enabled: true
+    mapping_strategy: CUSTOM
+    severity: User Defined
+    drilldown_query_timeframe: ALERT
+    user_defined_category: category
+    user_defined_severity: severity_name
+  suppression:
+    enabled: true
+    duration: 2 hours
+    fields:
+    - composite_id
+  pre_alter: '| filter product = "saas-security"
+
+    | alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
+
+    | alter originalalertsource = "CrowdStrike Falcon SaaS Security"
+
+    | alter originalrawlog = to_json_string(rawJSON)
+
+    | filter display_name not in ("Anonymized IP")
+
+
+    | alter alert_name = display_name
+
+
+    | alter mitre_json          = json_extract_array(to_json_string(mitre_attack), "$")
+
+    | alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar("@element", "$.technique_id"))
+
+    | alter mitre_tech_names    = arraymap(mitre_json, json_extract_scalar("@element", "$.technique"))
+
+    | alter mitre_tactic_ids    = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic_id"))
+
+    | alter mitre_tactic_names  = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic"))
+
+    | alter mitre_ids_str       = arraystring(arraydistinct(mitre_tech_ids), ",")
+
+    | alter mitre_tech_name_str = arraystring(arraydistinct(mitre_tech_names), ",")
+
+    | alter mitre_tactic_id     = arrayindex(arraydistinct(mitre_tactic_ids), 0)
+
+    | alter mitre_tactic        = arrayindex(arraydistinct(mitre_tactic_names), 0)
+
+
+    | alter tmp_user_names  = json_extract_array(to_json_string(user_names), "$")
+
+    | alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)
+
+    | alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+\"([^\"]+)\""), 0)
+
+    | alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
+
+    | alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
+
+    | alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
+
+    | alter actor_effective_username = user_name
+
+
+    | alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
+
+
+    '
+  alert_fields:
+  - issue_field: userid
+    source: user_principal
+  - issue_field: usersid
+    source: idr_sid
+  - issue_field: rawevent
+    source: originalrawlog
+  - issue_field: severity
+    source: severity_name
+  - issue_field: username
+    source: actor_effective_username
+  - issue_field: externallink
+    source: falcon_host_link
+  - issue_field: employeeemail
+    source: idr_email
+  - issue_field: mitretacticid
+    source: mitre_tactic_id
+  - issue_field: samaccountname
+    source: original_user_name
+  - issue_field: sourceInstance
+    source: mirror_instance
+  - issue_field: action_local_ip
+    source: local_ip
+  - issue_field: mitretacticname
+    source: mitre_tactic
+  - issue_field: originalalertid
+    source: composite_id
+  - issue_field: externalseverity
+    source: severity
+  - issue_field: mitretechniqueid
+    source: mitre_ids_str
+  - issue_field: external_pivot_url
+    source: falcon_host_link
+  - issue_field: mitretechniquename
+    source: mitre_ids_str
+  - issue_field: contactemailaddress
+    source: idr_email
+  - issue_field: employeedisplayname
+    source: idr_display_name
+  - issue_field: originalalertsource
+    source: originalalertsource
+  - issue_field: actor_effective_username
+    source: actor_effective_username
+  - issue_field: causality_actor_causality_id
+    source: cid
+  contributes:
+  - Endpoint.User
+  - Endpoint.Host
+  - Endpoint.Process
+  identity: true
+  cie_join: email
+  cie_schedule:
+    crontab: '*/10 * * * *'
+    search_window: 25 hours
+    simple_schedule: 10 minutes
