@@ -50,7 +50,7 @@ def main():
         print(f"\n=== Checking cross-pack dependency versions: {pack_name} ===\n")
         subprocess.run(
             [sys.executable, "tools/check_dependency_versions.py",
-             "--packs", pack_name]
+             "--pack", pack_name]
         )
         # Non-blocking — stale versions warn but do not block upload.
         # Auto-fix:  python3 tools/check_dependency_versions.py --fix
