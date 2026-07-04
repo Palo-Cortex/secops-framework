@@ -22,250 +22,228 @@ raw_schema:
   parent_process_id:
     type: string
     is_array: false
-    status: declared_unused
   user_name:
     type: string
     is_array: false
   device:
     type: json
     is_array: false
-    json_subfields:
-    - hostname
-    - machine_domain
-    - os_version
-    - local_ip
-    - groups
-    - mac_address
-    - device_id
-    - ou
-    - external_ip
   parent_details:
     type: json
     is_array: false
-    json_subfields:
-    - filename
-    - filepath
-    - cmdline
-    - sha256
-    - local_process_id
   local_process_id:
     type: string
     is_array: false
-    status: used_undeclared
-  agent_id:
-    type: string
-    is_array: false
-    status: inferred_from_correlation
-  user_principal:
-    type: string
-    is_array: false
-    status: inferred_from_correlation
-  user_id:
-    type: string
-    is_array: false
-    status: inferred_from_correlation
-  cmdline:
-    type: string
-    is_array: false
-    status: inferred_from_correlation
-  filename:
-    type: string
-    is_array: false
-    status: inferred_from_correlation
-  filepath:
-    type: string
-    is_array: false
-    status: inferred_from_correlation
   sha256:
     type: string
     is_array: false
-    status: inferred_from_correlation
   md5:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  process_start_time:
+  source_account_domain:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  aggregate_id:
+  source_account_sam_account_name:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  composite_id:
+  source_account_object_sid:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  template_instance_id:
+  target_account_name:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  pattern_disposition_description:
+  host_names:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  pattern_disposition_details:
-    type: json
-    is_array: false
-    status: inferred_from_correlation
-  falcon_host_link:
+  source_endpoint_host_name:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  confidence:
-    type: int
-    is_array: false
-    status: inferred_from_correlation
-  scenario:
+  source_endpoint_address_ip4:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  objective:
+  destination_hosts:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  ioc_value:
+  target_endpoint_host_name:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  ioc_source:
+  target_endpoint_sensor_id:
     type: string
     is_array: false
-    status: inferred_from_correlation
-  dns_requests:
-    type: json
-    is_array: true
-    status: inferred_from_correlation
-  network_accesses:
-    type: json
-    is_array: true
-    status: inferred_from_correlation
-  files_written:
-    type: json
-    is_array: true
-    status: inferred_from_correlation
+  name:
+    type: string
+    is_array: false
+  display_name:
+    type: string
+    is_array: false
+  tactic_id:
+    type: string
+    is_array: false
+  technique_id:
+    type: string
+    is_array: false
+  type:
+    type: string
+    is_array: false
+  id:
+    type: string
+    is_array: false
+  cid:
+    type: string
+    is_array: false
+  source_account_upn:
+    type: string
+    is_array: false
+  source_account_name:
+    type: string
+    is_array: false
+  target_account_object_sid:
+    type: string
+    is_array: false
+  source_hosts:
+    type: string
+    is_array: false
+  source_endpoint_account_object_guid:
+    type: string
+    is_array: false
+  source_endpoint_ip_address:
+    type: string
+    is_array: false
+  source_endpoint_address_ip6:
+    type: string
+    is_array: false
+  location_country_code:
+    type: string
+    is_array: false
+  source_ip_asn_organization:
+    type: string
+    is_array: false
+  sso_application_identifier:
+    type: string
+    is_array: false
+  sso_application_uri:
+    type: string
+    is_array: false
+  user_names:
+    type: string
+    is_array: false
+  country:
+    type: string
+    is_array: false
+  asn:
+    type: string
+    is_array: false
+  asn_name:
+    type: string
+    is_array: false
+  category:
+    type: string
+    is_array: false
+  mitre_attack:
+    type: string
+    is_array: false
+  event_summary:
+    type: string
+    is_array: false
+
 modeling_rule:
   fromversion: 8.3.1
   modeling_rule_id: SOC_CrowdStrikeFalcon_ModelingRule
   modeling_rule_name: SOC CrowdStrike Falcon Modeling Rule
   directory_name: SOCCrowdStrikeFalconModelingRules
-  filter:
-    expression: product = "epp"
-    notes: 'Restricts the rule to EPP detection events. Other Falcon products
+  raw_xif: |
+    [MODEL: dataset=crowdstrike_falcon_event_raw]
+    filter product = "epp"
+    | alter
+        xdm.source.user.username = user_name,
+        xdm.source.user.upn = user_principal,
+        xdm.source.user.domain = source_account_domain,
+        xdm.source.user.sam_account_name = source_account_sam_account_name,
+        xdm.source.user.identifier = coalesce(user_id, source_account_object_sid),
+        xdm.source.user.groups = device->groups[],
+        xdm.target.user.username = target_account_name,
+        xdm.source.host.hostname = coalesce(device->hostname, arrayindex(json_extract_array(host_names, "$"), 0), source_endpoint_host_name),
+        xdm.source.host.device_id = agent_id,
+        xdm.source.agent.identifier = agent_id,
+        xdm.source.host.os = device->os_version,
+        xdm.source.host.ipv4_addresses = arraycreate(coalesce(device->local_ip, source_endpoint_address_ip4)),
+        xdm.source.ipv4 = coalesce(device->local_ip, source_endpoint_address_ip4),
+        xdm.target.host.hostname = coalesce(target_endpoint_host_name, arrayindex(json_extract_array(destination_hosts, "$"), 0)),
+        xdm.target.agent.identifier = target_endpoint_sensor_id,
+        xdm.source.process.name = filename,
+        xdm.source.process.executable.path = filepath,
+        xdm.source.process.executable.sha256 = sha256,
+        xdm.source.process.executable.md5 = md5,
+        xdm.source.process.command_line = cmdline,
+        xdm.source.process.pid = to_integer(local_process_id),
+        xdm.source.process.parent_id = parent_process_id,
+        xdm.alert.severity = concat(to_string(severity), " - ", severity_name),
+        xdm.alert.name = coalesce(name, display_name),
+        xdm.alert.category = objective,
+        xdm.alert.description = description,
+        xdm.alert.mitre_tactics = arraycreate(tactic_id),
+        xdm.alert.mitre_techniques = arraycreate(technique_id),
+        xdm.event.type = coalesce(incident_type, type),
+        xdm.event.original_event_type = incident_type,
+        xdm.event.description = description,
+        xdm.event.id = coalesce(id, composite_id),
+        xdm.observer.vendor = "CrowdStrike",
+        xdm.observer.product = "Falcon Insight",
+        xdm.observer.unique_identifier = cid;
+    filter product = "idp"
+    | alter
+        xdm.source.user.username = coalesce(source_account_upn, source_account_name, user_principal, user_name),
+        xdm.source.user.upn = coalesce(source_account_upn, user_principal),
+        xdm.source.user.domain = source_account_domain,
+        xdm.source.user.sam_account_name = source_account_sam_account_name,
+        xdm.source.user.identifier = source_account_object_sid,
+        xdm.target.user.username = target_account_name,
+        xdm.target.user.identifier = target_account_object_sid,
+        xdm.source.host.hostname = coalesce(source_endpoint_host_name, source_hosts, host_names),
+        xdm.source.host.device_id = source_endpoint_account_object_guid,
+        xdm.source.host.ipv4_addresses = arraycreate(source_endpoint_address_ip4),
+        xdm.target.host.hostname = coalesce(target_endpoint_host_name, destination_hosts),
+        xdm.target.agent.identifier = target_endpoint_sensor_id,
+        xdm.source.ipv4 = coalesce(source_endpoint_address_ip4, source_endpoint_ip_address),
+        xdm.source.ipv6 = source_endpoint_address_ip6,
+        xdm.source.location.country = location_country_code,
+        xdm.source.asn.as_name = source_ip_asn_organization,
+        xdm.target.application.name = sso_application_identifier,
+        xdm.target.url = sso_application_uri,
+        xdm.alert.severity = concat(to_string(severity), " - ", severity_name),
+        xdm.alert.name = name,
+        xdm.alert.category = objective,
+        xdm.alert.mitre_tactics = arraycreate(tactic_id),
+        xdm.alert.mitre_techniques = arraycreate(technique_id),
+        xdm.event.type = coalesce(incident_type, type),
+        xdm.event.original_event_type = incident_type,
+        xdm.event.description = description,
+        xdm.event.id = coalesce(id, composite_id),
+        xdm.observer.vendor = "CrowdStrike",
+        xdm.observer.product = "Falcon Identity Protection",
+        xdm.observer.unique_identifier = cid;
+    filter product = "saas-security"
+    | alter
+        xdm.source.user.username = coalesce(user_name, arrayindex(json_extract_array(user_names, "$"), 0)),
+        xdm.source.user.upn = user_name,
+        xdm.source.location.country = country,
+        xdm.source.asn.as_number = to_integer(asn),
+        xdm.source.asn.as_name = asn_name,
+        xdm.alert.severity = concat(to_string(severity), " - ", severity_name),
+        xdm.alert.name = coalesce(name, display_name),
+        xdm.alert.category = coalesce(category, objective),
+        xdm.alert.description = coalesce(description, event_summary),
+        xdm.alert.mitre_tactics = json_extract_array(mitre_attack, "$[*].tactic_id"),
+        xdm.alert.mitre_techniques = json_extract_array(mitre_attack, "$[*].technique_id"),
+        xdm.event.type = coalesce(incident_type, type),
+        xdm.event.original_event_type = type,
+        xdm.event.description = coalesce(description, event_summary),
+        xdm.event.id = coalesce(id, composite_id),
+        xdm.observer.vendor = "CrowdStrike",
+        xdm.observer.product = "Falcon SaaS Security",
+        xdm.observer.unique_identifier = cid;
+  contributes: [User, User.UPN, User.SAM, User.SID, User.Domain, Target.User, Target.User.SID, Endpoint.Hostname, Endpoint.DeviceID, Endpoint.OS, Endpoint.IPv4, Target.Hostname, Process.Name, Process.Path, Process.SHA256, Process.MD5, Process.CommandLine, Process.PID, Network.IP, Network.Location, Network.ASN, Application, Alert.Severity, Alert.Category, Alert.Description, Alert.MITRE, Event.Type, Event.Description, Event.ID, Observer.Vendor, Observer.Product]
 
-      (CSPM, Identity Protection, etc.) ride other product values on the
-
-      same dataset and are out of scope for the Endpoint category.
-
-      '
-  fields:
-  - xdm_path: xdm.alert.severity
-    expression: concat(to_string(severity), " - ", severity_name)
-    sources:
-    - severity
-    - severity_name
-    issue_field: severity
-    notes: Composite — vendor int + name pair joined for analyst readability.
-  - xdm_path: xdm.event.original_event_type
-    expression: incident_type
-    sources:
-    - incident_type
-    issue_field: original_event_type
-  - xdm_path: xdm.event.type
-    expression: incident_type
-    sources:
-    - incident_type
-    issue_field: event_type
-    notes: Same source as original_event_type — duplicate mapping, intentional.
-  - xdm_path: xdm.event.description
-    expression: description
-    sources:
-    - description
-    issue_field: alert_description
-  - xdm_path: xdm.source.host.hostname
-    expression: device->hostname
-    sources:
-    - device
-    issue_field: hostname
-  - xdm_path: xdm.source.host.fqdn
-    expression: device->machine_domain
-    sources:
-    - device
-    issue_field: hostfqdn
-    notes: 'machine_domain is being mapped to fqdn here AND to user.domain below.
-
-      In Falcon''s schema it''s the AD domain — fqdn would be hostname + machine_domain
-
-      concatenated. Flag for review.
-
-      '
-  - xdm_path: xdm.source.host.os_family
-    expression: device->os_version
-    sources:
-    - device
-    issue_field: hostos
-    notes: 'os_version is the OS version string (e.g., "Windows 10 Pro"); os_family
-
-      should be the family enum. Should likely use XDM_CONST.OS_FAMILY_* via if() chain.
-
-      '
-  - xdm_path: xdm.source.ipv4
-    expression: device->local_ip
-    sources:
-    - device
-    issue_field: hostip
-  - xdm_path: xdm.source.user.username
-    expression: user_name
-    sources:
-    - user_name
-    issue_field: username
-  - xdm_path: xdm.source.user.domain
-    expression: device->machine_domain
-    sources:
-    - device
-    issue_field: userdomain
-  - xdm_path: xdm.source.user.groups
-    expression: device->groups[]
-    sources:
-    - device
-    issue_field: usergroups
-  - xdm_path: xdm.source.process.pid
-    expression: to_integer(local_process_id)
-    sources:
-    - local_process_id
-    issue_field: initiatorpid
-  - xdm_path: xdm.source.process.name
-    expression: parent_details->filename
-    sources:
-    - parent_details
-    issue_field: initiatedby
-    notes: Currently mapping PARENT process name into source.process slot.
-  - xdm_path: xdm.source.process.executable.path
-    expression: parent_details->filepath
-    sources:
-    - parent_details
-    issue_field: initiatorpath
-  - xdm_path: xdm.source.process.executable.sha256
-    expression: parent_details->sha256
-    sources:
-    - parent_details
-    issue_field: initiatorsha256
-  - xdm_path: xdm.source.process.command_line
-    expression: parent_details->cmdline
-    sources:
-    - parent_details
-    issue_field: initiatorcmd
-  contributes:
-  - Endpoint.Hostname
-  - Endpoint.FQDN
-  - Endpoint.OSFamily
-  - Network.IP
-  - User
-  - Process.PID
-  - Process.Name
-  - Process.Path
-  - Process.SHA256
-  - Process.CommandLine
 correlation_rules:
 - subtype: passthrough
   fromversion: 6.10.0

@@ -6,7 +6,7 @@
 |---|---|
 | ID | `SocFrameworkProofPointTap` |
 | Version | `1.5.2` |
-| Category | Forensics & Malware Analysis |
+| Category | Email Security |
 | Pack Path | `Packs/SocFrameworkProofPointTap` |
 | Manifest | [`Packs/SocFrameworkProofPointTap/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkProofPointTap/xsoar_config.json) |
 
