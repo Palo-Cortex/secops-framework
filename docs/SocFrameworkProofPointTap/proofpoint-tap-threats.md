@@ -84,13 +84,13 @@ Fields populated for downstream lifecycle Artifacts schemas:
 
 ## Correlation Rules
 
-### SOC Proofpoint TAP - Threat Detected
+### SOC Proofpoint TAP - Threat Detected All Alerts
 
 | Field | Value |
 |---|---|
-| global_rule_id | `SOC Proofpoint TAP - Threat Detected` |
+| global_rule_id | `SOC Proofpoint TAP - Threat Detected All Alerts` |
 | subtype | `passthrough` |
-| fromversion | `8.0.0` |
+| fromversion | `6.10.0` |
 
 Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted. Fires on active or malicious threat status only. Suppression is per GUID to preserve full blast-radius visibility for lateral risk detection. Replaces 1.0.4 two-rule/two-instance split. Volume controlled by threat status filter. Supports both V3 SOC Framework playbooks (via socfw* fields) and legacy soc-phishing-investigation-1.0.5 playbooks and layouts (via proofpointtap* fields). Legacy fields marked for removal when old phishing pack is decommissioned. Cross-rule grouping pivots (with CrowdStrike Falcon and other endpoint sources): actor_effective_username (lowercase full principal -- UPN when the vendor has it), user_principal (raw-case UPN, parallel pivot), action_local_ip (clickIP → endpoint local_ip), and action_file_sha256 (attachment hash). Username normalization: lowercase, DOMAIN\-prefix-stripped, full principal. UPN when the vendor delivers one; bare SAM only when it genuinely doesn't. Lowercase is mandatory -- exact-equality grouping makes casing a silent pivot-killer.
 
@@ -261,7 +261,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // Normalize recipient (JSON-array string) to a bare UPN for cross-vendor
 // grouping. to_string() leaves the ["x@y"] brackets; arrayindex+extract
 // yields "x@y" to match CrowdStrike/XDR user_name byte-for-byte.
-| alter recipient_upn = arrayindex(json_extract_array(recipient, "$."), 0)
+| alter recipient_upn = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
 // Alert identity and naming
 | alter
@@ -390,4 +390,12 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // username field's semantics change.
 | alter
         user_principal                      = recipient_upn
+
+// user_name / display_name are dataset fields on endpoint sources but do
+// NOT exist on the email-only TAP dataset. The shared identity seed and
+// finalization (identity: true) read them, so define them here or the
+// install-time schema check rejects the rule (101704). user_name is set
+// email-first as a grouping pivot; display_name is null (TAP has none).
+| alter user_name    = recipient_upn
+| alter display_name = null
 ```

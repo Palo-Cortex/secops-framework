@@ -11,8 +11,8 @@ only, and feed enriched email threat data into the NIST IR lifecycle.
 
 | Component | Description |
 |---|---|
-| **Correlation Rule** | `SOC Proofpoint TAP - Threat Detected` — unified rule covering messages delivered and clicks permitted. Fires on active/malicious threat status only. Suppression per GUID/24hr. Populates `socfw*` fields for Foundation playbook consumption. |
-| **Modeling Rule** | `SOC ProofpointTAP Modeling Rule` — maps raw TAP events to XDM fields including `xdm.email.*`, `xdm.alert.*`, `xdm.source.*`, and `xdm.target.url`. Feeds XSIAM network stories and identity analytics. |
+| **Correlation Rule** | `SOC Proofpoint TAP - Threat Detected All Alerts` — unified rule covering messages delivered and clicks permitted. Fires on active/malicious threat status only. Suppression per GUID/24hr. Resolves the recipient to a canonical, unquoted email (email-first) for cross-source grouping, with an optional CIE (`socfw_identity_map`) enrichment overlay shipped commented-out and OFF by default. Populates `socfw*` fields for Foundation playbook consumption. |
+| **Modeling Rule** | `SOC ProofpointTAP Modeling Rule` — maps `senderIP → xdm.source.ipv4`. All other email context (sender, recipients, subject, message-id, attachments, threat data) rides the correlation rule's `alert_fields` at `issue.*` rather than XDM (the Data Model has no valid `xdm.email.*` paths). |
 
 ---
 
@@ -40,7 +40,7 @@ Version 1.3.0 consolidates and simplifies the original two-rule, two-instance ar
 - **Reduced alert volume** — threat status filter eliminates benign deliveries before alert creation; only `active` or `malicious` threats generate alerts
 - **Cross-source case grouping** — `actor_effective_username` (recipient), `action_file_sha256` (attachment hash), `dns_query_name`, and `action_remote_ip` enable XSIAM to group related email and endpoint alerts into the same case automatically
 - **NIST IR lifecycle integration** — `socfw*` fields feed `Foundation_-_Normalize_Email_V3` directly, enabling the full Analysis → Containment → Eradication → Recovery chain without manual triage
-- **XDM story stitching** — `xdm.source.ipv4 = clickIP` and `xdm.source.user.username = recipient` feed XSIAM network and identity story engines across sources
+- **Email-first identity** — the recipient is normalized to a canonical, unquoted email that matches CrowdStrike `user_name` byte-for-byte, so email and endpoint alerts for the same user group into one case. Optional CIE enrichment resolves the same identity from `socfw_identity_map` when enabled (see `POST_CONFIG_README.md` Step 5)
 
 ---
 

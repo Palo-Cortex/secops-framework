@@ -104,9 +104,9 @@ modeling_rule:
 
 correlation_rules:
   - subtype: passthrough
-    fromversion: "8.0.0"
-    global_rule_id: 'SOC Proofpoint TAP - Threat Detected'
-    name: 'SOC Proofpoint TAP - Threat Detected'
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC Proofpoint TAP - Threat Detected All Alerts'
+    name: 'SOC Proofpoint TAP - Threat Detected All Alerts'
     description: >-
       Unified Proofpoint TAP alert rule covering messages delivered and clicks permitted.
       Fires on active or malicious threat status only. Suppression is per GUID to preserve
@@ -146,6 +146,17 @@ correlation_rules:
     alert_name: '$alert_name'
     alert_description: '$alert_description'
 
+    # CIE (Cloud Identity Engine) enrichment — ships REAL_TIME with the
+    # socfw_identity_map join OFF (preserved /* */ block + uncomment header),
+    # identical to the CrowdStrike rules. cie_join: upn_email resolves on
+    # user_principal (= recipient UPN/email), which pre_alter sets below.
+    cie_schedule:
+      crontab: '*/10 * * * *'
+      search_window: 25 hours
+      simple_schedule: 10 minutes
+    identity: true
+    cie_join: upn_email
+
     suppression:
       enabled: true
       duration: 24 hours
@@ -182,7 +193,7 @@ correlation_rules:
       // Normalize recipient (JSON-array string) to a bare UPN for cross-vendor
       // grouping. to_string() leaves the ["x@y"] brackets; arrayindex+extract
       // yields "x@y" to match CrowdStrike/XDR user_name byte-for-byte.
-      | alter recipient_upn = arrayindex(json_extract_array(recipient, "$."), 0)
+      | alter recipient_upn = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
       // Alert identity and naming
       | alter
@@ -311,6 +322,14 @@ correlation_rules:
       // username field's semantics change.
       | alter
               user_principal                      = recipient_upn
+
+      // user_name / display_name are dataset fields on endpoint sources but do
+      // NOT exist on the email-only TAP dataset. The shared identity seed and
+      // finalization (identity: true) read them, so define them here or the
+      // install-time schema check rejects the rule (101704). user_name is set
+      // email-first as a grouping pivot; display_name is null (TAP has none).
+      | alter user_name    = recipient_upn
+      | alter display_name = null
 
     alert_fields:
 
@@ -482,7 +501,10 @@ correlation_rules:
       TA0001 - Initial Access: [T1566 - Phishing]
       TA0009 - Collection:     [T1114 - Email Collection]
 
-    investigation_query_link: ''
+    investigation_query_link: |-
+      dataset = proofpoint_tap_v2_generic_alert_raw
+      | filter GUID = "$originalalertid"
+      | fields *
 
     # Coverage commitment — Email artifact fields this correlation rule populates
     # that the modeling rule does not.
