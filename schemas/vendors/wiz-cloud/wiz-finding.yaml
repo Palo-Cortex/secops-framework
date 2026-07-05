@@ -171,6 +171,17 @@ correlation_rules:
               coalesce(cloud_provider, "Cloud"), " | ",
               coalesce(resource_type, "Resource"), " | ",
               coalesce(finding_name, "Finding"))
+
+      // Identity axis (email-first). Gate the directory join to user-type
+      // entities so config/exposure findings (buckets, IAM policy) never
+      // manufacture a user pivot. With CIE off, the entity's own name is the
+      // best available identity; the commentable CIE overlay below resolves it
+      // to the real directory email when enabled.
+      | alter es_is_identity = if(
+          lowercase(coalesce(resource_type, "")) ~= "user_account|identity|service_account|user|group|service account|account",
+          "true", "false")
+      | alter actor_effective_username = if(es_is_identity = "true", lowercase(resource_name), null)
+      | alter user_principal = null
     final_projection:
       - _time
       - vendor_name
@@ -192,6 +203,8 @@ correlation_rules:
       - alert_name
       - originalalertid
       - originalalertname
+      - actor_effective_username
+      - user_principal
     alert_fields:
       # canonical core (vendor-agnostic) — issue fields vendor/product sourced
       # from the single vendor_name/product_name columns, exactly like S1.
@@ -202,6 +215,10 @@ correlation_rules:
       - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
       - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
       - {issue_field: alert_name,          source: alert_name,          bucket: computed}
+      # Identity axis — email-first grouping pivot (inline name when CIE off,
+      # resolved directory email when the CIE overlay is enabled)
+      - {issue_field: username,       source: actor_effective_username, bucket: computed}
+      - {issue_field: user_principal, source: user_principal,           bucket: computed}
       # Conditional compute-hostname grouping pivot (see pre_alter note)
       - {issue_field: agent_hostname,      source: agent_hostname,      bucket: computed}
       - {issue_field: hostname,            source: agent_hostname,      bucket: computed}
@@ -220,6 +237,40 @@ correlation_rules:
       dataset = wiz_generic_alert_raw
       | filter json_extract_scalar(sourcerule, "$.id") = "$originalalertid"
       | fields *
+
+    # CIE (Cloud Identity Engine) enrichment — emitted OFF by default in a
+    # preserved /* */ block, same pattern as the CrowdStrike/Proofpoint rules.
+    # Cloud entities carry no SID/UPN, so the join keys the entity name against
+    # socfw_identity_map.display_name (gated to identity entities). No
+    # `identity: true` here — the cloud dataset has no user_name/user_principal
+    # fields, so the shared seed/finalization would fail install. The overlay is
+    # self-contained: it resolves actor_effective_username over the inline value.
+    cie_schedule:
+      crontab: '*/10 * * * *'
+      search_window: 25 hours
+      simple_schedule: 10 minutes
+    cie_overlay: |
+      | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+      | alter cie_join_key = if(es_is_identity = "true", lowercase(resource_name), null)
+      | join type = left (
+          dataset = socfw_identity_map
+          | filter type = "user"
+          | alter cie_join_key = lowercase(display_name)
+          | dedup cie_join_key by asc netbios_and_sam_account_name
+          | fields cie_join_key,
+                   email                        as map_email,
+                   upn                          as map_upn,
+                   netbios_and_sam_account_name as map_netbios,
+                   sam_account_name             as map_sam,
+                   sid                          as map_sid,
+                   display_name                 as map_display,
+                   domain_name                  as map_domain
+        ) as m cie_join_key = m.cie_join_key
+      | alter actor_effective_username = if(es_is_identity = "true",
+                  lowercase(coalesce(map_email, map_upn, map_netbios, resource_name)),
+                  actor_effective_username),
+              user_principal = coalesce(map_upn, map_email)
+      | alter _time = _insert_time
     contributes:
       - Cloud.Provider
       - Cloud.Account

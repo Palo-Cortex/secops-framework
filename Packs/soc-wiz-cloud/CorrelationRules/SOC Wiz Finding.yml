@@ -17,6 +17,8 @@ alert_fields:
   originalalertid: originalalertid
   originalalertname: originalalertname
   alert_name: alert_name
+  username: actor_effective_username
+  user_principal: user_principal
   agent_hostname: agent_hostname
   hostname: agent_hostname
   cloudprovider: cloud_provider
@@ -96,5 +98,47 @@ xql_query: |
           coalesce(cloud_provider, "Cloud"), " | ",
           coalesce(resource_type, "Resource"), " | ",
           coalesce(finding_name, "Finding"))
+
+  | alter es_is_identity = if(
+      lowercase(coalesce(resource_type, "")) ~= "user_account|identity|service_account|user|group|service account|account",
+      "true", "false")
+  | alter actor_effective_username = if(es_is_identity = "true", lowercase(resource_name), null)
+  | alter user_principal = null
+
+  // ============== CIE ENRICHMENT (optional, OFF by default) ==============
+  // Cloud Identity Engine enrichment is disabled. To enable it:
+  //   1. Set this rule to a schedule (it ships REAL_TIME):
+  //        execution mode = SCHEDULED
+  //        crontab        = */10 * * * *
+  //        search window  = 25 hours
+  //        schedule label = 10 minutes
+  //   2. Delete the /* and */ lines that wrap the block below.
+  // The join coalesces socfw_identity_map values OVER the inline idr_* fields;
+  // the alert-field mappings do not change. Requires SOC IdentityResolve.
+  // ----------------------------------------------------------------------
+  /*
+  | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+  | alter cie_join_key = if(es_is_identity = "true", lowercase(resource_name), null)
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter type = "user"
+      | alter cie_join_key = lowercase(display_name)
+      | dedup cie_join_key by asc netbios_and_sam_account_name
+      | fields cie_join_key,
+               email                        as map_email,
+               upn                          as map_upn,
+               netbios_and_sam_account_name as map_netbios,
+               sam_account_name             as map_sam,
+               sid                          as map_sid,
+               display_name                 as map_display,
+               domain_name                  as map_domain
+    ) as m cie_join_key = m.cie_join_key
+  | alter actor_effective_username = if(es_is_identity = "true",
+              lowercase(coalesce(map_email, map_upn, map_netbios, resource_name)),
+              actor_effective_username),
+          user_principal = coalesce(map_upn, map_email)
+  | alter _time = _insert_time
+  */
+  // ===================== END CIE ENRICHMENT =============================
   | fields
-      _time, vendor_name, product_name, severity, finding_type, finding_status, finding_id, finding_name, alert_description, recommendation, cloud_provider, cloud_account, cloud_region, resource_name, resource_type, resource_id, agent_hostname, alert_name, originalalertid, originalalertname
+      _time, vendor_name, product_name, severity, finding_type, finding_status, finding_id, finding_name, alert_description, recommendation, cloud_provider, cloud_account, cloud_region, resource_name, resource_type, resource_id, agent_hostname, alert_name, originalalertid, originalalertname, actor_effective_username, user_principal

@@ -116,6 +116,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `originalalertid` | `originalalertid` | `computed` |  |
 | `originalalertname` | `originalalertname` | `computed` |  |
 | `alert_name` | `alert_name` | `computed` |  |
+| `username` | `actor_effective_username` | `computed` |  |
+| `user_principal` | `user_principal` | `computed` |  |
 | `agent_hostname` | `agent_hostname` | `computed` |  |
 | `hostname` | `agent_hostname` | `computed` |  |
 | `cloudprovider` | `cloud_provider` | `computed` |  |
@@ -174,4 +176,15 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         coalesce(cloud_provider, "Cloud"), " | ",
         coalesce(resource_type, "Resource"), " | ",
         coalesce(finding_name, "Finding"))
+
+// Identity axis (email-first). Gate the directory join to user-type
+// entities so config/exposure findings (buckets, IAM policy) never
+// manufacture a user pivot. With CIE off, the entity's own name is the
+// best available identity; the commentable CIE overlay below resolves it
+// to the real directory email when enabled.
+| alter es_is_identity = if(
+    lowercase(coalesce(resource_type, "")) ~= "user_account|identity|service_account|user|group|service account|account",
+    "true", "false")
+| alter actor_effective_username = if(es_is_identity = "true", lowercase(resource_name), null)
+| alter user_principal = null
 ```
