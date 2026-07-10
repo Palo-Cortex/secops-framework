@@ -1,0 +1,86 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Posture
+  - Cortex Xpanse
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor_name
+  product: product_name
+  severity: severity
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  recommendation: remediation
+  impact: impact
+alert_name: $alert_name
+alert_type: null
+crontab: null
+dataset: alerts
+name: SOC Cortex Xpanse Posture Finding
+description: >-
+  Creates an XSIAM passthrough alert for each Cortex Xpanse attack-surface
+  issue, normalized to the SOC Framework Posture lifecycle contract. Routes via
+  SOCProductCategoryMap_V3 (ds_panw_asm: Posture) to the Posture category,
+  dispatching through EP_Posture -> SOC_Posture ->
+  SOC_Misconfig_{Identify,Plan,Execute,Verify} phase playbooks. The lifecycle's
+  Identify-phase context (Identify.finding_acknowledged,
+  Identify.misconfig_summary) is set by SOC_Misconfig_Identify at execution time
+  via its Set tasks - not preloaded on this alert.
+drilldown_query_timeframe: ALERT
+execution_mode: REAL_TIME
+global_rule_id: SOC Cortex Xpanse Posture Finding
+investigation_query_link: |-
+  dataset = issues
+  | filter xdm.issue.detection.method = "XPANSE"
+  | filter xdm.issue.id = "$originalalertid"
+  | fields _time, xdm.issue.name, xdm.issue.description, xdm.issue.severity, xdm.issue.detection.rule_id, xdm.issue.remediation, xdm.issue.normalized_fields, xdm.issue.asset_ids
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs:
+  TA0043 - Reconnaissance:
+  - T1595 - Active Scanning
+  - T1596 - Search Open Technical Databases
+search_window: null
+severity: User Defined
+simple_schedule: null
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- originalalertid
+timezone: null
+user_defined_category: issue_type
+user_defined_severity: severity
+xql_query: |
+  dataset = issues
+  | filter xdm.issue.detection.method = "XPANSE"
+  | alter
+      vendor_name  = "Palo Alto Networks",
+      product_name = "Cortex Xpanse",
+      severity     = lowercase(xdm.issue.severity),
+      finding_id   = xdm.issue.id,
+      finding_name = xdm.issue.name,
+      finding_description = xdm.issue.description,
+      issue_type     = coalesce(xdm.issue.detection.rule_id, "Unclassified"),
+      issue_category = xdm.issue.category,
+      issue_status   = xdm.issue.status.progress,
+      remediation    = xdm.issue.remediation,
+      impact         = xdm.issue.impact,
+      asset_id_primary = arrayindex(xdm.issue.asset_ids, 0)
+
+  | alter
+      target_ipv4_raw = json_extract_scalar(xdm.issue.normalized_fields, "$['xdm.target.host.ipv4_addresses'][0]"),
+      target_country  = json_extract_scalar(xdm.issue.normalized_fields, "$['xdm.source.location.country'][0]")
+
+  | alter
+      originalalertid   = finding_id,
+      originalalertname = finding_name,
+      alert_name = concat("[Posture] Cortex Xpanse | ", coalesce(issue_type, "Finding"), " | ", coalesce(finding_name, "Unspecified target")),
+      alert_description = coalesce(finding_description, "Cortex Xpanse attack-surface posture finding")
+  | fields
+      _time, vendor_name, product_name, severity, finding_id, finding_name, finding_description, issue_type, issue_category, issue_status, remediation, impact, target_ipv4_raw, target_country, asset_id_primary, alert_name, alert_description, originalalertid, originalalertname

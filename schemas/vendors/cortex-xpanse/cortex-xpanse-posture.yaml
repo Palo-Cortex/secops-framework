@@ -1,0 +1,271 @@
+# ============================================================================
+# Cortex Xpanse - Attack Surface Issues (Posture lifecycle routing)
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Source-of-truth contract for the SOC Framework's pack content generator.
+# Validated against tools/generate_vendor_content.py and tested against an
+# XSIAM 3.x tenant install (x5supreme). The generator reads this file and
+# emits:
+#   - CorrelationRules/<name>.yml    (one per correlation_rules entry)
+#   - ModelingRules/<dir>/<name>.{xif,yml,_schema.json}
+#
+# Lifecycle: Posture (NIST SP 800-40 Rev 4 phase pattern). Routes to
+# soc-framework-posture's posture_misconfig category. The Posture lifecycle
+# is the conceptually correct lane because the XSIAM platform itself stamps
+# xdm.issue.domain = "POSTURE" and original_tags = "DOM:Posture,DS:PANW/ASM"
+# on every Cortex Xpanse issue at ingestion.
+#
+# Parallel variant exists at cortex-xpanse-cloud.yaml routing to NIST IR /
+# Cloud category. Choose ONE for production - cannot enable both
+# simultaneously without duplicating framework alerts on the same data
+# source.
+#
+# Schema iteration history:
+#   v0.4 - first install attempt failed 101704
+#   v0.5 - dependency install via SOCFWPackManager confirmed clean, pack
+#          still failed 101704; isolated via test matrix to content rules
+#   v0.6 - removed four alert_fields that referenced fields not present
+#          in standard tenants (posture_category, findingstatus, and two
+#          identify_* fields that were architectural mistakes - playbook
+#          context keys, not alert data).
+#   v0.7 - fixed fromversion 8.0.0 -> 6.10.0 (8.0.0 causes HTTP 500 per
+#          init_pack checklist; all working framework packs use 6.10.0).
+#          Added minimal mitre_defs entry (init_pack checklist requires
+#          populated map, not empty dict). MITRE: TA0043 Reconnaissance
+#          T1595/T1596 - correct for attack-surface scanning context.
+# ============================================================================
+vendor: cortex-xpanse
+product: Cortex Xpanse
+data_source: issues
+category: Posture
+pack: soc-cortex-xpanse-posture
+
+raw_schema:
+
+  # ---- Top-level XDM columns of the unified `issues` dataset ----
+  # Identical to cortex-xpanse-cloud.yaml schema - same data source.
+
+  xdm.issue.id:                     {type: string,   is_array: false}
+  xdm.issue.external_id:            {type: string,   is_array: false}
+  xdm.issue.name:                   {type: string,   is_array: false}
+  xdm.issue.description:            {type: string,   is_array: false}
+  xdm.issue.severity:               {type: string,   is_array: false}
+  xdm.issue.platform_severity:      {type: string,   is_array: false}
+  xdm.issue.status.progress:        {type: string,   is_array: false}
+  xdm.issue.domain:                 {type: string,   is_array: false}
+  xdm.issue.category:               {type: string,   is_array: false}
+  xdm.issue.type:                   {type: string,   is_array: false}
+  xdm.issue.detection.method:       {type: string,   is_array: false}
+  xdm.issue.detection.rule_id:      {type: string,   is_array: false}
+  xdm.issue.observation_time:       {type: datetime, is_array: false}
+  xdm.issue.last_modified:          {type: datetime, is_array: false}
+  xdm.issue.asset_ids:              {type: string,   is_array: true}
+  xdm.issue.normalized_fields:      {type: string,   is_array: false}
+  xdm.issue.extended_fields:        {type: string,   is_array: false}
+  xdm.issue.remediation:            {type: string,   is_array: false}
+  xdm.issue.impact:                 {type: string,   is_array: false}
+  original_tags:                    {type: string,   is_array: true}
+
+
+# ----------------------------------------------------------------------------
+# Modeling rule - structurally required by tools/generate_vendor_content.py
+# (post-May 28 spec change made modeling_rule mandatory). Semantically a
+# passthrough: the `issues` dataset is already XDM-normalized by the platform.
+# Identical to the cloud variant's modeling rule - same data source.
+# ----------------------------------------------------------------------------
+modeling_rule:
+  fromversion: "6.10.0"
+  modeling_rule_id: CortexXpanse_ModelingRule
+  modeling_rule_name: Cortex Xpanse Issue Modeling Rule
+  directory_name: CortexXpanse_ModelingRule
+  filter:
+    expression: 'xdm.issue.detection.method = "XPANSE"'
+  fields:
+    # Minimal set of XDM mappings using only issue_field names verified to
+    # exist as standard fields in baseline XSIAM 3.x tenants. Removed in
+    # v0.6: xdm.alert.name (issue_field 'alertname' not in tenant),
+    # xdm.alert.description (issue_field 'eventdescription' not in tenant),
+    # xdm.alert.category (issue_field 'alertcategory' not in tenant as a
+    # standalone field - only 'XDR Alert Category' exists), xdm.observer.*
+    # (issue_field 'observervendor'/'observerproduct' not in tenant).
+    #
+    # Note: this modeling rule is structurally required by the validator
+    # but semantically near-no-op - the `issues` dataset arrives XDM-
+    # normalized via native Xpanse-XSIAM integration. The framework's
+    # vendor pack pattern assumes a raw-to-XDM transformation that does
+    # not apply for unified-platform-native sources.
+    - xdm_path: xdm.alert.original_alert_id
+      issue_field: originalalertid
+      sources: [xdm.issue.id]
+      expression: 'xdm.issue.id'
+    - xdm_path: xdm.alert.severity
+      issue_field: severity
+      sources: [xdm.issue.severity]
+      expression: 'xdm.issue.severity'
+  contributes:
+    - Alert.OriginalID
+    - Alert.Severity
+
+
+correlation_rules:
+
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC Cortex Xpanse Posture Finding'
+    name: 'SOC Cortex Xpanse Posture Finding'
+    description: >-
+      Creates an XSIAM passthrough alert for each Cortex Xpanse attack-surface
+      issue, normalized to the SOC Framework Posture lifecycle contract.
+      Routes via SOCProductCategoryMap_V3 (ds_panw_asm: Posture) to the
+      Posture category, dispatching through EP_Posture -> SOC_Posture ->
+      SOC_Misconfig_{Identify,Plan,Execute,Verify} phase playbooks. The
+      lifecycle's Identify-phase context (Identify.finding_acknowledged,
+      Identify.misconfig_summary) is set by SOC_Misconfig_Identify at
+      execution time via its Set tasks - not preloaded on this alert.
+    tags:
+      - SOCFramework
+      - Passthrough
+      - Posture
+      - Cortex Xpanse
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: REAL_TIME
+      mapping_strategy: CUSTOM
+      user_defined_category: issue_type
+      user_defined_severity: severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    alert_name: '$alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 1 hours
+      fields: [originalalertid]
+      notes: |
+        xdm.issue.id is unique per Cortex Xpanse issue and stable across
+        re-scans until remediation.
+
+    pre_alter: |
+      | filter xdm.issue.detection.method = "XPANSE"
+      | alter
+          vendor_name  = "Palo Alto Networks",
+          product_name = "Cortex Xpanse",
+          severity     = lowercase(xdm.issue.severity),
+          finding_id   = xdm.issue.id,
+          finding_name = xdm.issue.name,
+          finding_description = xdm.issue.description,
+          issue_type     = coalesce(xdm.issue.detection.rule_id, "Unclassified"),
+          issue_category = xdm.issue.category,
+          issue_status   = xdm.issue.status.progress,
+          remediation    = xdm.issue.remediation,
+          impact         = xdm.issue.impact,
+          asset_id_primary = arrayindex(xdm.issue.asset_ids, 0)
+      // Bracket-quote JSONPath syntax required - the keys inside
+      // xdm.issue.normalized_fields are LITERAL dotted strings
+      // (e.g., "xdm.target.host.ipv4_addresses"), not nested objects.
+      // Verified in tenant: '$.xdm.target.host.ipv4_addresses[0]' returns
+      // null; "$['xdm.target.host.ipv4_addresses'][0]" returns the IP.
+      | alter
+          target_ipv4_raw = json_extract_scalar(xdm.issue.normalized_fields, "$['xdm.target.host.ipv4_addresses'][0]"),
+          target_country  = json_extract_scalar(xdm.issue.normalized_fields, "$['xdm.source.location.country'][0]")
+      // Identify-phase context (Identify.finding_acknowledged,
+      // Identify.misconfig_summary) is populated by SOC_Misconfig_Identify
+      // at execution time via its Set tasks. Not preloaded on the alert -
+      // those are playbook context keys, not alert fields.
+      | alter
+          originalalertid   = finding_id,
+          originalalertname = finding_name,
+          alert_name = concat("[Posture] Cortex Xpanse | ", coalesce(issue_type, "Finding"), " | ", coalesce(finding_name, "Unspecified target")),
+          alert_description = coalesce(finding_description, "Cortex Xpanse attack-surface posture finding")
+
+    final_projection:
+      - _time
+      - vendor_name
+      - product_name
+      - severity
+      - finding_id
+      - finding_name
+      - finding_description
+      - issue_type
+      - issue_category
+      - issue_status
+      - remediation
+      - impact
+      - target_ipv4_raw
+      - target_country
+      - asset_id_primary
+      - alert_name
+      - alert_description
+      - originalalertid
+      - originalalertname
+
+    alert_fields:
+      # canonical core - confirmed standard XSIAM issue fields
+      - {issue_field: vendor,              source: vendor_name,         bucket: computed}
+      - {issue_field: product,             source: product_name,        bucket: computed}
+      - {issue_field: severity,            source: severity,            bucket: computed}
+      - {issue_field: alert_description,   source: alert_description,   bucket: computed}
+      - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
+      - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
+      - {issue_field: alert_name,          source: alert_name,          bucket: computed}
+      # Cortex Xpanse specific - issue type, remediation, impact
+      # Note: posture_category, findingstatus, identify_* fields removed in v0.6.
+      # posture_category and findingstatus referenced fields not present in
+      # standard tenants. identify_* fields belong in playbook context, not
+      # on the alert object - SOC_Misconfig_Identify sets those at execution.
+      - {issue_field: alertcategory,       source: issue_type,          bucket: computed}
+      - {issue_field: recommendation,      source: remediation,         bucket: computed}
+      - {issue_field: impact,              source: impact,              bucket: computed}
+
+    mitre_defs:
+      # Cortex Xpanse surfaces externally-exposed services and misconfigurations.
+      # Reconnaissance is the closest MITRE tactic - adversaries discover these
+      # same exposed services during active scanning. Assigned conservatively;
+      # Xpanse findings are posture observations, not confirmed attack signals.
+      TA0043 - Reconnaissance:
+        - T1595 - Active Scanning
+        - T1596 - Search Open Technical Databases
+
+    investigation_query_link: |-
+      dataset = issues
+      | filter xdm.issue.detection.method = "XPANSE"
+      | filter xdm.issue.id = "$originalalertid"
+      | fields _time, xdm.issue.name, xdm.issue.description, xdm.issue.severity, xdm.issue.detection.rule_id, xdm.issue.remediation, xdm.issue.normalized_fields, xdm.issue.asset_ids
+
+    contributes:
+      - AttackSurface.Finding.ID
+      - AttackSurface.Finding.Name
+      - AttackSurface.Finding.IssueType
+      - AttackSurface.Finding.Remediation
+      - AttackSurface.Target.IPv4
+
+# ============================================================================
+# OPEN ITEMS
+#  - Routes via SOCProductCategoryMap_V3 (ds_panw_asm: Posture). Platform
+#    stamps DS:PANW/ASM on every Cortex Xpanse issue at ingestion; that tag
+#    drives Foundation routing into the posture lifecycle.
+#  - SOC_Misconfig_{Identify,Plan,Execute,Verify} phase playbooks are
+#    lifecycle-internal (soc-framework-posture pack). v1.0.0 vendor pack
+#    contributes alert data only; phase playbooks handle their own context
+#    via Set tasks at execution time.
+#  - VULNERABILITY-category Xpanse findings (xdm.finding.type_id = 140000000,
+#    CVE-bearing) currently routed to posture_misconfig. v1.1.0 could split
+#    to posture_compliance if that aligns with framework-owner intent.
+#  - Modeling rule semantically near-no-op: the issues dataset arrives
+#    XDM-normalized via native Xpanse-XSIAM integration. The framework's
+#    standard vendor pack pattern assumes a raw-to-XDM modeling step that
+#    does not apply for unified-platform-native sources (Cortex Xpanse,
+#    AI-SPM, CIEM, future Cortex Cloud sources). Schema spec extension
+#    candidate: an `emit_modeling_rule: false` flag for natively-XDM
+#    sources, or a `raw_xif` comment-only passthrough body that the
+#    runtime accepts.
+#  - Cloud-routed parallel variant: cortex-xpanse-cloud.yaml. Same data
+#    source, mirrors soc-wiz-cloud convention. Choose one for production.
+# ============================================================================
