@@ -81,7 +81,7 @@ Fields populated for downstream lifecycle Artifacts schemas:
 |---|---|
 | global_rule_id | `SOC Microsoft Graph Defender EndPoint` |
 | subtype | `passthrough` |
-| fromversion | `8.0.0` |
+| fromversion | `6.10.0` |
 
 Creates an XSIAM alert for each Microsoft Graph Endpoint Detection Event.
 
@@ -95,7 +95,7 @@ Creates an XSIAM alert for each Microsoft Graph Endpoint Detection Event.
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
 | action | `ALERTS` |
-| execution_mode | `REAL_TIME` |
+| execution_mode | `SCHEDULED` |
 | mapping_strategy | `CUSTOM` |
 | user_defined_category | `tactic` |
 | user_defined_severity | `severity` |

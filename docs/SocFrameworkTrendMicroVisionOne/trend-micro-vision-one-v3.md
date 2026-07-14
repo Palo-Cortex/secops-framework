@@ -91,7 +91,7 @@ Creates an XSIAM alert for each Trend Micro Vision One workbench detection event
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
 | action | `ALERTS` |
-| execution_mode | `REAL_TIME` |
+| execution_mode | `SCHEDULED` |
 | mapping_strategy | `CUSTOM` |
 | user_defined_category | `tactic` |
 | user_defined_severity | `severity` |

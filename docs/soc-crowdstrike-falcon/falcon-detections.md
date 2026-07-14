@@ -132,7 +132,7 @@ Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection even
 | action | `ALERTS` |
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
-| execution_mode | `REAL_TIME` |
+| execution_mode | `SCHEDULED` |
 | is_enabled | `✓` |
 | mapping_strategy | `CUSTOM` |
 | severity | `User Defined` |

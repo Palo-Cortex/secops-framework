@@ -80,7 +80,7 @@ Fields populated for downstream lifecycle Artifacts schemas:
 |---|---|
 | global_rule_id | `SOC SentinelOne Threat` |
 | subtype | `passthrough` |
-| fromversion | `8.0.0` |
+| fromversion | `6.10.0` |
 
 Creates an XSIAM passthrough alert for each SentinelOne Singularity threat, normalized to the SOC Framework endpoint contract.
 
@@ -94,7 +94,7 @@ Creates an XSIAM passthrough alert for each SentinelOne Singularity threat, norm
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
 | action | `ALERTS` |
-| execution_mode | `REAL_TIME` |
+| execution_mode | `SCHEDULED` |
 | mapping_strategy | `CUSTOM` |
 | user_defined_category | `tactic` |
 | user_defined_severity | `severity` |

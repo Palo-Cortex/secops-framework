@@ -95,7 +95,7 @@ Reshapes Check Point NDR Behavioral alerts (from checkpointndr_generic_alert_raw
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
 | action | `ALERTS` |
-| execution_mode | `REAL_TIME` |
+| execution_mode | `SCHEDULED` |
 | mapping_strategy | `CUSTOM` |
 | user_defined_category | `cp_category` |
 | user_defined_severity | `severity` |
