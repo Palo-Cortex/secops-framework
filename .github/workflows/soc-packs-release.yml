@@ -253,48 +253,11 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Find packs with version bumps
-        id: changed
-        run: |
-          python - << 'PY'
-          import json, os, subprocess
-          from pathlib import Path
-
-          packs_dir = Path(os.environ["PACKS_DIR"])
-
-          changed_files = subprocess.check_output(
-              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
-          ).splitlines()
-
-          changed = set()
-          for f in changed_files:
-              p = Path(f)
-              if p.parts and p.parts[0] == str(packs_dir):
-                  pack = p.parts[1] if len(p.parts) > 1 else None
-                  if not pack:
-                      continue
-                  meta = packs_dir / pack / "pack_metadata.json"
-                  if not meta.exists():
-                      continue
-                  try:
-                      old = subprocess.check_output(
-                          ["git", "show", f"HEAD~1:{packs_dir}/{pack}/pack_metadata.json"],
-                          stderr=subprocess.DEVNULL, text=True
-                      )
-                      new_text = meta.read_text()
-                      old_ver = json.loads(old).get("version") or json.loads(old).get("currentVersion")
-                      new_ver = json.loads(new_text).get("version") or json.loads(new_text).get("currentVersion")
-                      if old_ver != new_ver:
-                          changed.add(pack)
-                  except subprocess.CalledProcessError:
-                      changed.add(pack)
-
-          out = ",".join(sorted(changed))
-          print("Changed packs:", out or "(none)")
-          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-              fh.write(f"packs={out}\n")
-              fh.write(f"has_changes={'true' if changed else 'false'}\n")
-          PY
+      # Pack selection comes from the bump job (needs.bump.outputs.packs), which
+      # detects across the full push range (github.event.before..after). The old
+      # HEAD~1..HEAD re-detection here lost the race when two PRs merged back to
+      # back and their [skip ci] bump commits interleaved on main. Removed — do
+      # not reintroduce per-job git-diff detection here.
 
       - name: Install PyYAML
         run: pip install pyyaml
@@ -305,9 +268,9 @@ jobs:
 
       - name: Build & publish production releases
         id: publish
-        if: steps.changed.outputs.has_changes == 'true'
+        if: needs.bump.outputs.has_bumped == 'true'
         env:
-          CHANGED_PACKS: ${{ steps.changed.outputs.packs }}
+          CHANGED_PACKS: ${{ needs.bump.outputs.packs }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python - << 'PY'
@@ -393,7 +356,7 @@ jobs:
           PY
 
       - name: No packs changed
-        if: steps.changed.outputs.has_changes != 'true'
+        if: needs.bump.outputs.has_bumped != 'true'
         run: echo "No version bumps detected — nothing to release."
 
   # ── JOB 2: REBUILD PACK CATALOG ─────────────────────────────────
