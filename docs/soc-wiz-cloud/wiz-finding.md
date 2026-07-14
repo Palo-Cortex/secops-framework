@@ -71,7 +71,7 @@ Fields populated for downstream lifecycle Artifacts schemas:
 |---|---|
 | global_rule_id | `SOC Wiz Finding` |
 | subtype | `passthrough` |
-| fromversion | `8.0.0` |
+| fromversion | `6.10.0` |
 
 Creates an XSIAM passthrough alert for each Wiz finding, normalized to the SOC Framework Cloud-category contract and routed through NIST IR.
 
@@ -85,7 +85,7 @@ Creates an XSIAM passthrough alert for each Wiz finding, normalized to the SOC F
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
 | action | `ALERTS` |
-| execution_mode | `REAL_TIME` |
+| execution_mode | `SCHEDULED` |
 | mapping_strategy | `CUSTOM` |
 | user_defined_category | `finding_type` |
 | user_defined_severity | `severity` |
