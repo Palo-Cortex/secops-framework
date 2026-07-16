@@ -30,6 +30,12 @@ name: SOC Packs — Release
 #   bump fails    → release + catalog both skipped; metadata unchanged
 #   release fails → catalog skipped; catalog stays truthful at old version
 #   catalog fails → zip already on GitHub; re-run catalog job manually
+#
+# Re-running a failed push-triggered run does NOT recover it: actions/checkout
+# pins to github.sha (the commit that was pushed), so the runner is behind main
+# by construction and a non-fast-forward push fails again identically. Recover
+# with workflow_dispatch instead:
+#   gh workflow run soc-packs-release.yml -f packs=<pack> -f bump_level=patch
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -230,7 +236,27 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Packs/*/pack_metadata.json Packs/*/xsoar_config.json
           git commit -m "chore: bump pack versions (${BUMP_LEVEL}) [skip ci]"
-          git push https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }} main
+
+          # Two PRs merging close together each start a release run. Both check
+          # out the main they were pushed against, both commit a bump, and the
+          # second push is rejected non-fast-forward. The packs are usually
+          # different -- the collision is on the ref, not the files -- so a
+          # rebase resolves it. Push first, rebase only when rejected, and let a
+          # genuine conflict fail loudly rather than loop.
+          REMOTE="https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }}"
+          for attempt in 1 2 3 4 5; do
+            if git push "$REMOTE" main; then
+              exit 0
+            fi
+            echo "::notice::push rejected (attempt ${attempt}/5) — main moved, rebasing"
+            if ! git pull --rebase "$REMOTE" main; then
+              echo "::error::rebase hit a conflict — two runs bumped the same pack. Resolve by hand."
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "::error::could not push version bump after 5 attempts"
+          exit 1
 
   # ── JOB 1: BUILD ZIP + CREATE GITHUB RELEASE ────────────────────
   release:
