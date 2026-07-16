@@ -298,8 +298,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
     threat_types       = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatType")), ", "),
     threat_statuses    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatStatus")), ", "),
-    threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), coalesce(json_extract_scalar("@element", "$.threatUrl"), json_extract_scalar("@element", "$.threatURL"))), ", "),
-    threat_indicators  = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+    threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
 
 // Attachment fields (all parts)
 | alter
@@ -307,12 +306,23 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
     proofpointfilename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ", ")
 
-// Domain extraction
-| alter
-    domain   = if(threat_types ~= "url", coalesce(extract_url_registered_domain(threat_indicators), extract_url_registered_domain(sender)), ""),
-    dns_name = if(threat_types ~= "url", extract_url_registered_domain(threat_indicators), "")
+// $.threat is the malicious URL. $.threatUrl is a link to the Proofpoint
+// console, not the threat itself.
+| alter first_threat_type = json_extract_scalar(threatsInfoMap_str, "$[0].threatType")
+| alter first_threat_url  = if(
+        first_threat_type = "url",
+        json_extract_scalar(threatsInfoMap_str, "$[0].threat"),
+        null
+    )
 
-| alter cleaned_url = ltrim(replex(coalesce(threat_indicators, url), "^https?://", ""), "www.")
+// Feeds fw_url_domain and dns_query_name. Both take the same value so a
+// single alert cannot contribute two competing domains. Null on
+// attachment-only threats and on clicks, which carry no threatsInfoMap.
+| alter url_domain = extract_url_registered_domain(first_threat_url)
+| alter domain     = url_domain,
+        dns_name   = url_domain
+
+| alter cleaned_url = ltrim(replex(coalesce(first_threat_url, url), "^https?://", ""), "www.")
 
 | alter linkedCount = to_integer(_alert_data -> linkedCount)
 
