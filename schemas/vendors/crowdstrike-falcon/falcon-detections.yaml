@@ -25,10 +25,34 @@ raw_schema:
   user_name:
     type: string
     is_array: false
+  user_id:
+    type: string
+    is_array: false
   device:
     type: json
     is_array: false
   parent_details:
+    type: json
+    is_array: false
+  grandparent_details:
+    type: json
+    is_array: false
+  cmdline:
+    type: string
+    is_array: false
+  filename:
+    type: string
+    is_array: false
+  filepath:
+    type: string
+    is_array: false
+  tactic:
+    type: string
+    is_array: false
+  technique:
+    type: string
+    is_array: false
+  rawJSON:
     type: json
     is_array: false
   local_process_id:
@@ -481,4 +505,35 @@ correlation_rules:
     search_window: 25 hours
     simple_schedule: 10 minutes
   identity: true
-  cie_join: sid
+  # Explicit overlay rather than the `sid` shorthand: this rule joins the map on
+  # SID only for real users, bounds the map read to one sync cycle, and collapses
+  # multi-row SID matches. The shorthand's user+computer scope and unbounded map
+  # read fan the join out when the identity dataset carries computer objects.
+  cie_overlay: |
+    | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+    | alter cie_sid_key = lowercase(coalesce(user_id, ""))
+    | join type = left (
+        dataset = socfw_identity_map
+        | filter timestamp_diff(time_frame_end(), _insert_time, "HOUR") <= 25
+        | filter type in ("user")
+        | alter cie_sid_key = lowercase(coalesce(sid, on_prem_sid))
+        | dedup cie_sid_key by asc netbios_and_sam_account_name
+        | fields cie_sid_key,
+                 sid                          as map_sid,
+                 upn                          as map_upn,
+                 email                        as map_email,
+                 display_name                 as map_display,
+                 domain_name                  as map_domain,
+                 sam_account_name             as map_sam,
+                 on_prem_sid                  as map_on_prem_sid,
+                 netbios_and_sam_account_name as map_netbios
+      ) as m cie_sid_key = m.cie_sid_key
+    | alter idr_sid              = coalesce(map_sid, idr_sid),
+            idr_upn              = coalesce(map_upn, idr_upn),
+            idr_email            = coalesce(map_email, idr_email),
+            idr_display_name     = coalesce(map_display, idr_display_name),
+            idr_domain_name      = coalesce(map_domain, idr_domain_name),
+            idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
+            idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
+            idr_netbios          = coalesce(map_netbios, idr_netbios)
+    | alter _time = _insert_time
