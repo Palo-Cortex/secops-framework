@@ -112,12 +112,11 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `externalseverity` | `severity` |  |  |
 | `mitretechniqueid` | `mitre_ids_str` |  |  |
 | `external_pivot_url` | `falcon_host_link` |  |  |
-| `mitretechniquename` | `mitre_ids_str` |  |  |
+| `mitretechniquename` | `mitre_tech_name_str` |  |  |
 | `contactemailaddress` | `idr_email` |  |  |
 | `employeedisplayname` | `idr_display_name` |  |  |
 | `originalalertsource` | `originalalertsource` |  |  |
 | `actor_effective_username` | `actor_effective_username` |  |  |
-| `causality_actor_causality_id` | `cid` |  |  |
 
 #### Pre-Alter XQL
 
