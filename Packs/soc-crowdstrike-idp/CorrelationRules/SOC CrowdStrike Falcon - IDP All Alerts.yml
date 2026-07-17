@@ -153,9 +153,10 @@ xql_query: |
           src_account_sid  = source_account_object_sid,
           src_host         = source_endpoint_host_name,
           src_ip           = source_endpoint_address_ip4,
+          src_ip_v6        = source_endpoint_address_ip6,
           src_sensor_id    = source_endpoint_sensor_id,
           dst_account_name = target_account_name,
-          dst_account_sid  = target_endpoint_account_object_sid,
+          dst_account_sid  = target_account_object_sid,
           dst_host         = target_endpoint_host_name,
           dst_sensor_id    = target_endpoint_sensor_id,
           idp_logon_domain = logon_domain
@@ -173,6 +174,21 @@ xql_query: |
 
   | alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
 
+  | alter raw_sam = arrayindex(split(coalesce(user_name, ""), "\\"), -1)
+  | alter raw_email = coalesce(
+          if(user_principal contains "@", lowercase(user_principal), null),
+          if(user_name      contains "@", lowercase(user_name),      null))
+  | alter idr_email            = raw_email,
+          idr_upn              = user_principal,
+          idr_display_name     = display_name,
+          idr_sam_account_name = raw_sam,
+          idr_netbios          = null,
+          idr_sid              = coalesce(source_account_object_sid, src_account_sid),
+          idr_on_prem_sid      = coalesce(source_account_object_sid, src_account_sid),
+          idr_domain_name      = coalesce(domain, idp_logon_domain)
+  | alter email                    = idr_email,
+          actor_effective_username = lowercase(coalesce(idr_email, raw_sam, user_name))
+
   | alter cgo_name = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
                         grandparent_process_name,
                         coalesce(parent_process_name, filename)),
@@ -186,30 +202,30 @@ xql_query: |
   | alter dns_queries = dns_requests
   | alter remote_ips  = coalesce(dst_ip, network_accesses)
 
+  | alter idp_context = concat(
+      "Source: ", coalesce(src_account_name, "Unknown"),
+      " @ ", coalesce(src_host, "Unknown"), " (", coalesce(src_ip, "n/a"), ")",
+      " -> Target: ", coalesce(dst_account_name, "n/a"),
+      " @ ", coalesce(dst_host, "n/a"),
+      " | App: ", coalesce(sso_application_identifier, sso_application_uri, "n/a"),
+      " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
+      " (", coalesce(idp_policy_rule_action, "no action"), ")",
+      " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
+    )
+
   | alter alert_name = concat(
       "[Identity] ",
-      coalesce(user_name, hostname, "Unknown"),
+      coalesce(actor_effective_username, display_name, hostname, "Unknown"),
       " - ",
       coalesce(tactic, "Detection"),
       ": ",
       coalesce(technique, name)
     )
 
-  | alter idp_context = concat(
-      "Source: ", coalesce(src_account_name, "Unknown"),
-      " @ ", coalesce(src_host, "Unknown"), " (", coalesce(src_ip, "n/a"), ")",
-      " -> Target: ", coalesce(dst_account_name, "n/a"),
-      " @ ", coalesce(dst_host, "n/a"),
-      " | App: ", "n/a",
-      " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
-      " (", coalesce(idp_policy_rule_action, "no action"), ")",
-      " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
-    )
-
   | alter alert_description = concat(
       coalesce(description, name),
       " | Host: ",  coalesce(hostname, "Unknown"),
-      " | User: ",  coalesce(user_name, "Unknown"),
+      " | User: ",  coalesce(actor_effective_username, "Unknown"),
       " | Severity: ", coalesce(severity_name, "Unknown"),
       " | ", idp_context
     )
@@ -230,7 +246,6 @@ xql_query: |
           agent_hostname                      = hostname,
           agent_id                            = agent_id,
           agent_device_domain                 = domain,
-          actor_effective_username            = user_name,
           actor_process_image_name            = filename,
           actor_process_image_path            = filepath,
           actor_process_image_sha256          = sha256,
@@ -243,29 +258,19 @@ xql_query: |
           action_file_path                    = filepath,
           action_file_sha256                  = sha256,
           action_local_ip                     = local_ip,
+          action_local_ip_v6                  = src_ip_v6,
           action_remote_ip                    = remote_ips,
           causality_id                        = aggregate_id,
           dst_agent_id_v                      = dst_sensor_id,
           dst_hostname_v                      = dst_host,
           dst_user_v                          = dst_account_name
   | fields
-      device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, privileges, added_privileges, ldap_search_query_attack, pattern_disposition, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
+      device_id, local_ip, user_name, user_principal, email, raw_email, raw_sam, idr_email, idr_upn, idr_display_name, idr_sam_account_name, idr_netbios, idr_sid, idr_on_prem_sid, idr_domain_name, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, actor_effective_username, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_ip_v6, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, sso_application_identifier, sso_application_uri, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, privileges, added_privileges, honeytoken_user, ldap_search_query_attack, source_ip_asn_organization, source_ip_isp_domain, pattern_disposition, score, fine_score, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
 
   | alter socfw_event_time = _time,
           socfw_insert_time = _insert_time
 
-  | alter ids_join_key = lowercase(coalesce(source_account_object_sid, src_account_sid))
-
-  | alter actor_effective_username = lowercase(coalesce(source_account_upn, if(user_principal contains "@", user_principal, null), source_account_name, user_name))
-
-  | alter idr_sid = null,
-          idr_upn = user_principal,
-          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
-          idr_netbios = null,
-          idr_display_name = null,
-          idr_domain_name = null,
-          idr_sam_account_name = null,
-          idr_on_prem_sid = null
+  | alter _time = coalesce(socfw_insert_time, socfw_event_time)
 
   // ============== CIE ENRICHMENT (optional, OFF by default) ==============
   // Cloud Identity Engine enrichment is disabled. To enable it:
@@ -280,43 +285,111 @@ xql_query: |
   // ----------------------------------------------------------------------
   /*
   | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
-  | alter cie_join_key = lowercase(coalesce(if(user_principal contains "@", user_principal, null), if(user_name contains "@", user_name, null)))
+
+  | alter ids_join_key = lowercase(coalesce(source_account_object_sid, src_account_sid))
   | join type = left (
       dataset = socfw_identity_map
+      | filter timestamp_diff(time_frame_end(), _insert_time, "HOUR") <= 25
+      | filter type in ("user", "computer")
+      | alter ids_join_key = lowercase(coalesce(on_prem_sid, sid))
+      | dedup ids_join_key by asc netbios_and_sam_account_name
+      | fields ids_join_key,
+               sid               as ids_sid,
+               on_prem_sid       as ids_on_prem_sid,
+               upn               as ids_upn,
+               email             as ids_email,
+               display_name      as ids_display_name,
+               domain_name       as ids_domain_name,
+               sam_account_name  as ids_sam_account_name,
+               netbios_and_sam_account_name as ids_netbios
+    ) as ids ids_join_key = ids.ids_join_key
+
+  | alter idu_join_key = lowercase(coalesce(
+          if(user_principal contains "@", user_principal, null),
+          if(user_name      contains "@", user_name,      null)))
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter timestamp_diff(time_frame_end(), _insert_time, "HOUR") <= 25
       | filter type = "user"
-      | alter cie_join_key = lowercase(coalesce(upn, email))
-      | dedup cie_join_key by asc netbios_and_sam_account_name
-      | fields cie_join_key,
-               sid                          as map_sid,
-               upn                          as map_upn,
-               email                        as map_email,
-               display_name                 as map_display,
-               domain_name                  as map_domain,
-               sam_account_name             as map_sam,
-               on_prem_sid                  as map_on_prem_sid,
-               netbios_and_sam_account_name as map_netbios
-    ) as m cie_join_key = m.cie_join_key
-  | alter idr_sid              = coalesce(map_sid, idr_sid),
-          idr_upn              = coalesce(map_upn, idr_upn),
-          idr_email            = coalesce(map_email, idr_email),
-          idr_display_name     = coalesce(map_display, idr_display_name),
-          idr_domain_name      = coalesce(map_domain, idr_domain_name),
-          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
-          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
-          idr_netbios          = coalesce(map_netbios, idr_netbios)
-  | alter _time = _insert_time
+      | alter idu_join_key = lowercase(coalesce(upn, email))
+      | dedup idu_join_key by asc netbios_and_sam_account_name
+      | fields idu_join_key,
+               sid               as idu_sid,
+               on_prem_sid       as idu_on_prem_sid,
+               upn               as idu_upn,
+               email             as idu_email,
+               display_name      as idu_display_name,
+               domain_name       as idu_domain_name,
+               sam_account_name  as idu_sam_account_name,
+               netbios_and_sam_account_name as idu_netbios
+    ) as idu idu_join_key = idu.idu_join_key
+
+  | alter idsam_join_key = raw_sam
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter timestamp_diff(time_frame_end(), _insert_time, "HOUR") <= 25
+      | filter type in ("user", "computer")
+      | alter idsam_join_key = lowercase(sam_account_name)
+      | dedup idsam_join_key by asc netbios_and_sam_account_name
+      | fields idsam_join_key,
+               sid               as idsam_sid,
+               on_prem_sid       as idsam_on_prem_sid,
+               upn               as idsam_upn,
+               email             as idsam_email,
+               display_name      as idsam_display_name,
+               domain_name       as idsam_domain_name,
+               sam_account_name  as idsam_sam_account_name,
+               netbios_and_sam_account_name as idsam_netbios
+    ) as idsam idsam_join_key = idsam.idsam_join_key
+
+  | alter cie_sid         = coalesce(ids_sid, idu_sid, idsam_sid),
+          cie_on_prem_sid = coalesce(ids_on_prem_sid, idu_on_prem_sid, idsam_on_prem_sid),
+          cie_upn         = coalesce(ids_upn, idu_upn, idsam_upn),
+          cie_email       = coalesce(ids_email, idu_email, idsam_email),
+          cie_display     = coalesce(ids_display_name, idu_display_name, idsam_display_name),
+          cie_domain      = coalesce(ids_domain_name, idu_domain_name, idsam_domain_name),
+          cie_sam         = coalesce(ids_sam_account_name, idu_sam_account_name, idsam_sam_account_name),
+          cie_netbios     = coalesce(ids_netbios, idu_netbios, idsam_netbios)
+
+  | alter idr_host_join_key = lowercase(hostname)
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter type = "computer"
+      | alter idr_host_join_key = lowercase(name)
+      | dedup idr_host_join_key by desc _time
+      | fields idr_host_join_key,
+               sid            as idr_host_sid,
+               dns_host_name  as idr_host_dns_name,
+               domain_name    as idr_host_domain_name,
+               os             as idr_host_os
+    ) as idrh idr_host_join_key = idrh.idr_host_join_key
+
+  | alter crowdstrike_original_display_name   = display_name,
+          crowdstrike_original_user_principal = user_principal,
+          crowdstrike_original_actor          = actor_effective_username
+
+  | alter idr_sid              = coalesce(cie_sid, idr_sid),
+          idr_on_prem_sid      = coalesce(cie_on_prem_sid, idr_on_prem_sid),
+          idr_upn              = coalesce(cie_upn, idr_upn),
+          idr_email            = coalesce(cie_email, idr_email),
+          idr_display_name     = coalesce(cie_display, cie_sam, idr_display_name),
+          idr_domain_name      = coalesce(cie_domain, idr_domain_name),
+          idr_sam_account_name = coalesce(cie_sam, idr_sam_account_name),
+          idr_netbios          = coalesce(cie_netbios, idr_netbios)
+
+  | alter display_name             = coalesce(idr_display_name, idr_sam_account_name, display_name),
+          user_principal           = coalesce(idr_upn, user_principal),
+          email                    = idr_email,
+          actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+  | alter alert_name = concat(
+      "[Identity] ",
+      coalesce(actor_effective_username, display_name, hostname, "Unknown"),
+      " - ",
+      coalesce(tactic, "Detection"),
+      ": ",
+      coalesce(technique, name)
+    )
+  | alter originalalertname = alert_name
   */
   // ===================== END CIE ENRICHMENT =============================
-  | alter original_display_name   = display_name,
-          original_user_principal = user_principal
-
-  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
-          email          = idr_email,
-          user_principal = coalesce(idr_upn, user_principal)
-  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
-
-  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
-  | alter email     = idr_email
-
-  | alter original_user_name = user_name
-  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))

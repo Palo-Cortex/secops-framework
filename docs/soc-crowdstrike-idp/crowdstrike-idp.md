@@ -219,9 +219,10 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         src_account_sid  = source_account_object_sid,
         src_host         = source_endpoint_host_name,
         src_ip           = source_endpoint_address_ip4,
+        src_ip_v6        = source_endpoint_address_ip6,
         src_sensor_id    = source_endpoint_sensor_id,
         dst_account_name = target_account_name,
-        dst_account_sid  = target_endpoint_account_object_sid,
+        dst_account_sid  = target_account_object_sid,
         dst_host         = target_endpoint_host_name,
         dst_sensor_id    = target_endpoint_sensor_id,
         idp_logon_domain = logon_domain
@@ -239,6 +240,21 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 | alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
 
+| alter raw_sam = arrayindex(split(coalesce(user_name, ""), "\\"), -1)
+| alter raw_email = coalesce(
+        if(user_principal contains "@", lowercase(user_principal), null),
+        if(user_name      contains "@", lowercase(user_name),      null))
+| alter idr_email            = raw_email,
+        idr_upn              = user_principal,
+        idr_display_name     = display_name,
+        idr_sam_account_name = raw_sam,
+        idr_netbios          = null,
+        idr_sid              = coalesce(source_account_object_sid, src_account_sid),
+        idr_on_prem_sid      = coalesce(source_account_object_sid, src_account_sid),
+        idr_domain_name      = coalesce(domain, idp_logon_domain)
+| alter email                    = idr_email,
+        actor_effective_username = lowercase(coalesce(idr_email, raw_sam, user_name))
+
 | alter cgo_name = if(lowercase(grandparent_process_name) not in ("wininit.exe", "userinit.exe"),
                       grandparent_process_name,
                       coalesce(parent_process_name, filename)),
@@ -252,30 +268,30 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter dns_queries = dns_requests
 | alter remote_ips  = coalesce(dst_ip, network_accesses)
 
+| alter idp_context = concat(
+    "Source: ", coalesce(src_account_name, "Unknown"),
+    " @ ", coalesce(src_host, "Unknown"), " (", coalesce(src_ip, "n/a"), ")",
+    " -> Target: ", coalesce(dst_account_name, "n/a"),
+    " @ ", coalesce(dst_host, "n/a"),
+    " | App: ", coalesce(sso_application_identifier, sso_application_uri, "n/a"),
+    " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
+    " (", coalesce(idp_policy_rule_action, "no action"), ")",
+    " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
+  )
+
 | alter alert_name = concat(
     "[Identity] ",
-    coalesce(user_name, hostname, "Unknown"),
+    coalesce(actor_effective_username, display_name, hostname, "Unknown"),
     " - ",
     coalesce(tactic, "Detection"),
     ": ",
     coalesce(technique, name)
   )
 
-| alter idp_context = concat(
-    "Source: ", coalesce(src_account_name, "Unknown"),
-    " @ ", coalesce(src_host, "Unknown"), " (", coalesce(src_ip, "n/a"), ")",
-    " -> Target: ", coalesce(dst_account_name, "n/a"),
-    " @ ", coalesce(dst_host, "n/a"),
-    " | App: ", "n/a",
-    " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
-    " (", coalesce(idp_policy_rule_action, "no action"), ")",
-    " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
-  )
-
 | alter alert_description = concat(
     coalesce(description, name),
     " | Host: ",  coalesce(hostname, "Unknown"),
-    " | User: ",  coalesce(user_name, "Unknown"),
+    " | User: ",  coalesce(actor_effective_username, "Unknown"),
     " | Severity: ", coalesce(severity_name, "Unknown"),
     " | ", idp_context
   )
@@ -296,7 +312,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         agent_hostname                      = hostname,
         agent_id                            = agent_id,
         agent_device_domain                 = domain,
-        actor_effective_username            = user_name,
         actor_process_image_name            = filename,
         actor_process_image_path            = filepath,
         actor_process_image_sha256          = sha256,
@@ -309,18 +324,17 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_file_path                    = filepath,
         action_file_sha256                  = sha256,
         action_local_ip                     = local_ip,
+        action_local_ip_v6                  = src_ip_v6,
         action_remote_ip                    = remote_ips,
         causality_id                        = aggregate_id,
         dst_agent_id_v                      = dst_sensor_id,
         dst_hostname_v                      = dst_host,
         dst_user_v                          = dst_account_name
 | fields
-    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, privileges, added_privileges, ldap_search_query_attack, pattern_disposition, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
+    device_id, local_ip, user_name, user_principal, email, raw_email, raw_sam, idr_email, idr_upn, idr_display_name, idr_sam_account_name, idr_netbios, idr_sid, idr_on_prem_sid, idr_domain_name, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, actor_effective_username, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_ip_v6, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, sso_application_identifier, sso_application_uri, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, privileges, added_privileges, honeytoken_user, ldap_search_query_attack, source_ip_asn_organization, source_ip_isp_domain, pattern_disposition, score, fine_score, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
 
 | alter socfw_event_time = _time,
         socfw_insert_time = _insert_time
 
-| alter ids_join_key = lowercase(coalesce(source_account_object_sid, src_account_sid))
-
-| alter actor_effective_username = lowercase(coalesce(source_account_upn, if(user_principal contains "@", user_principal, null), source_account_name, user_name))
+| alter _time = coalesce(socfw_insert_time, socfw_event_time)
 ```
