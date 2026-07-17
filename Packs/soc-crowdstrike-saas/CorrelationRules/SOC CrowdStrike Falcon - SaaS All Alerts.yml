@@ -14,7 +14,7 @@ alert_fields:
   externallink: falcon_host_link
   employeeemail: idr_email
   mitretacticid: mitre_tactic_id
-  samaccountname: original_user_name
+  samaccountname: crowdstrike_original_user_name
   sourceInstance: mirror_instance
   action_local_ip: local_ip
   mitretacticname: mitre_tactic
@@ -58,11 +58,11 @@ xql_query: |
   dataset = crowdstrike_falcon_event_raw
   | filter product = "saas-security"
   | alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
-  | alter originalalertsource = "CrowdStrike Falcon SaaS Security"
-  | alter originalrawlog = to_json_string(rawJSON)
   | filter display_name not in ("Anonymized IP")
-
   | alter alert_name = display_name
+
+  | alter originalrawlog      = to_json_string(rawJSON)
+  | alter originalalertsource = "CrowdStrike Falcon SaaS Security"
 
   | alter mitre_json          = json_extract_array(to_json_string(mitre_attack), "$")
   | alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar("@element", "$.technique_id"))
@@ -80,18 +80,36 @@ xql_query: |
   | alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
   | alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
   | alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
+
+  | alter crowdstrike_original_user_name    = user_name
+  | alter crowdstrike_original_display_name = display_name
   | alter actor_effective_username = user_name
 
   | alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
 
-  | alter idr_sid = null,
-          idr_upn = user_principal,
-          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
-          idr_netbios = null,
-          idr_display_name = null,
-          idr_domain_name = null,
-          idr_sam_account_name = null,
-          idr_on_prem_sid = null
+  | alter idr_email            = if(user_name contains "@", lowercase(user_name), null),
+          idr_upn              = if(user_name contains "@", user_name, null),
+          idr_sam_account_name = if(user_name contains "@", null, user_name),
+          idr_display_name     = null,
+          idr_domain_name      = null,
+          idr_netbios          = null,
+          idr_sid              = null,
+          idr_on_prem_sid      = null
+
+  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, user_name),
+          user_principal = idr_upn
+  | alter email = idr_email
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+  | alter description = coalesce(event_summary, description, concat(alert_name, ". See external link for details."))
+  | alter alert_name = concat(
+      "[SaaS] ",
+      coalesce(actor_effective_username, user_name, "Unknown"),
+      " - ",
+      coalesce(mitre_tactic, category, "SaaS Activity"),
+      ": ",
+      coalesce(display_name, name, "Detection")
+    )
 
   // ============== CIE ENRICHMENT (optional, OFF by default) ==============
   // Cloud Identity Engine enrichment is disabled. To enable it:
@@ -105,44 +123,48 @@ xql_query: |
   // the alert-field mappings do not change. Requires SOC IdentityResolve.
   // ----------------------------------------------------------------------
   /*
-  | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
-  | alter cie_join_key = lowercase(if(user_principal contains "@", user_principal, if(user_name contains "@", user_name, null)))
+  | alter idu_join_key = lowercase(if(user_name contains "@", user_name, null))
   | join type = left (
       dataset = socfw_identity_map
+      | filter timestamp_diff(time_frame_end(), _insert_time, "HOUR") <= 25
       | filter type = "user"
-      | alter cie_join_key = lowercase(email)
-      | dedup cie_join_key by asc netbios_and_sam_account_name
-      | fields cie_join_key,
-               sid                          as map_sid,
-               upn                          as map_upn,
-               email                        as map_email,
-               display_name                 as map_display,
-               domain_name                  as map_domain,
-               sam_account_name             as map_sam,
-               on_prem_sid                  as map_on_prem_sid,
-               netbios_and_sam_account_name as map_netbios
-    ) as m cie_join_key = m.cie_join_key
-  | alter idr_sid              = coalesce(map_sid, idr_sid),
-          idr_upn              = coalesce(map_upn, idr_upn),
-          idr_email            = coalesce(map_email, idr_email),
-          idr_display_name     = coalesce(map_display, idr_display_name),
-          idr_domain_name      = coalesce(map_domain, idr_domain_name),
-          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
-          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
-          idr_netbios          = coalesce(map_netbios, idr_netbios)
-  | alter _time = _insert_time
-  */
-  // ===================== END CIE ENRICHMENT =============================
-  | alter original_display_name   = display_name,
-          original_user_principal = user_principal
+      | alter idu_join_key = lowercase(coalesce(upn, email))
+      | dedup idu_join_key by asc netbios_and_sam_account_name
+      | fields idu_join_key,
+               sid              as idu_sid,
+               upn              as idu_upn,
+               email            as idu_email,
+               display_name     as idu_display_name,
+               domain_name      as idu_domain_name,
+               sam_account_name as idu_sam_account_name,
+               on_prem_sid      as idu_on_prem_sid,
+               netbios_and_sam_account_name as idu_netbios
+    ) as idu idu_join_key = idu.idu_join_key
 
-  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
-          email          = idr_email,
-          user_principal = coalesce(idr_upn, user_principal)
+  | alter idr_sid              = coalesce(idu_sid, idr_sid),
+          idr_on_prem_sid      = coalesce(idu_on_prem_sid, idr_on_prem_sid),
+          idr_upn              = coalesce(idu_upn, idr_upn),
+          idr_email            = coalesce(idu_email, idr_email),
+          idr_display_name     = coalesce(idu_display_name, idr_display_name),
+          idr_domain_name      = coalesce(idu_domain_name, idr_domain_name),
+          idr_sam_account_name = coalesce(idu_sam_account_name, idr_sam_account_name),
+          idr_netbios          = coalesce(idu_netbios, idr_netbios)
+
+  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, user_name),
+          user_principal = coalesce(idr_upn, if(user_name contains "@", user_name, null))
+  | alter idr_email = coalesce(idr_email, idr_upn, if(user_name contains "@", lowercase(user_name), null))
+  | alter email     = idr_email
   | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
 
-  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
-  | alter email     = idr_email
-
-  | alter original_user_name = user_name
-  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))
+  | alter alert_name = concat(
+      "[SaaS] ",
+      coalesce(actor_effective_username, user_name, "Unknown"),
+      " - ",
+      coalesce(mitre_tactic, category, "SaaS Activity"),
+      ": ",
+      coalesce(display_name, name, "Detection")
+    )
+  */
+  // ===================== END CIE ENRICHMENT =============================
+  | fields
+      rawJSON, description, local_ip, user_name, actor_effective_username, user_principal, falcon_host_link, mitre_tactic_id, mitre_tactic, mitre_ids_str, mitre_tech_name_str, composite_id, severity, severity_name, asn, asn_name, country, cid, category, email, alert_name, idr_sid, idr_upn, idr_email, idr_display_name, idr_domain_name, idr_sam_account_name, idr_on_prem_sid, idr_netbios, crowdstrike_original_user_name, crowdstrike_original_display_name, mirror_instance, correlation_rule_id, *

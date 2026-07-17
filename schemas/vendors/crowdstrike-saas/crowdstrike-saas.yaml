@@ -176,58 +176,7 @@ correlation_rules:
     duration: 2 hours
     fields:
     - composite_id
-  pre_alter: '| filter product = "saas-security"
-
-    | alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
-
-    | alter originalalertsource = "CrowdStrike Falcon SaaS Security"
-
-    | alter originalrawlog = to_json_string(rawJSON)
-
-    | filter display_name not in ("Anonymized IP")
-
-
-    | alter alert_name = display_name
-
-
-    | alter mitre_json          = json_extract_array(to_json_string(mitre_attack), "$")
-
-    | alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar("@element", "$.technique_id"))
-
-    | alter mitre_tech_names    = arraymap(mitre_json, json_extract_scalar("@element", "$.technique"))
-
-    | alter mitre_tactic_ids    = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic_id"))
-
-    | alter mitre_tactic_names  = arraymap(mitre_json, json_extract_scalar("@element", "$.tactic"))
-
-    | alter mitre_ids_str       = arraystring(arraydistinct(mitre_tech_ids), ",")
-
-    | alter mitre_tech_name_str = arraystring(arraydistinct(mitre_tech_names), ",")
-
-    | alter mitre_tactic_id     = arrayindex(arraydistinct(mitre_tactic_ids), 0)
-
-    | alter mitre_tactic        = arrayindex(arraydistinct(mitre_tactic_names), 0)
-
-
-    | alter tmp_user_names  = json_extract_array(to_json_string(user_names), "$")
-
-    | alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)
-
-    | alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+\"([^\"]+)\""), 0)
-
-    | alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
-
-    | alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
-
-    | alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
-
-    | alter actor_effective_username = user_name
-
-
-    | alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
-
-
-    '
+  pre_alter: "| filter product = \"saas-security\"\n| alter vendor_name = \"CrowdStrike\", product_name = \"Falcon SaaS\"\n| filter display_name not in (\"Anonymized IP\")\n| alter alert_name = display_name\n\n| alter originalrawlog      = to_json_string(rawJSON)\n| alter originalalertsource = \"CrowdStrike Falcon SaaS Security\"\n\n| alter mitre_json          = json_extract_array(to_json_string(mitre_attack), \"$\")\n| alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.technique_id\"))\n| alter mitre_tech_names    = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.technique\"))\n| alter mitre_tactic_ids    = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.tactic_id\"))\n| alter mitre_tactic_names  = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.tactic\"))\n| alter mitre_ids_str       = arraystring(arraydistinct(mitre_tech_ids), \",\")\n| alter mitre_tech_name_str = arraystring(arraydistinct(mitre_tech_names), \",\")\n| alter mitre_tactic_id     = arrayindex(arraydistinct(mitre_tactic_ids), 0)\n| alter mitre_tactic        = arrayindex(arraydistinct(mitre_tactic_names), 0)\n\n| alter tmp_user_names  = json_extract_array(to_json_string(user_names), \"$\")\n| alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)\n| alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"(?i)\\\\buser\\\\s+\\\"([^\\\"]+)\\\"\"), 0)\n| alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}\"), 0)\n| alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"(?i)\\\\buser\\\\s+([A-Za-z0-9._%+@-]+)\"), 0)\n| alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)\n\n| alter crowdstrike_original_user_name    = user_name\n| alter crowdstrike_original_display_name = display_name\n| alter actor_effective_username = user_name\n\n| alter local_ip = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"\\\\b(?:[0-9]{1,3}\\\\.){3}[0-9]{1,3}\\\\b\"), 0)\n\n| alter idr_email            = if(user_name contains \"@\", lowercase(user_name), null),\n        idr_upn              = if(user_name contains \"@\", user_name, null),\n        idr_sam_account_name = if(user_name contains \"@\", null, user_name),\n        idr_display_name     = null,\n        idr_domain_name      = null,\n        idr_netbios          = null,\n        idr_sid              = null,\n        idr_on_prem_sid      = null\n\n| alter display_name   = coalesce(idr_display_name, idr_sam_account_name, user_name),\n        user_principal = idr_upn\n| alter email = idr_email\n| alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))\n\n| alter description = coalesce(event_summary, description, concat(alert_name, \". See external link for details.\"))\n| alter alert_name = concat(\n    \"[SaaS] \",\n    coalesce(actor_effective_username, user_name, \"Unknown\"),\n    \" - \",\n    coalesce(mitre_tactic, category, \"SaaS Activity\"),\n    \": \",\n    coalesce(display_name, name, \"Detection\")\n  )"
   alert_fields:
   - issue_field: product
     source: product_name
@@ -248,7 +197,7 @@ correlation_rules:
   - issue_field: mitretacticid
     source: mitre_tactic_id
   - issue_field: samaccountname
-    source: original_user_name
+    source: crowdstrike_original_user_name
   - issue_field: sourceInstance
     source: mirror_instance
   - issue_field: action_local_ip
@@ -279,8 +228,83 @@ correlation_rules:
   - Endpoint.User
   - Endpoint.Host
   - Endpoint.Process
-  identity: true
-  cie_join: email
+  cie_overlay: |
+    | alter idu_join_key = lowercase(if(user_name contains "@", user_name, null))
+    | join type = left (
+        dataset = socfw_identity_map
+        | filter timestamp_diff(time_frame_end(), _insert_time, "HOUR") <= 25
+        | filter type = "user"
+        | alter idu_join_key = lowercase(coalesce(upn, email))
+        | dedup idu_join_key by asc netbios_and_sam_account_name
+        | fields idu_join_key,
+                 sid              as idu_sid,
+                 upn              as idu_upn,
+                 email            as idu_email,
+                 display_name     as idu_display_name,
+                 domain_name      as idu_domain_name,
+                 sam_account_name as idu_sam_account_name,
+                 on_prem_sid      as idu_on_prem_sid,
+                 netbios_and_sam_account_name as idu_netbios
+      ) as idu idu_join_key = idu.idu_join_key
+
+    | alter idr_sid              = coalesce(idu_sid, idr_sid),
+            idr_on_prem_sid      = coalesce(idu_on_prem_sid, idr_on_prem_sid),
+            idr_upn              = coalesce(idu_upn, idr_upn),
+            idr_email            = coalesce(idu_email, idr_email),
+            idr_display_name     = coalesce(idu_display_name, idr_display_name),
+            idr_domain_name      = coalesce(idu_domain_name, idr_domain_name),
+            idr_sam_account_name = coalesce(idu_sam_account_name, idr_sam_account_name),
+            idr_netbios          = coalesce(idu_netbios, idr_netbios)
+
+    | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, user_name),
+            user_principal = coalesce(idr_upn, if(user_name contains "@", user_name, null))
+    | alter idr_email = coalesce(idr_email, idr_upn, if(user_name contains "@", lowercase(user_name), null))
+    | alter email     = idr_email
+    | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+    | alter alert_name = concat(
+        "[SaaS] ",
+        coalesce(actor_effective_username, user_name, "Unknown"),
+        " - ",
+        coalesce(mitre_tactic, category, "SaaS Activity"),
+        ": ",
+        coalesce(display_name, name, "Detection")
+      )
+  final_projection:
+  - "rawJSON"
+  - "description"
+  - "local_ip"
+  - "user_name"
+  - "actor_effective_username"
+  - "user_principal"
+  - "falcon_host_link"
+  - "mitre_tactic_id"
+  - "mitre_tactic"
+  - "mitre_ids_str"
+  - "mitre_tech_name_str"
+  - "composite_id"
+  - "severity"
+  - "severity_name"
+  - "asn"
+  - "asn_name"
+  - "country"
+  - "cid"
+  - "category"
+  - "email"
+  - "alert_name"
+  - "idr_sid"
+  - "idr_upn"
+  - "idr_email"
+  - "idr_display_name"
+  - "idr_domain_name"
+  - "idr_sam_account_name"
+  - "idr_on_prem_sid"
+  - "idr_netbios"
+  - "crowdstrike_original_user_name"
+  - "crowdstrike_original_display_name"
+  - "mirror_instance"
+  - "correlation_rule_id"
+  - "*"
   cie_schedule:
     crontab: '*/10 * * * *'
     search_window: 25 hours
