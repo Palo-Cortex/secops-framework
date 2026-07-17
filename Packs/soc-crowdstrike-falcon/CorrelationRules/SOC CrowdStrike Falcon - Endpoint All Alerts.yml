@@ -259,13 +259,14 @@ xql_query: |
   // ----------------------------------------------------------------------
   /*
   | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
-  | alter cie_join_key = lowercase(coalesce(user_id, ""))
+  | alter cie_sid_key = lowercase(coalesce(user_id, ""))
   | join type = left (
       dataset = socfw_identity_map
-      | filter type in ("user", "computer")
-      | alter cie_join_key = lowercase(coalesce(sid, on_prem_sid))
-      | dedup cie_join_key by asc netbios_and_sam_account_name
-      | fields cie_join_key,
+      | filter timestamp_diff(time_frame_end(), _insert_time, "HOUR") <= 25
+      | filter type in ("user")
+      | alter cie_sid_key = lowercase(coalesce(sid, on_prem_sid))
+      | dedup cie_sid_key by asc netbios_and_sam_account_name
+      | fields cie_sid_key,
                sid                          as map_sid,
                upn                          as map_upn,
                email                        as map_email,
@@ -274,7 +275,7 @@ xql_query: |
                sam_account_name             as map_sam,
                on_prem_sid                  as map_on_prem_sid,
                netbios_and_sam_account_name as map_netbios
-    ) as m cie_join_key = m.cie_join_key
+    ) as m cie_sid_key = m.cie_sid_key
   | alter idr_sid              = coalesce(map_sid, idr_sid),
           idr_upn              = coalesce(map_upn, idr_upn),
           idr_email            = coalesce(map_email, idr_email),

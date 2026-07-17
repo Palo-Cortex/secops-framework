@@ -26,8 +26,16 @@ Fields available in the raw ingest dataset.
 | `description` | `string` |  | declared |  |
 | `parent_process_id` | `string` |  | declared |  |
 | `user_name` | `string` |  | declared |  |
+| `user_id` | `string` |  | declared |  |
 | `device` | `json` |  | declared |  |
 | `parent_details` | `json` |  | declared |  |
+| `grandparent_details` | `json` |  | declared |  |
+| `cmdline` | `string` |  | declared |  |
+| `filename` | `string` |  | declared |  |
+| `filepath` | `string` |  | declared |  |
+| `tactic` | `string` |  | declared |  |
+| `technique` | `string` |  | declared |  |
+| `rawJSON` | `json` |  | declared |  |
 | `local_process_id` | `string` |  | declared |  |
 | `sha256` | `string` |  | declared |  |
 | `md5` | `string` |  | declared |  |
