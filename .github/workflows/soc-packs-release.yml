@@ -12,10 +12,10 @@ name: SOC Packs — Release
 #                         (url points at production zip — repo file
 #                          is never modified by CI)
 #
-# Job 2 · catalog     — rebuild pack_catalog.json from bumped metadata;
-#                       only runs after a successful release so the
-#                       catalog always reflects what actually shipped;
-#                       commits back to main [skip ci]
+# Job 2 · catalog     — rebuild pack_catalog.json from bumped metadata and
+#                       regenerate docs/ + mkdocs.yml from it; only runs
+#                       after a successful release so both always reflect
+#                       what actually shipped; commits back to main [skip ci]
 #
 # Tenant deploy is intentionally NOT here. It runs once, pre-merge,
 # in soc-packs-pr-gate.yml (Job 8 · deploy-dev). Running it again
@@ -385,8 +385,17 @@ jobs:
         with:
           python-version: "3.10"
 
+      # generate_schema_docs.py (via prep_docs) imports yaml
+      - name: Install deps
+        run: pip install pyyaml
+
       - name: Rebuild pack_catalog.json
         run: python tools/build_pack_catalog.py
+
+      # Runs after the catalog rebuild: the generators read pack_catalog.json
+      # and the bumped pack_metadata, so both must be current first.
+      - name: Regenerate docs
+        run: python tools/prep_docs.py
 
       - name: Commit if changed
         env:
@@ -394,9 +403,9 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet pack_catalog.json || {
-            git add pack_catalog.json
-            git commit -m "chore: rebuild pack_catalog.json [skip ci]"
+          git add pack_catalog.json docs mkdocs.yml
+          git diff --cached --quiet || {
+            git commit -m "chore: rebuild pack_catalog.json and docs [skip ci]"
             git push https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }} main
           }
           echo "Catalog job complete."
