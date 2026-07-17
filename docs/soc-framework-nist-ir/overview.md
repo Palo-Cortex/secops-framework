@@ -6,7 +6,7 @@
 |---|---|
 | ID | `soc-framework-nist-ir` |
 | Version | `1.6.4` |
-| Category | Utility |
+| Category | Life Cycle |
 | Pack Path | `Packs/soc-framework-nist-ir` |
 | Manifest | [`Packs/soc-framework-nist-ir/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir/xsoar_config.json) |
 

@@ -6,7 +6,7 @@
 |---|---|
 | ID | `soc-framework-pov-test` |
 | Version | `1.0.2` |
-| Category | Utilities |
+| Category | Utility |
 | Pack Path | `Packs/soc-framework-pov-test` |
 | Manifest | [`Packs/soc-framework-pov-test/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-pov-test/xsoar_config.json) |
 

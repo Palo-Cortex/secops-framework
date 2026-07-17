@@ -6,7 +6,7 @@
 |---|---|
 | ID | `soc-microsoft-graph-security` |
 | Version | `1.0.11` |
-| Category | End Point |
+| Category | Endpoint |
 | Pack Path | `Packs/soc-microsoft-graph-security` |
 | Manifest | [`Packs/soc-microsoft-graph-security/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-microsoft-graph-security/xsoar_config.json) |
 

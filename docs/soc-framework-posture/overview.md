@@ -6,7 +6,7 @@
 |---|---|
 | ID | `soc-framework-posture` |
 | Version | `1.0.1` |
-| Category | Utilities |
+| Category | Life Cycle |
 | Pack Path | `Packs/soc-framework-posture` |
 | Manifest | [`Packs/soc-framework-posture/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-posture/xsoar_config.json) |
 

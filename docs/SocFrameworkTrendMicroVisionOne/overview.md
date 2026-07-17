@@ -6,7 +6,7 @@
 |---|---|
 | ID | `SocFrameworkTrendMicroVisionOne` |
 | Version | `1.1.4` |
-| Category | End Point |
+| Category | Endpoint |
 | Pack Path | `Packs/SocFrameworkTrendMicroVisionOne` |
 | Manifest | [`Packs/SocFrameworkTrendMicroVisionOne/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkTrendMicroVisionOne/xsoar_config.json) |
 

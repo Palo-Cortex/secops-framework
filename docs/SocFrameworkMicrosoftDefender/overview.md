@@ -6,7 +6,7 @@
 |---|---|
 | ID | `SocFrameworkMicrosoftDefender` |
 | Version | `1.2.10` |
-| Category | End Point |
+| Category | Endpoint |
 | Pack Path | `Packs/SocFrameworkMicrosoftDefender` |
 | Manifest | [`Packs/SocFrameworkMicrosoftDefender/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkMicrosoftDefender/xsoar_config.json) |
 
