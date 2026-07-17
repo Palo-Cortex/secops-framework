@@ -104,7 +104,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `externallink` | `falcon_host_link` |  |  |
 | `employeeemail` | `idr_email` |  |  |
 | `mitretacticid` | `mitre_tactic_id` |  |  |
-| `samaccountname` | `original_user_name` |  |  |
+| `samaccountname` | `crowdstrike_original_user_name` |  |  |
 | `sourceInstance` | `mirror_instance` |  |  |
 | `action_local_ip` | `local_ip` |  |  |
 | `mitretacticname` | `mitre_tactic` |  |  |
@@ -112,23 +112,22 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `externalseverity` | `severity` |  |  |
 | `mitretechniqueid` | `mitre_ids_str` |  |  |
 | `external_pivot_url` | `falcon_host_link` |  |  |
-| `mitretechniquename` | `mitre_ids_str` |  |  |
+| `mitretechniquename` | `mitre_tech_name_str` |  |  |
 | `contactemailaddress` | `idr_email` |  |  |
 | `employeedisplayname` | `idr_display_name` |  |  |
 | `originalalertsource` | `originalalertsource` |  |  |
 | `actor_effective_username` | `actor_effective_username` |  |  |
-| `causality_actor_causality_id` | `cid` |  |  |
 
 #### Pre-Alter XQL
 
 ```xql
 | filter product = "saas-security"
 | alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
-| alter originalalertsource = "CrowdStrike Falcon SaaS Security"
-| alter originalrawlog = to_json_string(rawJSON)
 | filter display_name not in ("Anonymized IP")
-
 | alter alert_name = display_name
+
+| alter originalrawlog      = to_json_string(rawJSON)
+| alter originalalertsource = "CrowdStrike Falcon SaaS Security"
 
 | alter mitre_json          = json_extract_array(to_json_string(mitre_attack), "$")
 | alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar("@element", "$.technique_id"))
@@ -146,7 +145,34 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
 | alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
 | alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
+
+| alter crowdstrike_original_user_name    = user_name
+| alter crowdstrike_original_display_name = display_name
 | alter actor_effective_username = user_name
 
 | alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
+
+| alter idr_email            = if(user_name contains "@", lowercase(user_name), null),
+        idr_upn              = if(user_name contains "@", user_name, null),
+        idr_sam_account_name = if(user_name contains "@", null, user_name),
+        idr_display_name     = null,
+        idr_domain_name      = null,
+        idr_netbios          = null,
+        idr_sid              = null,
+        idr_on_prem_sid      = null
+
+| alter display_name   = coalesce(idr_display_name, idr_sam_account_name, user_name),
+        user_principal = idr_upn
+| alter email = idr_email
+| alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+| alter description = coalesce(event_summary, description, concat(alert_name, ". See external link for details."))
+| alter alert_name = concat(
+    "[SaaS] ",
+    coalesce(actor_effective_username, user_name, "Unknown"),
+    " - ",
+    coalesce(mitre_tactic, category, "SaaS Activity"),
+    ": ",
+    coalesce(display_name, name, "Detection")
+  )
 ```
