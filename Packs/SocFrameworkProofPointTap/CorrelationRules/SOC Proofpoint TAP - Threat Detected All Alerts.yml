@@ -173,19 +173,15 @@ xql_query: |
       or threatStatus in ("active", "malicious")
   )
 
-  | alter recipient_upn = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
+  | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
   | alter
-      alert_severity    = if(_alert_data -> severity != null and _alert_data -> severity != "",
-                             _alert_data -> severity,
-                             "SEV_030_MEDIUM"),
-      alert_category    = if(_alert_data -> alert_category != null and _alert_data -> alert_category != "",
-                             _alert_data -> alert_category,
-                             "Email Security"),
+      alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
+      alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
       alert_name = if(
           type = "clicks permitted",
-          concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Malicious Link Clicked"),
-          concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Threat Email Delivered")
+          concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
+          concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Threat Email Delivered")
       ),
       alert_type = if(
           type = "clicks permitted",
@@ -238,7 +234,22 @@ xql_query: |
       ),
       bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
 
-  | alter description = concat("Proofpoint TAP threat detected: ", type, " | Recipient: ", coalesce(recipient_upn, "Unknown"), " -- GUID: ", GUID)
+  | alter recipient_local = lowercase(arrayindex(regextract(coalesce(recipient_first, ""), "([\w.%+-]+)@"), 0))
+  | alter recipient_email = lowercase(recipient_first)
+
+  | alter idr_email            = recipient_email,
+          idr_upn              = null,
+          idr_netbios          = null,
+          idr_display_name     = null,
+          idr_sid              = null,
+          idr_on_prem_sid      = null,
+          idr_domain_name      = null,
+          idr_sam_account_name = recipient_local
+
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
+  | alter display_name = coalesce(idr_display_name, recipient_first)
+
+  | alter description = concat("Proofpoint TAP threat detected: ", type," | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
 
   | alter
           vendor                              = vendor_name,
@@ -256,7 +267,6 @@ xql_query: |
           agent_hostname                      = null,
           agent_id                            = null,
           agent_device_domain                 = null,
-          actor_effective_username            = lowercase(recipient_upn),
           actor_process_image_name            = null,
           actor_process_image_path            = null,
           actor_process_image_sha256          = null,
@@ -271,20 +281,11 @@ xql_query: |
           action_local_ip                     = clickIP,
           action_remote_ip                    = null
 
-  | alter
-          user_principal                      = recipient_upn
+  | alter user_principal = coalesce(idr_upn, recipient_first)
+  | alter user_name      = actor_effective_username
 
-  | alter user_name    = recipient_upn
-  | alter display_name = null
-
-  | alter idr_sid = null,
-          idr_upn = user_principal,
-          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
-          idr_netbios = null,
-          idr_display_name = null,
-          idr_domain_name = null,
-          idr_sam_account_name = null,
-          idr_on_prem_sid = null
+  | alter tmp_severity = if(proofpointfilename in ("*.jpeg", "*.jpg",
+  "*.png", "*.html", "text.txt"), "SEV_030_LOW", alert_severity)
 
   // ============== CIE ENRICHMENT (optional, OFF by default) ==============
   // Cloud Identity Engine enrichment is disabled. To enable it:
@@ -298,44 +299,53 @@ xql_query: |
   // the alert-field mappings do not change. Requires SOC IdentityResolve.
   // ----------------------------------------------------------------------
   /*
+  // Only act on events ingested in the last 15 minutes. The 25h search_window
+  // exists so the socfw_identity_map join can see the daily snapshot; without
+  // this gate every cycle re-scans 25h of email and re-emits alerts.
   | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
-  | alter cie_join_key = lowercase(coalesce(if(user_principal contains "@", user_principal, null), if(user_name contains "@", user_name, null)))
+
+  // Resolve the recipient to their full directory record. TAP gives us an email
+  // address; the map gives back DOMAIN\user so actor_effective_username matches
+  // what CrowdStrike emits for the same person. External senders and guests will
+  // not match, which is correct -- they have no AD identity to resolve.
+  | alter idu_join_key = recipient_email
   | join type = left (
       dataset = socfw_identity_map
       | filter type = "user"
-      | alter cie_join_key = lowercase(coalesce(upn, email))
-      | dedup cie_join_key by asc netbios_and_sam_account_name
-      | fields cie_join_key,
-               sid                          as map_sid,
-               upn                          as map_upn,
-               email                        as map_email,
-               display_name                 as map_display,
-               domain_name                  as map_domain,
-               sam_account_name             as map_sam,
-               on_prem_sid                  as map_on_prem_sid,
-               netbios_and_sam_account_name as map_netbios
-    ) as m cie_join_key = m.cie_join_key
-  | alter idr_sid              = coalesce(map_sid, idr_sid),
-          idr_upn              = coalesce(map_upn, idr_upn),
-          idr_email            = coalesce(map_email, idr_email),
-          idr_display_name     = coalesce(map_display, idr_display_name),
-          idr_domain_name      = coalesce(map_domain, idr_domain_name),
-          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
-          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
-          idr_netbios          = coalesce(map_netbios, idr_netbios)
-  | alter _time = _insert_time
+      | alter idu_join_key = lowercase(coalesce(upn, email))
+      | dedup idu_join_key by asc netbios_and_sam_account_name
+      | fields idu_join_key,
+               netbios_and_sam_account_name as idu_netbios,
+               display_name                 as idu_display_name,
+               email                        as idu_email,
+               upn                          as idu_upn,
+               sid                          as idu_sid,
+               on_prem_sid                  as idu_on_prem_sid,
+               domain_name                  as idu_domain_name,
+               sam_account_name             as idu_sam_account_name
+    ) as idu idu_join_key = idu.idu_join_key
+  | alter idr_netbios          = coalesce(idu_netbios, idr_netbios),
+          idr_display_name     = coalesce(idu_display_name, idr_display_name),
+          idr_email            = coalesce(idu_email, idu_upn, idr_email),
+          idr_upn              = coalesce(idu_upn, idr_upn),
+          idr_sid              = coalesce(idu_sid, idr_sid),
+          idr_on_prem_sid      = coalesce(idu_on_prem_sid, idr_on_prem_sid),
+          idr_domain_name      = coalesce(idu_domain_name, idr_domain_name),
+          idr_sam_account_name = coalesce(idu_sam_account_name, idr_sam_account_name)
+
+  // Build netbios from its parts when the map did not carry it directly.
+  | alter idr_netbios = coalesce(
+          idr_netbios,
+          if(idr_sam_account_name != null and idr_domain_name != null,
+             concat(idr_domain_name, "\\", idr_sam_account_name), null))
+
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
+  | alter display_name = coalesce(idr_display_name, recipient_first)
+
+  | alter description = concat("Proofpoint TAP threat detected: ", type," | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
+
+  | alter alert_description = description,
+          user_principal    = coalesce(idr_upn, recipient_first),
+          user_name         = actor_effective_username
   */
   // ===================== END CIE ENRICHMENT =============================
-  | alter original_display_name   = display_name,
-          original_user_principal = user_principal
-
-  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
-          email          = idr_email,
-          user_principal = coalesce(idr_upn, user_principal)
-  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
-
-  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
-  | alter email     = idr_email
-
-  | alter original_user_name = user_name
-  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))

@@ -244,13 +244,15 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 #### Pre-Alter XQL
 
 ```xql
-// Vendor / product (required for SOCProductCategoryMap routing)
+// Vendor / product drive SOCProductCategoryMap routing downstream.
 | alter vendor_name = "Proofpoint", product_name = "TAP"
 
-// Gate 1: event type
+// Only delivered mail and permitted clicks are actionable. Blocked events are
+// Proofpoint doing its job and carry no response work.
 | filter type in ("messages delivered", "clicks permitted")
 
-// Gate 2: actionable threats only
+// Drop threats Proofpoint has already cleared or marked false positive.
+// Click events carry threatStatus at the top level and have no threatsInfoMap.
 | alter threatsInfoMap_str = threatsInfoMap
 | alter first_threat_status = json_extract_scalar(threatsInfoMap_str, "$[0].threatStatus")
 | filter (
@@ -258,23 +260,16 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     or threatStatus in ("active", "malicious")
 )
 
-// Normalize recipient (JSON-array string) to a bare UPN for cross-vendor
-// grouping. to_string() leaves the ["x@y"] brackets; arrayindex+extract
-// yields "x@y" to match CrowdStrike/XDR user_name byte-for-byte.
-| alter recipient_upn = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
+// recipient arrives as a JSON array string; pull the first address out.
+| alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
-// Alert identity and naming
 | alter
-    alert_severity    = if(_alert_data -> severity != null and _alert_data -> severity != "",
-                           _alert_data -> severity,
-                           "SEV_030_MEDIUM"),
-    alert_category    = if(_alert_data -> alert_category != null and _alert_data -> alert_category != "",
-                           _alert_data -> alert_category,
-                           "Email Security"),
+    alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
+    alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
     alert_name = if(
         type = "clicks permitted",
-        concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Malicious Link Clicked"),
-        concat("[Email] ", coalesce(recipient_upn, "Unknown"), " - Initial Access: Threat Email Delivered")
+        concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
+        concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Threat Email Delivered")
     ),
     alert_type = if(
         type = "clicks permitted",
@@ -282,7 +277,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         "Proofpoint TAP - Message Delivered"
     )
 
-// SOC Framework: delivery action and direction
 | alter delivery_action = if(
     type = "messages delivered", "delivered",
     type = "clicks permitted",   "click_permitted",
@@ -292,7 +286,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 )
 | alter direction = "inbound"
 
-// SOC Framework: all threats as multi-value comma-separated strings
+// Every threat on the message, flattened for the analyst. Parallel lists --
+// position N in each describes the same threat.
 | alter
     threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
     classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
@@ -300,7 +295,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     threat_statuses    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatStatus")), ", "),
     threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
 
-// Attachment fields (all parts)
+// Attachment hashes and names across all message parts.
 | alter
     proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
     proofpointmd5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ", "),
@@ -315,18 +310,26 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         null
     )
 
-// Feeds fw_url_domain and dns_query_name. Both take the same value so a
-// single alert cannot contribute two competing domains. Null on
-// attachment-only threats and on clicks, which carry no threatsInfoMap.
+// Feeds fw_url_domain and dns_query_name, which XSIAM turns into grouping
+// artifacts. Both take the same value so a single alert cannot contribute two
+// competing domains. Null on attachment-only threats.
 | alter url_domain = extract_url_registered_domain(first_threat_url)
 | alter domain     = url_domain,
         dns_name   = url_domain
 
+// URL in the form proxies and firewalls log it, for cross-product correlation
+// (Zscaler ZPA, NGFW). Click events have no threatsInfoMap and fall back to
+// the top-level url.
 | alter cleaned_url = ltrim(replex(coalesce(first_threat_url, url), "^https?://", ""), "www.")
 
+// Link count feeds outbound-compromise scoring in Email_Analysis_V3. The rule
+// fires neutrally; direction filtering happens in Issue Exclusions.
 | alter linkedCount = to_integer(_alert_data -> linkedCount)
 
-// Backwards-compat alters (first-element extractions for legacy fields)
+// First-element extractions consumed by soc-phishing-investigation-1.0.5
+// playbooks and layouts. bc_threatinfomap uses json_extract, not
+// json_extract_scalar, so those playbooks can reach .threat and .threatType as
+// sub-keys. Remove this block when that pack is decommissioned everywhere.
 | alter
     bc_threatid       = json_extract_scalar(threatsInfoMap_str, "$[0].threatID"),
     bc_classification = json_extract_scalar(threatsInfoMap_str, "$[0].classification"),
@@ -336,31 +339,41 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     ),
     bc_threatinfomap  = json_extract(threatsInfoMap_str, "$[0]")
 
-| alter description = concat("Proofpoint TAP threat detected: ", type, " | Recipient: ", coalesce(recipient_upn, "Unknown"), " -- GUID: ", GUID)
+// Grouping pivots. recipient_local matches CrowdStrike's bare-SAM fallback;
+// recipient_email matches its resolved lowercase UPN. Lowercasing at the
+// canonical alter avoids the casing pitfall -- grouping is exact-equality.
+| alter recipient_local = lowercase(arrayindex(regextract(coalesce(recipient_first, ""), "([\w.%+-]+)@"), 0))
+| alter recipient_email = lowercase(recipient_first)
 
-// Cross-rule username normalization: lowercase full principal.
-// recipient is a JSON-array string ('["x@y"]'); recipient_upn (extracted
-// above) holds the bare UPN; lowercase() at the canonical alter kills the
-// casing pitfall (exact-equality grouping). user_principal keeps raw case
-// for display/parallel pivot. CrowdStrike user_name is UPN-formatted per
-// tools/correlation_rule_grouping_check.
+// Identity from the recipient alone. The CIE block below overwrites these from
+// socfw_identity_map when enabled; with it commented the rule still resolves an
+// email-first actor.
+| alter idr_email            = recipient_email,
+        idr_upn              = null,
+        idr_netbios          = null,
+        idr_display_name     = null,
+        idr_sid              = null,
+        idr_on_prem_sid      = null,
+        idr_domain_name      = null,
+        idr_sam_account_name = recipient_local
 
-// ============================================================
-// CANONICAL CORE NORMALIZATION
-// Produces the 29 canonical core columns every vendor pack must
-// expose. Column names match issue field names in alert_fields.
-// Foundation, Universal Command, and SOC Framework dashboards
-// all read from this normalized surface.
+// Email-first canonicalization, falling back through UPN and netbios to the
+// raw recipient. Matches the other vendor rules.
+| alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
+| alter display_name = coalesce(idr_display_name, recipient_first)
+
+| alter description = concat("Proofpoint TAP threat detected: ", type," | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
+
+// The 29 canonical core columns every vendor pack exposes. Column names match
+// the issue field names in alert_fields; Foundation, Universal Command and the
+// dashboards all read this surface.
 //
-// TAP is email-only — host/process/network-host fields are null.
-// agent_device_domain is null on purpose: it is the AD machine domain
-// (an EDR concept). Mapping the URL registered domain there caused a
-// semantic clash and a false-grouping path when a threat URL domain
-// equals an AD domain. The URL registered domain rides fw_url_domain.
-// MITRE is hardcoded: TAP fires on phishing detections (messages
-// delivered with active/malicious threat status, clicks permitted).
-// Both event types map to T1566 Phishing under TA0001 Initial Access.
-// ============================================================
+// TAP is email-only, so host/process fields are null. agent_device_domain is
+// null on purpose: it is the AD machine domain, and mapping the URL registered
+// domain there false-grouped a threat URL domain against an AD domain. The URL
+// registered domain rides fw_url_domain instead.
+//
+// MITRE is hardcoded: both event types are phishing.
 | alter
         vendor                              = vendor_name,
         product                             = product_name,
@@ -377,7 +390,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         agent_hostname                      = null,
         agent_id                            = null,
         agent_device_domain                 = null,
-        actor_effective_username            = lowercase(recipient_upn),
         actor_process_image_name            = null,
         actor_process_image_path            = null,
         actor_process_image_sha256          = null,
@@ -392,20 +404,11 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_local_ip                     = clickIP,
         action_remote_ip                    = null
 
-// Vendor-specific pivots beyond canonical core.
-// user_principal carries full UPN as a parallel grouping pivot against
-// CrowdStrike's user_principal. With actor_effective_username also now
-// carrying UPN, both fields match CrowdStrike for grouping; keeping
-// user_principal explicit avoids regressions if the canonical-core
-// username field's semantics change.
-| alter
-        user_principal                      = recipient_upn
+// user_principal carries the full UPN as a parallel grouping pivot against
+// CrowdStrike's user_principal.
+| alter user_principal = coalesce(idr_upn, recipient_first)
+| alter user_name      = actor_effective_username
 
-// user_name / display_name are dataset fields on endpoint sources but do
-// NOT exist on the email-only TAP dataset. The shared identity seed and
-// finalization (identity: true) read them, so define them here or the
-// install-time schema check rejects the rule (101704). user_name is set
-// email-first as a grouping pivot; display_name is null (TAP has none).
-| alter user_name    = recipient_upn
-| alter display_name = null
+| alter tmp_severity = if(proofpointfilename in ("*.jpeg", "*.jpg",
+"*.png", "*.html", "text.txt"), "SEV_030_LOW", alert_severity)
 ```
