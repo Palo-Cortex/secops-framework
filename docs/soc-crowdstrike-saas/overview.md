@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-crowdstrike-saas` |
-| Version | `1.0.4` |
+| Version | `1.0.5` |
 | Category | Cloud IR |
 | Pack Path | `Packs/soc-crowdstrike-saas` |
 | Manifest | [`Packs/soc-crowdstrike-saas/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-crowdstrike-saas/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-crowdstrike-saas.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-saas-v1.0.4/soc-crowdstrike-saas-v1.0.4.zip) |
+| `soc-crowdstrike-saas.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-saas-v1.0.5/soc-crowdstrike-saas-v1.0.5.zip) |
 
 ## Marketplace Dependencies
 
