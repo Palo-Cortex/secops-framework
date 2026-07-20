@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-optimization-unified` |
-| Version | `3.10.20` |
+| Version | `3.10.21` |
 | Category | Use Case |
 | Pack Path | `Packs/soc-optimization-unified` |
 | Manifest | [`Packs/soc-optimization-unified/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-optimization-unified/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-optimization-unified.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-optimization-unified-v3.10.20/soc-optimization-unified-v3.10.20.zip) |
+| `soc-optimization-unified.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-optimization-unified-v3.10.21/soc-optimization-unified-v3.10.21.zip) |
 
 ## Marketplace Dependencies
 
