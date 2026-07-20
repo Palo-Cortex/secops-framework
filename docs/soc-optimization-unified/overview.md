@@ -10,6 +10,12 @@
 | Pack Path | `Packs/soc-optimization-unified` |
 | Manifest | [`Packs/soc-optimization-unified/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-optimization-unified/xsoar_config.json) |
 
+## Schemas
+
+Reference documentation for the schemas this pack defines.
+
+- [Directory Sync (pan-cie)](identity-resolve.md)
+
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
 
 ## Manual Steps

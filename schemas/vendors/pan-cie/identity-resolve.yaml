@@ -1,0 +1,124 @@
+# ============================================================================
+# Palo Alto Cloud Identity Engine (Directory Sync) -- SOC IdentityResolve
+# Core-framework mapping (first-party CIE source, not a third-party vendor).
+# ============================================================================
+# Source-of-truth contract for the SOC Framework content generator. Emits:
+#   - CorrelationRules/SOC IdentityResolve.yml   (action: DATASET)
+#
+# SOC IdentityResolve builds socfw_identity_map from pan_dss_raw (CIE Directory
+# Sync): one canonical row per identity, email-first keys, plus a recipient_type
+# classification. Every vendor rule's CIE overlay joins this dataset, so this
+# field set is the cross-source grouping contract.
+#
+# Primary mail domain is NOT hardcoded: bind the @PRIMARY_MAIL_DOMAIN placeholder
+# to the tenant's primary mail domain and set is_enabled true at PS handoff.
+# Ships disabled.
+#
+# Generator note: alert_* / severity render verbatim from schema_constants, so
+# the literal string "null" is used to emit a YAML null on a DATASET rule that
+# carries no alert surface.
+# ============================================================================
+vendor: pan-cie
+product: Directory Sync
+data_source: pan_dss_raw
+category: Identity
+pack: soc-optimization-unified
+
+raw_schema:
+  sid:                          {type: string,   is_array: false}
+  on_prem_sid:                  {type: string,   is_array: false}
+  netbios_and_sam_account_name: {type: string,   is_array: false}
+  upn:                          {type: string,   is_array: false}
+  email:                        {type: string,   is_array: false}
+  sam_account_name:             {type: string,   is_array: false}
+  display_name:                 {type: string,   is_array: false}
+  domain_name:                  {type: string,   is_array: false}
+  type:                         {type: string,   is_array: false}
+  dns_host_name:                {type: string,   is_array: false}
+  name:                         {type: string,   is_array: false}
+  os:                           {type: string,   is_array: false}
+  guid:                         {type: string,   is_array: false}
+  other_mails:                  {type: string,   is_array: true}
+  proxy_addresses:              {type: string,   is_array: true}
+  agent_id:                     {type: string,   is_array: false}
+  service_principal_names:      {type: string,   is_array: true}
+  user_account_control:         {type: int,      is_array: false}
+  last_logon_timestamp:         {type: datetime, is_array: false}
+  department:                   {type: string,   is_array: false}
+  title:                        {type: string,   is_array: false}
+  company_name:                 {type: string,   is_array: false}
+  manager_raw:                  {type: string,   is_array: false}
+  country:                      {type: string,   is_array: false}
+  record_generated_time:        {type: datetime, is_array: false}
+
+correlation_rules:
+  - subtype: null
+    fromversion: "6.10.0"
+    global_rule_id: SOC IdentityResolve
+    name: SOC IdentityResolve
+    description: >-
+      Builds the socfw_identity_map identity-resolution dataset from Cloud Identity
+      Engine data (pan_dss_raw). Runs daily and keeps one canonical row per identity,
+      keyed by SAM / GUID / SID / on-prem SID, with email-first values and a
+      recipient_type classification. Feeds the optional CIE identity-enrichment overlay
+      in the SOC Framework vendor packs. Bind @PRIMARY_MAIL_DOMAIN to your primary mail
+      domain and set is_enabled true to activate CIE enrichment.
+    contributes:
+      - Identity.Map.CanonicalRow
+      - Identity.Map.RecipientType
+    alert_name: "null"
+    alert_description: "null"
+    alert_fields: []
+
+    schema_constants:
+      rule_id: 0
+      action: DATASET
+      alert_category: "null"
+      alert_domain: "null"
+      execution_mode: SCHEDULED
+      mapping_strategy: CUSTOM
+      is_enabled: false
+      drilldown_query_timeframe: "null"
+      severity: "null"
+
+    crontab: "0 2 * * *"
+    search_window: 25 hours
+    simple_schedule: custom
+    timezone: America/New_York
+    dataset: socfw_identity_map
+
+    pre_alter: |
+      | alter email = lowercase(email), upn = lowercase(upn), sam_account_name = lowercase(sam_account_name)
+      | alter domain_rank = if(upn contains "@PRIMARY_MAIL_DOMAIN", 0, 1)
+      | alter identity_key = coalesce(sam_account_name, guid, sid, on_prem_sid)
+      | dedup identity_key by asc domain_rank, desc record_generated_time
+      | alter spn_str = arraystring(service_principal_names, ",")
+      | alter acct_disabled = if(user_account_control != null and bitwise_and(user_account_control, 2) = 2, true, false)
+      | alter recipient_type = if(spn_str != null and spn_str != "", "service", acct_disabled, "shared", "person")
+
+    final_projection:
+      - sid
+      - on_prem_sid
+      - netbios_and_sam_account_name
+      - upn
+      - email
+      - sam_account_name
+      - display_name
+      - domain_name
+      - type
+      - dns_host_name
+      - name
+      - os
+      - identity_key
+      - guid
+      - other_mails
+      - proxy_addresses
+      - agent_id
+      - service_principal_names
+      - last_logon_timestamp
+      - department
+      - title
+      - company_name
+      - manager_raw
+      - country
+      - recipient_type
