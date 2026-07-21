@@ -91,47 +91,7 @@ investigation_query_link: |-
 is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-mitre_defs:
-  TA0001 - Initial Access:
-  - T1566 - Phishing
-  - T1190 - Exploit Public-Facing Application
-  TA0002 - Execution:
-  - T1059 - Command and Scripting Interpreter
-  - T1204 - User Execution
-  - T1047 - Windows Management Instrumentation
-  TA0003 - Persistence:
-  - T1547 - Boot or Logon Autostart Execution
-  - T1053 - Scheduled Task/Job
-  - T1574 - Hijack Execution Flow
-  TA0004 - Privilege Escalation:
-  - T1547 - Boot or Logon Autostart Execution
-  - T1134 - Access Token Manipulation
-  - T1055 - Process Injection
-  TA0005 - Defense Evasion:
-  - T1036 - Masquerading
-  - T1055 - Process Injection
-  - T1562 - Impair Defenses
-  - T1027 - Obfuscated Files or Information
-  TA0006 - Credential Access:
-  - T1003 - OS Credential Dumping
-  - T1558 - Steal or Forge Kerberos Tickets
-  - T1110 - Brute Force
-  TA0007 - Discovery:
-  - T1033 - System Owner/User Discovery
-  - T1082 - System Information Discovery
-  TA0008 - Lateral Movement:
-  - T1021 - Remote Services
-  - T1550 - Use Alternate Authentication Material
-  TA0009 - Collection:
-  - T1005 - Data from Local System
-  TA0011 - Command and Control:
-  - T1071 - Application Layer Protocol
-  - T1105 - Ingress Tool Transfer
-  TA0010 - Exfiltration:
-  - T1041 - Exfiltration Over C2 Channel
-  TA0040 - Impact:
-  - T1486 - Data Encrypted for Impact
-  - T1490 - Inhibit System Recovery
+mitre_defs: {}
 search_window: 20 minutes
 severity: User Defined
 simple_schedule: 10 minutes
@@ -240,6 +200,9 @@ xql_query: |
       file_sha256           = evidence_file_sha256,
       remote_ip             = evidence_remote_ipv4
 
+  | alter user_name    = source_user
+  | alter display_name = null
+
   | alter
       description = coalesce(description,
                              concat("Microsoft Defender for Endpoint alert: ", title)),
@@ -282,5 +245,68 @@ xql_query: |
           action_file_sha256                  = evidence_file_sha256,
           action_local_ip                     = evidence_local_ipv4,
           action_remote_ip                    = evidence_remote_ipv4
+
+  | alter idr_sid = null,
+          idr_upn = user_principal,
+          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
+          idr_netbios = null,
+          idr_display_name = null,
+          idr_domain_name = null,
+          idr_sam_account_name = null,
+          idr_on_prem_sid = null
+
+  // ============== CIE ENRICHMENT (optional, OFF by default) ==============
+  // Cloud Identity Engine enrichment is disabled. To enable it:
+  //   1. Set this rule to a schedule (it ships REAL_TIME):
+  //        execution mode = SCHEDULED
+  //        crontab        = */10 * * * *
+  //        search window  = 20 minutes
+  //        schedule label = 10 minutes
+  //   2. Delete the /* and */ lines that wrap the block below.
+  // The join coalesces socfw_identity_map values OVER the inline idr_* fields;
+  // the alert-field mappings do not change. Requires SOC IdentityResolve.
+  // ----------------------------------------------------------------------
+  /*
+  | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+  | alter cie_join_key = lowercase(coalesce(evidence_user_userSid, ""))
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter type in ("user")
+      | alter cie_join_key = lowercase(coalesce(sid, on_prem_sid))
+      | dedup cie_join_key by asc netbios_and_sam_account_name
+      | fields cie_join_key,
+               sid                          as map_sid,
+               upn                          as map_upn,
+               email                        as map_email,
+               display_name                 as map_display,
+               domain_name                  as map_domain,
+               sam_account_name             as map_sam,
+               on_prem_sid                  as map_on_prem_sid,
+               netbios_and_sam_account_name as map_netbios
+    ) as m cie_join_key = m.cie_join_key
+  | alter idr_sid              = coalesce(map_sid, idr_sid),
+          idr_upn              = coalesce(map_upn, idr_upn),
+          idr_email            = coalesce(map_email, idr_email),
+          idr_display_name     = coalesce(map_display, idr_display_name),
+          idr_domain_name      = coalesce(map_domain, idr_domain_name),
+          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
+          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
+          idr_netbios          = coalesce(map_netbios, idr_netbios)
+  | alter _time = _insert_time
+  */
+  // ===================== END CIE ENRICHMENT =============================
+  | alter original_display_name   = display_name,
+          original_user_principal = user_principal
+
+  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
+          email          = idr_email,
+          user_principal = coalesce(idr_upn, user_principal)
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
+  | alter email     = idr_email
+
+  | alter original_user_name = user_name
+  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))
   | fields
-      _time, incidentId, productName, vendor_name, product_name, title, description, severity, tactic, alert_name, category, alertWebUrl, providerAlertId, detectorId, mitreTechniques, mitre_str, cat_norm, mitre_tactic, mitre_tactic_id, mitre_technique, mitre_technique_id, cid, initiator_sha256, cgo_sha256, target_process_sha256, file_sha256, remote_ip, source_user, user_principal, causality_synth, evidence_mailbox_address, evidence_user_upn, evidence_user_userSid, evidence_process_name, evidence_process_path, evidence_process_command_line, evidence_process_signer, evidence_process_sha256, evidence_process_pid, evidence_parent_process_name, evidence_parent_process_path, evidence_parent_process_sha256, evidence_parent_process_pid, evidence_file_name, evidence_file_sha256, evidence_device_hostname, evidence_device_ntdomain, evidence_device_os, evidence_device_agentid, evidence_local_ipv4, evidence_remote_ipv4, evidence_remote_ipv6, evidence_device_externalip, evidence_parent_process_signer, evidence_process_starttime, evidence_process_action
+      _time, incidentId, productName, vendor_name, product_name, title, description, severity, tactic, alert_name, category, alertWebUrl, providerAlertId, detectorId, mitreTechniques, mitre_str, cat_norm, mitre_tactic, mitre_tactic_id, mitre_technique, mitre_technique_id, cid, initiator_sha256, cgo_sha256, target_process_sha256, file_sha256, remote_ip, source_user, user_principal, causality_synth, evidence_mailbox_address, evidence_user_upn, evidence_user_userSid, evidence_process_name, evidence_process_path, evidence_process_command_line, evidence_process_signer, evidence_process_sha256, evidence_process_pid, evidence_parent_process_name, evidence_parent_process_path, evidence_parent_process_sha256, evidence_parent_process_pid, evidence_file_name, evidence_file_sha256, evidence_device_hostname, evidence_device_ntdomain, evidence_device_os, evidence_device_agentid, evidence_local_ipv4, evidence_remote_ipv4, evidence_remote_ipv6, evidence_device_externalip, evidence_parent_process_signer, evidence_process_starttime, evidence_process_action, *
