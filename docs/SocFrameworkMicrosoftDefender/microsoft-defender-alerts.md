@@ -310,6 +310,14 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     file_sha256           = evidence_file_sha256,
     remote_ip             = evidence_remote_ipv4
 
+// user_name / display_name are read by the shared identity seed +
+// finalization (identity: true). MDE's Graph evidence carries neither as
+// a native field, so define them here or the install-time schema check
+// rejects the rule (101704). user_name is email-first as a grouping
+// pivot; display_name is null (Graph MDE evidence has no display name).
+| alter user_name    = source_user
+| alter display_name = null
+
 // Final description and alert_name
 | alter
     description = coalesce(description,
