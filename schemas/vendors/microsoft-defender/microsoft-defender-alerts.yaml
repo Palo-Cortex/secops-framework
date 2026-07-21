@@ -202,6 +202,21 @@ correlation_rules:
         on the same device fire independently. 1-hour window prevents
         back-to-back ingestion polls from re-creating the same alert.
 
+    identity: true
+    # SID-first join: MDE evidence carries userAccount.userSid (on-prem SID).
+    # Cloud-only / AAD identities with no on-prem SID won't match and fall back
+    # to the email-first raw canonicalization in the shared finalization.
+    cie_join:
+      event: 'coalesce(evidence_user_userSid, "")'
+      map: 'coalesce(sid, on_prem_sid)'
+      map_filter: 'type in ("user")'
+    # Rule already ships SCHEDULED at this cadence, so enabling CIE needs no
+    # schedule change. These values only populate the enable-instructions comment.
+    cie_schedule:
+      crontab: '*/10 * * * *'
+      search_window: 20 minutes
+      simple_schedule: 10 minutes
+
     pre_alter: |
       // Vendor / product (required for SOCProductCategoryMap routing)
       | alter vendor_name = "Microsoft", product_name = productName
@@ -323,6 +338,14 @@ correlation_rules:
           file_sha256           = evidence_file_sha256,
           remote_ip             = evidence_remote_ipv4
 
+      // user_name / display_name are read by the shared identity seed +
+      // finalization (identity: true). MDE's Graph evidence carries neither as
+      // a native field, so define them here or the install-time schema check
+      // rejects the rule (101704). user_name is email-first as a grouping
+      // pivot; display_name is null (Graph MDE evidence has no display name).
+      | alter user_name    = source_user
+      | alter display_name = null
+
       // Final description and alert_name
       | alter
           description = coalesce(description,
@@ -435,6 +458,10 @@ correlation_rules:
       - evidence_parent_process_signer
       - evidence_process_starttime
       - evidence_process_action
+      # Retain all pre_alter columns so the post-projection identity blocks
+      # (seed / CIE overlay / finalization) can read user_name, display_name,
+      # user_principal, actor_effective_username, and the SID join key.
+      - '*'
 
     alert_fields:
 
@@ -556,47 +583,7 @@ correlation_rules:
       - {issue_field: localip                         , source: action_local_ip                         , bucket: computed}  # ← action_local_ip
       - {issue_field: remoteip                        , source: action_remote_ip                        , bucket: computed}  # ← action_remote_ip
 
-    mitre_defs:
-      TA0001 - Initial Access:
-        - T1566 - Phishing
-        - T1190 - Exploit Public-Facing Application
-      TA0002 - Execution:
-        - T1059 - Command and Scripting Interpreter
-        - T1204 - User Execution
-        - T1047 - Windows Management Instrumentation
-      TA0003 - Persistence:
-        - T1547 - Boot or Logon Autostart Execution
-        - T1053 - Scheduled Task/Job
-        - T1574 - Hijack Execution Flow
-      TA0004 - Privilege Escalation:
-        - T1547 - Boot or Logon Autostart Execution
-        - T1134 - Access Token Manipulation
-        - T1055 - Process Injection
-      TA0005 - Defense Evasion:
-        - T1036 - Masquerading
-        - T1055 - Process Injection
-        - T1562 - Impair Defenses
-        - T1027 - Obfuscated Files or Information
-      TA0006 - Credential Access:
-        - T1003 - OS Credential Dumping
-        - T1558 - Steal or Forge Kerberos Tickets
-        - T1110 - Brute Force
-      TA0007 - Discovery:
-        - T1033 - System Owner/User Discovery
-        - T1082 - System Information Discovery
-      TA0008 - Lateral Movement:
-        - T1021 - Remote Services
-        - T1550 - Use Alternate Authentication Material
-      TA0009 - Collection:
-        - T1005 - Data from Local System
-      TA0011 - Command and Control:
-        - T1071 - Application Layer Protocol
-        - T1105 - Ingress Tool Transfer
-      TA0010 - Exfiltration:
-        - T1041 - Exfiltration Over C2 Channel
-      TA0040 - Impact:
-        - T1486 - Data Encrypted for Impact
-        - T1490 - Inhibit System Recovery
+    mitre_defs: {}
 
     investigation_query_link: |-
       // All (stitched) activity from host - assuming raw telemetry is being collected
