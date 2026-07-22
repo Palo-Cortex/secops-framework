@@ -167,7 +167,7 @@ def fetch_batch(cutoff_ms: int, search_from: int, batch_size: int) -> dict:
         'request_data': {
             'filters': [
                 {'field': 'status', 'operator': 'in', 'value': ['new']},
-                {'field': 'starred', 'operator': 'in', 'value': [False]},
+                {'field': 'starred', 'operator': 'eq', 'value': False},
                 {'field': 'creation_time', 'operator': 'lte', 'value': int(cutoff_ms)},
             ],
             'fields': FIELDS,
