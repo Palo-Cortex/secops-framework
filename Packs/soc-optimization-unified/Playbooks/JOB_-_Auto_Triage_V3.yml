@@ -217,6 +217,8 @@ tasks:
                 field:
                   value:
                     simple: TriageBatchSize
+      domains:
+        simple: ${inputs.domains}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -247,5 +249,32 @@ view: |-
       }
     }
   }
-inputs: []
+inputs:
+- key: domains
+  value:
+    complex:
+      root: lists
+      accessor: SOCOptimizationConfig_V3
+      transformers:
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: Triage Incidents JOB
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: fields
+      - operator: getField
+        args:
+          field:
+            value:
+              simple: TriageDomains
+  required: false
+  description: Case domain(s) this Job cleans up. Defaults to the central TriageDomains
+    value in SOCOptimizationConfig_V3; override per Job to run separate domain-scoped
+    Auto Triage Jobs (e.g. one security, one posture). 'all' cleans every domain,
+    including cases with no domain set.
+  playbookInputQuery:
 outputs: []

@@ -2,6 +2,7 @@ import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401
 import json
 import time
+import re
 
 
 # 100 is the get_incidents per-request ceiling. War-room arrays may show a
@@ -30,8 +31,69 @@ API_URI = GET_INCIDENTS_URI  # back-compat alias
 MAX_RUNTIME_SECONDS = 540
 FIELDS = [
     'incident_id', 'aggregated_score', 'creation_time',
-    'status', 'starred', 'manual_score'
+    'status', 'starred', 'manual_score', 'incident_domain'
 ]
+
+# Case domain scoping. get_incidents returns incident_domain (native XSIAM case
+# field, e.g. DOMAIN_SECURITY) but does NOT allow it as a server-side filter
+# (allowed filter fields: incident_id, incident_id_list, starred, status,
+# modification_time, alert_sources, creation_time, description — verified
+# against tenant). So the domain scope is enforced client-side on the returned
+# incident_domain. Friendly names map to the enum; 'all' disables the gate.
+DOMAIN_ALIASES = {
+    'security': 'DOMAIN_SECURITY',
+    'posture': 'DOMAIN_POSTURE',
+    'health': 'DOMAIN_HEALTH',
+    'cloud': 'DOMAIN_CLOUD',
+    'data': 'DOMAIN_DATA',
+}
+
+
+def parse_domains(raw):
+    """Resolve the `domains` arg to (match_all, allowed_enum_set).
+
+    - None/empty -> defaults to 'security'.
+    - 'all' anywhere -> (True, set()): gate disabled, every case eligible
+      regardless of domain, INCLUDING cases with no domain.
+    - otherwise -> (False, {DOMAIN_*}): friendly names mapped, raw DOMAIN_*
+      passed through, unknown tokens raise ValueError.
+    Accepts a list or a comma/space-separated string (multiple domains).
+    """
+    if raw is None:
+        raw = 'security'
+    if isinstance(raw, (list, tuple)):
+        tokens = [str(t) for t in raw]
+    else:
+        tokens = [t for t in re.split(r'[,\s]+', str(raw).strip()) if t]
+    if not tokens:
+        tokens = ['security']
+    allowed = set()
+    for tok in tokens:
+        low = tok.strip().lower()
+        if low == 'all':
+            return True, set()
+        if low in DOMAIN_ALIASES:
+            allowed.add(DOMAIN_ALIASES[low])
+        elif tok.strip().upper().startswith('DOMAIN_'):
+            allowed.add(tok.strip().upper())
+        else:
+            raise ValueError(
+                f"Unknown domain '{tok}'. Use all, security, posture, or a "
+                f"DOMAIN_* value (comma-separated for multiple)."
+            )
+    return False, allowed
+
+
+def domain_allowed(incident_domain, match_all, allowed):
+    """Scope gate. match_all -> always eligible (undomained included).
+    Otherwise the case must carry a domain that is in the allowed set; a
+    missing/empty domain fails the gate, so undomained cases are only ever
+    cleaned by an 'all' run."""
+    if match_all:
+        return True
+    if not incident_domain:
+        return False
+    return str(incident_domain) in allowed
 
 
 def close_case(incident_id):
@@ -105,7 +167,7 @@ def fetch_batch(cutoff_ms: int, search_from: int, batch_size: int) -> dict:
         'request_data': {
             'filters': [
                 {'field': 'status', 'operator': 'in', 'value': ['new']},
-                {'field': 'starred', 'operator': 'in', 'value': [False]},
+                {'field': 'starred', 'operator': 'eq', 'value': False},
                 {'field': 'creation_time', 'operator': 'lte', 'value': int(cutoff_ms)},
             ],
             'fields': FIELDS,
@@ -159,6 +221,16 @@ def main():
     # dry_run = Shadow Mode for triage: select eligible cases and report what
     # WOULD close, but emit nothing to the close path so the JOB closes nothing.
     dry_run = str(args.get('dry_run', 'false')).strip().lower() in ('true', '1', 'yes')
+
+    # domains scopes which case domain(s) this run cleans up. Default 'security'.
+    # 'all' disables the gate (every case, undomained included); a specific set
+    # only closes cases whose incident_domain is in it. Enforced client-side
+    # because get_incidents cannot filter incident_domain server-side.
+    try:
+        match_all_domains, allowed_domains = parse_domains(args.get('domains', 'security'))
+    except ValueError as e:
+        return_error(str(e))
+    domain_scope_label = 'all' if match_all_domains else ','.join(sorted(allowed_domains))
 
     # creation_time from the API is epoch milliseconds (13-digit).
     cutoff_ms = int((time.time() - (window_hours * 3600)) * 1000)
@@ -245,6 +317,18 @@ def main():
                         'incident_id': incident_id,
                         'aggregated_score': aggregated_score,
                         'reason': f"status guard: status={inc.get('status')!r} not confirmed 'new'"
+                    })
+                    continue
+
+                # Domain scope gate. Unless the run is 'all', only close cases
+                # whose incident_domain is in the selected set; undomained cases
+                # fail here and are cleaned only by an 'all' run.
+                incident_domain = inc.get('incident_domain')
+                if not domain_allowed(incident_domain, match_all_domains, allowed_domains):
+                    skipped.append({
+                        'incident_id': incident_id,
+                        'aggregated_score': aggregated_score,
+                        'reason': f"domain {incident_domain!r} not in scope [{domain_scope_label}]"
                     })
                     continue
 
@@ -346,6 +430,7 @@ def main():
             'lifecycle': 'AUTO_TRIAGE',
             'phase': 'triage',
             'incident_id': incident_id,
+            'incident_domain': inc.get('incident_domain', ''),
             'aggregated_score': str(inc.get('aggregated_score', '')),
             'tags': ['auto_triage_would_close' if dry_run else 'auto_triage_closed'],
             'has_error': (not dry_run and not success),
@@ -390,15 +475,16 @@ def main():
     if dry_run:
         readable = (
             f'DRY RUN — would close {len(passed)} case(s); closed 0. '
-            f'{len(skipped)} skipped (threshold: {threshold}, window: {window_hours}h, '
-            f'scanned: {total_scanned} across {batches_run} batches){budget_note}. '
-            f'Set dry_run=false to close for real.'
+            f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold}, '
+            f'window: {window_hours}h, scanned: {total_scanned} across {batches_run} '
+            f'batches){budget_note}. Set dry_run=false to close for real.'
         )
     else:
         readable = (
             f'Auto triage: closed {len(closed_ok)}, failed {len(closed_fail)}, '
-            f'{len(skipped)} skipped (threshold: {threshold}, window: {window_hours}h, '
-            f'scanned: {total_scanned} across {batches_run} batches){budget_note}'
+            f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold}, '
+            f'window: {window_hours}h, scanned: {total_scanned} across {batches_run} '
+            f'batches){budget_note}'
         )
 
     return_results(CommandResults(
