@@ -29,6 +29,12 @@ API_URI = GET_INCIDENTS_URI  # back-compat alias
 # automation's timeout). Leave ~10% headroom for the dataset write + return.
 # Current automation timeout: 600s.
 MAX_RUNTIME_SECONDS = 540
+
+# Execution metrics are written through the SOC Framework Dataset Writer
+# integration. The instance name is addressed explicitly so a tenant can point
+# separate lifecycles at separate collectors.
+DATASET_WRITER_COMMAND = 'socfw-post-to-dataset'
+DATASET_WRITER_INSTANCE = 'socfw_ir_execution_writer'
 FIELDS = [
     'incident_id', 'aggregated_score', 'creation_time',
     'status', 'starred', 'manual_score', 'incident_domain'
@@ -93,6 +99,21 @@ def _norm_domain(value):
     if token.startswith('DOMAIN_'):
         token = token[len('DOMAIN_'):]
     return token.lower()
+
+
+def is_writer_unavailable(err):
+    """True when the failure is a missing command or instance rather than a
+    transport error. Covers the integration not being installed, having no
+    configured instance, or not being registered in the module support list."""
+    text = str(err).lower()
+    return any(marker in text for marker in (
+        'module support list',
+        'unsupported command',
+        'could not find command',
+        'no instance',
+        'instance not found',
+        'does not exist',
+    ))
 
 
 def domain_allowed(incident_domain, match_all, allowed):
@@ -451,19 +472,30 @@ def main():
             'error_message': '' if (dry_run or success) else err
         })
 
-    # One dataset write per run with the actual per-case outcomes.
+    # One dataset write per run with the actual per-case outcomes. Cases are
+    # already closed by this point and this job sits on the Foundation chain, so
+    # a write failure is reported through the results rather than raised.
+    dataset_write_error = ''
     if rows:
         try:
             execute_command(
-                'xql-post-to-dataset',
+                DATASET_WRITER_COMMAND,
                 {
-                    'using': 'socfw_ir_execution',
-                    'using-brand': 'System XQL HTTP Collector',
+                    'using': DATASET_WRITER_INSTANCE,
                     'JSON': json.dumps(rows)
                 }
             )
         except Exception as e:
-            demisto.debug(f'Dataset write failed: {e}')
+            if is_writer_unavailable(e):
+                dataset_write_error = (
+                    f"execution metrics not recorded — '{DATASET_WRITER_COMMAND}' is "
+                    f"unavailable. Install the SOC Framework pack and configure an "
+                    f"instance of SOC Framework Dataset Writer named "
+                    f"'{DATASET_WRITER_INSTANCE}'."
+                )
+            else:
+                dataset_write_error = f'execution metrics not recorded — {e}'
+            demisto.debug(dataset_write_error)
 
     outputs = {
         'dry_run': dry_run,
@@ -476,7 +508,8 @@ def main():
         'skipped_count': len(skipped),
         'total_scanned': total_scanned,
         'batches_run': batches_run,
-        'budget_hit': budget_hit
+        'budget_hit': budget_hit,
+        'dataset_write_error': dataset_write_error
     }
     if dry_run:
         outputs['would_close_count'] = len(passed)
@@ -484,20 +517,21 @@ def main():
 
     budget_note = (' [runtime budget hit — partial run, next run resumes]'
                    if budget_hit else '')
+    metrics_note = f'. WARNING: {dataset_write_error}' if dataset_write_error else ''
 
     if dry_run:
         readable = (
             f'DRY RUN — would close {len(passed)} case(s); closed 0. '
             f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold}, '
             f'window: {window_hours}h, scanned: {total_scanned} across {batches_run} '
-            f'batches){budget_note}. Set dry_run=false to close for real.'
+            f'batches){budget_note}{metrics_note}. Set dry_run=false to close for real.'
         )
     else:
         readable = (
             f'Auto triage: closed {len(closed_ok)}, failed {len(closed_fail)}, '
             f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold}, '
             f'window: {window_hours}h, scanned: {total_scanned} across {batches_run} '
-            f'batches){budget_note}'
+            f'batches){budget_note}{metrics_note}'
         )
 
     return_results(CommandResults(

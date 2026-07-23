@@ -85,6 +85,7 @@ Integration brand instances the installer configures. Credentials and propagatio
 | `PlaybookMetrics` | `System XQL HTTP Collector` | Utilities | true |
 | `socfw_ir_execution` | `System XQL HTTP Collector` | Utilities | true |
 | `Unit_42_Intelligence_SOCFW` | `Unit 42 Intelligence` | Data Enrichment & Threat Intelligence | true |
+| `socfw_ir_execution_writer` | `SOCFWDatasetWriter` | Utilities | true |
 
 ## Jobs
 
