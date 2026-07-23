@@ -84,16 +84,29 @@ def parse_domains(raw):
     return False, allowed
 
 
+def _norm_domain(value):
+    """Reduce a domain value to a bare lowercase token for comparison.
+    get_incidents returns the case domain as 'DOMAIN_SECURITY' on some tenants
+    and 'SECURITY' on others; comparing bare tokens makes the gate work across
+    both instead of failing an exact-string match on the prefix."""
+    token = str(value).strip().upper()
+    if token.startswith('DOMAIN_'):
+        token = token[len('DOMAIN_'):]
+    return token.lower()
+
+
 def domain_allowed(incident_domain, match_all, allowed):
     """Scope gate. match_all -> always eligible (undomained included).
     Otherwise the case must carry a domain that is in the allowed set; a
     missing/empty domain fails the gate, so undomained cases are only ever
-    cleaned by an 'all' run."""
+    cleaned by an 'all' run. Comparison is prefix- and case-insensitive so a
+    tenant returning 'SECURITY' still matches an allowed 'DOMAIN_SECURITY'."""
     if match_all:
         return True
     if not incident_domain:
         return False
-    return str(incident_domain) in allowed
+    allowed_norm = {_norm_domain(a) for a in allowed}
+    return _norm_domain(incident_domain) in allowed_norm
 
 
 def close_case(incident_id):
