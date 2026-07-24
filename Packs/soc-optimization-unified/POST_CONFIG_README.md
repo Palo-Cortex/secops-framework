@@ -36,10 +36,11 @@
       copied above
     - Click **Test** — it posts a single probe event, so a passing test confirms
       the URL, the key, and the write path end to end.
-    - Vendor and Product are deliberately not set here. Dataset routing comes
-      from the collector's own configuration. Additional instances pointed at
-      different collectors can be added later to write other lifecycles to
-      their own datasets.
+    - Vendor Name and Product Name default to `XSIAM` and `socfw_ir_execution`,
+      which target the `xsiam_socfw_ir_execution_raw` dataset created in step 6.
+      Change them only when pointing an instance at a different collector and
+      dataset. Additional instances can be configured to write other lifecycles
+      to their own datasets.
     - Full setup and command reference:
       [SOC Framework Dataset Writer](Integrations/SOCFWDatasetWriter/README.md)
 8. **Enable the Auto-Triage job** (`JOB_-_Auto_Triage_V3`).
@@ -54,72 +55,5 @@
 
 ---
 
-## How to run
-
-### Default
-
-Once setup is complete, no further action is required:
-
-- Auto-Triage runs on schedule
-- NIST IR runs on every Medium+ alert
-- Value Metrics dashboards populate (MTTD, MTTI, MTTC, MTTE, MTTR)
-
-### Show an attack
-
-Optional — for live-fire demonstrations:
-
-- **MITRE Turla Carbon Attack Lab**
-    - Configure XDR agent policies for **logging only**
-    - Install the XDR agent in a BYOS environment
-    - Run the Turla Carbon scenario; the Value Metrics dashboards light up
-      end-to-end through the lifecycle
-
----
-
-## Reading the metrics
-
-Three dashboards, each scoped to a different view of the same execution data.
-
-### XSIAM SOC Value Driver Metrics V3
-
-Top-level operational KPIs.
-
-- Total Cases
-- Total Starred Manual Cases
-- Critical & High Alerts
-- Security Tools Integration
-- Cases Auto Resolved
-- Total Manual Cases
-- Total Alerts by Source
-- Critical Alerts by Source
-- Average Alert Ingestion Lag
-- Top 20 Slowest Data Sources
-- MTTD (sec) — Mean Time To Detect
-- MTTI (min) — Mean Time To Investigate
-- MTTC (min) — Mean Time To Contain
-- MTTE (min) — Mean Time To Eradicate
-- MTTR (min) — Mean Time To Recovery
-
-### XSIAM SOC Value Metrics — Full Run
-
-Production-mode automation impact. Filtered to `execution_mode = "production"`.
-
-- Time Saved by Category
-- Time Saved by XSIAM per Task
-- XSIAM Vendor Usage
-- Tools Used by XSIAM by Hour
-- Total SOC Hours Worked by XSIAM
-- Analysts Required without XSIAM (Events Per Hour 8–13)
-- Analysts Required with XSIAM (EPH 8–13)
-- Total Alerts by Data Source
-- Total Alerts by Source — Total Alerts
-- Total Cases
-- Cases Auto Resolved
-- Total Manual Cases
-- Total Starred Manual Cases
-
-### XSIAM SOC Value Metrics — Shadow Mode
-
-Same widget set as Full Run, filtered to `execution_mode = "shadow"`. Use this
-to show what the lifecycle *would* do in production while running safely in
-shadow.
+Running the framework and reading the Value Metrics dashboards are covered in
+[README.md](README.md).
