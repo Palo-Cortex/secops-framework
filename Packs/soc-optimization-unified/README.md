@@ -68,11 +68,6 @@ Dedup, Auto-Triage, and the NIST IR analysis anchor — addresses the
 Writes are non-blocking. A missing or unconfigured instance is recorded and
 the run continues; no playbook stops because a metrics write failed.
 
-### Comms
-
-`SOC_Comms_Email_V3`, `SOC_Comms_IM`, `SOC_Comms_Ticketing`. Fire-and-forget
-side effects that never block the main flow.
-
 ### Configuration lists
 
 Runtime-tunable by PS and customers without editing content.
@@ -86,13 +81,6 @@ Runtime-tunable by PS and customers without editing content.
 | `SOCActionClassMap_V3` | Action classification |
 | `SOCOptimizationConfig_V3` | Auto-Triage, Dedup, and Shadow Mode settings |
 | `SOCFWFeatureFlags` | Feature gating |
-
-### Supporting scripts
-
-`SOCActionFingerprintCheck` (action idempotency), `SOCDedupComputeWinner`
-(canonical case selection), `SOCEnrichFromList` and `SOCNormalizeFromList`
-(list-driven enrichment and normalization), `SOCFWHealthCheck` (post-install
-inventory), `setValueTags_V3`.
 
 ### Identity resolution
 
