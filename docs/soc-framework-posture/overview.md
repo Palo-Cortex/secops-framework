@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-framework-posture` |
-| Version | `1.0.1` |
+| Version | `1.0.2` |
 | Category | Life Cycle |
 | Pack Path | `Packs/soc-framework-posture` |
 | Manifest | [`Packs/soc-framework-posture/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-posture/xsoar_config.json) |
@@ -33,7 +33,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-framework-posture.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-posture-v1.0.1/soc-framework-posture-v1.0.1.zip) |
+| `soc-framework-posture.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-posture-v1.0.2/soc-framework-posture-v1.0.2.zip) |
 
 ## Exported Playbooks
 
