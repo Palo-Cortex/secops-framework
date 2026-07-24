@@ -34,45 +34,6 @@ Fields available in the raw ingest dataset.
 | `evidence` | `json` | ✓ | declared | @odata.type, imageFile, processCommandLine, processCreationDateTime, detectio... |
 | `detectorId` | `string` |  | inferred_from_correlation |  |
 
-## Modeling Rule — Microsoft Graph Defender EP Modeling Rule
-
-| Field | Value |
-|---|---|
-| modeling_rule_id | `Microsoft_Graph_MDE_ModelingRule` |
-| modeling_rule_name | `Microsoft Graph Defender EP Modeling Rule` |
-| directory_name | `MSGraphMDE_ModelingRule` |
-| fromversion | `6.10.0` |
-
-### Field Mappings
-
-What each XDM field is, where it sources from, what issue field it surfaces on, and why the mapping is shaped the way it is.
-
-| XDM Path | Expression | Sources | Issue Field | Description |
-|---|---|---|---|---|
-| `xdm.event.id` | `id` | `id` | `eventid` |  |
-| `xdm.event.description` | `coalesce(description, title)` | `description, title` | `eventdescription` | Falls back to title when description is empty. |
-| `xdm.event.original_event_type` | `category` | `category` | `original_event_type` |  |
-| `xdm.alert.name` | `title` | `title` | `alertname` |  |
-| `xdm.alert.category` | `category` | `category` | `alertcategory` |  |
-| `xdm.alert.original_alert_id` | `providerAlertId` | `providerAlertId` | `originalalertid` |  |
-| `xdm.alert.severity` | `severity` | `severity` | `severity` | Microsoft Graph severity is a string ("low"/"medium"/"high"/"informational"). XDM severity accepts string values; no coercion needed. |
-| `xdm.observer.product` | `productName` | `productName` | `observerproduct` |  |
-| `xdm.observer.vendor` | `"Microsoft"` |  | `observervendor` | Literal — vendor is constant for this rule. |
-| `xdm.network.http.url` | `alertWebUrl` | `alertWebUrl` | `alerturl` | Direct link back to the Microsoft Defender portal for the alert. |
-
-### Contributes (Artifacts.*)
-
-Fields populated for downstream lifecycle Artifacts schemas:
-
-- `Endpoint.AlertID`
-- `Endpoint.AlertName`
-- `Endpoint.AlertCategory`
-- `Endpoint.AlertSeverity`
-- `Endpoint.OriginalAlertID`
-- `Endpoint.AlertURL`
-- `Vendor`
-- `Product`
-
 ## Correlation Rules
 
 ### SOC Microsoft Graph Defender EndPoint
