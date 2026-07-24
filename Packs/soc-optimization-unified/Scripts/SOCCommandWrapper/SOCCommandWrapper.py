@@ -569,10 +569,9 @@ def enrich_payload(payload, ctx, issue, wrapper_values, args):
 def post_dataset_payload(payload, tags=None):
     try:
         result = demisto.executeCommand(
-            "xql-post-to-dataset",
+            "socfw-post-to-dataset",
             {
-                "using": "socfw_ir_execution",
-                "using-brand": "System XQL HTTP Collector",
+                "using": "socfw_ir_execution_writer",
                 "JSON": json.dumps(payload)
             }
         )
