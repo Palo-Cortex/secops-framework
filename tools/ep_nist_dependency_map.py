@@ -96,7 +96,7 @@ EXCEPTION_EXTERNAL_SCRIPT_REFS: Set[str] = {
     "GetTime",
     "SearchAlertsV2",
     "|||core-api-post",
-    "|||xql-post-to-dataset"
+    "|||socfw-post-to-dataset"
     # Add others as needed
 }
 
