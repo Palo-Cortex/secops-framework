@@ -60,9 +60,6 @@ def main():
     winner = compute_winner(similar_ids, current_id)
 
     demisto.setContext("SOCFramework.Dedup.WinnerID", winner)
-    # Flattened form for callers that interpolate into a JSON string. The raw
-    # context key is a list, which renders as ["123"] and breaks the payload.
-    demisto.setContext("SOCFramework.Dedup.SimilarIDs", ",".join(_to_list(similar_ids)))
     return_results(CommandResults(
         readable_output=(
             f"**Dedup winner:** `{winner}`  \n"

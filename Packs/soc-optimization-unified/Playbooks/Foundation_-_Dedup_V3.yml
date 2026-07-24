@@ -648,7 +648,7 @@ tasks:
       value:
         simple: '{"event_type":"dedup","lifecycle":"DEDUP","phase":"dedup", "action_actor":"framework", "alert_id":"${alert.id}","incident_id":"${alert.id}",
           "alert_name":"${alert.name}", "alert_category":"${alert.categoryname}",
-          "winner_id":"${SOCFramework.Dedup.WinnerID}", "similar_ids":"${SOCFramework.Dedup.SimilarIDs}",
+          "winner_id":"${SOCFramework.Dedup.WinnerID}", "similar_ids":"${DBotFindSimilarIncidents.similarIncident.id}",
           "dedup_window":"${inputs.DedupWindow}"}'
     separatecontext: false
     continueonerror: true
@@ -732,25 +732,7 @@ view: |-
 inputs:
 - key: DryRun
   value:
-    complex:
-      root: lists
-      accessor: SOCOptimizationConfig_V3
-      transformers:
-      - operator: getField
-        args:
-          field:
-            value:
-              simple: Dedup
-      - operator: getField
-        args:
-          field:
-            value:
-              simple: fields
-      - operator: getField
-        args:
-          field:
-            value:
-              simple: DryRun
+    simple: "true"
   required: false
   description: When true, prints duplicate issues that would be closed without executing
     any close actions. Use for smoke testing after deployment.
