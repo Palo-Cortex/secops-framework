@@ -2,8 +2,8 @@
 
 Foundation layer for the Palo Alto Networks XSIAM SOC Framework. Provides the
 shared infrastructure every Framework deployment depends on: Universal Command,
-Auto-Triage, the Modular Playbooks "Upon Trigger Foundation" chain, and the
-Value Metrics dashboards.
+Shadow Mode, the Upon Trigger Foundation chain, Auto-Triage, the execution
+dataset, and the Value Metrics dashboards.
 
 This pack is the base. Vendor lifecycle packs (SOC CrowdStrike Falcon, SOC Microsoft
 Defender, SOC Trend Micro, SOC Proofpoint TAP, etc.) install on top of it.
@@ -12,14 +12,97 @@ Defender, SOC Trend Micro, SOC Proofpoint TAP, etc.) install on top of it.
 
 ## Components
 
-- **Auto-Triage** — `JOB_-_Auto_Triage_V3` runs on schedule and auto-closes
-  cases with case risk score ≤ 40. Hours saved feed the Value Metrics dashboard.
-- **Modular Playbooks (Upon Trigger Foundation)** — `Foundation_-_Upon_Trigger_V3`
-  and the Foundation enrichment / normalization chain. Runs on every alert,
-  classifies the source, and routes into the NIST IR lifecycle.
-- **Value Metrics** — three dashboards driven by the
-  `xsiam_socfw_ir_execution_raw` dataset. See
-  *Reading the metrics* below.
+### Universal Command
+
+`SOCCommandWrapper` is the single interface every action goes through. Action
+playbooks never call a vendor integration directly — they call the wrapper,
+which resolves the action, applies Shadow Mode, executes or simulates, and
+writes one execution record per action.
+
+This is what makes the Framework vendor-agnostic: swapping CrowdStrike for
+SentinelOne changes a registration in `SOCFrameworkActions_V3`, not a playbook.
+
+### Shadow Mode
+
+Per-action `shadow_mode` flag in `SOCFrameworkActions_V3`, read by
+`SOCCommandWrapper`. When set, the action prints its intent to the war room and
+writes its execution record, but does not call the vendor.
+
+Containment, eradication, and recovery become visible without touching
+production. Flipping a single flag per action moves it to live execution — the
+same content runs in a PoV and in production.
+
+### Foundation chain
+
+Runs on every alert regardless of lifecycle, before any lifecycle logic.
+
+| Playbook | Role |
+|---|---|
+| `Foundation_-_Upon_Trigger_V3` | Entry into the chain. Must never stop. |
+| `Foundation_-_Product_Classification_V3` | Resolves the product category via `SOCProductCategoryMap_V3` |
+| `Foundation_-_Normalize_Artifacts_V3` | Maps vendor fields into `SOCFramework.Artifacts.*` |
+| `Foundation_-_Enrichment_V3` | Indicator and asset enrichment |
+| `Foundation_-_Dedup_V3` | Duplicate suppression, canonical-case selection |
+| `Foundation_-_Data_Integrity_V3` | Contract validation |
+| `Foundation_-_Environment_Detection` | Shadow vs production mode resolution |
+| `Foundation_-_Error_Handling` | Shared failure path |
+| `Foundation_-_Case_Sync`, `Foundation_-_Escalation`, `Foundation_-_Assessment`, `Foundation_-_Performance_Capture` | Case state, escalation, scoring support |
+
+Only Foundation reads `issue.*` fields. Downstream lifecycle playbooks consume
+`SOCFramework.*` keys.
+
+### Auto-Triage
+
+`JOB_-_Auto_Triage_V3` runs on schedule and auto-closes low-signal cases —
+by default those with case risk score ≤ 40, scoped by domain and age window.
+Configuration lives in `SOCOptimizationConfig_V3`. Hours saved feed the Value
+Metrics dashboards.
+
+### Execution dataset
+
+`SOCFWDatasetWriter` posts execution records to an XSIAM HTTP Collector,
+producing `xsiam_socfw_ir_execution_raw`. Every writer — Universal Command,
+Dedup, Auto-Triage, and the NIST IR analysis anchor — addresses the
+`socfw_ir_execution_writer` instance by name.
+
+Writes are non-blocking. A missing or unconfigured instance is recorded and
+the run continues; no playbook stops because a metrics write failed.
+
+### Comms
+
+`SOC_Comms_Email_V3`, `SOC_Comms_IM`, `SOC_Comms_Ticketing`. Fire-and-forget
+side effects that never block the main flow.
+
+### Configuration lists
+
+Runtime-tunable by PS and customers without editing content.
+
+| List | Controls |
+|---|---|
+| `SOCFrameworkActions_V3` | Action registry, vendor bindings, per-action `shadow_mode` |
+| `SOCExecutionList_V3` | Which branch each Workflow playbook runs |
+| `SOCProductCategoryMap_V3` | Source → product category routing |
+| `SOCActionTimeMap_V3` | Analyst-minutes per action, the time-saved source |
+| `SOCActionClassMap_V3` | Action classification |
+| `SOCOptimizationConfig_V3` | Auto-Triage, Dedup, and Shadow Mode settings |
+| `SOCFWFeatureFlags` | Feature gating |
+
+### Supporting scripts
+
+`SOCActionFingerprintCheck` (action idempotency), `SOCDedupComputeWinner`
+(canonical case selection), `SOCEnrichFromList` and `SOCNormalizeFromList`
+(list-driven enrichment and normalization), `SOCFWHealthCheck` (post-install
+inventory), `setValueTags_V3`.
+
+### Identity resolution
+
+`SOC IdentityResolve` correlation rule plus the CIE identity overlay pattern
+used by vendor packs to join alerts to canonical identities.
+
+### Value Metrics
+
+Three dashboards driven by `xsiam_socfw_ir_execution_raw`. See
+*Reading the metrics* below.
 
 ---
 
@@ -65,15 +148,36 @@ Marketplace → search **"SOC"** for the full set of installable Framework packs
 5. **Switch to the SOC Framework correlation rules** for your enabled sources
    (SOC CrowdStrike Falcon, SOC Microsoft Defender, SOC Trend Micro, etc.). Disable any vendor
    defaults that overlap with the Framework's rules.
-6. **Enable the Auto-Triage job** (`JOB_-_Auto_Triage_V3`).
+6. **Create the execution-metrics HTTP Collector:**
+    - Settings → Data Sources → Add Data Source → **Custom - HTTP Collector**
+    - Vendor: `XSIAM`
+    - Product: `socfw_ir_execution`
+    - This creates the `xsiam_socfw_ir_execution_raw` dataset that the Value
+      Metrics dashboards read from.
+    - Open the collector's **Connection Details** and copy the API URL and API key.
+7. **Configure the SOC Framework Dataset Writer integration instance:**
+    - Applying the pack creates an instance named `socfw_ir_execution_writer`
+      with placeholder values. Edit that instance rather than creating a new
+      one — playbooks and scripts address it by name via `using`, so the name
+      must match exactly.
+    - HTTP Collector URL: replace `REPLACE-ME-collector-url`
+    - API Key: replace `REPLACE-ME-collector-api-key`
+    - Vendor Name and Product Name default to `XSIAM` and `socfw_ir_execution`,
+      matching the collector created above.
+    - Click **Test** — it posts a single probe event, so a passing test confirms
+      the URL, the key, and the write path end to end.
+8. **Enable the Auto-Triage job** (`JOB_-_Auto_Triage_V3`).
     - Default behavior closes cases with case risk score ≤ 40.
     - Starring remains a supported alternative if your tenant uses Starred
       Issues instead of risk scoring.
-7. **Create an Automation Trigger** for `EP_IR_NIST (800-61)_V3` on all alerts
+9. **Create an Automation Trigger** for `EP_IR_NIST (800-61)_V3` on all alerts
    of severity **Medium or higher**.
-8. **Configure the NIST IR Layout Rule:**
+10. **Configure the NIST IR Layout Rule:**
     - Severity: **Medium or higher**
     - Issue Domain: **Security**
+
+Post-install configuration detail, including collector setup and troubleshooting,
+lives in [POST_CONFIG_README.md](POST_CONFIG_README.md).
 
 ---
 

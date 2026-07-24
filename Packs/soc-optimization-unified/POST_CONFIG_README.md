@@ -36,10 +36,11 @@
       copied above
     - Click **Test** — it posts a single probe event, so a passing test confirms
       the URL, the key, and the write path end to end.
-    - Vendor and Product are deliberately not set here. Dataset routing comes
-      from the collector's own configuration. Additional instances pointed at
-      different collectors can be added later to write other lifecycles to
-      their own datasets.
+    - Vendor Name and Product Name default to `XSIAM` and `socfw_ir_execution`,
+      which target the `xsiam_socfw_ir_execution_raw` dataset created in step 6.
+      Change them only when pointing an instance at a different collector and
+      dataset. Additional instances can be configured to write other lifecycles
+      to their own datasets.
     - Full setup and command reference:
       [SOC Framework Dataset Writer](Integrations/SOCFWDatasetWriter/README.md)
 8. **Enable the Auto-Triage job** (`JOB_-_Auto_Triage_V3`).
