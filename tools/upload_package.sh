@@ -91,6 +91,7 @@ demisto-sdk upload \
   -x -z \
   -i "$PACK_PATH" \
   --marketplace marketplacev2 \
+  --override-existing \
   --console-log-threshold DEBUG
 
 end=$(date +%s)
