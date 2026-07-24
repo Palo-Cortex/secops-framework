@@ -187,7 +187,7 @@ class TestSocDetonateFileShadowFalse:
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
             "core-get-hash-analytics-prevalence": cortex_response,
-            "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+            "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
         }
 
         script.main()
@@ -221,7 +221,7 @@ class TestSocDetonateFileShadowFalse:
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
             "wildfire-upload-file": wf_response,
-            "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+            "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
         }
 
         script.main()
@@ -257,7 +257,7 @@ class TestSocDetonateFileShadowFalse:
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
             "core-get-hash-analytics-prevalence": [{"Type": 1, "Contents": {"data": []}}],
-            "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+            "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
         }
 
         script.main()
@@ -302,7 +302,7 @@ class TestSocDetonateFileShadowFalse:
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
             "core-get-hash-analytics-prevalence": [{"Type": 1, "Contents": {"data": []}}],
-            "xql-post-to-dataset": capture_dataset,
+            "socfw-post-to-dataset": capture_dataset,
         }
 
         script.main()
@@ -340,7 +340,7 @@ class TestSocDetonateFileShadowFalse:
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
             "core-get-hash-analytics-prevalence": [{"Type": 4, "Contents": "Error: integration not configured"}],
-            "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+            "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
         }
 
         # Should not raise — continueonerror=True in the playbook task
@@ -385,7 +385,7 @@ class TestCERActionsRemainInShadow:
         demisto._command_responses = {
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
-            "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+            "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
         }
 
         script.main()
@@ -420,7 +420,7 @@ class TestCERActionsRemainInShadow:
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
             "core-get-hash-analytics-prevalence": [{"Type": 1, "Contents": {"data": []}}],
-            "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+            "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
         }
         script1.main()
         detonation_executed = [c[0] for c in demisto1._commands]
@@ -440,7 +440,7 @@ class TestCERActionsRemainInShadow:
         demisto2._command_responses = {
             "getList": _get_list_response(make_actions_list()),
             "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
-            "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+            "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
         }
         script2.main()
         isolation_executed = [c[0] for c in demisto2._commands]

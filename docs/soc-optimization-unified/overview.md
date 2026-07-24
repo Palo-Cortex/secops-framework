@@ -82,9 +82,8 @@ Integration brand instances the installer configures. Credentials and propagatio
 | `Rasterize_instance_1` | `Rasterize` | Utilities | true |
 | `WildFire-Reports_default_instance` | `WildFire-Reports` | Forensics & Malware Analysis | true |
 | `WildFire-v2_default_instance` | `WildFire-v2` | Forensics & Malware Analysis | true |
-| `PlaybookMetrics` | `System XQL HTTP Collector` | Utilities | true |
-| `socfw_ir_execution` | `System XQL HTTP Collector` | Utilities | true |
 | `Unit_42_Intelligence_SOCFW` | `Unit 42 Intelligence` | Data Enrichment & Threat Intelligence | true |
+| `socfw_ir_execution_writer` | `SOCFWDatasetWriter` | Utilities | true |
 
 ## Jobs
 
@@ -99,15 +98,6 @@ Automatically closes unstarred cases that exceed the configured age and score th
 | Playbook | `JOB - Auto Triage V3` |
 | Recurrent | ✓ |
 | Schedule | every 10 minutes daily |
-| Owner | `abarone@paloaltonetworks.com` |
-
-### Collect Playbook Metrics V3
-
-| Field | Value |
-|---|---|
-| Playbook | `JOB - Store Playbook Metrics in Dataset V3` |
-| Recurrent | ✓ |
-| Schedule | every 15 minutes daily |
 | Owner | `abarone@paloaltonetworks.com` |
 
 ## Exported Playbooks

@@ -303,7 +303,7 @@ def test_main_shadow_mode_success():
                 ]
             }
         }],
-        "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}]
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}]
     }
 
     demisto._context["SOCFramework"]["Artifacts"] = {"EndpointID": "endpoint-123"}
@@ -315,7 +315,7 @@ def test_main_shadow_mode_success():
     assert demisto._context["WrapperResults"][0]["command"] == "cs-falcon-contain-host"
 
     command_names = [c[0] for c in demisto._commands]
-    assert "xql-post-to-dataset" in command_names
+    assert "socfw-post-to-dataset" in command_names
     assert "cs-falcon-contain-host" not in command_names
 
 
@@ -361,7 +361,7 @@ def test_main_production_success():
         "getList": get_list_response,
         "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
         "cs-falcon-lift-containment": [{"Type": 1, "Contents": "ok"}],
-        "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}]
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}]
     }
 
     script.main()
@@ -371,7 +371,7 @@ def test_main_production_success():
 
     executed = [c[0] for c in demisto._commands]
     assert "cs-falcon-lift-containment" in executed
-    assert "xql-post-to-dataset" in executed
+    assert "socfw-post-to-dataset" in executed
 
     last_result = demisto._results[-1]
     assert isinstance(last_result, list)
@@ -417,7 +417,7 @@ def test_main_production_failure_returns_error():
         "getList": get_list_response,
         "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
         "cs-falcon-delete-file": [{"Type": 4, "Contents": "deletion failed"}],
-        "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}]
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}]
     }
 
     with pytest.raises(RuntimeError, match="deletion failed"):
@@ -486,7 +486,7 @@ def test_main_production_rate_limited_soft_fails():
         "getList": get_list_response,
         "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
         "proofpoint-get-forensics": [{"Type": 4, "Contents": tap_429}],
-        "xql-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
     }
 
     # Must not raise / must not sys.exit — the lifecycle continues.
@@ -504,7 +504,7 @@ def test_main_production_rate_limited_soft_fails():
     posted = [
         json.loads(a["JSON"])
         for c, a in demisto._commands
-        if c == "xql-post-to-dataset"
+        if c == "socfw-post-to-dataset"
     ]
     assert posted, "no dataset row posted for the failed command"
     assert posted[0]["has_error"] is True

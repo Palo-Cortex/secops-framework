@@ -1,0 +1,62 @@
+commonfields:
+  id: SOCFWDatasetWriter
+  version: -1
+name: SOCFWDatasetWriter
+display: SOC Framework Dataset Writer
+system: true
+category: Utilities
+description: |-
+  Posts SOC Framework execution events to an XSIAM HTTP Collector.
+  Credentials are held on the integration instance rather than in content,
+  so no keys are stored in the repo or in playbooks. Replaces the
+  System XQL HTTP Collector integration.
+configuration:
+  - name: url
+    display: HTTP Collector URL
+    required: true
+    type: 0
+    section: Connect
+    additionalinfo: |-
+      Full URL of the XSIAM HTTP Collector endpoint.
+      Found in Settings -> Data Sources -> [your collector] -> Connection Details.
+
+  - name: api_key
+    display: API Key
+    required: true
+    type: 4
+    section: Connect
+    additionalinfo: HTTP Collector API key for this data source.
+
+  - name: insecure
+    display: Trust any certificate (not secure)
+    required: false
+    type: 8
+    section: Connect
+    advanced: true
+
+  - name: proxy
+    display: Use system proxy settings
+    required: false
+    type: 8
+    section: Connect
+    advanced: true
+
+script:
+  script: ''
+  type: python
+  subtype: python3
+  dockerimage: demisto/python3:3.10.14.100715
+  commands:
+    - name: socfw-post-to-dataset
+      description: |-
+        Posts events to the configured HTTP Collector as NDJSON.
+        Accepts a JSON array of event objects, a single JSON object,
+        or NDJSON text.
+      arguments:
+        - name: JSON
+          required: true
+          description: JSON array of event objects to post to the collector.
+      outputs: []
+fromversion: 8.0.0
+tests:
+  - No tests
