@@ -35,14 +35,6 @@ Additional custom packs the installer pulls in alongside this pack.
 |---|---|---|
 | `soc-framework-posture.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-posture-v1.0.1/soc-framework-posture-v1.0.1.zip) |
 
-## Integration Instances
-
-Integration brand instances the installer configures. Credentials and propagation labels are always tenant-specific — only the scaffolding ships in the pack.
-
-| Instance Name | Brand | Category | Enabled |
-|---|---|---|---|
-| `socfw_posture_execution` | `System XQL HTTP Collector` | Utilities | true |
-
 ## Exported Playbooks
 
 Playbooks this pack exposes for use by other packs or directly from the tenant.
