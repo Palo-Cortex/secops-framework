@@ -210,6 +210,19 @@ def normalize_events(events: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[
                 if val:
                     ev[id_field] = f"{val}-{_run_id}"
 
+        # Abnormal Security:
+        # The rule suppresses on abxMessageId for 24h. The TSV carries a fixed
+        # abxMessageId, so repeated replays are suppressed as duplicates and the
+        # email alert never re-fires to group with a fresh cross-source case.
+        # Append a run-unique suffix to the message identifiers so each replay
+        # fires a fresh, groupable email alert (originalalertid coalesces
+        # threatId/abxMessageIdStr/abxMessageId, so uniquify all three).
+        if "abnormal" in source_name:
+            for id_field in ("abxMessageId", "abxMessageIdStr", "threatId"):
+                val = ev.get(id_field, "")
+                if val:
+                    ev[id_field] = f"{val}-{_run_id}"
+
     return events
 
 
