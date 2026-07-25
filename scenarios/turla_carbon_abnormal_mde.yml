@@ -1,0 +1,26 @@
+# Turla Carbon - Full Kill Chain: Abnormal Security + Microsoft Defender for Endpoint
+# Tests: Cross-source grouping (Email -> Endpoint) driven by the
+#        SocFrameworkAbnormalSecurity correlation rule alongside the MDE rule.
+#        Validates product_map routing for Abnormal in SOCProductCategoryMap_V3.
+#
+# Shared grouping keys across sources (no CIE required on brumxdr):
+#   - actor_effective_username : gunter@skt.local        (email-first canonicalization)
+#   - fw_url_domain / dns_query_name : prendre-des-vacances.fr
+#         (Abnormal URL registered domain == endpoint C2/DNS domain artifact)
+#   - Abnormal senderIpAddress 91.52.62.137 == endpoint action_remote_ip (C2 IP)
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/turla_carbon_abnormal_mde.yml --dry-run
+#   python3 tools/replay_scenario.py --manifest scenarios/turla_carbon_abnormal_mde.yml --compress-window 10m
+
+scenario: Turla Carbon - Full Kill Chain Abnormal + Defender
+compress_window: 5m   # < rules' 20m window minus */10 tick delay; email is earliest event so wide windows strand it
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/Abnormal-MITRE-Turla-Carbon-in-XSIAM.tsv
+    env: .env-brumxdr-abnormal
+
+  - name: Microsoft Defender
+    file: input_tsv/MS-Defender-Turla-Carbon.tsv
+    env: .env-brumxdr-defender
