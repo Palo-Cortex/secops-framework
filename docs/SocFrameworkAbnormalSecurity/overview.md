@@ -22,7 +22,7 @@ Reference documentation for the schemas this pack defines.
 
 Documented post-install steps required to finish configuration.
 
-- [SocFrameworkAbnormalSecurity - Manual Steps](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkAbnormalSecurity/POST_CONFIG_README.md)
+- [SOC Abnormal Security - Manual Steps](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkAbnormalSecurity/POST_CONFIG_README.md)
 
 ## Custom Packs Installed
 
@@ -38,12 +38,4 @@ Marketplace packs the installer ensures are present on the tenant.
 
 | ID | Name | Version |
 |---|---|---|
-| `MarketplacePackId` |  | `latest` |
-
-## Integration Instances
-
-Integration brand instances the installer configures. Credentials and propagation labels are always tenant-specific — only the scaffolding ships in the pack.
-
-| Instance Name | Brand | Category | Enabled |
-|---|---|---|---|
-| `SocFrameworkAbnormalSecurity_instance_1` | `Integration Brand Name` | Category | true |
+| `AbnormalSecurity` | Abnormal Security | `latest` |
