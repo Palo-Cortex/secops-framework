@@ -211,6 +211,14 @@ def send_events(events, api_url: str, api_key: str,
 
     Events are NDJSON (one JSON object per line), unchanged from before.
     """
+    # XSIAM reserves _-prefixed fields (_id, _insert_time, _raw_log, _raw_json,
+    # _tag, _device_id, _collector_*, _reporting_device_ip, _final_reporting_*).
+    # Sending them from an exported TSV makes the HTTP collector accept the POST
+    # (200) then silently drop the event. Strip reserved keys, keeping only the
+    # ones the ingest endpoint honors.
+    _KEEP = {"_time", "_vendor", "_product"}
+    events = [{k: v for k, v in ev.items() if (not k.startswith("_")) or (k in _KEEP)}
+              for ev in events]
     headers = {
         "Authorization": api_key,  # bare api_key as before
         "Content-Type": "application/json",
