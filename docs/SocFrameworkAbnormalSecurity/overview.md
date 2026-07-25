@@ -31,11 +31,3 @@ Additional custom packs the installer pulls in alongside this pack.
 | Pack | System | Source |
 |---|---|---|
 | `SocFrameworkAbnormalSecurity.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkAbnormalSecurity-v1.0.3/SocFrameworkAbnormalSecurity-v1.0.3.zip) |
-
-## Marketplace Dependencies
-
-Marketplace packs the installer ensures are present on the tenant.
-
-| ID | Name | Version |
-|---|---|---|
-| `AbnormalSecurity` | Abnormal Security | `latest` |
