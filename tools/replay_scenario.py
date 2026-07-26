@@ -214,14 +214,21 @@ def normalize_events(events: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[
         # The rule suppresses on abxMessageId for 24h. The TSV carries a fixed
         # abxMessageId, so repeated replays are suppressed as duplicates and the
         # email alert never re-fires to group with a fresh cross-source case.
-        # Append a run-unique suffix to the message identifiers so each replay
-        # fires a fresh, groupable email alert (originalalertid coalesces
-        # threatId/abxMessageIdStr/abxMessageId, so uniquify all three).
+        # Give each replay run fresh message identifiers so it fires a groupable
+        # email alert (originalalertid coalesces threatId/abxMessageIdStr/
+        # abxMessageId, so all three have to change).
         if "abnormal" in source_name:
-            for id_field in ("abxMessageId", "abxMessageIdStr", "threatId"):
-                val = ev.get(id_field, "")
-                if val:
-                    ev[id_field] = f"{val}-{_run_id}"
+            # abxMessageId is numeric in production and is the suppression field,
+            # so the run-unique value has to stay an integer. Flipping the low bits
+            # with the run id keeps it inside int64 and preserves the sign.
+            base = ev.get("abxMessageId")
+            if base not in (None, ""):
+                new_id = int(str(base).strip()) ^ int(_run_id, 16)
+                ev["abxMessageId"] = new_id
+                # Production ships abxMessageIdStr as the string form of the same id.
+                ev["abxMessageIdStr"] = str(new_id)
+            if ev.get("threatId"):
+                ev["threatId"] = f"{ev['threatId']}-{_run_id}"
 
     return events
 
@@ -250,6 +257,54 @@ def load_tsv(path: str) -> List[Dict[str, Any]]:
                 ev[k] = v
             events.append(ev)
     return events
+
+
+# ── Contract-driven type coercion ─────────────────────────────────────────────
+
+# TSV cells are text, so without this every scalar reaches the HTTP Collector as a
+# JSON string and the tenant infers a string column where production has a number.
+# Types come from the vendor contract's raw_schema rather than from inspecting the
+# values: Abnormal ships abxMessageId (number) and abxMessageIdStr (string) with
+# byte-identical text, so value sniffing would corrupt one of them.
+
+_COERCE_TYPES = {"int", "float", "boolean", "bool"}
+
+
+def load_raw_schema(path: str) -> Dict[str, str]:
+    """Return {field: declared_type} from a vendor contract's raw_schema."""
+    if yaml is None:
+        raise RuntimeError("PyYAML is required to read a contract schema")
+    with open(path, encoding="utf-8") as f:
+        doc = yaml.safe_load(f) or {}
+    raw = doc.get("raw_schema") or {}
+    return {k: v.get("type") for k, v in raw.items()
+            if isinstance(v, dict) and v.get("type")}
+
+
+def coerce_events(events: List[Dict[str, Any]], schema: Dict[str, str],
+                  source_name: str = "") -> Dict[str, int]:
+    """Cast scalar strings to the type the contract declares. Returns per-field counts."""
+    counts: Dict[str, int] = {}
+    for ev in events:
+        for field, declared in schema.items():
+            if declared not in _COERCE_TYPES:
+                continue
+            v = ev.get(field)
+            if not isinstance(v, str) or not v.strip():
+                continue
+            s = v.strip()
+            try:
+                if declared == "int":
+                    ev[field] = int(s)
+                elif declared == "float":
+                    ev[field] = float(s)
+                else:
+                    ev[field] = s.lower() in ("true", "1", "yes")
+            except ValueError:
+                print(f"  [!] {source_name}: {field}={s!r} is not a valid {declared} — left as string")
+                continue
+            counts[field] = counts.get(field, 0) + 1
+    return counts
 
 
 def load_events(path: str) -> List[Dict[str, Any]]:
@@ -475,7 +530,22 @@ def main():
 
         events = load_events(file_path)
         print(f"    Events loaded: {len(events)}")
+
         events = normalize_events(events, cfg)
+
+        # After normalization, so the contract has the final say on scalar types
+        # and any normalizer that breaks a declared type is reported here.
+        schema_ref = cfg.get("schema")
+        if schema_ref:
+            schema_path = schema_ref if os.path.isabs(schema_ref) else os.path.join(manifest_dir, schema_ref)
+            if not os.path.exists(schema_path):
+                schema_path = os.path.join(os.getcwd(), schema_ref)
+            if os.path.exists(schema_path):
+                counts = coerce_events(events, load_raw_schema(schema_path), name)
+                detail = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "already correctly typed"
+                print(f"    Typed from contract: {detail}")
+            else:
+                print(f"  [!] {name}: schema {schema_ref!r} not found — scalars will be sent as strings")
 
         time_field = cfg.get("time_field") or detect_time_field(events)
         if not time_field:
