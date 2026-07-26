@@ -19,7 +19,7 @@ Fields available in the raw ingest dataset.
 
 | Field | Type | Array | Status | JSON Subfields |
 |---|---|---|---|---|
-| `abxMessageId` | `string` |  | declared |  |
+| `abxMessageId` | `int` |  | declared |  |
 | `abxMessageIdStr` | `string` |  | declared |  |
 | `threatId` | `string` |  | declared |  |
 | `internetMessageId` | `string` |  | declared |  |
@@ -252,7 +252,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
 | alter display_name = coalesce(idr_display_name, recipient_first)
 
-| alter description = concat("Abnormal Security detection: ", coalesce(attackType, ""), " / ", coalesce(attackVector, ""), " | Recipient: ", coalesce(recipient_first, "Unknown"), " | Sender: ", coalesce(fromAddress, ""), " | URL Domain: ", coalesce(url_domain, ""), " | Strategy: ", coalesce(attackStrategy, ""), " | Remediation: ", coalesce(remediationStatus, ""), " -- MsgId: ", coalesce(abxMessageIdStr, abxMessageId))
+| alter description = concat("Abnormal Security detection: ", coalesce(attackType, ""), " / ", coalesce(attackVector, ""), " | Recipient: ", coalesce(recipient_first, "Unknown"), " | Sender: ", coalesce(fromAddress, ""), " | URL Domain: ", coalesce(url_domain, ""), " | Strategy: ", coalesce(attackStrategy, ""), " | Remediation: ", coalesce(remediationStatus, ""), " -- MsgId: ", coalesce(abxMessageIdStr, to_string(abxMessageId)))
 
 // The 29 canonical core columns. Email-only: host/process null.
 // agent_device_domain is null on purpose -- it is the AD machine domain;
@@ -260,7 +260,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter
         vendor                              = vendor_name,
         product                             = product_name,
-        originalalertid                     = coalesce(threatId, abxMessageIdStr, abxMessageId),
+        originalalertid                     = coalesce(threatId, abxMessageIdStr, to_string(abxMessageId)),
         originalalertname                   = alert_name,
         originalalertsource                 = "Abnormal Security",
         externallink                        = abxPortalUrl,
