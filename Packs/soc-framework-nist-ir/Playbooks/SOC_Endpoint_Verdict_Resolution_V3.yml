@@ -128,9 +128,17 @@ tasks:
         simple: Analysis.Endpoint.source_verdict
       value:
         complex:
-          root: inputs.verdict
+          root: alert
+          accessor: severity
           transformers:
-          - operator: toLowerCase
+          - operator: MapRangeValues
+            args:
+              map_from:
+                value:
+                  simple: 0-1,2-2,3-4
+              map_to:
+                value:
+                  simple: benign,suspicious,malicious
     separatecontext: false
     skipunavailable: false
     task:
@@ -706,7 +714,7 @@ tasks:
       key:
         simple: Analysis.Endpoint.verdict
       value:
-        simple: benign
+        simple: ${Analysis.Endpoint.source_verdict}
     separatecontext: false
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 1230,\n    \"y\": 1200\n  }\n}"
