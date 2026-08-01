@@ -780,8 +780,34 @@ def main():
         return
 
     command = vendor_data.get("command")
-    inline_args = vendor_data.get("inline_args", {})
-    inline_args = _resolve_templates(inline_args, ctx)
+    _inline_args_template = vendor_data.get("inline_args", {})
+    inline_args = _resolve_templates(_inline_args_template, ctx)
+
+    # Guard: the action declares argument templates but they ALL resolved empty
+    # (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash} when this alert
+    # carries no file hash). Firing a command with a missing required arg fails and
+    # hangs the lifecycle, so skip cleanly with a recorded reason -- mirroring the
+    # Upon-Trigger enrichment, which only fires when the artifact is non-empty.
+    if _inline_args_template and not any(
+        v not in (None, "", [], {}, "null", "None") for v in inline_args.values()
+    ):
+        skip_record = {
+            "action": action, "vendor": vendor, "command": command,
+            "args": inline_args, "shadow_mode": shadow_mode, "success": False,
+            "skipped": True, "skip_reason": "no non-empty artifact for command args",
+            "tags": tags or [], "run_id": get_or_create_run_id(ctx),
+            "timestamp": utc_now(),
+        }
+        if output_key:
+            append_context(output_key, skip_record)
+        warroom_log(
+            f"SOC Framework - {action}: skipped (no artifact to act on)",
+            {"reason": "all resolved command args empty", "action": action,
+             "vendor": vendor, "command": command},
+            tags,
+        )
+        return_results(f"{action} skipped - no non-empty artifact for {command}")
+        return
 
     timestamp = utc_now()
     run_id = get_or_create_run_id(ctx)

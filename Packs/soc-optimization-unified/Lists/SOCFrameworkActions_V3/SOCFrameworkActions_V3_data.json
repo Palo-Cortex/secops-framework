@@ -582,6 +582,15 @@
         "output_map": {
           "UC.Email.DeliveryEvents": "MsGraph.Hunt"
         }
+      },
+      "Abnormal Security": {
+        "command": "abnormal-security-get-threat",
+        "inline_args": {
+          "threat_id": "${SOCFramework.Email.threat_id}"
+        },
+        "output_map": {
+          "UC.Email.DeliveryEvents": "AbnormalSecurity.ThreatDetails.messages"
+        }
       }
     },
     "shadow_mode": false
@@ -601,6 +610,16 @@
           "UC.Email.Forensics.network": "Proofpoint.Report.Network",
           "UC.Email.Forensics.file": "Proofpoint.Report.File",
           "UC.Email.Forensics.attachment": "Proofpoint.Report.Attachment"
+        }
+      },
+      "Abnormal Security": {
+        "command": "abnormal-security-get-threat",
+        "inline_args": {
+          "threat_id": "${SOCFramework.Email.threat_id}"
+        },
+        "output_map": {
+          "UC.Email.Forensics.messages": "AbnormalSecurity.ThreatDetails.messages",
+          "UC.Email.Forensics.threatId": "AbnormalSecurity.ThreatDetails.threatId"
         }
       }
     },
@@ -640,6 +659,17 @@
           "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
           "UC.Email.Retract.message": "MicrosoftGraph.Mail.Delete.message"
         }
+      },
+      "Abnormal Security": {
+        "command": "abnormal-security-manage-threat",
+        "inline_args": {
+          "threat_id": "${SOCFramework.Email.threat_id}",
+          "action": "remediate"
+        },
+        "output_map": {
+          "UC.Email.Retract.status": "AbnormalSecurity.ThreatManageResults.action_id",
+          "UC.Email.Retract.message": "AbnormalSecurity.ThreatManageResults.status_url"
+        }
       }
     },
     "shadow_mode": true
@@ -666,6 +696,17 @@
         "output_map": {
           "UC.Email.Quarantine.status": "TrendMicro.QuarantineEmail.status",
           "UC.Email.Quarantine.message": "TrendMicro.QuarantineEmail.message"
+        }
+      },
+      "Abnormal Security": {
+        "command": "abnormal-security-manage-threat",
+        "inline_args": {
+          "threat_id": "${SOCFramework.Email.threat_id}",
+          "action": "remediate"
+        },
+        "output_map": {
+          "UC.Email.Quarantine.status": "AbnormalSecurity.ThreatManageResults.action_id",
+          "UC.Email.Quarantine.message": "AbnormalSecurity.ThreatManageResults.status_url"
         }
       }
     },
@@ -838,6 +879,20 @@
         },
         "output_map": {
           "UC.Email.SearchDelete.status": "O365.ComplianceSearch.Purge.status"
+        }
+      },
+      "Abnormal Security": {
+        "command": "abnormal-security-remediate-messages",
+        "inline_args": {
+          "action": "delete",
+          "source": "abnormal",
+          "remediation_reason": "false_negative",
+          "remediate_all": "true",
+          "sender_email": "${SOCFramework.Email.sender}",
+          "subject": "${SOCFramework.Email.subject}"
+        },
+        "output_map": {
+          "UC.Email.SearchDelete.status": "AbnormalSecurity.MessageRemediation.activity_log_id"
         }
       }
     }
