@@ -6,7 +6,7 @@
 |---|---|
 | ID | `soc-wiz-cloud` |
 | Version | `1.0.6` |
-| Category | Cloud |
+| Category | Cloud IR |
 | Pack Path | `Packs/soc-wiz-cloud` |
 | Manifest | [`Packs/soc-wiz-cloud/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-wiz-cloud/xsoar_config.json) |
 
