@@ -1,7 +1,9 @@
 {
+  "id": "acf96a5d13e845e68c22786c5964fa00",
+  "name": "XSIAM SOC Value Metrics - Shadow Mode (v2)",
   "dashboards_data": [
     {
-      "name": "XSIAM SOC Value Metrics - Shadow Mode",
+      "name": "XSIAM SOC Value Metrics - Shadow Mode (v2)",
       "description": "Actions taken by XSIAM for the SOC",
       "status": "ENABLED",
       "layout": [
@@ -14,7 +16,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 405,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time \n\n\n| fields value_time , value_category\n| alter soc_event_mintutes = to_integer(value_time )\n| comp sum(soc_event_mintutes) as total_soc_minutes by value_category\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n| sort desc total_soc_minutes\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = value_category yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_minutes\",\"#23ae4f\") seriescolor(\"total_soc_hours\",\"#7cb5ec\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter action_time_category != null and action_time_category != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by action_time_category\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n| sort desc total_soc_minutes\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = action_time_category yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_minutes\",\"#23ae4f\") seriescolor(\"total_soc_hours\",\"#7cb5ec\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -46,7 +48,7 @@
                       "command": {
                         "op": "=",
                         "name": "xaxis",
-                        "value": "value_category"
+                        "value": "action_time_category"
                       }
                     },
                     {
@@ -116,7 +118,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 405,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time \n\n\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_tag\n| alter total_soc_hours = round(divide(total_soc_minutes , 60))\n| fields value_tag  , total_soc_minutes  , total_soc_hours\n| sort desc total_soc_minutes\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = value_tag yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_hours\",\"#7cb5ec\") seriescolor(\"total_soc_minutes\",\"#23ae4f\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter vendor_command != null and vendor_command != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by vendor_command\n| alter total_soc_hours = round(divide(total_soc_minutes , 60))\n| sort desc total_soc_minutes\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = vendor_command yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_hours\",\"#7cb5ec\") seriescolor(\"total_soc_minutes\",\"#23ae4f\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -148,7 +150,7 @@
                       "command": {
                         "op": "=",
                         "name": "xaxis",
-                        "value": "value_tag"
+                        "value": "vendor_command"
                       }
                     },
                     {
@@ -223,7 +225,7 @@
                 "type": "Custom XQL",
                 "width": 33.333333333333336,
                 "height": 352,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, Product as value_product, Vendor as value_vendor\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, value_product, value_vendor \n\n\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_vendor\n| sort desc total_soc_minutes\n| view graph type = funnel header = \"Most Used Vendors\" show_callouts = `true` show_callouts_names = `true` xaxis = value_vendor yaxis = total_soc_minutes ",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter vendor != null and vendor != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by vendor\n| sort desc total_soc_minutes\n| view graph type = funnel header = \"Most Used Vendors\" show_callouts = `true` show_callouts_names = `true` xaxis = vendor yaxis = total_soc_minutes ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -255,7 +257,7 @@
                       "command": {
                         "op": "=",
                         "name": "xaxis",
-                        "value": "value_vendor"
+                        "value": "vendor"
                       }
                     },
                     {
@@ -275,7 +277,7 @@
                 "type": "Custom XQL",
                 "width": 33.333333333333336,
                 "height": 352,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, Product as value_product, Vendor as value_vendor\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, value_product, value_vendor \n\n\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_product\n| sort desc total_soc_minutes\n| view graph type = pie subtype = full header = \"Tool Usage in Minutes\" xaxis = value_product yaxis = total_soc_minutes ",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter universal_command != null and universal_command != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by universal_command\n| sort desc total_soc_minutes\n| view graph type = pie subtype = full header = \"Tool Usage in Minutes\" xaxis = universal_command yaxis = total_soc_minutes ",
                 "time_frame": {
                   "relativeTime": 604800000
                 },
@@ -300,7 +302,7 @@
                       "command": {
                         "op": "=",
                         "name": "xaxis",
-                        "value": "value_product"
+                        "value": "universal_command"
                       }
                     },
                     {
@@ -325,46 +327,32 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category = \"use_case\"\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, PlaybookID as playbook_id\n) as vt (task_name = vt.value_taskname)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, playbook_id \n\n| fields value_time , value_tag , value_category\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_tag\n| alter total_soc_hours = divide(total_soc_minutes,60)\n| sort desc total_soc_hours \n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Use Case Time\" xaxis = value_tag yaxis = total_soc_hours ",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| filter event_type = \"auto_triage\"\n| comp count_distinct(incident_id) as total_cases\n| view graph type = single subtype = standard header = \"Cases XSIAM Would Auto-Triage\" yaxis = total_cases ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
                 "viewOptions": {
-                  "type": "column",
+                  "type": "single",
                   "commands": [
                     {
                       "command": {
                         "op": "=",
                         "name": "subtype",
-                        "value": "grouped"
-                      }
-                    },
-                    {
-                      "command": {
-                        "op": "=",
-                        "name": "layout",
-                        "value": "horizontal"
+                        "value": "standard"
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "header",
-                        "value": "\"Use Case Time\""
-                      }
-                    },
-                    {
-                      "command": {
-                        "op": "=",
-                        "name": "xaxis",
-                        "value": "value_tag"
+                        "value": "\"Cases XSIAM Would Auto-Triage\""
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "yaxis",
-                        "value": "total_soc_hours"
+                        "value": "total_cases"
                       }
                     }
                   ]
@@ -377,7 +365,7 @@
                 "type": "Custom XQL",
                 "width": 25,
                 "height": 400,
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time \n\n\n| alter soc_event_mintutes = to_integer(value_time)\n| comp sum(soc_event_mintutes) as total_soc_minutes\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n\n\n\n\n\n\n\n\n\n\n\n\n| view graph type = single subtype = standard header = \"Hours Saved by XSIAM\" yaxis = total_soc_hours dataunit = \"Hours\" headcolor = \"#f1f7f0\" font = \"Arial\" headerfontsize = 6 ",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n| view graph type = single subtype = standard header = \"Hours Saved by XSIAM\" yaxis = total_soc_hours dataunit = \"Hours\" headcolor = \"#f1f7f0\" font = \"Arial\" headerfontsize = 6",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -625,7 +613,7 @@
               }
             },
             {
-              "key": "alert-lag-detection_shd",
+              "key": "xql_1785672500000_shd",
               "data": {
                 "type": "Custom XQL",
                 "width": 50,
@@ -655,42 +643,51 @@
                       "command": {
                         "op": "=",
                         "name": "header",
-                        "value": "\"Total Alerts\""
+                        "value": "\"Alert Detection Lag by Source (Avg Minutes)\""
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "xaxis",
-                        "value": "original_tags"
+                        "value": "alert_source"
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "yaxis",
-                        "value": "total_alerts"
+                        "value": "avg_lag_min,max_lag_min"
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "xaxistitle",
-                        "value": "\"Alerts\""
+                        "value": "\"Alert Source\""
                       }
                     },
                     {
                       "command": {
                         "op": "=",
                         "name": "yaxistitle",
-                        "value": "\"Data Sources\""
+                        "value": "\"Minutes\""
                       }
                     },
                     {
                       "func": {
                         "args": [
-                          "total_alerts",
-                          "Alerts by Data Source"
+                          "avg_lag_min",
+                          "Avg Lag (min)"
+                        ],
+                        "name": "seriestitle"
+                      }
+                    },
+                    {
+                      "func": {
+                        "args": [
+                          "max_lag_min",
+                          "Max Lag (min)"
                         ],
                         "name": "seriestitle"
                       }
@@ -832,7 +829,7 @@
         }
       ],
       "default_dashboard_id": 1,
-      "global_id": "XSIAM_SOC_Value_Metrics_Shadow",
+      "global_id": "acf96a5d13e845e68c22786c5964fa00",
       "metadata": {
         "params": []
       }
@@ -876,7 +873,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "sbrumley@paloaltonetworks.com"
+      "creator_mail": "sbrumley@paloaltonetworks.com",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745755968440_shd",
@@ -884,7 +883,7 @@
       "creation_time": 1770245291127,
       "description": "Which tools is XSIAM uniquely automating most of the time by number of hours",
       "data": {
-        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, Product as value_product, Vendor as value_vendor\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, value_product, value_vendor \n\n\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_product\n| sort desc total_soc_minutes\n| view graph type = pie subtype = full header = \"Tool Usage in Minutes\" xaxis = value_product yaxis = total_soc_minutes ",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter universal_command != null and universal_command != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by universal_command\n| sort desc total_soc_minutes\n| view graph type = pie subtype = full header = \"Tool Usage in Minutes\" xaxis = universal_command yaxis = total_soc_minutes ",
         "time_frame": {
           "relativeTime": 604800000
         },
@@ -909,7 +908,7 @@
               "command": {
                 "op": "=",
                 "name": "xaxis",
-                "value": "value_product"
+                "value": "universal_command"
               }
             },
             {
@@ -925,12 +924,13 @@
       "support_time_range": true,
       "additional_info": {
         "query_tables": [
-          "value_tags",
           "xsiam_socfw_ir_execution_raw"
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1750429903480_shd",
@@ -969,54 +969,42 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745756305970_shd",
-      "title": "Common Use Cases",
+      "title": "Cases XSIAM Would Auto-Triage",
       "creation_time": 1770245292203,
-      "description": "Which Use Cases are most often being executed",
+      "description": "Low-scoring cases XSIAM would auto-triage (close) in shadow mode, counted from the execution dataset (event_type = auto_triage).",
       "data": {
-        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category = \"use_case\"\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, PlaybookID as playbook_id\n) as vt (task_name = vt.value_taskname)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, playbook_id \n\n| fields value_time , value_tag , value_category\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_tag\n| alter total_soc_hours = divide(total_soc_minutes,60)\n| sort desc total_soc_hours \n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Use Case Time\" xaxis = value_tag yaxis = total_soc_hours ",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| filter event_type = \"auto_triage\"\n| comp count_distinct(incident_id) as total_cases\n| view graph type = single subtype = standard header = \"Cases XSIAM Would Auto-Triage\" yaxis = total_cases ",
         "time_frame": {
           "relativeTime": 86400000
         },
         "viewOptions": {
-          "type": "column",
+          "type": "single",
           "commands": [
             {
               "command": {
                 "op": "=",
                 "name": "subtype",
-                "value": "grouped"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "layout",
-                "value": "horizontal"
+                "value": "standard"
               }
             },
             {
               "command": {
                 "op": "=",
                 "name": "header",
-                "value": "\"Use Case Time\""
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "xaxis",
-                "value": "value_tag"
+                "value": "\"Cases XSIAM Would Auto-Triage\""
               }
             },
             {
               "command": {
                 "op": "=",
                 "name": "yaxis",
-                "value": "total_soc_hours"
+                "value": "total_cases"
               }
             }
           ]
@@ -1025,12 +1013,13 @@
       "support_time_range": true,
       "additional_info": {
         "query_tables": [
-          "value_tags",
           "xsiam_socfw_ir_execution_raw"
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745756206179_shd",
@@ -1113,7 +1102,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1750429941149_shd",
@@ -1152,7 +1143,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1750243294068_shd",
@@ -1191,7 +1184,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745756167461_shd",
@@ -1244,7 +1239,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1750429437464_shd",
@@ -1283,7 +1280,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745756046680_shd",
@@ -1291,7 +1290,7 @@
       "creation_time": 1770245291342,
       "description": "The number of hours worked by XSIAM automations",
       "data": {
-        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time \n\n\n| alter soc_event_mintutes = to_integer(value_time)\n| comp sum(soc_event_mintutes) as total_soc_minutes\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n\n\n\n\n\n\n\n\n\n\n\n\n| view graph type = single subtype = standard header = \"Hours Saved by XSIAM\" yaxis = total_soc_hours dataunit = \"Hours\" headcolor = \"#f1f7f0\" font = \"Arial\" headerfontsize = 6 ",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n| view graph type = single subtype = standard header = \"Hours Saved by XSIAM\" yaxis = total_soc_hours dataunit = \"Hours\" headcolor = \"#f1f7f0\" font = \"Arial\" headerfontsize = 6",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -1353,12 +1352,13 @@
       "support_time_range": true,
       "additional_info": {
         "query_tables": [
-          "value_tags",
           "xsiam_socfw_ir_execution_raw"
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1750429296483_shd",
@@ -1397,7 +1397,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745755883243_shd",
@@ -1405,7 +1407,7 @@
       "creation_time": 1770245290172,
       "description": null,
       "data": {
-        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time \n\n\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_tag\n| alter total_soc_hours = round(divide(total_soc_minutes , 60))\n| fields value_tag  , total_soc_minutes  , total_soc_hours\n| sort desc total_soc_minutes\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = value_tag yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_hours\",\"#7cb5ec\") seriescolor(\"total_soc_minutes\",\"#23ae4f\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter vendor_command != null and vendor_command != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by vendor_command\n| alter total_soc_hours = round(divide(total_soc_minutes , 60))\n| sort desc total_soc_minutes\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = vendor_command yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_hours\",\"#7cb5ec\") seriescolor(\"total_soc_minutes\",\"#23ae4f\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -1437,7 +1439,7 @@
               "command": {
                 "op": "=",
                 "name": "xaxis",
-                "value": "value_tag"
+                "value": "vendor_command"
               }
             },
             {
@@ -1503,12 +1505,13 @@
       "support_time_range": true,
       "additional_info": {
         "query_tables": [
-          "value_tags",
           "xsiam_socfw_ir_execution_raw"
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745756085465_shd",
@@ -1516,7 +1519,7 @@
       "creation_time": 1770245291562,
       "description": "Which Vendors are being most often automated by XSIAM.",
       "data": {
-        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time, Product as value_product, Vendor as value_vendor\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time, value_product, value_vendor \n\n\n| alter soc_event_minutes = to_integer(value_time)\n| comp sum(soc_event_minutes) as total_soc_minutes by value_vendor\n| sort desc total_soc_minutes\n| view graph type = funnel header = \"Most Used Vendors\" show_callouts = `true` show_callouts_names = `true` xaxis = value_vendor yaxis = total_soc_minutes ",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter vendor != null and vendor != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by vendor\n| sort desc total_soc_minutes\n| view graph type = funnel header = \"Most Used Vendors\" show_callouts = `true` show_callouts_names = `true` xaxis = vendor yaxis = total_soc_minutes ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -1548,7 +1551,7 @@
               "command": {
                 "op": "=",
                 "name": "xaxis",
-                "value": "value_vendor"
+                "value": "vendor"
               }
             },
             {
@@ -1564,12 +1567,13 @@
       "support_time_range": true,
       "additional_info": {
         "query_tables": [
-          "value_tags",
           "xsiam_socfw_ir_execution_raw"
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
       "widget_key": "xql_1745755921627_shd",
@@ -1577,7 +1581,7 @@
       "creation_time": 1770245290644,
       "description": "Total time saved by Category that XSIAM is helping SOC",
       "data": {
-        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n//TODO make this a lookup table and join instead to make it scalable\n| join type = inner (dataset = value_tags \n| filter Category != \"use_case\" and Time != \"\" and Time != null and ScriptID != \"\" and ScriptID != null\n| alter ScriptID = replace(ScriptID, \"|\", \"\")\n| fields Category as value_category, ScriptID as value_scriptid, `Tag` as value_tag, TaskName as value_taskname, Time as value_time\n) as vt (vendor_command = vt.value_scriptid)\n| fields value_category, value_scriptid, value_tag, value_taskname, value_time, _time \n\n\n| fields value_time , value_category\n| alter soc_event_mintutes = to_integer(value_time )\n| comp sum(soc_event_mintutes) as total_soc_minutes by value_category\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n| sort desc total_soc_minutes\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = value_category yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_minutes\",\"#23ae4f\") seriescolor(\"total_soc_hours\",\"#7cb5ec\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter dedupkey = concat(incident_id, run_id, vendor_command)\n| dedup dedupkey\n| filter action_time_category != null and action_time_category != \"\" and action_time_minutes != null\n| alter soc_event_minutes = to_integer(action_time_minutes)\n| comp sum(soc_event_minutes) as total_soc_minutes by action_time_category\n| alter total_soc_hours = round(divide(total_soc_minutes,60))\n| sort desc total_soc_minutes\n| view graph type = column subtype = grouped layout = horizontal show_callouts = `true` xaxis = action_time_category yaxis = total_soc_minutes,total_soc_hours seriescolor(\"total_soc_minutes\",\"#23ae4f\") seriescolor(\"total_soc_hours\",\"#7cb5ec\") xaxistitle = \"Time\" yaxistitle = \"Category\" seriestitle(\"total_soc_minutes\",\"Total SOC Minutes\") seriestitle(\"total_soc_hours\",\"Total SOC Hours\") ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -1609,7 +1613,7 @@
               "command": {
                 "op": "=",
                 "name": "xaxis",
-                "value": "value_category"
+                "value": "action_time_category"
               }
             },
             {
@@ -1675,98 +1679,16 @@
       "support_time_range": true,
       "additional_info": {
         "query_tables": [
-          "value_tags",
           "xsiam_socfw_ir_execution_raw"
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     },
     {
-      "widget_key": "xql_1745756206179_shd",
-      "title": "Total Alerts",
-      "creation_time": 1770245291870,
-      "description": "All alerts firing by data source",
-      "data": {
-        "phrase": "dataset = alerts \n| arrayexpand original_tags\n| filter original_tags contains \"DS:\"\n// Total Alerts\n| comp count_distinct(alert_id) as total_alerts by original_tags \n| sort desc total_alerts\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Total Alerts\" xaxis = original_tags yaxis = total_alerts xaxistitle = \"Alerts\" yaxistitle = \"Data Sources\" seriestitle(\"total_alerts\",\"Alerts by Data Source\") ",
-        "time_frame": {
-          "relativeTime": 86400000
-        },
-        "viewOptions": {
-          "type": "column",
-          "commands": [
-            {
-              "command": {
-                "op": "=",
-                "name": "subtype",
-                "value": "grouped"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "layout",
-                "value": "horizontal"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "header",
-                "value": "\"Total Alerts\""
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "xaxis",
-                "value": "original_tags"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "yaxis",
-                "value": "total_alerts"
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "xaxistitle",
-                "value": "\"Alerts\""
-              }
-            },
-            {
-              "command": {
-                "op": "=",
-                "name": "yaxistitle",
-                "value": "\"Data Sources\""
-              }
-            },
-            {
-              "func": {
-                "args": [
-                  "total_alerts",
-                  "Alerts by Data Source"
-                ],
-                "name": "seriestitle"
-              }
-            }
-          ]
-        }
-      },
-      "support_time_range": true,
-      "additional_info": {
-        "query_tables": [
-          "alerts"
-        ],
-        "query_uses_library": false
-      },
-      "creator_mail": "N/A"
-    },
-    {
-      "widget_key": "alert-lag-detection_shd",
+      "widget_key": "xql_1785672500000_shd",
       "title": "Alert Detection Lag by Source",
       "creation_time": 1773887140953,
       "description": "Time from source event to XSIAM ingestion by alert source. Maps to MTTD \u2014 VD1 & VD3.",
@@ -1795,6 +1717,13 @@
             {
               "command": {
                 "op": "=",
+                "name": "header",
+                "value": "\"Alert Detection Lag by Source (Avg Minutes)\""
+              }
+            },
+            {
+              "command": {
+                "op": "=",
                 "name": "xaxis",
                 "value": "alert_source"
               }
@@ -1804,6 +1733,38 @@
                 "op": "=",
                 "name": "yaxis",
                 "value": "avg_lag_min,max_lag_min"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "xaxistitle",
+                "value": "\"Alert Source\""
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxistitle",
+                "value": "\"Minutes\""
+              }
+            },
+            {
+              "func": {
+                "args": [
+                  "avg_lag_min",
+                  "Avg Lag (min)"
+                ],
+                "name": "seriestitle"
+              }
+            },
+            {
+              "func": {
+                "args": [
+                  "max_lag_min",
+                  "Max Lag (min)"
+                ],
+                "name": "seriestitle"
               }
             }
           ]
@@ -1816,7 +1777,9 @@
         ],
         "query_uses_library": false
       },
-      "creator_mail": "N/A"
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
     }
   ],
   "fromVersion": "6.10.0"
