@@ -362,7 +362,7 @@
                 "type": "Custom XQL",
                 "width": 20,
                 "height": 400,
-                "phrase": "dataset = alerts\n| alter event_ts = arrayindex(event_timestamp, 0)\n| filter event_ts != null\n| alter event_ms = to_integer(event_ts)\n| alter alert_ms = to_epoch(_time, \"millis\")\n| alter mttd_ms = subtract(alert_ms, event_ms)\n| filter mttd_ms >= 0 and mttd_ms < 86400000\n| alter mttd_seconds = divide(mttd_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard yaxis = avg_mttd_sec",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter d_ms = subtract(verdict_ms, first_ms)\n| filter d_ms >= 0\n| alter mttd_seconds = divide(d_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard header = \"MTTD (sec)\" yaxis = avg_mttd_sec",
                 "time_frame": {
                   "relativeTime": 2592000000
                 },
@@ -950,7 +950,7 @@
       "creation_time": 1776900000000,
       "description": "Mean Time to Detect - source event (event_timestamp) -> alert record creation (_time). Alerts-native, no framework dependency. Seconds.",
       "data": {
-        "phrase": "dataset = alerts\n| alter event_ts = arrayindex(event_timestamp, 0)\n| filter event_ts != null\n| alter event_ms = to_integer(event_ts)\n| alter alert_ms = to_epoch(_time, \"millis\")\n| alter mttd_ms = subtract(alert_ms, event_ms)\n| filter mttd_ms >= 0 and mttd_ms < 86400000\n| alter mttd_seconds = divide(mttd_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard yaxis = avg_mttd_sec",
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter d_ms = subtract(verdict_ms, first_ms)\n| filter d_ms >= 0\n| alter mttd_seconds = divide(d_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard header = \"MTTD (sec)\" yaxis = avg_mttd_sec",
         "time_frame": {
           "relativeTime": 2592000000
         },
