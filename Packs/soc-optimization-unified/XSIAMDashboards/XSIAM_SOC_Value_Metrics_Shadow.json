@@ -1,9 +1,9 @@
 {
   "id": "acf96a5d13e845e68c22786c5964fa00",
-  "name": "XSIAM SOC Value Metrics - Shadow Mode (v2)",
+  "name": "XSIAM SOC Value Metrics - Shadow Mode",
   "dashboards_data": [
     {
-      "name": "XSIAM SOC Value Metrics - Shadow Mode (v2)",
+      "name": "XSIAM SOC Value Metrics - Shadow Mode",
       "description": "Actions taken by XSIAM for the SOC",
       "status": "ENABLED",
       "layout": [
@@ -618,7 +618,7 @@
                 "type": "Custom XQL",
                 "width": 50,
                 "height": 400,
-                "phrase": "dataset = alerts\n// Alert Detection Lag: time from event to XSIAM ingestion \u2014 maps to MTTD (VD1 & VD3)\n| alter event_ts_ms = to_integer(arrayindex(event_timestamp, 0))\n| alter ingest_ts_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(ingest_ts_ms, event_ts_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes) as avg_lag_min,\n    max(lag_minutes) as max_lag_min,\n    count() as alert_count\n  by alert_source\n| sort desc avg_lag_min\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Detection Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
+                "phrase": "dataset = alerts\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter anchor_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, anchor_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = divide(lag_ms, 60000)\n| comp avg(lag_minutes) as avg_lag_raw, max(lag_minutes) as max_lag_raw, count() as alert_count by alert_source\n| alter avg_lag_min = round(avg_lag_raw)\n| alter max_lag_min = round(max_lag_raw)\n| sort desc avg_lag_min\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Ingestion Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
                 "time_frame": {
                   "relativeTime": 86400000
                 },
@@ -643,7 +643,7 @@
                       "command": {
                         "op": "=",
                         "name": "header",
-                        "value": "\"Alert Detection Lag by Source (Avg Minutes)\""
+                        "value": "\"Alert Ingestion Lag by Source (Avg Minutes)\""
                       }
                     },
                     {
@@ -819,6 +819,163 @@
                         "op": "=",
                         "name": "yaxis",
                         "value": "total_incidents"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "row-lifecycle",
+          "data": [
+            {
+              "key": "life_mttd_shd",
+              "data": {
+                "type": "Custom XQL",
+                "width": 25,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter d_ms = subtract(verdict_ms, first_ms)\n| filter d_ms >= 0\n| alter mttd_seconds = divide(d_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard header = \"MTTD (sec)\" yaxis = avg_mttd_sec",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "header",
+                        "value": "\"MTTD (sec)\""
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mttd_sec"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "life_mttc_shd",
+              "data": {
+                "type": "Custom XQL",
+                "width": 25,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_stage = if(uppercase(phase) = \"CONTAINMENT\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_stage) as stage_ms by incident_id\n| filter stage_ms != null\n| alter d_ms = subtract(stage_ms, first_ms)\n| filter d_ms >= 0\n| alter secs = divide(d_ms, 1000)\n| comp avg(secs) as avg_mttc_sec\n| view graph type = single subtype = standard header = \"MTTC (sec)\" yaxis = avg_mttc_sec",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "header",
+                        "value": "\"MTTC (sec)\""
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mttc_sec"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "life_mtte_shd",
+              "data": {
+                "type": "Custom XQL",
+                "width": 25,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_stage = if(uppercase(phase) = \"ERADICATION\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_stage) as stage_ms by incident_id\n| filter stage_ms != null\n| alter d_ms = subtract(stage_ms, first_ms)\n| filter d_ms >= 0\n| alter secs = divide(d_ms, 1000)\n| comp avg(secs) as avg_mtte_sec\n| view graph type = single subtype = standard header = \"MTTE (sec)\" yaxis = avg_mtte_sec",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "header",
+                        "value": "\"MTTE (sec)\""
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mtte_sec"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "life_mttr_shd",
+              "data": {
+                "type": "Custom XQL",
+                "width": 25,
+                "height": 400,
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_stage = if(uppercase(phase) = \"RECOVERY\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_stage) as stage_ms by incident_id\n| filter stage_ms != null\n| alter d_ms = subtract(stage_ms, first_ms)\n| filter d_ms >= 0\n| alter secs = divide(d_ms, 1000)\n| comp avg(secs) as avg_mttr_sec\n| view graph type = single subtype = standard header = \"MTTR (sec)\" yaxis = avg_mttr_sec",
+                "time_frame": {
+                  "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                  "type": "single",
+                  "commands": [
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "subtype",
+                        "value": "standard"
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "header",
+                        "value": "\"MTTR (sec)\""
+                      }
+                    },
+                    {
+                      "command": {
+                        "op": "=",
+                        "name": "yaxis",
+                        "value": "avg_mttr_sec"
                       }
                     }
                   ]
@@ -1689,11 +1846,11 @@
     },
     {
       "widget_key": "xql_1785672500000_shd",
-      "title": "Alert Detection Lag by Source",
+      "title": "Alert Ingestion Lag by Source",
       "creation_time": 1773887140953,
-      "description": "Time from source event to XSIAM ingestion by alert source. Maps to MTTD \u2014 VD1 & VD3.",
+      "description": "Time from alert anchor timestamp to arrival in XSIAM, by source (ingestion lag).",
       "data": {
-        "phrase": "dataset = alerts\n// Alert Detection Lag: time from event to XSIAM ingestion \u2014 maps to MTTD (VD1 & VD3)\n| alter event_ts_ms = to_integer(arrayindex(event_timestamp, 0))\n| alter ingest_ts_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(ingest_ts_ms, event_ts_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = round(divide(lag_ms, 60000))\n| comp\n    avg(lag_minutes) as avg_lag_min,\n    max(lag_minutes) as max_lag_min,\n    count() as alert_count\n  by alert_source\n| sort desc avg_lag_min\n\n\n\n\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Detection Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
+        "phrase": "dataset = alerts\n| alter arrival_ms = to_integer(alert_arrival_timestamp)\n| alter anchor_ms = to_epoch(_time, \"millis\")\n| alter lag_ms = subtract(arrival_ms, anchor_ms)\n| filter lag_ms > 0 and lag_ms < 86400000\n| alter lag_minutes = divide(lag_ms, 60000)\n| comp avg(lag_minutes) as avg_lag_raw, max(lag_minutes) as max_lag_raw, count() as alert_count by alert_source\n| alter avg_lag_min = round(avg_lag_raw)\n| alter max_lag_min = round(max_lag_raw)\n| sort desc avg_lag_min\n| view graph type = column subtype = grouped layout = horizontal header = \"Alert Ingestion Lag by Source (Avg Minutes)\" xaxis = alert_source yaxis = avg_lag_min,max_lag_min xaxistitle = \"Alert Source\" yaxistitle = \"Minutes\" seriestitle(\"avg_lag_min\",\"Avg Lag (min)\") seriestitle(\"max_lag_min\",\"Max Lag (min)\") ",
         "time_frame": {
           "relativeTime": 86400000
         },
@@ -1718,7 +1875,7 @@
               "command": {
                 "op": "=",
                 "name": "header",
-                "value": "\"Alert Detection Lag by Source (Avg Minutes)\""
+                "value": "\"Alert Ingestion Lag by Source (Avg Minutes)\""
               }
             },
             {
@@ -1774,6 +1931,198 @@
       "additional_info": {
         "query_tables": [
           "alerts"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "life_mttd_shd",
+      "title": "MTTD (sec)",
+      "creation_time": 1785683000000,
+      "description": "MTTD (sec)",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_verdict = if(event_type = \"analysis_complete\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_verdict) as verdict_ms by incident_id\n| filter verdict_ms != null\n| alter d_ms = subtract(verdict_ms, first_ms)\n| filter d_ms >= 0\n| alter mttd_seconds = divide(d_ms, 1000)\n| comp avg(mttd_seconds) as avg_mttd_sec\n| view graph type = single subtype = standard header = \"MTTD (sec)\" yaxis = avg_mttd_sec",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "header",
+                "value": "\"MTTD (sec)\""
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mttd_sec"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "alerts"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "life_mttc_shd",
+      "title": "MTTC (sec)",
+      "creation_time": 1785683000000,
+      "description": "MTTC (sec)",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_stage = if(uppercase(phase) = \"CONTAINMENT\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_stage) as stage_ms by incident_id\n| filter stage_ms != null\n| alter d_ms = subtract(stage_ms, first_ms)\n| filter d_ms >= 0\n| alter secs = divide(d_ms, 1000)\n| comp avg(secs) as avg_mttc_sec\n| view graph type = single subtype = standard header = \"MTTC (sec)\" yaxis = avg_mttc_sec",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "header",
+                "value": "\"MTTC (sec)\""
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mttc_sec"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "xsiam_socfw_ir_execution_raw"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "life_mtte_shd",
+      "title": "MTTE (sec)",
+      "creation_time": 1785683000000,
+      "description": "MTTE (sec)",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_stage = if(uppercase(phase) = \"ERADICATION\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_stage) as stage_ms by incident_id\n| filter stage_ms != null\n| alter d_ms = subtract(stage_ms, first_ms)\n| filter d_ms >= 0\n| alter secs = divide(d_ms, 1000)\n| comp avg(secs) as avg_mtte_sec\n| view graph type = single subtype = standard header = \"MTTE (sec)\" yaxis = avg_mtte_sec",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "header",
+                "value": "\"MTTE (sec)\""
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mtte_sec"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "xsiam_socfw_ir_execution_raw"
+        ],
+        "query_uses_library": false
+      },
+      "creator_mail": "N/A",
+      "is_public": true,
+      "is_predefined": false
+    },
+    {
+      "widget_key": "life_mttr_shd",
+      "title": "MTTR (sec)",
+      "creation_time": 1785683000000,
+      "description": "MTTR (sec)",
+      "data": {
+        "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter execution_mode = \"shadow\"\n| alter t_ms = to_epoch(_time, \"millis\")\n| alter t_stage = if(uppercase(phase) = \"RECOVERY\", t_ms, null)\n| comp min(t_ms) as first_ms, min(t_stage) as stage_ms by incident_id\n| filter stage_ms != null\n| alter d_ms = subtract(stage_ms, first_ms)\n| filter d_ms >= 0\n| alter secs = divide(d_ms, 1000)\n| comp avg(secs) as avg_mttr_sec\n| view graph type = single subtype = standard header = \"MTTR (sec)\" yaxis = avg_mttr_sec",
+        "time_frame": {
+          "relativeTime": 2592000000
+        },
+        "viewOptions": {
+          "type": "single",
+          "commands": [
+            {
+              "command": {
+                "op": "=",
+                "name": "subtype",
+                "value": "standard"
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "header",
+                "value": "\"MTTR (sec)\""
+              }
+            },
+            {
+              "command": {
+                "op": "=",
+                "name": "yaxis",
+                "value": "avg_mttr_sec"
+              }
+            }
+          ]
+        }
+      },
+      "support_time_range": true,
+      "additional_info": {
+        "query_tables": [
+          "xsiam_socfw_ir_execution_raw"
         ],
         "query_uses_library": false
       },
