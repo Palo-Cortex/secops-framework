@@ -19,6 +19,7 @@ alert_fields:
   externallink: externallink
   alert_description: alert_description
   severity: severity
+  socfwidentityuserdisplayname: idr_display_name
   mitretacticid: mitretacticid
   mitretacticname: mitretacticname
   mitretechniqueid: mitretechniqueid
@@ -251,7 +252,14 @@ xql_query: |
                sid                          as idu_sid,
                on_prem_sid                  as idu_on_prem_sid,
                domain_name                  as idu_domain_name,
-               sam_account_name             as idu_sam_account_name
+               sam_account_name             as idu_sam_account_name,
+               title                        as idu_title,
+               department                   as idu_department,
+               manager_raw                  as idu_manager,
+               country                      as idu_country,
+               company_name                 as idu_company,
+               location                     as idu_location,
+               account_status               as idu_account_status
     ) as idu idu_join_key = idu.idu_join_key
   | alter idr_netbios          = coalesce(idu_netbios, idr_netbios),
           idr_display_name     = coalesce(idu_display_name, idr_display_name),
@@ -260,7 +268,14 @@ xql_query: |
           idr_sid              = coalesce(idu_sid, idr_sid),
           idr_on_prem_sid      = coalesce(idu_on_prem_sid, idr_on_prem_sid),
           idr_domain_name      = coalesce(idu_domain_name, idr_domain_name),
-          idr_sam_account_name = coalesce(idu_sam_account_name, idr_sam_account_name)
+          idr_sam_account_name = coalesce(idu_sam_account_name, idr_sam_account_name),
+          idr_title            = idu_title,
+          idr_department       = idu_department,
+          idr_manager          = idu_manager,
+          idr_country          = idu_country,
+          idr_company          = idu_company,
+          idr_location         = idu_location,
+          idr_account_status   = idu_account_status
 
   | alter idr_netbios = coalesce(
           idr_netbios,
