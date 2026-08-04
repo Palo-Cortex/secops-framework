@@ -129,6 +129,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `xdmsourceprocesscausalityid` | `causality_synth` | `computed` |  |
 | `samaccountname` | `evidence_loggedon_user` | `computed` |  |
 | `userid` | `evidence_user_upn` | `computed` |  |
+| `socfwidentityuserdisplayname` | `idr_display_name` | `cie` |  |
 | `alertaction` | `evidence_process_action` | `computed` |  |
 | `detectionid` | `detectorId` | `raw` |  |
 | `alert_name` | `alert_name` | `computed` |  |
