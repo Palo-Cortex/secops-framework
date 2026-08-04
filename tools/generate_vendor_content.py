@@ -169,8 +169,28 @@ def validate_mapping(doc: dict) -> list[str]:
                         f"declares bucket=computed but source '{src}' is not "
                         f"produced by pre_alter."
                     )
+            elif bucket == "cie":
+                if src not in _extract_cie_columns(cr):
+                    errors.append(
+                        f"{prefix}: alert_field issue.{af['issue_field']} "
+                        f"declares bucket=cie but source '{src}' is not "
+                        f"produced by the CIE overlay."
+                    )
 
     return errors
+
+
+def _extract_cie_columns(cr: dict) -> set[str]:
+    """idr_* (and any) columns produced by the CIE overlay (cie_join shorthand or bespoke cie_overlay)."""
+    xql = ""
+    if cr.get("cie_join"):
+        try:
+            xql = _build_cie_overlay_xql(cr["cie_join"])
+        except Exception:
+            xql = ""
+    elif cr.get("cie_overlay"):
+        xql = cr["cie_overlay"] if isinstance(cr["cie_overlay"], str) else ""
+    return _extract_computed_columns(xql)
 
 
 def _extract_computed_columns(pre_alter: str) -> set[str]:
@@ -567,7 +587,14 @@ def _build_cie_overlay_xql(cie_join):
         '             domain_name                  as map_domain,\n'
         '             sam_account_name             as map_sam,\n'
         '             on_prem_sid                  as map_on_prem_sid,\n'
-        '             netbios_and_sam_account_name as map_netbios\n'
+        '             netbios_and_sam_account_name as map_netbios,\n'
+        '             title                        as map_title,\n'
+        '             department                   as map_department,\n'
+        '             manager_raw                  as map_manager,\n'
+        '             country                      as map_country,\n'
+        '             company_name                 as map_company,\n'
+        '             location                     as map_location,\n'
+        '             account_status               as map_account_status\n'
         '  ) as m cie_join_key = m.cie_join_key\n'
         '| alter idr_sid              = coalesce(map_sid, idr_sid),\n'
         '        idr_upn              = coalesce(map_upn, idr_upn),\n'
@@ -576,7 +603,14 @@ def _build_cie_overlay_xql(cie_join):
         '        idr_domain_name      = coalesce(map_domain, idr_domain_name),\n'
         '        idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),\n'
         '        idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),\n'
-        '        idr_netbios          = coalesce(map_netbios, idr_netbios)\n'
+        '        idr_netbios          = coalesce(map_netbios, idr_netbios),\n'
+        '        idr_title            = map_title,\n'
+        '        idr_department       = map_department,\n'
+        '        idr_manager          = map_manager,\n'
+        '        idr_country          = map_country,\n'
+        '        idr_company          = map_company,\n'
+        '        idr_location         = map_location,\n'
+        '        idr_account_status   = map_account_status\n'
         '| alter _time = _insert_time'
     )
 

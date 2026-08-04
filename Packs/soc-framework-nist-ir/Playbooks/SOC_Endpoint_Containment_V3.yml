@@ -6,13 +6,18 @@ contentitemexportablefields:
   contentitemfields:
     packID: soc-framework-nist-ir
     packName: SOC Framework NIST IR (800-61)
-    itemVersion: 4.0.0
+    itemVersion: 1.6.8
     fromServerVersion: 5.0.0
     toServerVersion: ""
     definitionid: ""
     prevname: ""
     isoverridable: false
     supportedModules: []
+aclrelations: []
+aclowner:
+  id: ""
+  type: ""
+  name: ""
 name: SOC Endpoint Containment_V3
 description: |
   Endpoint category Containment playbook (NIST IR 800-61 Phase 3: Containment).
@@ -60,7 +65,8 @@ tasks:
       name: ""
       iscommand: false
       brand: ""
-      description: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
       - "1"
@@ -69,7 +75,7 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
+          "x": 265,
           "y": 50
         }
       }
@@ -121,8 +127,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 200
+          "x": 265,
+          "y": 220
         }
       }
     note: false
@@ -168,8 +174,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 360
+          "x": 50,
+          "y": 405
         }
       }
     note: false
@@ -193,7 +199,6 @@ tasks:
         approval prompt; if false, auto-approves. Writes Approval.decision
         into shared context.
       playbookName: SOC Approval Gate_V3
-      playbookId: SOC Approval Gate_V3
       type: playbook
       iscommand: false
       brand: ""
@@ -205,25 +210,26 @@ tasks:
     scriptarguments:
       action_name:
         simple: soc-isolate-endpoint
+      artifact_summary:
+        simple: 'Endpoint: ${inputs.Hostname} (agent_id: ${inputs.AgentID})'
+      context_summary:
+        simple: 'Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence},
+          Signal: ${inputs.SignalType}'
       phase:
         simple: Containment
-      artifact_summary:
-        simple: "Endpoint: ${inputs.Hostname} (agent_id: ${inputs.AgentID})"
-      context_summary:
-        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
     loop:
       iscommand: false
       exitCondition: ""
       wait: 1
       max: 0
-    continueonerror: true
-    continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 520
+          "x": 162.5,
+          "y": 590
         }
       }
     note: false
@@ -273,8 +279,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 680
+          "x": 162.5,
+          "y": 775
         }
       }
     note: false
@@ -319,8 +325,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 840
+          "x": 377.5,
+          "y": 960
         }
       }
     note: false
@@ -365,8 +371,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 1000
+          "x": 152.5,
+          "y": 1145
         }
       }
     note: false
@@ -387,7 +393,6 @@ tasks:
       description: |
         Call SOC Approval Gate_V3 for soc-kill-process.
       playbookName: SOC Approval Gate_V3
-      playbookId: SOC Approval Gate_V3
       type: playbook
       iscommand: false
       brand: ""
@@ -399,25 +404,26 @@ tasks:
     scriptarguments:
       action_name:
         simple: soc-kill-process
+      artifact_summary:
+        simple: 'Process: ${inputs.ProcessName} (PID: ${inputs.ProcessPID}) on ${inputs.Hostname}'
+      context_summary:
+        simple: 'Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence},
+          Signal: ${inputs.SignalType}'
       phase:
         simple: Containment
-      artifact_summary:
-        simple: "Process: ${inputs.ProcessName} (PID: ${inputs.ProcessPID}) on ${inputs.Hostname}"
-      context_summary:
-        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
     loop:
       iscommand: false
       exitCondition: ""
       wait: 1
       max: 0
-    continueonerror: true
-    continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 1160
+          "x": 162.5,
+          "y": 1330
         }
       }
     note: false
@@ -438,7 +444,6 @@ tasks:
       type: condition
       iscommand: false
       brand: ""
-      description: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
@@ -464,8 +469,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 1320
+          "x": 162.5,
+          "y": 1515
         }
       }
     note: false
@@ -507,8 +512,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 1480
+          "x": 275,
+          "y": 1700
         }
       }
     note: false
@@ -552,8 +557,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 1640
+          "x": 50,
+          "y": 1885
         }
       }
     note: false
@@ -574,7 +579,6 @@ tasks:
       description: |
         Call SOC Approval Gate_V3 for soc-block-indicators.
       playbookName: SOC Approval Gate_V3
-      playbookId: SOC Approval Gate_V3
       type: playbook
       iscommand: false
       brand: ""
@@ -586,25 +590,26 @@ tasks:
     scriptarguments:
       action_name:
         simple: soc-block-indicators
+      artifact_summary:
+        simple: 'Hash: ${inputs.TargetHash}'
+      context_summary:
+        simple: 'Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence},
+          Signal: ${inputs.SignalType}'
       phase:
         simple: Containment
-      artifact_summary:
-        simple: "Hash: ${inputs.TargetHash}"
-      context_summary:
-        simple: "Compromise: ${inputs.CompromiseLevel}, Confidence: ${inputs.Confidence}, Signal: ${inputs.SignalType}"
     separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
     loop:
       iscommand: false
       exitCondition: ""
       wait: 1
       max: 0
-    continueonerror: true
-    continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 1800
+          "x": 162.5,
+          "y": 2070
         }
       }
     note: false
@@ -625,7 +630,6 @@ tasks:
       type: condition
       iscommand: false
       brand: ""
-      description: ''
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
@@ -651,8 +655,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 1960
+          "x": 162.5,
+          "y": 2255
         }
       }
     note: false
@@ -694,8 +698,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 2120
+          "x": 275,
+          "y": 2440
         }
       }
     note: false
@@ -743,8 +747,8 @@ tasks:
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 2200
+          "x": 50,
+          "y": 2625
         }
       }
     note: false
@@ -783,15 +787,17 @@ tasks:
       key:
         simple: Containment.story
       value:
-        simple: "Containment phase executed for ${inputs.CompromiseLevel} alert. See Containment.Execution[] for per-action outcomes and the case audit log for analyst approval decisions."
+        simple: Containment phase executed for ${inputs.CompromiseLevel} alert. See
+          Containment.Execution[] for per-action outcomes and the case audit log for
+          analyst approval decisions.
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 2280
+          "x": 50,
+          "y": 2810
         }
       }
     note: false
@@ -830,15 +836,16 @@ tasks:
       key:
         simple: Containment.story
       value:
-        simple: "Containment skipped. CompromiseLevel = ${inputs.CompromiseLevel} did not warrant containment actions."
+        simple: Containment skipped. CompromiseLevel = ${inputs.CompromiseLevel} did
+          not warrant containment actions.
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 150,
-          "y": 360
+          "x": 602.5,
+          "y": 2810
         }
       }
     note: false
@@ -859,14 +866,15 @@ tasks:
       type: title
       iscommand: false
       brand: ""
-      description: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
     separatecontext: false
     continueonerrortype: ""
     view: |-
       {
         "position": {
-          "x": 480,
-          "y": 2440
+          "x": 602.5,
+          "y": 2995
         }
       }
     note: false
@@ -876,15 +884,16 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+outlinetasks: {}
 system: true
 view: |-
   {
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 2450,
-        "width": 600,
-        "x": 150,
+        "height": 3005,
+        "width": 932.5,
+        "x": 50,
         "y": 50
       }
     }
@@ -986,3 +995,4 @@ outputs:
 - contextPath: Containment.Execution
   description: Per-action execution records written by SOCCommandWrapper
   type: unknown
+possibleresponses: []
