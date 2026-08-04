@@ -43,6 +43,8 @@ Fields available in the raw ingest dataset.
 | `company_name` | `string` |  | declared |  |
 | `manager_raw` | `string` |  | declared |  |
 | `country` | `string` |  | declared |  |
+| `location` | `string` |  | declared |  |
+| `account_status` | `string` |  | declared |  |
 | `record_generated_time` | `datetime` |  | declared |  |
 
 ## Correlation Rules
@@ -81,4 +83,5 @@ Builds the socfw_identity_map identity-resolution dataset from Cloud Identity En
 | alter spn_str = arraystring(service_principal_names, ",")
 | alter acct_disabled = if(user_account_control != null and bitwise_and(user_account_control, 2) = 2, true, false)
 | alter recipient_type = if(spn_str != null and spn_str != "", "service", acct_disabled, "shared", "person")
+| alter account_status = if(acct_disabled, "disabled", "active")
 ```

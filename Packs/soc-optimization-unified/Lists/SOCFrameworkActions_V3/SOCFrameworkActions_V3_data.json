@@ -334,7 +334,8 @@
       "Microsoft Graph User": {
         "command": "msgraph-user-get",
         "inline_args": {
-          "user": "${SOCFramework.Primary.User}"
+          "user": "${SOCFramework.Primary.User}",
+          "properties": "department,city,employeeId,accountEnabled,onPremisesExtensionAttributes"
         }
       },
       "Okta v2": {
@@ -970,5 +971,33 @@
   "soc-posture-verify-misconfig": {
     "shadow_mode": true,
     "responses": {}
+  },
+  "soc-enrich-device-logons": {
+    "responses": {
+      "Microsoft Defender Advanced Threat Protection": {
+        "command": "microsoft-atp-get-machine-users",
+        "inline_args": {
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}"
+        }
+      },
+      "CrowdStrike Falcon": {
+        "command": "cs-falcon-list-host-login-history",
+        "inline_args": {
+          "ids": "${SOCFramework.Artifacts.EndPointID}"
+        }
+      }
+    },
+    "shadow_mode": false
+  },
+  "soc-enrich-user-manager": {
+    "responses": {
+      "Microsoft Graph User": {
+        "command": "msgraph-user-get-manager",
+        "inline_args": {
+          "user": "${SOCFramework.Primary.User}"
+        }
+      }
+    },
+    "shadow_mode": false
   }
 }
