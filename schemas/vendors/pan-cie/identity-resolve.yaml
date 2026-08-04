@@ -49,6 +49,8 @@ raw_schema:
   company_name:                 {type: string,   is_array: false}
   manager_raw:                  {type: string,   is_array: false}
   country:                      {type: string,   is_array: false}
+  location:                     {type: string,   is_array: false}
+  account_status:               {type: string,   is_array: false}
   record_generated_time:        {type: datetime, is_array: false}
 
 correlation_rules:
@@ -95,6 +97,7 @@ correlation_rules:
       | alter spn_str = arraystring(service_principal_names, ",")
       | alter acct_disabled = if(user_account_control != null and bitwise_and(user_account_control, 2) = 2, true, false)
       | alter recipient_type = if(spn_str != null and spn_str != "", "service", acct_disabled, "shared", "person")
+      | alter account_status = if(acct_disabled, "disabled", "active")
 
     final_projection:
       - sid
@@ -121,4 +124,6 @@ correlation_rules:
       - company_name
       - manager_raw
       - country
+      - location
+      - account_status
       - recipient_type

@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkAbnormalSecurity` |
-| Version | `1.0.4` |
+| Version | `1.0.5` |
 | Category | Email Security |
 | Pack Path | `Packs/SocFrameworkAbnormalSecurity` |
 | Manifest | [`Packs/SocFrameworkAbnormalSecurity/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkAbnormalSecurity/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `SocFrameworkAbnormalSecurity.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkAbnormalSecurity-v1.0.4/SocFrameworkAbnormalSecurity-v1.0.4.zip) |
+| `SocFrameworkAbnormalSecurity.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkAbnormalSecurity-v1.0.5/SocFrameworkAbnormalSecurity-v1.0.5.zip) |
 
 ## Marketplace Dependencies
 
