@@ -108,6 +108,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `externallink` | `externallink` | `computed` |  |
 | `alert_description` | `alert_description` | `computed` |  |
 | `severity` | `severity` | `computed` |  |
+| `socfwidentityuserdisplayname` | `idr_display_name` | `cie` |  |
 | `mitretacticid` | `mitretacticid` | `computed` |  |
 | `mitretacticname` | `mitretacticname` | `computed` |  |
 | `mitretechniqueid` | `mitretechniqueid` | `computed` |  |
