@@ -4,6 +4,7 @@ from CommonServerPython import *
 # Generic alert-narrative renderer. One section on every category layout;
 # the resolved SOCFramework.Product.category decides which renderer runs.
 # Add a category by writing a render_<category>(f) function and registering it.
+# Category renderers read the normalized SOCFramework.* contract, not alert fields.
 
 
 def _fields():
@@ -26,6 +27,13 @@ def _coalesce(f, *names):
         if v is not None:
             return v
     return None
+
+
+def _cget(ctx, path):
+    v = demisto.dt(ctx, path)
+    if isinstance(v, list):
+        v = ", ".join(str(x) for x in v if x not in (None, "", "null")) or None
+    return v if v not in (None, "", [], {}, "null") else None
 
 
 def _badge(label, color):
@@ -197,9 +205,161 @@ def render_email(f):
     return html
 
 
+def render_identity(f):
+    # Reads only the normalized SOCFramework.* contract, never alert fields —
+    # a backend field change touches the normalize map, not this script.
+    ctx = demisto.context()
+    A = "SOCFramework.Artifacts."
+    headline = _cget(ctx, "SOCFramework.Identity.alert_name")
+    if not headline:
+        return None
+    vendor = _cget(ctx, "SOCFramework.Identity.alert_source")
+    user = _cget(ctx, A + "Identity.User.DisplayName") or _cget(ctx, A + "Identity.User.Name")
+    email = _cget(ctx, A + "Identity.User.Email")
+    src_ip = _cget(ctx, A + "Identity.Source.IP")
+    src_host = _cget(ctx, A + "Identity.Source.Hostname")
+    countries = _cget(ctx, A + "Identity.Source.Country")
+    ua = _cget(ctx, A + "Identity.Source.UserAgent")
+    event_type = _cget(ctx, A + "Identity.Provider.EventType")
+    tactic = _cget(ctx, A + "MITRE.Tactic") or _cget(ctx, A + "MITRE.Category")
+    technique = _cget(ctx, A + "MITRE.Technique")
+
+    html = "<div style='padding:4px;'>"
+    band = ""
+    kc = " &rsaquo; ".join([x for x in (tactic, technique) if x])
+    if kc:
+        band += _badge(kc, "#4a148c") + "&nbsp;"
+    if vendor:
+        band += _badge(str(vendor), "#37474f")
+    if band:
+        html += f"<div style='margin-bottom:10px;'>{band}</div>"
+
+    subj = f"<b>{user}</b>" if user else ""
+    if user and email:
+        subj += f" ({email})"
+    sentence = subj
+    if headline:
+        sentence = (sentence + " &mdash; " if sentence else "") + f"<b>{headline}</b>"
+    if sentence:
+        html += _section("What happened", sentence, "#0277bd")
+
+    src = ""
+    if src_ip:
+        src += ("<div><span style='color:#888;font-size:10px;'>SOURCE IP</span><br>"
+                + _mono(src_ip) + "</div>")
+    if countries:
+        hot = "#c62828" if "," in str(countries) else "#888"
+        src += (f"<div style='margin-top:4px;'><span style='color:{hot};font-size:10px;'>"
+                f"SOURCE COUNTRY</span><br>{_mono(countries)}</div>")
+    if src_host:
+        src += (f"<div style='margin-top:4px;'><span style='color:#888;font-size:10px;'>"
+                f"SOURCE HOST</span><br>{_mono(src_host)}</div>")
+    if src:
+        html += _section("Origin", src, "#00695c")
+
+    meta = []
+    if ua:
+        meta.append(f"<b>User agent:</b> {ua}")
+    if event_type:
+        meta.append(f"<b>Event type:</b> {event_type}")
+    if meta:
+        html += _section("Session", "<br>".join(meta), "#555")
+    html += "</div>"
+    return html
+
+
+def render_network(f):
+    # Reads only the normalized SOCFramework.* contract, never alert fields.
+    ctx = demisto.context()
+    A = "SOCFramework.Artifacts.Network."
+    headline = _cget(ctx, "SOCFramework.Network.alert_name")
+    if not headline:
+        return None
+    vendor = _cget(ctx, "SOCFramework.Network.alert_source")
+    s_ip = _cget(ctx, A + "Source.IP")
+    s_host = _cget(ctx, A + "Source.Hostname")
+    s_country = _cget(ctx, A + "Source.Country")
+    s_port = _cget(ctx, A + "Source.Port")
+    s_zone = _cget(ctx, A + "Source.Zone")
+    d_ip = _cget(ctx, A + "Destination.IP")
+    d_host = _cget(ctx, A + "Destination.Hostname")
+    d_country = _cget(ctx, A + "Destination.Country")
+    d_port = _cget(ctx, A + "Destination.Port")
+    d_zone = _cget(ctx, A + "Destination.Zone")
+    action = _cget(ctx, A + "Flow.Action")
+    app = _cget(ctx, A + "Flow.Application")
+    event_type = _cget(ctx, A + "Flow.EventType")
+    dev_name = _cget(ctx, A + "Device.Name")
+    dev_rule = _cget(ctx, A + "Device.RuleName")
+    dns_q = _cget(ctx, A + "DNS.Query")
+    tactic = _cget(ctx, "SOCFramework.Artifacts.MITRE.Tactic") or _cget(ctx, "SOCFramework.Artifacts.MITRE.Category")
+    technique = _cget(ctx, "SOCFramework.Artifacts.MITRE.Technique")
+
+    def _endpoint(ip, host, port, zone, country):
+        parts = []
+        if ip:
+            parts.append(_mono(ip) + (f":{port}" if port else ""))
+        if host:
+            parts.append(f"<b>{host}</b>")
+        line = " ".join(parts)
+        tail = " / ".join([x for x in (zone, country) if x])
+        if tail:
+            line += f" <span style='color:#888;'>({tail})</span>"
+        return line
+
+    html = "<div style='padding:4px;'>"
+    band = ""
+    kc = " &rsaquo; ".join([x for x in (tactic, technique) if x])
+    if kc:
+        band += _badge(kc, "#4a148c") + "&nbsp;"
+    if action:
+        band += _badge(str(action).upper(), "#e65100") + "&nbsp;"
+    if vendor:
+        band += _badge(str(vendor), "#37474f")
+    if band:
+        html += f"<div style='margin-bottom:10px;'>{band}</div>"
+
+    if headline:
+        html += _section("What happened", f"<b>{headline}</b>", "#0277bd")
+
+    flow = ""
+    src_line = _endpoint(s_ip, s_host, s_port, s_zone, s_country)
+    dst_line = _endpoint(d_ip, d_host, d_port, d_zone, d_country)
+    if src_line:
+        flow += (f"<div><span style='color:#888;font-size:10px;'>SOURCE</span>"
+                 f"<br>{src_line}</div>")
+    if dst_line:
+        flow += (f"<div style='margin-top:4px;'><span style='color:#888;font-size:10px;'>"
+                 f"DESTINATION</span><br>{dst_line}</div>")
+    if flow:
+        html += _section("Flow", flow, "#00695c")
+
+    meta = []
+    if app:
+        meta.append(f"<b>Application:</b> {app}")
+    if event_type:
+        meta.append(f"<b>Event type:</b> {event_type}")
+    if dns_q:
+        meta.append(f"<b>DNS:</b> {_mono(dns_q)}")
+    if meta:
+        html += _section("Traffic", "<br>".join(meta), "#00695c")
+
+    dev = []
+    if dev_name:
+        dev.append(f"<b>Device:</b> {dev_name}")
+    if dev_rule:
+        dev.append(f"<b>Rule:</b> {dev_rule}")
+    if dev:
+        html += _section("Enforcement", "<br>".join(dev), "#555")
+    html += "</div>"
+    return html
+
+
 RENDERERS = {
     "endpoint": render_endpoint,
     "email": render_email,
+    "identity": render_identity,
+    "network": render_network,
 }
 
 
@@ -209,6 +369,13 @@ def _detect_category(f, ctx):
         return str(cat).strip().lower()
     if _coalesce(f, "emailsource", "email_sender", "fw_email_recipient"):
         return "email"
+    tags = f.get("family_tags") or f.get("tags") or []
+    if isinstance(tags, list) and any(str(t).lower().startswith("dt:identity") for t in tags):
+        return "identity"
+    if isinstance(tags, list) and any(str(t).lower().startswith("dt:network") for t in tags):
+        return "network"
+    if _coalesce(f, "fwserialnumber", "fwname"):
+        return "network"
     if _coalesce(f, "hostname", "agent_hostname") and _coalesce(f, "initiatorcmd", "actor_process_command_line", "initiatedby"):
         return "endpoint"
     return ""
