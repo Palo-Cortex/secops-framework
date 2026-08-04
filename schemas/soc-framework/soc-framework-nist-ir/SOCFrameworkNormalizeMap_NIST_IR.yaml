@@ -155,8 +155,16 @@ categories:
       - { target: Artifacts.MITRE.TacticID, issue_field: mitretacticid, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.Technique, issue_field: mitretechniquename, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.TechniqueID, issue_field: mitretechniqueid, shape: structured, role: canonical, source_origin: native }
-      - { target: Primary.User, issue_field: 'username.[0]', shape: flat, role: canonical, source_origin: native }
+      # Primary.* = the resolvable enrichment subject SOCFrameworkActions reads.
+      # Ordered rows coalesce across identity sources; last non-empty wins.
+      # UPN/email — never username (DOMAIN\id resolves against no directory).
+      - { target: Primary.User, issue_field: email, shape: flat, role: canonical, source_origin: native }
+      - { target: Primary.User, issue_field: employeeemail, shape: flat, role: canonical, source_origin: native }
+      - { target: Primary.User, issue_field: user_principal, shape: flat, role: canonical, source_origin: native }
+      - { target: Primary.Email, issue_field: employeeemail, shape: flat, role: canonical, source_origin: native }
       - { target: Primary.Email, issue_field: email, shape: flat, role: canonical, source_origin: native }
+      # on-prem AD wants bare sAMAccountName, not a UPN — its own key
+      - { target: Primary.SamAccountName, issue_field: samaccountname, shape: flat, role: canonical, source_origin: native }
     stamps:
       - { target: Identity.normalization_source, value: identity }
     mirrors:
