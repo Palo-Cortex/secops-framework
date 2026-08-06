@@ -92,6 +92,17 @@ categories:
       - { target: Artifacts.FilePath, issue_field: 'filepath.[0]', shape: structured, role: legacy_alias, source_origin: native }
       - { target: Artifacts.Hash, issue_field: 'filesha256.[0]', shape: structured, role: legacy_alias, source_origin: native }
       - { target: Artifacts.User, issue_field: 'username.[0]', shape: structured, role: legacy_alias, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: username, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.UPN, issue_field: 'username.[0]', shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.UPN, issue_field: userid, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.UPN, issue_field: user_principal, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.Name, issue_field: username, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.Name, issue_field: 'username.[0]', shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.ID, issue_field: userid, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.ID, issue_field: usersid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.ID, issue_field: 'usersid.[0]', shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.SAM, issue_field: samaccountname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: socfwidentityuserdisplayname, shape: structured, role: canonical, source_origin: socfw_custom }
     stamps:
       - { target: Endpoint.normalization_source, value: endpoint }
       - { target: Artifacts.Process.Verdict, value:  }
@@ -125,6 +136,13 @@ categories:
       - { target: Email.threat_type, issue_field: socfwemailthreattype, shape: flat, role: canonical, source_origin: socfw_custom, reason: "Vendor email threat type; no native issue field" }
       - { target: Email.threat_url, issue_field: socfwemailthreaturl, shape: flat, role: canonical, source_origin: socfw_custom, reason: "Vendor email threat URL; no native issue field" }
       - { target: Primary.User, issue_field: username, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: emailrecipient, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.UPN, issue_field: username, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.UPN, issue_field: 'username.[0]', shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.UPN, issue_field: user_principal, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.Name, issue_field: username, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.Name, issue_field: 'username.[0]', shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: socfwidentityuserdisplayname, shape: structured, role: canonical, source_origin: socfw_custom }
     stamps:
       - { target: Email.normalization_source, value: email }
       - { target: Email.normalization_source, value: mail_listener }
@@ -155,6 +173,8 @@ categories:
       - { target: Artifacts.MITRE.TacticID, issue_field: mitretacticid, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.Technique, issue_field: mitretechniquename, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.TechniqueID, issue_field: mitretechniqueid, shape: structured, role: canonical, source_origin: native }
+      - { target: Identity.user_principal, issue_field: user_principal, shape: structured, role: canonical, source_origin: native, lower: true }
+      - { target: Identity.sam_account_name, issue_field: samaccountname, shape: structured, role: canonical, source_origin: native }
       # Primary.* = the resolvable enrichment subject SOCFrameworkActions reads.
       # Ordered rows coalesce across identity sources; last non-empty wins.
       # UPN/email — never username (DOMAIN\id resolves against no directory).
@@ -177,6 +197,8 @@ categories:
       - { target: Artifacts.Identity.Source.Country, source: Identity.country, role: canonical, shape: structured }
       - { target: Artifacts.Identity.Source.UserAgent, source: Identity.user_agent, role: canonical, shape: structured }
       - { target: Artifacts.Identity.Provider.EventType, source: Identity.event_type, role: canonical, shape: structured }
+      - { target: Artifacts.Identity.User.UPN, source: Identity.user_principal, role: canonical, shape: structured, lower: true }
+      - { target: Artifacts.Identity.User.SAM, source: Identity.sam_account_name, role: canonical, shape: structured }
 
   network:
     status: in-progress

@@ -9,14 +9,17 @@ from CommonServerPython import *  # noqa
 IDENTITY_ROWS = [
     ("Display Name", "Identity.User.DisplayName", "Identity.User.DisplayName"),
     ("UPN", "Identity.User.UPN", "Identity.User.UPN"),
+    ("Username", "Identity.User.Name", "Identity.User.Name"),
+    ("SAM Account", "Identity.User.SAM", "Identity.User.SAM"),
+    ("User ID", "Identity.User.ID", "Identity.User.ID"),
     ("Email", "Identity.User.Email", "Identity.User.Email"),
     ("Job Title", "Identity.User.JobTitle", "Identity.User.JobTitle"),
     ("Department", "Identity.User.Department", "Identity.User.Department"),
     ("Manager", "Identity.User.Manager", "Identity.User.Manager"),
     ("City", "Identity.User.City", "Identity.User.City"),
-    ("Office", "Identity.User.OfficeLocation", "Identity.User.Location"),
+    ("Office", "Identity.User.OfficeLocation", "Identity.User.OfficeLocation"),
     ("Employee ID", "Identity.User.EmployeeID", "Identity.User.EmployeeID"),
-    ("Account Status", "Identity.User.AccountEnabled", "Identity.User.AccountStatus"),
+    ("Account Status", "Identity.User.AccountEnabled", "Identity.User.AccountEnabled"),
     ("Employment Status", "Identity.User.EmploymentStatus", "Identity.User.EmploymentStatus"),
 ]
 DEVICE_ROWS = [
@@ -52,7 +55,7 @@ def _section(ctx, title, rows):
     for label, a_suf, art_suf in rows:
         val, src = _resolve(ctx, a_suf, art_suf)
         if val is None:
-            body.append("| {} | - | |".format(label))
+            body.append("| {} | - |".format(label))
         else:
             any_val = True
             tag = " *(directory)*" if src == "directory" else ""
