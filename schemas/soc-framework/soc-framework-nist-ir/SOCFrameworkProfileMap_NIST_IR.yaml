@@ -1,0 +1,63 @@
+# ============================================================================
+# SOC Framework Profile Map — NIST IR lifecycle
+# Display-only resolution for the Identity & Device Context panel.
+#
+# The contract (SOCFramework.Artifacts.*) carries what the framework decides
+# and acts on: identity keys, hostname, agent id, tags. Those are normalized
+# once and read by the containment, eradication and recovery playbooks.
+#
+# The fields below are read by nothing but the panel, so they are not mirrored
+# into the contract. The panel resolves each one in order and takes the first
+# non-empty value, which keeps vendor knowledge in one file instead of a task
+# per vendor per field.
+#
+# Per-tenant variance belongs here. Extension attribute numbers, a vendor that
+# publishes a field somewhere unusual, or a source a customer does not run —
+# edit this map, not the playbook or the panel script.
+#
+# This is schema-source-of-truth. To change what the panel shows, edit this
+# YAML and regenerate the list — never edit the panel script.
+# ============================================================================
+lifecycle: nist_ir
+pack: soc-framework-nist-ir
+list_name: SOCFrameworkProfileMap_NIST_IR
+description: Display-only field resolution for the Identity & Device Context
+  panel. Ordered source paths per field; first non-empty wins. Vendor context
+  paths are taken from the integration definitions in demisto/content.
+
+fields:
+  # ---- identity profile (directory-sourced) ----
+  Identity.User.JobTitle:
+    - MSGraphUser.JobTitle
+    - ActiveDirectory.Users.title
+  Identity.User.Department:
+    - MSGraphUser.Department
+    - ActiveDirectory.Users.department
+  Identity.User.Manager:
+    - MSGraphUserManager.Manager.DisplayName
+    - ActiveDirectory.Users.manager
+  Identity.User.City:
+    - MSGraphUser.City
+  Identity.User.OfficeLocation:
+    - MSGraphUser.OfficeLocation
+    - ActiveDirectory.Users.physicalDeliveryOfficeName
+  Identity.User.EmployeeID:
+    - MSGraphUser.EmployeeID
+  Identity.User.EmploymentStatus:
+    # tenant-specific: which extension attribute carries employment status
+    # differs per directory. Change the number here, not in content.
+    - MSGraphUser.OnPremisesExtensionAttributes.extensionAttribute13
+
+  # ---- device detail (EDR-sourced) ----
+  Endpoint.MostLogonUser:
+    - MicrosoftATP.MachineUser.mostPrevalentAccountName
+    - MicrosoftATP.MachineUser.[0].AccountName
+    - Core.Endpoint.users
+    - VisionOne.Endpoint_Info.login_account.value
+  Endpoint.NewestLogonUser:
+    - MicrosoftATP.MachineUser.leastPrevalentAccountName
+    - MicrosoftATP.MachineUser.[-1].AccountName
+  Endpoint.OSVersion:
+    - VisionOne.Endpoint_Info.os_version
+  Endpoint.MACAddress:
+    - VisionOne.Endpoint_Info.mac_address.value
