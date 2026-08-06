@@ -376,7 +376,10 @@ def _detect_category(f, ctx):
         return "network"
     if _coalesce(f, "fwserialnumber", "fwname"):
         return "network"
-    if _coalesce(f, "hostname", "agent_hostname") and _coalesce(f, "initiatorcmd", "actor_process_command_line", "initiatedby"):
+    # Machine evidence alone is enough. Analytic and BIOC alerts carry the
+    # device without a process or a user, and the endpoint renderer treats
+    # everything but the headline as optional.
+    if _coalesce(f, "hostname", "agent_hostname", "xdmsourcehosthostname", "agentid", "agent_id"):
         return "endpoint"
     return ""
 
