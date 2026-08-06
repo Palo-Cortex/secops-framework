@@ -207,6 +207,8 @@ def apply_mappings(section, custom_fields, writes, skipped):
         if is_empty(val):
             skipped["empty"].append({"target": target, "source": source})
             continue
+        if m.get("lower") and isinstance(val, str):
+            val = val.lower()
         writes[target] = val
 
 
