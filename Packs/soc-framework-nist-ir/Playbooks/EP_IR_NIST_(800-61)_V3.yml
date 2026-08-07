@@ -23,7 +23,7 @@ description: |-
 
   Alert Classification – Matches the incoming alert’s MITRE ATT&CK tactic or category against the Playbook Deployment Matrix to determine the appropriate response path.
 
-  Routing to Lifecycle – Once classified, passes control to the top-level SOC NIST IR (800-61)_V3 playbook, which orchestrates the NIST alert response phases (Preparation, Detection & Analysis, Containment, Eradication, Recovery, and Post-Alert).
+  Lifecycle Execution – Once classified, runs the NIST alert response phases inline (Preparation, Detection & Analysis, Containment, Eradication, Recovery), dispatching to each per-phase playbook in order.
 
   This playbook ensures that every alert begins consistently, with normalization and routing handled before entering the NIST IR lifecycle. It effectively connects the raw automation trigger to the structured NIST response process, enabling modular blue/green deployment and tool-agnostic playbook execution
 tags:
@@ -83,63 +83,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 960
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "15":
-    id: "15"
-    taskid: b7646310-99ef-43b2-a843-a63a15dc6d0d
-    type: playbook
-    task:
-      id: b7646310-99ef-43b2-a843-a63a15dc6d0d
-      version: -1
-      name: SOC NIST IR (800-61)_V3
-      description: |-
-        This playbook implements the NIST SP 800-61 Alert Response lifecycle in a structured, repeatable way. It serves as the top-level controller, orchestrating all downstream playbooks and automations that align to the four NIST phases:
-
-        Preparation – Normalize and stage context (entities, products, alert categories) to ensure consistent execution.
-
-        Detection & Analysis – Trigger enrichment and investigation playbooks (endpoint, network, identity, email, cloud) based on normalized entities and mapped MITRE ATT&CK tactics.
-
-        Containment, Eradication, Recovery – Call the appropriate static or product-specific playbooks to contain threats, remove malicious artifacts, and restore systems.
-
-        Post-Alert Activity – Document lessons learned, update playbook routing matrices, and feed back into SOC optimization.
-
-        The design emphasizes modularity and flexibility:
-
-        Each NIST phase is represented as a dedicated section or sub-playbook, making it easy to swap out or extend tools.
-
-        Normalization (Upon Trigger of the EntryPoint) ensures entities (hosts, users, IPs, processes, etc.) are handled consistently.
-
-        This top-level playbook is the backbone of the SOC Framework: it receives the alert trigger, applies the NIST 800-61 model, and routes execution to the appropriate detection, containment, and response sub-playbooks for standardized alert handling
-      playbookName: SOC NIST IR (800-61)_V3
-      type: playbook
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "3"
-    separatecontext: false
-    continueonerrortype: ""
-    loop:
-      iscommand: false
-      exitCondition: ""
-      wait: 1
-      max: 100
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 775
+          "y": 2440
         }
       }
     note: false
@@ -165,7 +109,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "15"
+      - "9100"
     separatecontext: false
     continueonerrortype: ""
     loop:
@@ -265,6 +209,237 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  "9100":
+    continueonerrortype: ''
+    id: "9100"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9101"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ''
+      id: 707a43f2-ce32-449f-894f-a0516e802be0
+      iscommand: false
+      name: Preparation
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 707a43f2-ce32-449f-894f-a0516e802be0
+    timertriggers: []
+    type: title
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 775\n  }\n}"
+  "9101":
+    continueonerrortype: ''
+    id: "9101"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9102"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ''
+      id: a8a79a1d-db10-42e4-8469-335dc3f7afef
+      iscommand: false
+      name: Detection & Analysis
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: a8a79a1d-db10-42e4-8469-335dc3f7afef
+    timertriggers: []
+    type: title
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 960\n  }\n}"
+  "9102":
+    continueonerrortype: ''
+    id: "9102"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9103"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ''
+      id: 76e167da-bd76-4689-8307-720610b53c4d
+      iscommand: false
+      name: SOC Analysis_V3
+      playbookId: SOC Analysis_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 76e167da-bd76-4689-8307-720610b53c4d
+    timertriggers: []
+    type: playbook
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1145\n  }\n}"
+  "9103":
+    continueonerrortype: ''
+    id: "9103"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9104"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ''
+      id: 82a21dcd-8822-4211-8370-bb5044a2661b
+      iscommand: false
+      name: Containment
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 82a21dcd-8822-4211-8370-bb5044a2661b
+    timertriggers: []
+    type: title
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1330\n  }\n}"
+  "9104":
+    continueonerrortype: ''
+    id: "9104"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9105"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ''
+      description: This playbook acts as a container for Containment playbooks acting on Product Category (i.e. EndPoint,
+        Data, Network, Cloud SaaS, Cloud Workload, Identity).
+      id: a496d4a7-564f-43e4-8c6d-b92eeaa462a3
+      iscommand: false
+      name: SOC Containment_V3
+      playbookId: SOC Containment_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: a496d4a7-564f-43e4-8c6d-b92eeaa462a3
+    timertriggers: []
+    type: playbook
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1515\n  }\n}"
+  "9105":
+    continueonerrortype: ''
+    id: "9105"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9106"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ''
+      id: 467e83fc-5ad9-43fc-8808-94358e3e7c52
+      iscommand: false
+      name: Eradication
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 467e83fc-5ad9-43fc-8808-94358e3e7c52
+    timertriggers: []
+    type: title
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1700\n  }\n}"
+  "9106":
+    continueonerrortype: ''
+    id: "9106"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9107"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ''
+      id: d7088963-3f31-4f23-8006-8ce0197116c0
+      iscommand: false
+      name: SOC Eradication_V3
+      playbookId: SOC Eradication_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: d7088963-3f31-4f23-8006-8ce0197116c0
+    timertriggers: []
+    type: playbook
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1885\n  }\n}"
+  "9107":
+    continueonerrortype: ''
+    id: "9107"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "9108"
+    note: false
+    quietmode: 0
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ''
+      id: 7076683a-109c-4f3e-8714-c729eb5ef6ae
+      iscommand: false
+      name: Recovery
+      playbooktaskmissingcomponent: null
+      type: title
+      version: -1
+    taskid: 7076683a-109c-4f3e-8714-c729eb5ef6ae
+    timertriggers: []
+    type: title
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2070\n  }\n}"
+  "9108":
+    continueonerrortype: ''
+    id: "9108"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "3"
+    note: false
+    quietmode: 0
+    separatecontext: true
+    skipunavailable: false
+    task:
+      brand: ''
+      id: 1bb50423-f0d1-4446-888b-ade2a1146870
+      iscommand: false
+      name: SOC Recovery_V3
+      playbookId: SOC Recovery_V3
+      playbooktaskmissingcomponent: null
+      type: playbook
+      version: -1
+    taskid: 1bb50423-f0d1-4446-888b-ade2a1146870
+    timertriggers: []
+    type: playbook
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 2255\n  }\n}"
 system: true
 view: |-
   {
