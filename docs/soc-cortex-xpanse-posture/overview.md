@@ -10,12 +10,6 @@
 | Pack Path | `Packs/soc-cortex-xpanse-posture` |
 | Manifest | [`Packs/soc-cortex-xpanse-posture/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-cortex-xpanse-posture/xsoar_config.json) |
 
-## Schemas
-
-Reference documentation for the schemas this pack defines.
-
-- [Cortex Xpanse (cortex-xpanse)](cortex-xpanse-posture.md)
-
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
 
 ## Manual Steps
