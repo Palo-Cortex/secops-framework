@@ -1,0 +1,29 @@
+# Test #2b - two events, identity mismatched on BOTH sides (should NOT group)
+#
+# Original Turla Carbon attack events. Only the identities are changed, and both
+# are changed to fresh values that exist nowhere else on the tenant:
+#
+#   Abnormal recipientAddress          -> t2mail@othercorp.example
+#   Defender userEvidence UPN          -> t2host@corpb.example
+#
+# Both fresh on purpose: the previous Test #2 run was polluted when the Abnormal
+# rule re-fired the Test #1 gunter email onto a later tick and that duplicate
+# grouped with the gunter endpoint alert. Neither identity here matches anything
+# already on the tenant, so no stale re-fire can attach to either issue.
+#
+# Expect: TWO separate cases, one issue each.
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/grouping_t2b_mismatch.yml --compress-window 5m
+
+scenario: Grouping Test 2b - two events, identity mismatched
+compress_window: 5m
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/t2b-abnormal.tsv
+    env: .env-brumxdr-abnormal
+
+  - name: Microsoft Defender
+    file: input_tsv/t2b-defender.tsv
+    env: .env-brumxdr-defender

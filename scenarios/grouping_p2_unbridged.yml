@@ -1,0 +1,30 @@
+# Grouping isolation test - PHASE 2 (identity stripped)
+#
+# Expect: TWO separate cases (or incident_id null), NOT grouped.
+#
+# Identical to phase 1 except the identity is removed from both sides:
+#   - Abnormal recipientAddress / toAddresses : emptied
+#   - Defender userPrincipalName / accountName / userSid / loggedOnUsers : nulled
+#
+# Verified: phase 2 shares ZERO groupable tokens between the two sources.
+#
+# Phase 3 (manual): run setIssue on ONE of the resulting issues to write the
+# identity back, then wait and re-check grouping. If the two issues merge after
+# the write, post-hoc field population drives grouping. If they never merge,
+# grouping is decided at alert-fire time only.
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/grouping_p2_unbridged.yml --dry-run
+#   python3 tools/replay_scenario.py --manifest scenarios/grouping_p2_unbridged.yml --compress-window 5m
+
+scenario: Grouping Isolation - Phase 2 (identity stripped)
+compress_window: 5m
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/grouping-p2-abnormal.tsv
+    env: .env-brumxdr-abnormal
+
+  - name: Microsoft Defender
+    file: input_tsv/grouping-p2-defender.tsv
+    env: .env-brumxdr-defender

@@ -1,0 +1,24 @@
+# Test #1 - two events only, original Turla Carbon attack (gunter@skt.local)
+#
+# 1 Abnormal email event + 1 Defender endpoint event, values UNMODIFIED from the
+# original attack fixtures. Expect: ONE case containing both issues, the same way
+# the full 160-event replay groups them.
+#
+# Defender row: "Suspicious process observed with malware characteristics"
+#   (DefenseEvasion) - chosen because it carries a userEvidence element with
+#   userAccount.userPrincipalName = Gunter@SKT.LOCAL, which is what the rule reads.
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/grouping_t1_gunter.yml --compress-window 5m
+
+scenario: Grouping Test 1 - two events, gunter (bridged)
+compress_window: 5m
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/Abnormal-MITRE-Turla-Carbon-in-XSIAM.tsv
+    env: .env-brumxdr-abnormal
+
+  - name: Microsoft Defender
+    file: input_tsv/gunter-2evt-defender.tsv
+    env: .env-brumxdr-defender

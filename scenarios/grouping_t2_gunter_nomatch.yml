@@ -1,0 +1,25 @@
+# Test #2 - two events, identity broken (should NOT group)
+#
+# Identical to grouping_t1_gunter.yml except the Abnormal recipient is changed
+# from Gunter@SKT.LOCAL to notgunter@othercorp.example, so the email side no
+# longer shares a user with the Defender endpoint event.
+#
+# Expect: TWO separate cases.
+#
+# Then: setIssue the recipient/username back onto one of the issues and watch
+# whether the two merge inside the open-issue grouping window.
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/grouping_t2_gunter_nomatch.yml --compress-window 5m
+
+scenario: Grouping Test 2 - two events, gunter (identity broken)
+compress_window: 5m
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/gunter-2evt-abnormal-nomatch.tsv
+    env: .env-brumxdr-abnormal
+
+  - name: Microsoft Defender
+    file: input_tsv/gunter-2evt-defender.tsv
+    env: .env-brumxdr-defender
