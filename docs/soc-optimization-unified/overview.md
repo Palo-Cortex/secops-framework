@@ -15,6 +15,7 @@
 Reference documentation for the schemas this pack defines.
 
 - [Directory Sync (pan-cie)](identity-resolve.md)
+- [SOCProductCategoryMap_V3](SOCProductCategoryMap_V3.md)
 
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
 
