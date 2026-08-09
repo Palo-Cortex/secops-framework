@@ -65,3 +65,8 @@ All queries operate against `dataset = issues` filtered by `xdm.issue.detection.
 ## Support
 
 Contact the SOC Framework team for issues, feature requests, or extending this pattern to additional platform-native sources.
+
+
+### Roadmap: pattern extension to AES / Koi
+
+When Cortex AES (Agentic Endpoint Security, Koi) telemetry begins flowing to XSIAM, the same unified-platform-native pattern will apply. Koi will write issues directly to the `issues` dataset at platform ingestion with platform-applied XDM normalization. A future `posture_agent_runtime` category will be added to `SOCFrameworkNormalizeMap_POSTURE` covering agent identity, runtime policy violations, MCP tool interactions, and prompt injection detections. Contract shape will follow this pack's precedent.
