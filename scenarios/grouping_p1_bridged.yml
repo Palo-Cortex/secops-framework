@@ -1,0 +1,29 @@
+# Grouping isolation test - PHASE 1 (identity bridged)
+#
+# Expect: ONE case containing TWO issues ([Email] Abnormal + [Endpoint] Defender).
+#
+# The ONLY shared groupable value is the user: grptest01@skt.local
+#   - Abnormal recipientAddress      == grptest01@skt.local
+#   - Defender userPrincipalName     == grptest01@skt.local
+# Everything else is deliberately disjoint (sender domain, sender IP, URL domain,
+# hostname, device id, local/external IP, file + parent hashes), so a merge here
+# can ONLY be the identity bridge.
+#
+# Fresh identity on purpose: gunter@skt.local already carries 86 linked cases on
+# brumxdr and would swallow these alerts into a pre-existing case.
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/grouping_p1_bridged.yml --dry-run
+#   python3 tools/replay_scenario.py --manifest scenarios/grouping_p1_bridged.yml --compress-window 5m
+
+scenario: Grouping Isolation - Phase 1 (identity bridged)
+compress_window: 5m
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/grouping-p1-abnormal.tsv
+    env: .env-brumxdr-abnormal
+
+  - name: Microsoft Defender
+    file: input_tsv/grouping-p1-defender.tsv
+    env: .env-brumxdr-defender
