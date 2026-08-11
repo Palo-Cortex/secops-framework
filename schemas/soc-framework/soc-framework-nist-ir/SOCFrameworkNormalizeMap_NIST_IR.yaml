@@ -115,6 +115,24 @@ categories:
       - { target: Artifacts.Endpoint.Hostname, issue_field: agent_hostname, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.AgentID, issue_field: agent_id, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.Domain, issue_field: agent_device_domain, shape: structured, role: canonical, source_origin: native }
+      # ---- fallback aliases -------------------------------------------
+      # Same concept under a different cliName. Ordered AFTER the canonical
+      # row, so they only apply when it does not resolve. Derived from live
+      # tenant population via tools/socfw-mapper/contract_coverage.py.
+      - { target: Artifacts.Endpoint.FQDN, issue_field: xdmsourcehostfqdn, shape: structured, role: canonical, source_origin: native }   # Defender emits the XDM twin, not hostfqdn
+      - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
+      - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
+      - { target: Artifacts.Network.IP, issue_field: localip, shape: structured, role: canonical, source_origin: native }   # Defender populates localip, not hostip
+      - { target: Artifacts.Process.MD5, issue_field: processmd5, shape: structured, role: canonical, source_origin: native }   # CrowdStrike naming
+      - { target: Artifacts.Process.Parent.PID, issue_field: parentprocessid, shape: structured, role: canonical, source_origin: native }   # Defender naming
+      - { target: Artifacts.Process.Parent.PID, issue_field: parentprocessids, shape: structured, role: canonical, source_origin: native }   # CrowdStrike naming (plural)
+      - { target: Endpoint.alert_name, issue_field: originalalertname, shape: flat, role: canonical, source_origin: native }   # Defender preserves the vendor alert name here
+      - { target: Endpoint.alert_source, issue_field: originalalertsource, shape: flat, role: canonical, source_origin: native }   # Defender preserves the vendor source here
+      - { target: Endpoint.ip_address, issue_field: hostip, shape: flat, role: canonical, source_origin: native }   # native XDR agent populates hostip, not localip
+      - { target: Endpoint.os, issue_field: deviceosname, shape: flat, role: canonical, source_origin: native }   # Defender: fixes Endpoint.os, dead on every source
+      - { target: Endpoint.os, issue_field: hostos, shape: flat, role: canonical, source_origin: native }   # native XDR agent: fixes Endpoint.os, dead on every source
+      - { target: Endpoint.tactic, issue_field: mitreattcktactic, shape: flat, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
+      - { target: Endpoint.technique, issue_field: mitreattcktechnique, shape: flat, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
     stamps:
       - { target: Endpoint.normalization_source, value: endpoint }
       - { target: Artifacts.Process.Verdict, value:  }
