@@ -1,0 +1,67 @@
+commonfields:
+  id: SOCPromoteAIPhaseOutput
+  version: -1
+name: SOCPromoteAIPhaseOutput
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.12.5490952
+runas: DBotWeakRole
+runonce: false
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+sourcescripid: SOCPromoteAIPhaseOutput
+pswd: ''
+signature: ''
+scripttarget: 0
+comment: |
+  Parses the native aiTask's JSON-string output into a navigable object and
+  promotes its flat fields into the phase namespace the layout / phase contract
+  reads (Analysis.*). The aiTask stringifies its result to context; this
+  un-stringifies it and merges the fields so downstream readers and the display
+  resolve normally.
+
+  Defensive against a stale list wrapper; a no-op if the source is already an
+  object or empty. If no AI prompt content exists on the tenant the source is
+  empty and this exits cleanly, so playbooks without AI content are unaffected.
+args:
+  - name: source_key
+    description: Context path holding the aiTask JSON output.
+    required: false
+    defaultValue: Analysis.AI
+    supportedModules: []
+  - name: target_namespace
+    description: Namespace to promote the parsed flat fields into.
+    required: false
+    defaultValue: Analysis
+    supportedModules: []
+  - name: promote
+    description: Promote parsed flat fields into target_namespace.
+    required: false
+    auto: PREDEFINED
+    predefined:
+      - 'true'
+      - 'false'
+    defaultValue: 'true'
+    supportedModules: []
+outputs: []
+tags:
+  - SOC
+  - SOC_Framework
+  - NIST_IR
+  - AI
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework - NIST IR (800-61)
+    itemVersion: 1.0.0
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
+system: true

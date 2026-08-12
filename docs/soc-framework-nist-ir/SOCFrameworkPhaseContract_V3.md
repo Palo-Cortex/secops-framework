@@ -154,6 +154,12 @@ NIST IR phase contract — what each phase reads, writes, and routes to. Two rol
 | phase | from_phase | source | role |
 |---|---|---|---|
 | `containment` | `analysis` | `Analysis.case_score` | `canonical` |
+| `containment` | `analysis` | `Analysis.case_host_count` | `canonical` |
+| `containment` | `analysis` | `Analysis.compromise_level` | `canonical` |
+| `containment` | `analysis` | `Analysis.confidence` | `canonical` |
+| `containment` | `analysis` | `Analysis.response_recommended` | `canonical` |
+| `containment` | `analysis` | `Analysis.spread_level` | `canonical` |
+| `containment` | `analysis` | `Analysis.verdict` | `canonical` |
 | `eradication` | `analysis` | `Analysis.compromise_decision` | `canonical` |
 | `eradication` | `analysis` | `Analysis.compromise_level` | `canonical` |
 | `eradication` | `analysis` | `Analysis.mitre_tactic` | `canonical` |

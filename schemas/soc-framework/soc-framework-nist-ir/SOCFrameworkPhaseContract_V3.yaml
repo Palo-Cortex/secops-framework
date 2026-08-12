@@ -346,7 +346,19 @@ reads_from_framework:
 reads_from_phases:
 
   # ------ containment ------
-  - { phase: containment, from_phase: analysis, source: Analysis.case_score, role: canonical }
+  # Containment gates on the Analysis assessment before acting: the endpoint
+  # phase-entry gate reads compromise_level, the email router reads
+  # verdict/confidence/response_recommended, and Containment Evaluation reads
+  # the spread/host-count figures for its narrative. All were consumed by the
+  # playbooks before being declared here; this block documents existing
+  # behaviour and adds no runtime coupling.
+  - { phase: containment, from_phase: analysis, source: Analysis.case_score          , role: canonical }
+  - { phase: containment, from_phase: analysis, source: Analysis.case_host_count     , role: canonical }
+  - { phase: containment, from_phase: analysis, source: Analysis.compromise_level    , role: canonical }
+  - { phase: containment, from_phase: analysis, source: Analysis.confidence          , role: canonical }
+  - { phase: containment, from_phase: analysis, source: Analysis.response_recommended, role: canonical }
+  - { phase: containment, from_phase: analysis, source: Analysis.spread_level        , role: canonical }
+  - { phase: containment, from_phase: analysis, source: Analysis.verdict             , role: canonical }
 
   # ------ eradication ------
   - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_decision , role: canonical }
