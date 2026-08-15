@@ -286,10 +286,14 @@ categories:
       - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
       # The alert's own disposition and detector. Without these the reasoner
-      # cannot tell a detected-and-allowed event from a blocked one.
+      # cannot tell a detected-and-allowed event from a blocked one. Endpoint
+      # already owns Artifacts.Source.{Action,Module,AlertDomain} — reuse them
+      # rather than mint an identity-flavoured duplicate. Identity.alert_action
+      # is the flat twin of Endpoint.alert_action, which the prompts bind.
       - { target: Identity.alert_action, issue_field: action, shape: flat, role: canonical, source_origin: native }
-      - { target: Identity.detection_module, issue_field: 'detection_modules.[0]', shape: flat, role: canonical, source_origin: native }
-      - { target: Identity.alert_domain, issue_field: alert_domain, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Action, issue_field: action, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
       # sourceBrand reads MAGNIFIER (the analytics engine) on every analytics
       # alert, so it identifies nothing. The case names the detection source.
       - { target: Identity.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
