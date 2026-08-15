@@ -275,6 +275,37 @@ categories:
       - { target: Primary.Email, issue_field: email, shape: flat, role: canonical, source_origin: native }
       # on-prem AD wants bare sAMAccountName, not a UPN — its own key
       - { target: Primary.SamAccountName, issue_field: samaccountname, shape: flat, role: canonical, source_origin: native }
+      # ── Detection metadata ────────────────────────────────────────────────
+      # XDR Analytics never populates the mitre*name/*id fields the canonical
+      # rows above read; it emits the fused "TA0006 - Credential Access" form
+      # under mitreattck*. Case rows first, issue rows last: the case MITRE is
+      # aggregated across every alert in the case, the issue MITRE describes
+      # this alert, and the more specific one should win.
+      - { target: Artifacts.MITRE.Tactic, issue_field: case.mitre_tactics_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: case.mitre_techniques_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
+      # The alert's own disposition and detector. Without these the reasoner
+      # cannot tell a detected-and-allowed event from a blocked one.
+      - { target: Identity.alert_action, issue_field: action, shape: flat, role: canonical, source_origin: native }
+      - { target: Identity.detection_module, issue_field: 'detection_modules.[0]', shape: flat, role: canonical, source_origin: native }
+      - { target: Identity.alert_domain, issue_field: alert_domain, shape: flat, role: canonical, source_origin: native }
+      # sourceBrand reads MAGNIFIER (the analytics engine) on every analytics
+      # alert, so it identifies nothing. The case names the detection source.
+      - { target: Identity.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
+      # Written narrative of what the detector observed — the highest-value
+      # free-text evidence available to the reasoner.
+      - { target: Identity.detection_details, issue_field: details, shape: flat, role: canonical, source_origin: native }
+      - { target: Identity.detection_details, issue_field: case.description, shape: flat, role: canonical, source_origin: native }
+      # ── Investigation scope ───────────────────────────────────────────────
+      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads, annotated
+      # as written by the enrichment pipeline — which never wrote them. The
+      # case carries all four.
+      - { target: Investigation.RiskScore, issue_field: case.aggregated_score, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.IssueCount, issue_field: case.alert_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
     stamps:
       - { target: Identity.normalization_source, value: identity }
     mirrors:
