@@ -53,7 +53,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from SOCNormalizeFromList import (
     read_source, is_empty,
     apply_mappings, apply_stamps, apply_mirrors,
-    load_list_section, build_field_surface,
+    load_list_section, build_field_surface, parse_case_fields,
 )
 
 PASS, FAIL = "✓", "✗"
@@ -303,6 +303,21 @@ check("case list resolves whole", read_source(_case, "case.incident_sources"),
 _nocase = build_field_surface(_inc, {})
 check("no case fields when ungrouped",
       [k for k in _nocase if k.startswith("case.")], [])
+
+# ${parentIncidentFields} arrives as a dict or as a serialised string; a Python
+# repr with single quotes is not valid JSON, so both loaders are needed.
+print("case_fields arg parsing:")
+check("dict passes through", parse_case_fields({"alert_count": 106}), {"alert_count": 106})
+check("json string parses",
+      parse_case_fields('{"alert_count": 106, "host_count": 3}'),
+      {"alert_count": 106, "host_count": 3})
+check("python repr parses",
+      parse_case_fields("{'alert_count': 106, 'hosts': ['bannik', 'hobgoblin']}"),
+      {"alert_count": 106, "hosts": ["bannik", "hobgoblin"]})
+check("empty string is no case", parse_case_fields(""), {})
+check("None is no case", parse_case_fields(None), {})
+check("unparseable is no case, not a crash", parse_case_fields("not a dict"), {})
+check("a non-dict json value is no case", parse_case_fields("[1,2,3]"), {})
 
 
 # --- Summary ---

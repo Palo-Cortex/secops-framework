@@ -49,6 +49,7 @@ CONTRACT VS BEHAVIOR
 CONSTANT_PACK_VERSION = '3.7.24'
 demisto.debug(f'pack id = soc-optimization-unified, pack version = {CONSTANT_PACK_VERSION}')
 
+import ast
 import json
 import re
 from collections import defaultdict
@@ -220,6 +221,30 @@ TOP_LEVEL_ATTRS = (
 )
 
 
+def parse_case_fields(raw):
+    """Case fields as handed over by the caller.
+
+    `parentIncidentFields` is a DT root the playbook engine resolves at task
+    time — it is NOT a key in demisto.context(), so the script cannot fetch it
+    itself. The calling task passes ${parentIncidentFields}, which arrives here
+    as a dict or as its string repr depending on how the platform serialises it.
+    """
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        for loader in (json.loads, ast.literal_eval):
+            try:
+                val = loader(raw)
+            except Exception:
+                continue
+            if isinstance(val, dict):
+                return val
+        demisto.debug("SOCNormalizeFromList: case_fields did not parse as a dict")
+    return {}
+
+
 def build_field_surface(incident, parent_fields=None):
     """CustomFields, the allowlisted top-level attributes, and case fields.
 
@@ -321,7 +346,7 @@ def main():
         incident = demisto.incident() or {}
         # Case fields are absent on an ungrouped issue; the surface just omits
         # them and the rows that read them skip empty, as any other gap would.
-        parent_fields = demisto.get(demisto.context() or {}, "parentIncidentFields") or {}
+        parent_fields = parse_case_fields(args.get("case_fields"))
         custom_fields = build_field_surface(incident, parent_fields)
 
         writes = {}
