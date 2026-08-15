@@ -133,6 +133,31 @@ categories:
       - { target: Endpoint.os, issue_field: hostos, shape: flat, role: canonical, source_origin: native }   # native XDR agent: fixes Endpoint.os, dead on every source
       - { target: Endpoint.tactic, issue_field: mitreattcktactic, shape: flat, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
       - { target: Endpoint.technique, issue_field: mitreattcktechnique, shape: flat, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
+      # ── Shared detection surface (category-agnostic) ─────────────────────
+      # XDR Analytics emits the fused mitreattck* form, never mitre*name/*id.
+      # Case rows first, issue rows last: the case MITRE is aggregated across
+      # the whole case, the issue MITRE describes this alert, and the more
+      # specific one should win.
+      - { target: Artifacts.MITRE.Tactic, issue_field: case.mitre_tactics_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: case.mitre_techniques_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
+      # The detector's own metadata: what fired, what it did, what it wrote.
+      - { target: Artifacts.Source.Action, issue_field: action, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
+      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
+      # nothing. The case names the detection source.
+      - { target: Endpoint.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
+      # ── Investigation scope (case-level, identical in every band) ─────────
+      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
+      # written. Populated only on a grouped case.
+      - { target: Investigation.RiskScore, issue_field: case.aggregated_score, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.IssueCount, issue_field: case.alert_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
     stamps:
       - { target: Endpoint.normalization_source, value: endpoint }
       - { target: Artifacts.Process.Verdict, value:  }
@@ -202,6 +227,32 @@ categories:
       - { target: Artifacts.MITRE.TacticID, issue_field: mitretacticid, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.Technique, issue_field: mitretechniquename, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.TechniqueID, issue_field: mitretechniqueid, shape: structured, role: canonical, source_origin: native }
+      # ── Shared detection surface (category-agnostic) ─────────────────────
+      # XDR Analytics emits the fused mitreattck* form, never mitre*name/*id.
+      # Case rows first, issue rows last: the case MITRE is aggregated across
+      # the whole case, the issue MITRE describes this alert, and the more
+      # specific one should win.
+      - { target: Artifacts.MITRE.Tactic, issue_field: case.mitre_tactics_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: case.mitre_techniques_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
+      # The detector's own metadata: what fired, what it did, what it wrote.
+      - { target: Artifacts.Source.Action, issue_field: action, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
+      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
+      # nothing. The case names the detection source.
+      - { target: Email.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
+      # ── Investigation scope (case-level, identical in every band) ─────────
+      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
+      # written. Populated only on a grouped case.
+      - { target: Investigation.RiskScore, issue_field: case.aggregated_score, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.IssueCount, issue_field: case.alert_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
     stamps:
       - { target: Email.normalization_source, value: email }
       - { target: Email.normalization_source, value: mail_listener }
@@ -275,36 +326,27 @@ categories:
       - { target: Primary.Email, issue_field: email, shape: flat, role: canonical, source_origin: native }
       # on-prem AD wants bare sAMAccountName, not a UPN — its own key
       - { target: Primary.SamAccountName, issue_field: samaccountname, shape: flat, role: canonical, source_origin: native }
-      # ── Detection metadata ────────────────────────────────────────────────
-      # XDR Analytics never populates the mitre*name/*id fields the canonical
-      # rows above read; it emits the fused "TA0006 - Credential Access" form
-      # under mitreattck*. Case rows first, issue rows last: the case MITRE is
-      # aggregated across every alert in the case, the issue MITRE describes
-      # this alert, and the more specific one should win.
+      # ── Shared detection surface (category-agnostic) ─────────────────────
+      # XDR Analytics emits the fused mitreattck* form, never mitre*name/*id.
+      # Case rows first, issue rows last: the case MITRE is aggregated across
+      # the whole case, the issue MITRE describes this alert, and the more
+      # specific one should win.
       - { target: Artifacts.MITRE.Tactic, issue_field: case.mitre_tactics_ids_and_names, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.Technique, issue_field: case.mitre_techniques_ids_and_names, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
-      # The alert's own disposition and detector. Without these the reasoner
-      # cannot tell a detected-and-allowed event from a blocked one. Endpoint
-      # already owns Artifacts.Source.{Action,Module,AlertDomain} — reuse them
-      # rather than mint an identity-flavoured duplicate. Identity.alert_action
-      # is the flat twin of Endpoint.alert_action, which the prompts bind.
-      - { target: Identity.alert_action, issue_field: action, shape: flat, role: canonical, source_origin: native }
+      # The detector's own metadata: what fired, what it did, what it wrote.
       - { target: Artifacts.Source.Action, issue_field: action, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
-      # sourceBrand reads MAGNIFIER (the analytics engine) on every analytics
-      # alert, so it identifies nothing. The case names the detection source.
+      - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
+      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
+      # nothing. The case names the detection source.
       - { target: Identity.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
-      # Written narrative of what the detector observed — the highest-value
-      # free-text evidence available to the reasoner.
-      - { target: Identity.detection_details, issue_field: details, shape: flat, role: canonical, source_origin: native }
-      - { target: Identity.detection_details, issue_field: case.description, shape: flat, role: canonical, source_origin: native }
-      # ── Investigation scope ───────────────────────────────────────────────
-      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads, annotated
-      # as written by the enrichment pipeline — which never wrote them. The
-      # case carries all four.
+      # ── Investigation scope (case-level, identical in every band) ─────────
+      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
+      # written. Populated only on a grouped case.
       - { target: Investigation.RiskScore, issue_field: case.aggregated_score, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.IssueCount, issue_field: case.alert_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
@@ -383,6 +425,32 @@ categories:
       - { target: Artifacts.Endpoint.Hostname, issue_field: agent_hostname, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.AgentID, issue_field: agent_id, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.Domain, issue_field: agent_device_domain, shape: structured, role: canonical, source_origin: native }
+      # ── Shared detection surface (category-agnostic) ─────────────────────
+      # XDR Analytics emits the fused mitreattck* form, never mitre*name/*id.
+      # Case rows first, issue rows last: the case MITRE is aggregated across
+      # the whole case, the issue MITRE describes this alert, and the more
+      # specific one should win.
+      - { target: Artifacts.MITRE.Tactic, issue_field: case.mitre_tactics_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: case.mitre_techniques_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
+      # The detector's own metadata: what fired, what it did, what it wrote.
+      - { target: Artifacts.Source.Action, issue_field: action, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
+      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
+      # nothing. The case names the detection source.
+      - { target: Network.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
+      # ── Investigation scope (case-level, identical in every band) ─────────
+      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
+      # written. Populated only on a grouped case.
+      - { target: Investigation.RiskScore, issue_field: case.aggregated_score, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.IssueCount, issue_field: case.alert_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
     stamps:
       - { target: Network.normalization_source, value: network }
     mirrors:
@@ -454,6 +522,32 @@ categories:
       - { target: Artifacts.Endpoint.Hostname, issue_field: agent_hostname, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.AgentID, issue_field: agent_id, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.Domain, issue_field: agent_device_domain, shape: structured, role: canonical, source_origin: native }
+      # ── Shared detection surface (category-agnostic) ─────────────────────
+      # XDR Analytics emits the fused mitreattck* form, never mitre*name/*id.
+      # Case rows first, issue rows last: the case MITRE is aggregated across
+      # the whole case, the issue MITRE describes this alert, and the more
+      # specific one should win.
+      - { target: Artifacts.MITRE.Tactic, issue_field: case.mitre_tactics_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: case.mitre_techniques_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
+      # The detector's own metadata: what fired, what it did, what it wrote.
+      - { target: Artifacts.Source.Action, issue_field: action, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
+      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
+      # nothing. The case names the detection source.
+      - { target: Cloud.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
+      # ── Investigation scope (case-level, identical in every band) ─────────
+      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
+      # written. Populated only on a grouped case.
+      - { target: Investigation.RiskScore, issue_field: case.aggregated_score, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.IssueCount, issue_field: case.alert_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
     stamps:
       - { target: Cloud.normalization_source, value: cloud }
     mirrors:
@@ -502,6 +596,32 @@ categories:
       - { target: Artifacts.Endpoint.Hostname, issue_field: agent_hostname, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.AgentID, issue_field: agent_id, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Endpoint.Domain, issue_field: agent_device_domain, shape: structured, role: canonical, source_origin: native }
+      # ── Shared detection surface (category-agnostic) ─────────────────────
+      # XDR Analytics emits the fused mitreattck* form, never mitre*name/*id.
+      # Case rows first, issue rows last: the case MITRE is aggregated across
+      # the whole case, the issue MITRE describes this alert, and the more
+      # specific one should win.
+      - { target: Artifacts.MITRE.Tactic, issue_field: case.mitre_tactics_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: case.mitre_techniques_ids_and_names, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Tactic, issue_field: mitreattcktactic, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.MITRE.Technique, issue_field: mitreattcktechnique, shape: structured, role: canonical, source_origin: native }
+      # The detector's own metadata: what fired, what it did, what it wrote.
+      - { target: Artifacts.Source.Action, issue_field: action, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
+      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
+      # nothing. The case names the detection source.
+      - { target: Generic.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
+      # ── Investigation scope (case-level, identical in every band) ─────────
+      # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
+      # written. Populated only on a grouped case.
+      - { target: Investigation.RiskScore, issue_field: case.aggregated_score, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.IssueCount, issue_field: case.alert_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
+      - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
     stamps:
       - { target: Generic.normalization_source, value: generic }
     mirrors:
