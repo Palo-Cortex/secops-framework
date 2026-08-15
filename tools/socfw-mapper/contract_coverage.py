@@ -172,7 +172,7 @@ def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--category", required=True)
-    ap.add_argument("--captures", default="/home/scott/captures/*.json")
+    ap.add_argument("--captures", default="~/captures/*.json")
     ap.add_argument("--min-issues", type=int, default=10)
     ap.add_argument("--present-pct", type=float, default=50.0)
     ap.add_argument("--only-gaps", action="store_true",

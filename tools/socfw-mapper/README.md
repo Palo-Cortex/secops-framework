@@ -26,7 +26,7 @@ produced it.
 
 ## Captures
 
-**Captures live outside the repo** — `/home/scott/captures/` by convention.
+**Captures live outside the repo** — `~/captures/` by convention.
 Never commit one.
 
 `build_category_map.py --capture` is phase 1: connect, sanitise at the
@@ -168,7 +168,7 @@ Two subcommands, deliberately separate.
 python3 tools/socfw-mapper/socfw_contract.py audit
 python3 tools/socfw-mapper/socfw_contract.py audit --category network
 python3 tools/socfw-mapper/socfw_contract.py extend --category network \
-    --captures '/home/scott/captures/*.json' --emit
+    --captures '~/captures/*.json' --emit
 ```
 
 `audit` trues up what exists: it finds contract defects by set operations
@@ -236,10 +236,10 @@ on, the command it ran, and whether that succeeded.
 
 ```bash
 python3 tools/socfw-mapper/execution_baseline.py snapshot \
-    --env .env-dev --out /home/scott/captures/baseline_before.json
+    --env .env-dev --out ~/captures/baseline_before.json
 # ... contract changes, deploy ...
 python3 tools/socfw-mapper/execution_baseline.py snapshot \
-    --env .env-dev --out /home/scott/captures/baseline_after.json
+    --env .env-dev --out ~/captures/baseline_after.json
 python3 tools/socfw-mapper/execution_baseline.py compare \
     --before ... --after ...
 ```

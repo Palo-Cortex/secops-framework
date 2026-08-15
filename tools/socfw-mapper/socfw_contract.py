@@ -18,7 +18,7 @@ Usage:
   python3 tools/socfw-mapper/socfw_contract.py audit
   python3 tools/socfw-mapper/socfw_contract.py audit --category network
   python3 tools/socfw-mapper/socfw_contract.py extend --category network \\
-      --captures '/home/scott/captures/*.json'
+      --captures '~/captures/*.json'
 """
 import argparse
 import glob
@@ -174,7 +174,7 @@ def observed_fields(category, category_map, capture_glob, present_pct=50.0):
     seen = Counter()
     sources = set()
     issues = {}
-    for path in sorted(glob.glob(capture_glob)):
+    for path in sorted(glob.glob(os.path.expanduser(capture_glob))):
         doc = load(path)
         for src in doc.get("sources", []):
             if ds_key(src["ds_tag"]) not in keys:
