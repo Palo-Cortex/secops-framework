@@ -46,7 +46,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from SOCNormalizeFromList import (
     read_source, is_empty,
     apply_mappings, apply_stamps, apply_mirrors,
-    load_list_section,
+    load_list_section, build_field_surface,
 )
 
 PASS, FAIL = "✓", "✗"
@@ -242,6 +242,38 @@ check("per-lifecycle: endpoint section resolves", [m["target"] for m in _sec["ma
 check("per-lifecycle: known category does not fall back", _fb, False)
 _sec, _eff, _fb = load_list_section("SOCFrameworkNormalizeMap_NIST_IR", "Nonexistent")
 check("per-lifecycle: unknown category falls back to generic", (_eff, _fb), ("generic", True))
+
+
+# --- Field surface: CustomFields plus allowlisted top-level attributes ---
+# `name` and `details` are incident attributes, absent from CustomFields; rows
+# naming them resolved empty on every source until they were merged in.
+print("field surface (CustomFields + top-level attrs):")
+_inc = {
+    "name": "SSO Brute Force Activity Observed",
+    "sourceBrand": "MAGNIFIER",
+    "details": "The user failed to log in via SSO multiple times",
+    "linkedCount": 4,
+    "investigationId": "58371313",          # not allowlisted
+    "CustomFields": {"categoryname": "Credential Access", "action": "DETECTED"},
+}
+_surface = build_field_surface(_inc)
+check("top-level name is addressable", _surface.get("name"), "SSO Brute Force Activity Observed")
+check("top-level details is addressable", _surface.get("details"), "The user failed to log in via SSO multiple times")
+check("top-level linkedCount is addressable", _surface.get("linkedCount"), 4)
+check("CustomFields still addressable", _surface.get("action"), "DETECTED")
+check("non-allowlisted attr stays out", "investigationId" in _surface, False)
+
+# CustomFields is the documented surface, so it wins a name collision.
+_collide = build_field_surface({"type": "Unclassified", "CustomFields": {"type": "phishing"}})
+check("CustomFields wins on collision", _collide.get("type"), "phishing")
+
+# A row naming a top-level attr now resolves instead of landing in skipped_empty.
+_w, _sk = {}, {"empty": [], "filtered": []}
+apply_mappings({"mappings": [{"target": "Identity.alert_name", "issue_field": "name"}]},
+               _surface, _w, _sk)
+check("Identity.alert_name resolves from name", _w.get("Identity.alert_name"),
+      "SSO Brute Force Activity Observed")
+check("no longer skipped as empty", _sk["empty"], [])
 
 
 # --- Summary ---

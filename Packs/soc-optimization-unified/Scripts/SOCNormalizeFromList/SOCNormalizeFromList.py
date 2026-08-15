@@ -200,6 +200,35 @@ def load_list_section(list_name, category):
 # Phase application — pure functions for testability
 # ---------------------------------------------------------------------------
 
+# The issue object has two field surfaces. CustomFields holds the lowercase
+# cliNames (categoryname, mitreattcktactic, action). Everything else is a
+# camelCase attribute on the incident itself (name, details, linkedCount) and
+# is absent from CustomFields — so a mapping row naming one silently resolved
+# empty forever. These are merged in so contract rows can address them.
+# CustomFields wins on any name collision: it is the documented surface.
+TOP_LEVEL_ATTRS = (
+    "name",
+    "rawName",
+    "details",
+    "sourceBrand",
+    "sourceInstance",
+    "severity",
+    "linkedCount",
+    "parentXDRIncident",
+    "occurred",
+    "type",
+)
+
+
+def build_field_surface(incident):
+    """CustomFields plus the allowlisted top-level incident attributes."""
+    custom_fields = incident.get("CustomFields") or {}
+    surface = {k: incident[k] for k in TOP_LEVEL_ATTRS
+               if k in incident and k not in custom_fields}
+    surface.update(custom_fields)
+    return surface
+
+
 def apply_mappings(section, custom_fields, writes, skipped):
     for m in section.get("mappings", []) or []:
         target, source = m["target"], m["issue_field"]
@@ -282,7 +311,7 @@ def main():
         section, effective_category, fellback = load_list_section(list_name, category)
 
         incident = demisto.incident() or {}
-        custom_fields = incident.get("CustomFields") or {}
+        custom_fields = build_field_surface(incident)
 
         writes = {}
         skipped = {"empty": [], "filtered": []}
