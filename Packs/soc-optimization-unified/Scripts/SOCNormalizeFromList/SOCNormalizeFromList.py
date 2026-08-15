@@ -220,12 +220,20 @@ TOP_LEVEL_ATTRS = (
 )
 
 
-def build_field_surface(incident):
-    """CustomFields plus the allowlisted top-level incident attributes."""
+def build_field_surface(incident, parent_fields=None):
+    """CustomFields, the allowlisted top-level attributes, and case fields.
+
+    Case fields are exposed under a `case.` prefix (case.aggregated_score) so a
+    contract row states plainly which surface it reads and can never collide
+    with an issue field. read_source does a flat lookup, so the dotted key is
+    literal, and `case.x.[0]` still indexes normally.
+    """
     custom_fields = incident.get("CustomFields") or {}
     surface = {k: incident[k] for k in TOP_LEVEL_ATTRS
                if k in incident and k not in custom_fields}
     surface.update(custom_fields)
+    for k, v in (parent_fields or {}).items():
+        surface[f"case.{k}"] = v
     return surface
 
 
@@ -311,7 +319,10 @@ def main():
         section, effective_category, fellback = load_list_section(list_name, category)
 
         incident = demisto.incident() or {}
-        custom_fields = build_field_surface(incident)
+        # Case fields are absent on an ungrouped issue; the surface just omits
+        # them and the rows that read them skip empty, as any other gap would.
+        parent_fields = demisto.get(demisto.context() or {}, "parentIncidentFields") or {}
+        custom_fields = build_field_surface(incident, parent_fields)
 
         writes = {}
         skipped = {"empty": [], "filtered": []}
