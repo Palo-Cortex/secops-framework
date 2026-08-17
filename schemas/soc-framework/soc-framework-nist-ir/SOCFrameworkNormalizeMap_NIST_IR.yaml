@@ -28,6 +28,11 @@ categories:
   endpoint:
     status: complete
     mappings:
+      # Fallback only: the vendor's own alert_source wins when the
+      # source carries one. The case reports 'Correlation', which
+      # identifies nothing — it is here for sources like analytics
+      # alerts that name no vendor at all.
+      - { target: Endpoint.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       - { target: Endpoint.alert_name, issue_field: name, shape: flat, role: canonical, source_origin: native }
       - { target: Endpoint.alert_source, issue_field: sourcebrand, shape: flat, role: canonical, source_origin: native }
       - { target: Endpoint.alert_action, issue_field: alertaction, shape: flat, role: canonical, source_origin: native }
@@ -133,6 +138,42 @@ categories:
       - { target: Endpoint.os, issue_field: hostos, shape: flat, role: canonical, source_origin: native }   # native XDR agent: fixes Endpoint.os, dead on every source
       - { target: Endpoint.tactic, issue_field: mitreattcktactic, shape: flat, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
       - { target: Endpoint.technique, issue_field: mitreattcktechnique, shape: flat, role: canonical, source_origin: native }   # native XDR agent uses mitreattck* naming
+      # ── XDM-named endpoint fields ─────────────────────────────────────────
+      # The rows above read the native XDR agent's initiator*/file* names. Any
+      # endpoint source feeding the XDM-named actor_*/action_* fields resolved
+      # nothing — no hash, no path, no command line reached the contract, so
+      # Eradication had no file to act on. These are XSIAM native alert fields,
+      # not one vendor's: whichever set a source populates, wins.
+      - { target: Artifacts.Process.Name, issue_field: actor_process_image_name, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Path, issue_field: actor_process_image_path, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.SHA256, issue_field: actor_process_image_sha256, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.CommandLine, issue_field: actor_process_command_line, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.PID, issue_field: actor_process_os_pid, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Signer, issue_field: actor_process_signature_vendor, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Causality.ID, issue_field: causality_actor_causality_id, shape: structured, role: canonical, source_origin: native }
+      # Parent identity — Parent.PID and Parent.Signature already exist; the
+      # binary itself did not, so a parent process could be counted but never named.
+      - { target: Artifacts.Process.Parent.Name, issue_field: parentprocessname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Parent.Name, issue_field: causality_actor_process_image_name, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Parent.Path, issue_field: parentprocesspath, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Parent.Path, issue_field: causality_actor_process_image_path, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Parent.SHA256, issue_field: parentprocesssha256, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Process.Parent.SHA256, issue_field: causality_actor_process_image_sha256, shape: structured, role: canonical, source_origin: native }
+      # The file the alert acted on — what Eradication deletes or blocks.
+      - { target: Artifacts.Target.File, issue_field: action_file_name, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Target.Path, issue_field: action_file_path, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Target.SHA256, issue_field: action_file_sha256, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Network.IP, issue_field: action_remote_ip, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Name, issue_field: actor_effective_username, shape: structured, role: canonical, source_origin: native, lower: true }
+      # Flat twins of the same fields.
+      - { target: Endpoint.file_path, issue_field: action_file_path, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.file_sha256, issue_field: action_file_sha256, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.process_name, issue_field: actor_process_image_name, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.process_path, issue_field: actor_process_image_path, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.process_sha256, issue_field: actor_process_image_sha256, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.process_cmd, issue_field: actor_process_command_line, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.process_pid, issue_field: actor_process_os_pid, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.username, issue_field: actor_effective_username, shape: flat, role: canonical, source_origin: native, lower: true }
       # ── Shared detection surface (category-agnostic) ─────────────────────
       # XDR Analytics emits the fused mitreattck* form, never mitre*name/*id.
       # Case rows first, issue rows last: the case MITRE is aggregated across
@@ -147,9 +188,6 @@ categories:
       - { target: Artifacts.Source.Module, issue_field: 'detection_modules.[0]', shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
-      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
-      # nothing. The case names the detection source.
-      - { target: Endpoint.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       # ── Investigation scope (case-level, identical in every band) ─────────
       # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
       # written. Populated only on a grouped case.
@@ -168,6 +206,11 @@ categories:
   email:
     status: partial
     mappings:
+      # Fallback only: the vendor's own alert_source wins when the
+      # source carries one. The case reports 'Correlation', which
+      # identifies nothing — it is here for sources like analytics
+      # alerts that name no vendor at all.
+      - { target: Email.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       - { target: Email.alert_name, issue_field: name, shape: flat, role: canonical, source_origin: native }
       - { target: Email.alert_source, issue_field: sourcebrand, shape: flat, role: canonical, source_origin: native }
       - { target: Email.attachment_name, issue_field: 'filename.[0]', shape: flat, role: canonical, source_origin: native }
@@ -242,9 +285,6 @@ categories:
       - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
-      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
-      # nothing. The case names the detection source.
-      - { target: Email.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       # ── Investigation scope (case-level, identical in every band) ─────────
       # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
       # written. Populated only on a grouped case.
@@ -267,6 +307,11 @@ categories:
   identity:
     status: in-progress
     mappings:
+      # Fallback only: the vendor's own alert_source wins when the
+      # source carries one. The case reports 'Correlation', which
+      # identifies nothing — it is here for sources like analytics
+      # alerts that name no vendor at all.
+      - { target: Identity.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       - { target: Identity.alert_name, issue_field: name, shape: flat, role: canonical, source_origin: native }
       - { target: Identity.alert_source, issue_field: sourcebrand, shape: flat, role: canonical, source_origin: native }
       - { target: Identity.client_ip, issue_field: localip, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
@@ -341,9 +386,6 @@ categories:
       - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
-      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
-      # nothing. The case names the detection source.
-      - { target: Identity.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       # ── Investigation scope (case-level, identical in every band) ─────────
       # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
       # written. Populated only on a grouped case.
@@ -370,6 +412,11 @@ categories:
   network:
     status: in-progress
     mappings:
+      # Fallback only: the vendor's own alert_source wins when the
+      # source carries one. The case reports 'Correlation', which
+      # identifies nothing — it is here for sources like analytics
+      # alerts that name no vendor at all.
+      - { target: Network.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       - { target: Network.alert_name, issue_field: name, shape: flat, role: canonical, source_origin: native }
       - { target: Network.alert_source, issue_field: sourcebrand, shape: flat, role: canonical, source_origin: native }
       - { target: Network.action, issue_field: action, shape: flat, role: canonical, source_origin: native }
@@ -440,9 +487,6 @@ categories:
       - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
-      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
-      # nothing. The case names the detection source.
-      - { target: Network.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       # ── Investigation scope (case-level, identical in every band) ─────────
       # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
       # written. Populated only on a grouped case.
@@ -475,6 +519,11 @@ categories:
   cloud:
     status: complete   # migrated verbatim from Foundation - Normalize Cloud_V3
     mappings:
+      # Fallback only: the vendor's own alert_source wins when the
+      # source carries one. The case reports 'Correlation', which
+      # identifies nothing — it is here for sources like analytics
+      # alerts that name no vendor at all.
+      - { target: Cloud.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       - { target: Cloud.alert_name, issue_field: name, shape: flat, role: canonical, source_origin: native }
       - { target: Cloud.alert_source, issue_field: sourcebrand, shape: flat, role: canonical, source_origin: native }
       - { target: Cloud.principal, issue_field: username, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: json }
@@ -537,9 +586,6 @@ categories:
       - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
-      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
-      # nothing. The case names the detection source.
-      - { target: Cloud.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       # ── Investigation scope (case-level, identical in every band) ─────────
       # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
       # written. Populated only on a grouped case.
@@ -556,6 +602,11 @@ categories:
   generic:
     status: complete   # migrated verbatim from Foundation - Normalize Generic_V3
     mappings:
+      # Fallback only: the vendor's own alert_source wins when the
+      # source carries one. The case reports 'Correlation', which
+      # identifies nothing — it is here for sources like analytics
+      # alerts that name no vendor at all.
+      - { target: Generic.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       - { target: Generic.primary_entity_type, issue_field: primaryusertype, shape: flat, role: canonical, source_origin: native }
       - { target: Generic.primary_entity_value, issue_field: username, shape: flat, role: canonical, source_origin: native }
       - { target: Generic.hostname, issue_field: agent_hostname, shape: flat, role: canonical, source_origin: native }
@@ -611,9 +662,6 @@ categories:
       - { target: Artifacts.Source.AlertDomain, issue_field: alert_domain, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: details, shape: structured, role: canonical, source_origin: native }
       - { target: Artifacts.Source.Details, issue_field: case.description, shape: structured, role: canonical, source_origin: native }
-      # sourceBrand reads MAGNIFIER on every analytics alert, so it names
-      # nothing. The case names the detection source.
-      - { target: Generic.alert_source, issue_field: 'case.incident_sources.[0]', shape: flat, role: canonical, source_origin: native }
       # ── Investigation scope (case-level, identical in every band) ─────────
       # Declared in SOCFrameworkPhaseContract_V3 as analysis reads but never
       # written. Populated only on a grouped case.
