@@ -1,0 +1,25 @@
+# Dedup regression — Email (Abnormal Security)
+#
+# Purpose: exercise Foundation dedup's DBotFindSimilarAlerts on email alerts that
+# carry emailmessageid + emailsender. Prior to the NormalizeMap dedup_match fix
+# (json -> text) these string fields were routed to similarJsonField and
+# DBotFindSimilarAlerts crashed on json.loads(): JSONDecodeError: Expecting value.
+#
+# Two events, same emailsender (fromAddress) + emailmessageid (internetMessageId),
+# distinct Abnormal message ids -> two [Email] alerts that are duplicate candidates.
+# Fresh identity (deduptest01@skt.local) so they form their own case.
+#
+# Expect (post-fix): both alerts fire; Foundation dedup runs DBotFindSimilarAlerts
+# with the two fields in similarTextField; no JSONDecodeError; dedup resolves.
+#
+# Run:
+#   python3 tools/replay_scenario.py --manifest scenarios/dedup_email.yml --dry-run
+#   python3 tools/replay_scenario.py --manifest scenarios/dedup_email.yml --compress-window 5m
+
+scenario: Dedup Regression - Email (Abnormal)
+compress_window: 5m
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/dedup-email-abnormal.tsv
+    env: .env-deathstar-abnormal
