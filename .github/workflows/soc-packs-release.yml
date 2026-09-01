@@ -230,7 +230,24 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Packs/*/pack_metadata.json Packs/*/xsoar_config.json
           git commit -m "chore: bump pack versions (${BUMP_LEVEL}) [skip ci]"
-          git push https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }} main
+          REMOTE="https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }}"
+          # Back-to-back merges race here: each merge starts its own release run and
+          # both push a bump commit to main. Without a rebase the loser's push is
+          # rejected non-fast-forward and its build is skipped. Rebase onto the latest
+          # main and retry so the loser re-applies its bump on top instead of failing.
+          for attempt in 1 2 3 4 5; do
+            if git push "$REMOTE" main; then
+              echo "bump pushed (attempt $attempt)"
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              echo "::error::bump push failed after 5 attempts"
+              exit 1
+            fi
+            echo "push rejected (attempt $attempt); rebasing onto latest main and retrying"
+            git pull --rebase "$REMOTE" main
+            sleep $((attempt * 3))
+          done
 
   # ── JOB 1: BUILD ZIP + CREATE GITHUB RELEASE ────────────────────
   release:
