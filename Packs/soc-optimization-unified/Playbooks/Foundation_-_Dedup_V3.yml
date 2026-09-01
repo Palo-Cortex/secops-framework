@@ -303,96 +303,6 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
-  "20":
-    id: "20"
-    taskid: f3b58c24-6d9e-4a02-b4f1-8e0c3g7d5b19
-    type: condition
-    task:
-      id: f3b58c24-6d9e-4a02-b4f1-8e0c3g7d5b19
-      version: -1
-      name: DryRun?
-      description: If DryRun is true, print what would be closed without executing.
-        Used for smoke testing post-deploy without closing any issues.
-      type: condition
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#default#':
-      - "26"
-      "yes":
-      - "21"
-    separatecontext: false
-    conditions:
-    - label: "yes"
-      condition:
-      - - operator: isTrue
-          left:
-            value:
-              complex:
-                root: inputs.DryRun
-            iscontext: true
-          right:
-            value: {}
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 685,
-          "y": 1330
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "21":
-    id: "21"
-    taskid: faa59a37-0bc9-4516-9c91-26991341bc6d
-    type: regular
-    task:
-      id: faa59a37-0bc9-4516-9c91-26991341bc6d
-      version: -1
-      name: '[DRY RUN] Print Issues That Would Close'
-      description: Smoke test output. Lists duplicate issue IDs that would have been
-        closed by dedup. No issues are modified.
-      tags:
-      - Auto-Triage
-      script: Print
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "8"
-    scriptarguments:
-      value:
-        simple: '[DRY RUN] Dedup would close issue(s): ${DBotFindSimilarIncidents.similarIncident.id}
-          Current alert: ${alert.id} Dedup window: ${inputs.DedupWindow} Score threshold
-          (bypass): ${inputs.DedupScoreThreshold} Parent score: ${parentIncidentFields.predicted_score}'
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 910,
-          "y": 1885
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
   "22":
     id: "22"
     taskid: 90806324-1af6-4a1d-9c96-a02a016d3fb4
@@ -547,7 +457,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "20"
+      - "26"
     scriptarguments:
       value:
         simple: "\U0001F501 **Dedup — closing self** | Alert ${alert.id} is a duplicate.
@@ -591,7 +501,7 @@ tasks:
       '#error#':
       - "18"
       '#none#':
-      - "27"
+      - "8"
     scriptarguments:
       closeNotes:
         simple: 'Duplicate alert. Canonical case: ${SOCFramework.Dedup.WinnerID} (lowest
@@ -648,7 +558,7 @@ tasks:
       value:
         simple: '{"event_type":"dedup","lifecycle":"DEDUP","phase":"dedup", "action_actor":"framework", "alert_id":"${alert.id}","incident_id":"${alert.id}",
           "alert_name":"${alert.name}", "alert_category":"${alert.categoryname}",
-          "winner_id":"${SOCFramework.Dedup.WinnerID}", "similar_ids":"${DBotFindSimilarIncidents.similarIncident.id}",
+          "winner_id":"${SOCFramework.Dedup.WinnerID}", "similar_ids":${DBotFindSimilarIncidents.similarIncident.id},
           "dedup_window":"${inputs.DedupWindow}"}'
     separatecontext: false
     continueonerror: true
@@ -730,13 +640,6 @@ view: |-
     }
   }
 inputs:
-- key: DryRun
-  value:
-    simple: "false"
-  required: false
-  description: When true, prints duplicate issues that would be closed without executing
-    any close actions. Use for smoke testing after deployment.
-  playbookInputQuery: null
 - key: DedupWindow
   value:
     complex:
