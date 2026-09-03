@@ -1,0 +1,227 @@
+adopted: true
+fromversion: 5.0.0
+id: EP_IR_NIST (800-61) AI
+version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir-ai
+    packName: SOC Framework NIST IR (800-61) - AI Analysis
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: EP_IR_NIST (800-61) AI
+description: |-
+  Entry Point playbook for case-scoped NIST IR. Assign it to the automation trigger in place of EP_IR_NIST (800-61)_V3 when the case lifecycle is ready; swap back to switch off.
+
+  Issue-level automation ends here. This playbook initializes the lifecycle context, calls Foundation - Upon Trigger to normalize, classify, dedup and build the SOC Framework contract, and exits.
+
+  The NIST alert response phases (Preparation, Detection & Analysis, Containment, Eradication, Recovery) do not run per issue. They run at case scope in JOB - SOC Case Analysis, which reads the contracts every issue in a case has written.
+
+  Both entry points can be installed at once because only the one bound to the automation trigger executes, which makes the cutover and the rollback a trigger change rather than a content change.
+tags:
+- MITRE
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: a6ae2938-1485-44fb-92d4-3efd3e132dd7
+    type: start
+    task:
+      id: a6ae2938-1485-44fb-92d4-3efd3e132dd7
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9000"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: 6f86d7e2-5c51-464f-b681-4977c9ff0b1d
+    type: title
+    task:
+      id: 6f86d7e2-5c51-464f-b681-4977c9ff0b1d
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 775
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: 3e8fe984-1e2f-46ae-8432-81b7d27e6435
+    type: playbook
+    task:
+      id: 3e8fe984-1e2f-46ae-8432-81b7d27e6435
+      version: -1
+      name: Foundation - Upon Trigger V3
+      playbookName: Foundation - Upon Trigger V3
+      type: playbook
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "3"
+    separatecontext: false
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9000":
+    id: "9000"
+    taskid: 45accbe9-398e-44a2-affc-55eb5a2e87b9
+    type: regular
+    task:
+      id: 45accbe9-398e-44a2-affc-55eb5a2e87b9
+      version: -1
+      name: Set Lifecycle — NIST_IR
+      script: Set
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9001"
+    scriptarguments:
+      key:
+        simple: SOCFramework.lifecycle
+      value:
+        simple: NIST_IR
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9001":
+    id: "9001"
+    taskid: 0efcfe9d-bbb8-4d70-a8e6-33088971bb69
+    type: regular
+    task:
+      id: 0efcfe9d-bbb8-4d70-a8e6-33088971bb69
+      version: -1
+      name: Set Lifecycle Version — 3
+      script: Set
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "17"
+    scriptarguments:
+      key:
+        simple: SOCFramework.lifecycle_version
+      value:
+        simple: "3"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 785,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: EntryPoint
+  value:
+    simple: EP_InitialAccess
+  required: false
+  description: ""
+  playbookInputQuery: null
+outputs: []
