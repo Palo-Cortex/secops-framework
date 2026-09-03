@@ -1,0 +1,122 @@
+commonfields:
+  id: AppendADContainmentDescriptionNote
+  version: -1
+name: AppendADContainmentDescriptionNote
+script: "import traceback\nfrom datetime import datetime\nfrom typing import Any\n\n\nOUTPUT_PREFIX = \"CompromisedUser.ADDescriptionUpdate\"\
+  \nSEPARATOR = \" | \"\n\n\ndef str_arg(args: dict[str, Any], name: str, default: str = \"\") -> str:\n    value = args.get(name,\
+  \ default)\n    if value is None:\n        return default\n    return str(value).strip()\n\n\ndef bool_arg(args: dict[str,\
+  \ Any], name: str, default: bool = False) -> bool:\n    value = args.get(name)\n    if value is None:\n        return default\n\
+  \    if isinstance(value, bool):\n        return value\n    return str(value).strip().lower() in (\"true\", \"yes\", \"\
+  y\", \"1\")\n\n\ndef parse_args(args: dict[str, Any]) -> dict[str, Any]:\n    user_identifier = str_arg(args, \"user_identifier\"\
+  )\n    containment_reason = str_arg(args, \"containment_reason\")\n\n    if not user_identifier:\n        raise DemistoException(\"\
+  user_identifier is required and cannot be blank.\")\n    if not containment_reason:\n        raise DemistoException(\"containment_reason\
+  \ is required and cannot be blank.\")\n\n    return {\n        \"user_identifier\": user_identifier,\n        \"existing_description\"\
+  : str_arg(args, \"existing_description\"),\n        \"containment_reason\": containment_reason,\n        \"case_id\": str_arg(args,\
+  \ \"case_id\"),\n        \"analyst\": str_arg(args, \"analyst\"),\n        \"dry_run\": bool_arg(args, \"dry_run\", False),\n\
+  \        \"prevent_duplicate_note\": bool_arg(args, \"prevent_duplicate_note\", True),\n    }\n\n\ndef build_note(containment_reason:\
+  \ str, case_id: str, analyst: str) -> str:\n    timestamp = datetime.utcnow().strftime(\"%Y-%m-%d %H:%M UTC\")\n    note\
+  \ = f\"XSIAM containment {timestamp}: Account marked compromised. Reason: {containment_reason}.\"\n    if case_id:\n   \
+  \     note += f\" Case: {case_id}.\"\n    if analyst:\n        note += f\" Analyst: {analyst}.\"\n    return note\n\n\n\
+  def is_duplicate(existing_description: str, note: str, case_id: str) -> bool:\n    if not existing_description:\n      \
+  \  return False\n\n    if note in existing_description:\n        return True\n\n    if case_id and f\"Case: {case_id}.\"\
+  \ in existing_description and \"XSIAM containment\" in existing_description:\n        return True\n\n    return False\n\n\
+  \ndef append_description(existing_description: str, note: str) -> str:\n    if existing_description:\n        return f\"\
+  {existing_description}{SEPARATOR}{note}\"\n    return note\n\n\ndef update_ad_description(user_identifier: str, new_description:\
+  \ str) -> str:\n    result = demisto.executeCommand(\n        \"ad-update-user\",\n        {\n            \"username\":\
+  \ user_identifier,\n            \"attribute-name\": \"description\",\n            \"attribute-value\": new_description,\n\
+  \        },\n    )\n\n    if is_error(result):\n        raise DemistoException(get_error(result))\n\n    return \"Updated\"\
+  \n\n\ndef main():\n    try:\n        args = parse_args(demisto.args())\n\n        note = build_note(\n            args[\"\
+  containment_reason\"],\n            args[\"case_id\"],\n            args[\"analyst\"],\n        )\n\n        duplicate_prevented\
+  \ = False\n        if args[\"prevent_duplicate_note\"] and is_duplicate(args[\"existing_description\"], note, args[\"case_id\"\
+  ]):\n            new_description = args[\"existing_description\"]\n            duplicate_prevented = True\n            update_status\
+  \ = \"Skipped - duplicate containment note detected\"\n        else:\n            new_description = append_description(args[\"\
+  existing_description\"], note)\n            update_status = \"Dry run - AD not updated\" if args[\"dry_run\"] else update_ad_description(\n\
+  \                args[\"user_identifier\"],\n                new_description,\n            )\n\n        outputs = {\n  \
+  \          \"UserIdentifier\": args[\"user_identifier\"],\n            \"OldDescription\": args[\"existing_description\"\
+  ],\n            \"AppendedNote\": \"\" if duplicate_prevented else note,\n            \"NewDescription\": new_description,\n\
+  \            \"DryRun\": args[\"dry_run\"],\n            \"PreventDuplicateNote\": args[\"prevent_duplicate_note\"],\n \
+  \           \"DuplicatePrevented\": duplicate_prevented,\n            \"UpdateStatus\": update_status,\n            \"CaseID\"\
+  : args[\"case_id\"],\n            \"Analyst\": args[\"analyst\"],\n        }\n\n        readable = tableToMarkdown(\n  \
+  \          \"AD Description Containment Note Update\",\n            outputs,\n            headers=[\n                \"\
+  UserIdentifier\",\n                \"OldDescription\",\n                \"AppendedNote\",\n                \"NewDescription\"\
+  ,\n                \"DryRun\",\n                \"DuplicatePrevented\",\n                \"UpdateStatus\",\n           \
+  \ ],\n        )\n\n        return_results(CommandResults(\n            readable_output=readable,\n            outputs_prefix=OUTPUT_PREFIX,\n\
+  \            outputs_key_field=\"UserIdentifier\",\n            outputs=outputs,\n        ))\n\n    except Exception as\
+  \ ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"Failed to append AD containment note. Error:\
+  \ {ex}\")\n\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()"
+type: python
+tags:
+- active directory
+- containment
+- compromised user
+comment: Appends a timestamped XSIAM containment note to an Active Directory user's description attribute using ad-update-user.
+enabled: true
+args:
+- supportedModules: []
+  name: user_identifier
+  required: true
+  description: AD user identifier. Passed to ad-update-user as username; use sAMAccountName when required by the AD integration.
+  type: String
+- supportedModules: []
+  name: existing_description
+  description: Current AD description value, usually from ad-get-user.
+  type: String
+- supportedModules: []
+  name: containment_reason
+  required: true
+  description: Reason the account is being contained.
+  type: String
+- supportedModules: []
+  name: case_id
+  description: XSIAM incident or case ID to include in the containment note.
+  type: String
+- supportedModules: []
+  name: analyst
+  description: Analyst name or username to include in the containment note.
+  type: String
+- supportedModules: []
+  name: dry_run
+  description: When true, do not update AD. Return only the planned description.
+  defaultValue: 'true'
+  type: Boolean
+- supportedModules: []
+  name: prevent_duplicate_note
+  description: Avoid appending the same case ID or containment note more than once.
+  defaultValue: 'true'
+  type: Boolean
+outputs:
+- contextPath: CompromisedUser.ADDescriptionUpdate.UserIdentifier
+  description: AD user identifier supplied to the automation.
+  type: string
+- contextPath: CompromisedUser.ADDescriptionUpdate.OldDescription
+  description: Original AD description value.
+  type: string
+- contextPath: CompromisedUser.ADDescriptionUpdate.AppendedNote
+  description: Containment note appended to the AD description.
+  type: string
+- contextPath: CompromisedUser.ADDescriptionUpdate.NewDescription
+  description: Final AD description value or planned value during dry run.
+  type: string
+- contextPath: CompromisedUser.ADDescriptionUpdate.DryRun
+  description: Whether dry-run mode was used.
+  type: boolean
+- contextPath: CompromisedUser.ADDescriptionUpdate.PreventDuplicateNote
+  description: Whether duplicate prevention was enabled.
+  type: boolean
+- contextPath: CompromisedUser.ADDescriptionUpdate.DuplicatePrevented
+  description: Whether an existing containment note prevented a duplicate append.
+  type: boolean
+- contextPath: CompromisedUser.ADDescriptionUpdate.UpdateStatus
+  description: AD update status.
+  type: string
+- contextPath: CompromisedUser.ADDescriptionUpdate.CaseID
+  description: Case ID included in the note.
+  type: string
+- contextPath: CompromisedUser.ADDescriptionUpdate.Analyst
+  description: Analyst included in the note.
+  type: string
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.11.10.113941
+runas: DBotWeakRole
