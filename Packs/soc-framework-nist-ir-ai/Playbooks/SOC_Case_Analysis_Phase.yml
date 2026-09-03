@@ -1,0 +1,297 @@
+adopted: true
+fromversion: 6.10.0
+id: SOC Case Analysis Phase
+version: -1
+aclrelations: []
+aclowner:
+  id: ""
+  type: ""
+  name: ""
+name: SOC Case Analysis Phase
+description: |-
+  Runs Detection & Analysis for a single case. Called once per case by JOB - SOC Case Analysis with forEach over the case payloads.
+
+  Every task argument here is a scalar read from CaseIter.*, never an object or an array. XSIAM runs a task once per element when an argument resolves to an array, and the sub-playbook input accumulates across iterations - which fired each task once per case seen so far and rendered later cases under earlier headers. Task 5 pins the current case to scalar keys and nothing downstream touches the input again.
+
+  This is the AI seam. The pack version carries a title placeholder and no aiTask so it installs where AI is unavailable; the same playbook id is uploaded by hand with the aiTask bound where AI exists.
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 4fd77d41-1c14-457b-8b11-97dc6b72a6e0
+    type: start
+    task:
+      id: 4fd77d41-1c14-457b-8b11-97dc6b72a6e0
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "5"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "5":
+    id: "5"
+    taskid: d127c9e5-30ff-4544-8123-b558d0c58c34
+    type: regular
+    task:
+      id: d127c9e5-30ff-4544-8123-b558d0c58c34
+      version: -1
+      name: Pin case for this iteration
+      description: Writes the current case to scalar CaseIter.* keys and clears the
+        previous verdict, so no downstream task has an array to iterate.
+      scriptName: SOCFWCaseIterationSetup
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "10"
+    scriptarguments:
+      case:
+        complex:
+          root: inputs.Case
+          transformers:
+          - operator: Stringify
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: ae5ac7c3-c80c-4d02-85b0-3bee8cd4b88c
+    type: aiTask
+    task:
+      id: ae5ac7c3-c80c-4d02-85b0-3bee8cd4b88c
+      version: -1
+      name: SOCFWCaseAnalysis
+      aiTaskId: f018cd64-e2ce-464f-8051-55a12af30d9a
+      type: aiTask
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      case_id:
+        simple: ${CaseIter.ID}
+      case_payload:
+        simple: ${CaseIter.Payload}
+      case_window:
+        simple: ${CaseIter.Window}
+      categories:
+        simple: ${CaseIter.Categories}
+      issue_count:
+        simple: ${CaseIter.IssueCount}
+      prior_verdict:
+        simple: ${CaseIter.PriorVerdict}
+      shape_coverage:
+        simple: ${CaseIter.ShapeCoverage}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: 2272fe25-1e91-4059-8080-5838f7205e56
+    type: regular
+    task:
+      id: 2272fe25-1e91-4059-8080-5838f7205e56
+      version: -1
+      name: Report case verdict
+      description: Renders the verdict to the case War Room and builds the execution
+        row. All arguments are scalars.
+      scriptName: SOCFWCaseVerdictReport
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "25"
+    scriptarguments:
+      case_id:
+        simple: ${CaseIter.ID}
+      categories:
+        simple: ${CaseIter.Categories}
+      contract_coverage:
+        simple: ${CaseIter.ContractCoverage}
+      issue_count:
+        simple: ${CaseIter.IssueCount}
+      payload:
+        simple: ${CaseIter.Payload}
+      prior_verdict:
+        simple: ${CaseIter.PriorVerdict}
+      shape_coverage:
+        simple: ${CaseIter.ShapeCoverage}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "25":
+    id: "25"
+    taskid: 58aba93a-092b-45c4-8445-93ba08adeb4f
+    type: regular
+    task:
+      id: 58aba93a-092b-45c4-8445-93ba08adeb4f
+      version: -1
+      name: Post Case Verdict to Execution Dataset
+      description: Writes the case_analysis row via socfw_ir_execution_writer.
+      script: '|||socfw-post-to-dataset'
+      type: regular
+      iscommand: true
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "30"
+    scriptarguments:
+      JSON:
+        complex:
+          root: CaseAnalysis.ExecutionRow
+          transformers:
+          - operator: Stringify
+      using:
+        simple: socfw_ir_execution_writer
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 775
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "30":
+    id: "30"
+    taskid: 4d01dfa1-7e28-4302-8ca8-17d54ed54a54
+    type: title
+    task:
+      id: 4d01dfa1-7e28-4302-8ca8-17d54ed54a54
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+outlinetasks: {}
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 970,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: Case
+  value:
+    complex:
+      root: SOCFramework.Case.Payloads
+  required: false
+  description: One case payload per iteration. Read only by task 5, which pins it
+    to scalar keys.
+  playbookInputQuery: null
+outputs:
+- contextPath: CaseAnalysis.case_id
+  description: The case analysed by this iteration.
+  type: string
+- contextPath: CaseAnalysis.verdict
+  description: The case verdict.
+  type: string
+possibleresponses: []
