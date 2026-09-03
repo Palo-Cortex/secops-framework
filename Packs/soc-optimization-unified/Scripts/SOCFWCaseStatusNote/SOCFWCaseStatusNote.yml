@@ -1,0 +1,39 @@
+commonfields:
+  id: SOCFWCaseStatusNote
+  version: -1
+name: SOCFWCaseStatusNote
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+comment: |-
+  Tells the analyst the case is being worked, before any verdict exists.
+
+  Case-scoped analysis runs on a schedule and waits for the case to settle, so
+  there is a window between the first issue arriving and a verdict appearing.
+  Without a marker the case looks abandoned, and an analyst cannot tell "nothing
+  has happened yet" from "nothing is going to happen".
+
+  Written once per case, not once per issue. The status flag is read before
+  writing, so a case receiving four hundred issues gets one note rather than four
+  hundred. Silent when the issue is not yet grouped into a case.
+args: []
+outputs:
+- contextPath: SOCFramework.Case.Status
+  description: Set to collecting on the case when the first issue arrives.
+  type: String
+scripttarget: 0
+timeout: 5m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWCaseStatusNote
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: true
