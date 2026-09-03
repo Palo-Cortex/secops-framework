@@ -15,6 +15,29 @@ import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401,F403
 
 STATUS_KEY = 'SOCFramework.Case.Status'
+CONFIG_LIST = 'SOCOptimizationConfig_V3'
+
+
+def case_analysis_enabled():
+    """Only speak where case analysis is actually installed.
+
+    This script ships in soc-optimization-unified, which installs on every
+    tenant. Case analysis ships in a separate opt-in pack. Without this check the
+    note would promise a verdict on every case of every tenant, including those
+    that never installed the thing that produces one.
+    """
+    try:
+        raw = demisto.executeCommand('getList', {'listName': CONFIG_LIST})
+        if isinstance(raw, list):
+            raw = raw[0] if raw else {}
+        contents = raw.get('Contents')
+        if not contents or 'Item not found' in str(contents):
+            return False
+        cfg = json.loads(contents) if isinstance(contents, str) else contents
+        return bool((cfg.get('Case Analysis JOB') or {}).get('enabled'))
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseStatusNote: config unreadable, staying silent: {e}')
+        return False
 
 
 def api(uri, body):
@@ -23,6 +46,10 @@ def api(uri, body):
 
 
 def main():
+    if not case_analysis_enabled():
+        return_results(CommandResults(readable_output=''))
+        return
+
     case_ref = demisto.get(demisto.context(),
                            'parentIncidentContext.incident.parentXDRIncident')
     if not case_ref:
