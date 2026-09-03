@@ -1,0 +1,137 @@
+commonfields:
+  id: SOCFWCaseSelect
+  version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOCFWCaseSelect
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+comment: |-
+  Selects the cases eligible for case-scoped analysis on this JOB run.
+
+  Candidacy is decided from case state alone, with no dependency on issue-level
+  automation: a case is a candidate when it has never been analysed, or when its
+  alert_count exceeds the count recorded at the last analysis. alert_count is the
+  signal rather than modification_time, because a count delta unambiguously means
+  new issues joined the case while modification_time also moves for edits,
+  comments and status changes. Cases in a resolved state are skipped.
+
+  Pages get_incidents through core-api-post with offset paging, capped at the
+  100-row page ceiling.
+
+  The watermark comes from the execution dataset rather than a List. A
+  pack-installed List is system-owned and a JOB cannot write to it - setList
+  returns "Item is system and cannot be modified" - so a List-based watermark
+  silently never persists and every run re-analyses every case. The dataset
+  already records what was analysed, so it is the watermark.
+
+  Emits CandidateFilter as a bare comma-separated id list for interpolation into
+  the aggregate queries, falling back to -1 so an empty run still produces a
+  syntactically valid filter.
+args:
+- name: batch_size
+  description: Cases fetched per page. Bounded by the 100-row get_incidents ceiling.
+  defaultValue: "100"
+- name: max_batches
+  description: Maximum pages fetched per run. Cases per run is batch_size x max_batches.
+  defaultValue: "20"
+- name: window_hours
+  description: Only consider cases modified within this many hours. Modification
+    rather than creation, or a long-lived case still receiving issues drops out of
+    scope while it is still active.
+  defaultValue: "24"
+- name: watermark_rows
+  description: Per-case analysis history from the execution dataset, one row per case
+    with analysed_issue_count, analysed_covered_issues and analysed_total_issues. A
+    pack-installed List is system-owned and a JOB cannot write to it, so the dataset
+    is the watermark.
+  isArray: true
+- name: min_issues
+  description: Minimum issues for a case to be analysed. A single-issue case is
+    per-issue analysis wearing a case label, and the per-category prompts already do
+    that job - on one production window 77% of cases held exactly one issue, so this
+    is the single largest lever on AI cost.
+  defaultValue: "2"
+- name: min_score
+  description: Minimum predicted_score for a case to be analysed. 0 disables the
+    floor. Cases with no score are never skipped on this basis.
+  defaultValue: "0"
+- name: settle_minutes
+  description: Minutes a case must be unchanged before it is analysed. A case
+    analysed while still filling produces a partial verdict and then needs
+    re-analysing, so waiting costs fewer runs and returns a better contract.
+  defaultValue: "15"
+- name: max_wait_minutes
+  description: Age past which a case is analysed even if it is still changing, so a
+    continuously active case still gets a verdict. Keep it well inside the six-hour
+    auto-close window or the closure veto never applies.
+  defaultValue: "120"
+- name: max_analyses
+  description: Analyses per case before it stops being re-selected. Low because the
+    settle window makes re-analysis the exception rather than the norm.
+  defaultValue: "2"
+- name: domain
+  description: Case domain this lifecycle owns. Posture cases never run the NIST IR
+    entry point and carry no contract by design, so they are skipped here rather than
+    treated as a coverage gap. Note the case field spells the value DOMAIN_SECURITY
+    while the issue field spells it SECURITY.
+  defaultValue: DOMAIN_SECURITY
+outputs:
+- contextPath: SOCFramework.Case.Candidates
+  description: Cases eligible for analysis this run, with their case-level counts and entity sets.
+- contextPath: SOCFramework.Case.CandidateFilter
+  description: Comma-separated case id list for the aggregate query filters.
+  type: String
+- contextPath: SOCFramework.Case.SelectStats.scanned
+  description: Cases examined this run.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.candidates
+  description: Cases selected for analysis.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_unchanged
+  description: Cases skipped because alert_count had not advanced past the watermark.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_terminal
+  description: Cases skipped because they are in a resolved state.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_out_of_domain
+  description: Cases skipped because they belong to another lifecycle's domain.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_single_issue
+  description: Cases skipped for holding fewer issues than min_issues.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_settling
+  description: Cases skipped because they are still changing and not yet at the age cap.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_max_analyses
+  description: Cases skipped for having been analysed max_analyses times.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_low_score
+  description: Cases skipped for scoring below min_score.
+  type: Number
+scripttarget: 0
+timeout: 10m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWCaseSelect
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: true

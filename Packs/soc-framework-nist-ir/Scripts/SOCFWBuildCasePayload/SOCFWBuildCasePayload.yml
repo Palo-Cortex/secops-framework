@@ -1,0 +1,105 @@
+commonfields:
+  id: SOCFWBuildCasePayload
+  version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOCFWBuildCasePayload
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+comment: |-
+  Partitions the case aggregates into one structured payload per case.
+
+  The four XQL aggregates run once across every candidate case, so this script
+  splits their result sets by incident_id and assembles what the case analysis
+  prompt consumes. Aggregate cost is therefore four queries per JOB run rather
+  than four per case.
+
+  Occurrence counts are carried through rather than discarded: volume per shape
+  is evidence of intensity, and first_seen ordering is what carries a
+  cross-category pivot. Truncation is never silent - when a case exceeds
+  max_shapes, ShapeCoverage records how many shapes were kept and what share of
+  the case's issues they cover.
+
+  Result sets are located by the query_name set on each aggregate task, walking
+  context rather than hard-coding an XQL output path that would fail silently as
+  an empty result set. The roots those matches were found under are then cleared,
+  since a many-case run pulls every alert row for every case into JOB context and
+  none of it is needed once collapsed.
+
+  Cases with no contracted issues are excluded rather than analysed. Only issues
+  that ran an entry-point playbook carry a SOC Framework contract, and a case built
+  from vendor fields alone would look healthy while being ungrounded.
+args:
+- name: candidates
+  description: The candidate case objects emitted by SOCFWCaseSelect.
+  isArray: true
+- name: min_shapes
+  description: Distinct alert shapes a case must contain to be analysed. Noise is
+    many issues of one shape - two hundred scan alerts from one address clears an
+    issue-count floor and is worth nothing, while a real case shows several distinct
+    shapes. Checked after the aggregate, which is cheap, and before the AI call,
+    which is not.
+  defaultValue: "2"
+- name: campaign_issues
+  description: Issue count above which a single-shape case is analysed anyway. A
+    campaign and a noise flood are both single-shape - four hundred phishing emails
+    are one shape with a high count, and so are two hundred scan alerts. Volume is
+    what separates them, and shape count alone would skip the campaign.
+  defaultValue: "20"
+- name: max_shapes
+  description: Maximum distinct alert shapes carried per case, highest count first.
+  defaultValue: "40"
+outputs:
+- contextPath: SOCFramework.Case.Payloads
+  description: One entry per case, each carrying the prompt inputs for that case.
+- contextPath: SOCFramework.Case.Payloads.ID
+  description: Case id.
+  type: String
+- contextPath: SOCFramework.Case.Payloads.IssueCount
+  description: Issues in the case.
+  type: Number
+- contextPath: SOCFramework.Case.Payloads.Categories
+  description: Distinct alert sources present in the case.
+- contextPath: SOCFramework.Case.Payloads.Window
+  description: First and last seen across the case's alert shapes.
+- contextPath: SOCFramework.Case.Payloads.ShapeCoverage
+  description: Shapes kept, shapes found, and the percentage of issues covered.
+- contextPath: SOCFramework.Case.Payloads.ContractCoverage
+  description: Issues carrying a SOC Framework contract, out of the case total, with percentage.
+- contextPath: SOCFramework.Case.Payloads.Payload
+  description: The collapsed case payload as a JSON string.
+  type: String
+- contextPath: SOCFramework.Case.SingleShape
+  description: Cases skipped for repetition rather than progression - fewer than min_shapes distinct shapes.
+- contextPath: SOCFramework.Case.Uncontracted
+  description: In-domain cases skipped because no issue ran an entry-point playbook, so no contract exists.
+- contextPath: SOCFramework.Case.ExecutionRows
+  description: One case_analysis_run row plus one case_analysis row per case, for the execution dataset.
+- contextPath: SOCFramework.Case.QueryCost
+  description: Queries executed, quota charged, rows returned and remaining quota for this run.
+scripttarget: 0
+timeout: 10m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWBuildCasePayload
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: true
