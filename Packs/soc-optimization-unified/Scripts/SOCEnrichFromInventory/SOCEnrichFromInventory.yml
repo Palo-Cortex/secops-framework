@@ -1,0 +1,53 @@
+commonfields:
+  id: SOCEnrichFromInventory
+  version: -1
+name: SOCEnrichFromInventory
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.12.5490952
+runonce: false
+enabled: true
+scripttarget: 0
+comment: |
+  Foundation / Upon Trigger identity resolver. Resolves the alert's raw identity
+  (typically a down-level SAM such as domain\#### with no UPN or email) against
+  the Unified Asset Inventory (dataset = asset_inventory) in two hops: SAM ->
+  email, then email -> all provider facets. Writes the resolved canonical
+  identity plus a per-provider Providers block into
+  SOCFramework.Artifacts.Identity.User.* (in-place, fail-open: a miss leaves the
+  normalized rule identity untouched). Emits one identity_resolve telemetry row
+  with query_cost to xsiam_socfw_ir_execution_raw.
+args:
+  - name: sam
+    description: Optional override for the SAM to resolve. Defaults to the bare SAM derived from SOCFramework.Artifacts.Identity.User.SAM/.Name/.UPN on the contract.
+  - name: email
+    description: Optional email override. When supplied, hop 1 (SAM -> email) is skipped and resolution starts directly from this email.
+outputs:
+  - contextPath: SOCFramework.Artifacts.Identity.User.Email
+    description: Resolved canonical email (the Unified Human Identity correlation key).
+  - contextPath: SOCFramework.Artifacts.Identity.User.UPN
+    description: Resolved canonical user principal name.
+  - contextPath: SOCFramework.Artifacts.Identity.User.DisplayName
+    description: Resolved display name.
+  - contextPath: SOCFramework.Artifacts.Identity.User.Disabled
+    description: Resolved account disabled state.
+  - contextPath: SOCFramework.Artifacts.Identity.User.SAM
+    description: Bare SAM used as the entry key.
+  - contextPath: SOCFramework.Artifacts.Identity.User.Providers
+    description: Per-provider facet block (ID, StrongID, UPN, Email, Realm, SAM) keyed by provider. StrongID is the provider-native action identifier (ARN for AWS, login/00u for Okta, UUID for Azure).
+  - contextPath: SOCFramework.Artifacts.Identity.User.ProvidersFound
+    description: List of providers present in the inventory at resolution time. asset_inventory is freshness-gated; a provider absent from this list is unknown, not confirmed-absent.
+  - contextPath: SOCFramework.Artifacts.Identity.User.CoverageSource
+    description: Provenance/coverage note for the resolved provider set.
+  - contextPath: SOCFramework.Artifacts.Identity.User.ResolvedVia
+    description: Resolution provenance marker (asset_inventory) used for in-context idempotency.
+marketplaces:
+  - marketplacev2
+tags:
+  - X1
+  - X3
+  - X5
+  - ENT_PLUS
+  - agentix
