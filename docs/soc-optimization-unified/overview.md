@@ -85,6 +85,7 @@ Integration brand instances the installer configures. Credentials and propagatio
 | `WildFire-v2_default_instance` | `WildFire-v2` | Forensics & Malware Analysis | true |
 | `Unit_42_Intelligence_SOCFW` | `Unit 42 Intelligence` | Data Enrichment & Threat Intelligence | true |
 | `socfw_ir_execution_writer` | `SOCFWDatasetWriter` | Utilities | true |
+| `socfw_case_ledger_writer` | `SOCFWDatasetWriter` | Utilities | true |
 
 ## Jobs
 

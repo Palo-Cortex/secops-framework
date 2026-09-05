@@ -1,0 +1,61 @@
+comment: |-
+  Writes one case ledger row per issue to xsiam_socfw_case_ledger_raw.
+
+  Takes any contract and is lifecycle-agnostic. Upon Trigger passes the
+  Foundation contract; a lifecycle phase can pass its own phase contract with a
+  different `phase` value. The row carries a queryable spine plus two JSON
+  blobs: contract_evidence (Artifacts, Product, Intel, lifecycle) which the AI
+  consumer reads, and contract_full for everything else.
+
+  The contract remains in data context. This is an additive queryable copy, not
+  a move — containment, eradication and recovery still read SOCFramework.* there.
+commonfields:
+  id: SOCFWCaseLedgerWrite
+  version: -1
+name: SOCFWCaseLedgerWrite
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.11.10.116949
+runas: DBotWeakRole
+fromversion: 6.10.0
+system: true
+tags:
+- SOC
+- SOC_Framework_Unified
+args:
+- name: phase
+  description: Lifecycle phase this contract belongs to. Foundation contracts use
+    the default.
+  defaultValue: foundation
+- name: contract_path
+  description: Root context key holding the contract to write.
+  defaultValue: SOCFramework
+- name: contract_source
+  description: How the contract was produced. Defaults to contract when the path
+    resolves and empty when it does not.
+- name: instance
+  description: SOCFWDatasetWriter instance bound to the case ledger collector.
+  defaultValue: socfw_case_ledger_writer
+outputs:
+- contextPath: SOCFramework.CaseLedger.written
+  description: Whether the ledger row was posted.
+  type: Boolean
+- contextPath: SOCFramework.CaseLedger.phase
+  description: Phase recorded on the row.
+  type: String
+- contextPath: SOCFramework.CaseLedger.case_id
+  description: Case the row was written against.
+  type: String
+scripttarget: 0
+marketplaces:
+- marketplacev2
+supportedModules:
+- C1
+- C3
+- X0
+- X1
+- X3
+- X5
+- ENT_PLUS
+- agentix

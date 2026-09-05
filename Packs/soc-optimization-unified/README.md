@@ -119,8 +119,8 @@ Marketplace → search **"SOC"** for the full set of installable Framework packs
 ## Installing
 
 Install and post-install configuration — Pack Manager, correlation rules, the
-execution-metrics HTTP Collector, and the Dataset Writer instance — are covered
-in [POST_CONFIG_README.md](POST_CONFIG_README.md).
+HTTP Collectors, and the Dataset Writer instances — are covered
+in [POST_CONFIG_README.md](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-optimization-unified/POST_CONFIG_README.md).
 
 ---
 

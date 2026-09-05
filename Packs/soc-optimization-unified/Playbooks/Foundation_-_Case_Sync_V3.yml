@@ -6,20 +6,21 @@ contentitemexportablefields:
     isoverridable: false
     itemVersion: 2.1.13
     packID: soc-optimization-unified
-    _packName: SOC Framework Unified
+    _packName: SOC Framework Unified (SOCFW)
     prevname: ""
     supportedModules: []
     toServerVersion: ""
 description: |+
-  Generates/Updates the Case Alert Ledger
-  Notifies incident owner of new issue addition
+  Writes one case ledger row per issue to xsiam_socfw_case_ledger_raw.
 
-dirtyInputs: true
+  Runs after Dedup so the row carries the completed contract, including the
+  duplicate role. The contract stays in data context; this is an additive
+  queryable copy.
+
 id: 'Foundation - Case Sync_V3'
 inputs: []
 name: Foundation - Case Sync_V3
 outputs: []
-sourceplaybookid: Foundation - Upon Trigger
 starttaskid: "0"
 tags:
 - SOC
@@ -33,7 +34,7 @@ tasks:
     isoversize: false
     nexttasks:
       '#none#':
-      - "8"
+      - "18"
     note: false
     quietmode: 0
     separatecontext: false
@@ -53,6 +54,46 @@ tasks:
         "position": {
           "x": 50,
           "y": 50
+        }
+      }
+  "18":
+    continueonerror: true
+    continueonerrortype: ""
+    id: "18"
+    ignoreworker: false
+    isautoswitchedtoquietmode: false
+    isoversize: false
+    nexttasks:
+      '#none#':
+      - "8"
+      '#error#':
+      - "17"
+    note: false
+    quietmode: 0
+    scriptarguments:
+      phase:
+        simple: foundation
+      contract_path:
+        simple: SOCFramework
+    separatecontext: false
+    skipunavailable: false
+    task:
+      brand: ""
+      id: 9f2c1d64-3a77-4e0b-9c58-5b1a2e7d40c6
+      iscommand: false
+      name: Write case ledger row
+      script: SOCFWCaseLedgerWrite
+      playbooktaskmissingcomponent:
+      type: regular
+      version: -1
+    taskid: 9f2c1d64-3a77-4e0b-9c58-5b1a2e7d40c6
+    timertriggers: []
+    type: regular
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 200
         }
       }
   "8":
@@ -122,7 +163,7 @@ view: |-
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 410,
+        "height": 560,
         "width": 380,
         "x": 50,
         "y": 50
