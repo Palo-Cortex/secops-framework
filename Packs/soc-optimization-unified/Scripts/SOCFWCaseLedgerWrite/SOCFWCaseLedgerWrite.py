@@ -124,8 +124,14 @@ def main():
 
     error = post_row(row, instance)
     if error:
-        return_results(CommandResults(
-            readable_output="Case ledger write failed: {}".format(error)))
+        # Stay quiet rather than put a failure entry on every issue. This script
+        # ships in soc-optimization-unified, which installs everywhere, while the
+        # ledger needs a collector and writer instance the tenant creates by hand.
+        # On a tenant that has neither, a visible error reads to an analyst like a
+        # broken pipeline. Suppressing output only on a path that already failed
+        # cannot stop a working write.
+        demisto.debug("SOCFWCaseLedgerWrite: {}".format(error))
+        return_results(CommandResults(readable_output=""))
         return
 
     return_results(CommandResults(
