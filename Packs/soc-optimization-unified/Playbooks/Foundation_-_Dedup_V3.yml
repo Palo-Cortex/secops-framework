@@ -487,29 +487,38 @@ tasks:
     task:
       id: ed574f23-7596-4af6-b90c-429c257b3402
       version: -1
-      name: Close Self as Duplicate
-      description: commands.local.cmd.close.inv
+      name: Mark as Duplicate
+      description: Marks the issue as a duplicate and links it to the canonical
+        case instead of closing it. Self-closing removed the evidence case-scoped
+        analysis depends on - measured on one case it resolved 44 of 57 issues,
+        and twelve distinct alert names existed only in the closed set, taking
+        every lateral movement and command-and-control detection with them. The
+        similarity key is agentid and hostname, so any alert on a host inside the
+        window reads as a duplicate of the first regardless of technique, which
+        preferentially destroys the rarest signals. Duplicate count is evidence
+        of intensity; the case reasoner collapses repetition on its own.
       tags:
       - Auto-Triage
-      script: Builtin|||closeInvestigation
+      script: SetAndHandleEmpty
       type: regular
-      iscommand: true
-      brand: Builtin
+      iscommand: false
+      brand: ""
       playbooktaskmissingcomponent: null
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#error#':
       - "18"
       '#none#':
-      - "8"
+      - "27"
     scriptarguments:
-      closeNotes:
-        simple: 'Duplicate alert. Canonical case: ${SOCFramework.Dedup.WinnerID} (lowest
-          alert ID in duplicate group — deterministic winner selection).'
-      closeReason:
-        simple: Resolved - Other
-      id:
-        simple: ${alert.id}
+      append:
+        simple: "false"
+      force:
+        simple: "true"
+      key:
+        simple: SOCFramework.Dedup.role
+      value:
+        simple: duplicate
     separatecontext: false
     continueonerror: true
     continueonerrortype: errorPath
