@@ -35,6 +35,7 @@ WORKFLOW
                                  mkdocs nav, home page). Fails if a schema or
                                  pack edit lands without regenerating docs.
   8. upload_package.sh           Deploy changed packs to review tenant.
+  9. verify_tenant_content.py    Confirm the upload did not remove other packs' content.
                                  Runs in both local and CI — credentials come
                                  from .env locally, GitHub Secrets in CI.
                                  Includes platform health check — aborts if
@@ -530,6 +531,15 @@ def main() -> None:
                 ["bash", "tools/upload_package.sh", str(pack)],
                 args.ci,
             ))
+        # --override-existing makes a pack's changes land, and on this tenant it can
+        # also remove another pack's content. Silent when it happens; surfaces hours
+        # later as a missing script or an unparseable list. Check while the cause is
+        # still obvious.
+        results.append(run_step(
+            "verify tenant content",
+            ["python3", "tools/verify_tenant_content.py", *[str(p) for p in packs]],
+            args.ci,
+        ))
     else:
         print(f"\n  {DIM('⊘  Upload skipped (--no-upload)')}")
 
