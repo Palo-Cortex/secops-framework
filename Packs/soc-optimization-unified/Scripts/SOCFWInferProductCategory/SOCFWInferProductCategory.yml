@@ -1,0 +1,106 @@
+commonfields:
+  id: SOCFWInferProductCategory
+  version: -1
+name: SOCFWInferProductCategory
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.13.8927230
+runas: DBotWeakRole
+runonce: false
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+sourcescripid: SOCFWInferProductCategory
+pswd: ''
+signature: ''
+scripttarget: 0
+comment: |
+  Runtime fallback for Foundation - Product Classification. When the issue's
+  DS: key has no entry in SOCProductCategoryMap_V3 the category resolves empty
+  and normalization falls through to the generic contract section. This script
+  scores the issue's populated field names against the installed lifecycle's
+  SOCFrameworkNormalizeMap_<LIFECYCLE> and writes the resulting category onto
+  the SOCFramework contract. The shipped map is never modified — the record
+  written under SOCFramework.Product.Inferred names the missing key so it can
+  be added by hand. Below the confidence floor the script abstains and leaves
+  the category empty.
+args:
+  - name: lifecycle
+    description: >-
+      Lifecycle token (default nist_ir). Selects the contract read as the
+      scoring corpus by naming convention: SOCFrameworkNormalizeMap_<LIFECYCLE.upper()>
+      (e.g. nist_ir -> SOCFrameworkNormalizeMap_NIST_IR). A lifecycle becomes
+      classifiable as soon as its normalization contract is installed.
+    required: false
+    defaultValue: nist_ir
+    supportedModules: []
+  - name: list_name
+    description: >-
+      Explicit override of the list name. When omitted it is resolved from the
+      lifecycle by the naming convention above.
+    required: false
+    supportedModules: []
+  - name: floor
+    description: >-
+      Minimum score required to write a category. Below it the evidence is real
+      but not separable, and the script abstains rather than guessing.
+    required: false
+    defaultValue: '10'
+    supportedModules: []
+  - name: generic_frac
+    description: >-
+      Fields carried by this fraction or more of the category definitions are
+      treated as structural and suppressed from scoring.
+    required: false
+    defaultValue: '0.5'
+    supportedModules: []
+outputs:
+  - contextPath: SOCFramework.Product.category
+    description: Inferred product category. Written only when the score clears the floor.
+    type: string
+  - contextPath: SOCFramework.Product.confidence
+    description: Set to 'inferred' when the category came from this script rather than the map.
+    type: string
+  - contextPath: SOCFramework.Product.Inferred.product_key
+    description: Datasource key that has no entry in SOCProductCategoryMap_V3.
+    type: string
+  - contextPath: SOCFramework.Product.Inferred.category
+    description: Best-scoring category, whether or not it was applied.
+    type: string
+  - contextPath: SOCFramework.Product.Inferred.level
+    description: high, medium, low, weak, or none.
+    type: string
+  - contextPath: SOCFramework.Product.Inferred.applied
+    description: Whether the category was written to the contract.
+    type: boolean
+  - contextPath: SOCFramework.Product.Inferred.scores
+    description: Score per category.
+    type: unknown
+  - contextPath: SOCFramework.Product.Inferred.evidence
+    description: Fields that carried the winning score, with their weights.
+    type: unknown
+  - contextPath: SOCFramework.Product.Inferred.fields_scored
+    description: Number of populated issue fields scored.
+    type: number
+  - contextPath: SOCFramework.Product.Inferred.list_name
+    description: Contract list the corpus was built from.
+    type: string
+tags:
+  - SOC
+  - SOC_Framework
+  - Foundation
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified
+    itemVersion: 3.14.1
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
+system: true
