@@ -22,14 +22,50 @@ import demistomock as demisto
 from CommonServerPython import *
 
 
+def _salvage(text):
+    """Recover the decision from a reply the model ran out of tokens mid-way through.
+
+    The verdict fields are emitted before the long story text, so a truncated
+    object still carries what matters. Trim back to the last complete pair and
+    close the object rather than losing the whole assessment.
+    """
+    cut = text.rfind('",')
+    while cut > 0:
+        try:
+            obj = json.loads(text[:cut + 1] + "}")
+            obj["truncated"] = True
+            return obj
+        except (ValueError, TypeError):
+            nxt = text.rfind('",', 0, cut)
+            if nxt == -1 or nxt == cut:
+                return None
+            cut = nxt
+    return None
+
+
 def _load(raw):
-    """Coerce the aiTask output into a dict: JSON text, stale list wrapper, or dict."""
+    """Coerce the aiTask output into a dict: JSON text, stale list wrapper, or dict.
+
+    A model may fence its answer, open with prose, or be cut off by the output
+    token limit. Trim to the outermost braces first, then salvage a truncated
+    object, so a recoverable reply is not thrown away.
+    """
     if isinstance(raw, list):
         raw = raw[0] if raw else None
     if isinstance(raw, dict):
         return raw
     if isinstance(raw, str) and raw.strip():
-        return json.loads(raw)
+        text = raw
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end > start:
+            text = text[start:end + 1]
+        try:
+            return json.loads(text)
+        except (ValueError, TypeError):
+            obj = _salvage(text if start == -1 else raw[start:])
+            if obj is None:
+                raise
+            return obj
     return None
 
 
@@ -52,6 +88,15 @@ VERDICT_FIELDS = (
     "mitre_tactic_id",
     "mitre_technique",
     "mitre_technique_id",
+    # issue-scope assessment fields; absent on case rows, which is why they are
+    # gathered by presence rather than assumed
+    "exposure",
+    "already_contained",
+    "escalate_recommended",
+    "closure_recommended",
+    "closure_reason",
+    "closure_confidence",
+    "closure_blockers",
 )
 
 # The model is not constrained to a controlled vocabulary, so it invents spellings:
