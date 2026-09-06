@@ -78,7 +78,7 @@ tasks:
       {
         "position": {
           "x": 50,
-          "y": 775
+          "y": 1610
         }
       }
     note: false
@@ -104,7 +104,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "3"
+      - "9005"
     separatecontext: false
     continueonerrortype: ""
     loop:
@@ -204,13 +204,278 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  "9002":
+    id: "9002"
+    taskid: 99f7ede5-3abe-490a-ba70-d8a7fca5b728
+    type: aiTask
+    task:
+      id: 99f7ede5-3abe-490a-ba70-d8a7fca5b728
+      version: -1
+      name: SOCFWIssueAssessment
+      aiTaskId: 17c97289-2b16-48f9-8ebe-a17e954d4399
+      type: aiTask
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9003"
+    scriptarguments:
+      intel:
+        complex:
+          root: Assessment
+          accessor: Intel
+          transformers:
+          - operator: SetIfEmpty
+            args:
+              defaultValue:
+                value:
+                  simple: no content
+      alert_name:
+        complex:
+          root: alert
+          accessor: name
+          transformers:
+          - operator: SetIfEmpty
+            args:
+              defaultValue:
+                value:
+                  simple: no content
+      issue_contract:
+        complex:
+          root: SOCFramework
+          transformers:
+          - operator: SetIfEmpty
+            args:
+              defaultValue:
+                value:
+                  simple: no content
+      linked_count:
+        complex:
+          root: SOCFramework.Investigation
+          accessor: LinkedCount
+          transformers:
+          - operator: SetIfEmpty
+            args:
+              defaultValue:
+                value:
+                  simple: no content
+      product_category:
+        complex:
+          root: SOCFramework.Product
+          accessor: category
+          transformers:
+          - operator: SetIfEmpty
+            args:
+              defaultValue:
+                value:
+                  simple: no content
+      product_key:
+        complex:
+          root: SOCFramework.Product
+          accessor: key
+          transformers:
+          - operator: SetIfEmpty
+            args:
+              defaultValue:
+                value:
+                  simple: no content
+      risk_score:
+        complex:
+          root: SOCFramework.Investigation
+          accessor: RiskScore
+          transformers:
+          - operator: SetIfEmpty
+            args:
+              defaultValue:
+                value:
+                  simple: no content
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 930
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 1
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9003":
+    id: "9003"
+    taskid: 5c1d8a47-6f2e-4b13-9a80-2ed4c7b19f52
+    type: regular
+    task:
+      id: 5c1d8a47-6f2e-4b13-9a80-2ed4c7b19f52
+      version: -1
+      name: Render Assessment
+      description: Renders the assessment verdict for the analyst. The aiTask itself
+        runs quiet so the rendered prompt never reaches the War Room.
+      script: SOCFWRenderAssessment
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9006"
+    scriptarguments:
+      source_key:
+        simple: Assessment.AI
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1100
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9004":
+    id: "9004"
+    taskid: 7a3e91c6-45bd-4f28-8c07-1d9b6ee3a410
+    type: regular
+    task:
+      id: 7a3e91c6-45bd-4f28-8c07-1d9b6ee3a410
+      version: -1
+      name: Promote Assessment Output
+      description: Parses the assessment JSON, promotes the flat fields into the
+        Assessment namespace, and writes an ai_reasoning row to the execution dataset.
+      script: SOCFWPromoteAssessment
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "3"
+    scriptarguments:
+      phase:
+        simple: Assessment
+      promote:
+        simple: "true"
+      source_key:
+        simple: Assessment.AI
+      target_namespace:
+        simple: Assessment
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1270
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 1
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9005":
+    id: "9005"
+    taskid: c48f7b30-19ea-4d65-b2f1-8a6c05d3e7b9
+    type: regular
+    task:
+      id: c48f7b30-19ea-4d65-b2f1-8a6c05d3e7b9
+      version: -1
+      name: Collect Intel for Assessment
+      description: Foundation enrichment writes reputation verdicts to standard context
+        roots rather than into the contract. This gathers them into one key so the
+        prompt can weigh Unit 42, VirusTotal and DBot alongside the alert evidence.
+      script: SOCFWCollectIntel
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9002"
+    scriptarguments:
+      output_key:
+        simple: Assessment.Intel
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 1
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9006":
+    id: "9006"
+    taskid: b7c40e29-8d15-4f3a-91e6-3a52dc70f841
+    type: regular
+    task:
+      id: b7c40e29-8d15-4f3a-91e6-3a52dc70f841
+      version: -1
+      name: Close Decision
+      description: Evaluates SOCFWClosurePolicy against the assessment and closes
+        only if every gate passes. Ships disabled, and records the decision either way
+        so the period before closing is enabled produces the evidence for enabling it.
+      script: SOCFWCloseDecision
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "9004"
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1440
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
 system: true
 view: |-
   {
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 785,
+        "height": 1635,
         "width": 380,
         "x": 50,
         "y": 50
