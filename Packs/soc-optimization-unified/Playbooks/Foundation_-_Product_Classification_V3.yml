@@ -5,7 +5,7 @@ version: -1
 contentitemexportablefields:
   contentitemfields:
     packID: soc-optimization-unified
-    packName: SOC Framework Unified
+    packName: SOC Framework Unified (SOCFW)
     itemVersion: 3.7.0
     fromServerVersion: 5.0.0
     toServerVersion: ""
@@ -727,9 +727,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "27"
-      - "28"
-      - "29"
+      - "262"
     scriptarguments:
       append:
         simple: "false"
@@ -780,13 +778,106 @@ tasks:
     quietmode: 0
     isoversize: false
     isautoswitchedtoquietmode: false
+  "262":
+    id: "262"
+    taskid: b2622222-2222-4333-8444-000000000262
+    type: condition
+    task:
+      id: b2622222-2222-4333-8444-000000000262
+      version: -1
+      name: Did the map resolve a category?
+      description: A datasource key with no entry in SOCProductCategoryMap_V3 leaves
+        category empty and normalization falls through to the generic contract
+        section. Route those to inference; everything else proceeds unchanged.
+      type: condition
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - "27"
+      - "28"
+      - "29"
+      "yes":
+      - "263"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isEmpty
+          left:
+            value:
+              simple: SOCFramework.Product.category
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1360,
+          "y": 1490
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "263":
+    id: "263"
+    taskid: b2633333-2222-4333-8444-000000000263
+    type: regular
+    task:
+      id: b2633333-2222-4333-8444-000000000263
+      version: -1
+      name: Infer category from the lifecycle contract
+      description: Scores this issue's populated fields against the installed
+        lifecycle's SOCFrameworkNormalizeMap and writes the resulting category onto
+        the contract. Runs ahead of Foundation - Normalize Artifacts, so an inferred
+        category still selects the normalization band. SOCProductCategoryMap_V3 is
+        not modified; the missing key is recorded under SOCFramework.Product.Inferred.
+        Below the confidence floor the category is left empty and behaviour is
+        unchanged.
+      script: SOCFWInferProductCategory
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - "27"
+      - "28"
+      - "29"
+    scriptarguments:
+      lifecycle:
+        simple: ${SOCFramework.lifecycle}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 1360,
+          "y": 1665
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
 system: true
 view: |-
   {
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 1325,
+        "height": 1675,
         "width": 1690,
         "x": 50,
         "y": 50
