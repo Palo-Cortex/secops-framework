@@ -1,0 +1,26 @@
+# A Defender alert for a file that was blocked and quarantined before execution.
+#
+# Exists to exercise the close path. The adversary-emulation scenarios are all
+# true positives, so the assessment never recommends closure and soc-close-issue
+# is never reached. The graymail scenario produces a LOW severity issue, which
+# the automation trigger does not pick up.
+#
+# Medium severity so the trigger fires. Expected: verdict benign or true positive
+# with exposure none, already_contained true, closure_recommended true, and the
+# close request held by shadow mode on soc-close-issue.
+# The TSV lives under input_tsv/, which is gitignored. Rebuild it from the
+# Defender Turla row, changing: status away from "resolved" (the rule filters
+# it out), severity medium, category UnwantedSoftware, empty mitreTechniques,
+# and in evidence[] set detectionStatus blocked, remediationStatus remediated,
+# and a clean imageFile with its own sha256 and filePublisher.
+#
+# Note: an endpoint file alert cannot fully clear closure in a synthetic test —
+# an invented hash returns WildFire NotFound, which the assessment correctly
+# treats as unresolved. Use the email scenario to exercise closure.
+scenario: Benign endpoint, blocked and quarantined
+compress_window: 30m
+
+sources:
+  - name: Microsoft Defender
+    file: input_tsv/MS-Defender-Benign-Blocked.tsv
+    env: .env-deathstar-defender

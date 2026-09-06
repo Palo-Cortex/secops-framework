@@ -1,0 +1,21 @@
+# A single benign email that Abnormal auto-remediated before it was read.
+#
+# Exists to exercise the close path. Every other scenario is an adversary
+# emulation where the correct answer is always escalate, so the assessment
+# never recommends closure and soc-close-issue is never reached.
+#
+# Expected: verdict benign, exposure none, already_contained true,
+# closure_recommended true, and the close request held or executed depending on
+# shadow mode for soc-close-issue.
+# The TSV lives under input_tsv/, which is gitignored. Rebuild it from the
+# Abnormal Turla row, changing: attackType to something outside the rule's
+# high/low severity lists so the issue lands MEDIUM (a LOW issue fires no
+# automation at all), autoRemediated and postRemediated true, remediationStatus
+# Remediated, attachmentCount 0, and a benign subject, sender and URL.
+scenario: Benign graymail, auto-remediated
+compress_window: 30m
+
+sources:
+  - name: Abnormal Security
+    file: input_tsv/Abnormal-Benign-Graymail-Remediated.tsv
+    env: .env-deathstar-abnormal
