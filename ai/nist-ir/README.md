@@ -4,6 +4,19 @@ These two playbooks contain `aiTask` tasks and are **not** shipped in
 `Packs/soc-framework-nist-ir-ai`. They are uploaded through the XSIAM UI after
 the pack is installed.
 
+They are still version-controlled. `ai/` is a peer of `Packs/` at the repo root,
+so these files are reviewed, diffed and released with everything else — they are
+simply outside the pack boundary, because anything under `Packs/` ships in a
+pack:
+
+```
+secops-framework/
+  Packs/            content that ships through the Package Manager
+  ai/nist-ir/       aiTask playbooks, uploaded by hand
+  schemas/
+  tools/
+```
+
 | File | Entry point | aiTask | Prompt |
 |---|---|---|---|
 | `EP_IR_NIST_(800-61)_AI.yml` | yes — issue entry point | task 9002 | `SOCFWIssueAssessment` |
