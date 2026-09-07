@@ -4,6 +4,19 @@ These two playbooks contain `aiTask` tasks and are **not** shipped in
 `Packs/soc-framework-nist-ir-ai`. They are uploaded through the XSIAM UI after
 the pack is installed.
 
+They are still version-controlled. `ai/` is a peer of `Packs/` at the repo root,
+so these files are reviewed, diffed and released with everything else — they are
+simply outside the pack boundary, because anything under `Packs/` ships in a
+pack:
+
+```
+secops-framework/
+  Packs/            content that ships through the Package Manager
+  ai/nist-ir/       aiTask playbooks, uploaded by hand
+  schemas/
+  tools/
+```
+
 | File | Entry point | aiTask | Prompt |
 |---|---|---|---|
 | `EP_IR_NIST_(800-61)_AI.yml` | yes — issue entry point | task 9002 | `SOCFWIssueAssessment` |
@@ -68,12 +81,60 @@ Open each playbook, select the `aiTask` task, and choose the matching prompt:
 
 Save. The task shows the prompt name once bound.
 
-### 5. Verify
+### 5. Create the automation rule
+
+**Investigation & Response → Automation → Automation Rules**
+
+Rules are evaluated in order and **only the first matching rule runs for each
+issue**. Place this rule above any enrichment rules whose conditions overlap it,
+or those issues never reach the AI lifecycle.
+
+```
+WHEN issue is created
+IF  (domain = Security AND severity in (High, Critical))
+    OR (domain = Security AND starred = True)
+    OR (domain = Security
+        AND detection method in (ANALYTICS_BIOC, MAGNIFIER, IOC)
+        AND name != "Spam Bot Traffic")
+THEN EP_IR_NIST (800-61) AI
+```
+
+Why each branch:
+
+- **Severity** gates vendor sources, where High/Critical is a fidelity signal.
+  On one production tenant this took 6,800 issues/day to ~285.
+- **Starred** is a human explicitly flagging an issue on any source at any
+  severity. It contributes little volume and is the only route back for
+  anything the other two branches exclude.
+- **Detection method** gates platform analytics, where severity is an *anti*
+  signal — analytics detections are stamped LOW almost universally, so gating
+  them on High discards impossible traveler, SSO brute force and suspicious
+  cloud downloads. Use `xdm.issue.detection.method` rather than the `DT:` tag:
+  it is a platform enum, and it separates native CORRELATION from analytics,
+  which the tag lumps together.
+
+`domain = Security` already excludes `DOM:Posture`, so no NOT is needed.
+
+`Spam Bot Traffic` is Magnifier analytics over Check Point data — one detector
+producing 93% of Magnifier volume (32,437 of 34,774 over 30 days). **Exclude it
+on any tenant ingesting Check Point**, until the detector is tuned.
+
+Size it per tenant before deploying — the branch shape travels, the volumes do
+not:
+
+```
+dataset = issues | filter xdm.issue.domain = "SECURITY"
+| comp count() as issues by xdm.issue.detection.method, xdm.issue.severity
+| sort desc issues
+```
+
+### 6. Verify
 
 - Both playbooks open without a missing-component warning
 - `JOB - SOC Case Analysis` resolves `SOC Case Analysis Phase` as its sub-playbook
 - Run `EP_IR_NIST (800-61) AI` on one issue and confirm `SOCFramework.Analysis.AI`
   is populated
+- Confirm no earlier automation rule is consuming the issues this rule targets
 
 ## Updating these files
 
