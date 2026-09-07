@@ -1,0 +1,112 @@
+commonfields:
+  id: SOCFWContractCoverage
+  version: -1
+name: SOCFWContractCoverage
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.13.8927230
+runas: DBotWeakRole
+runonce: false
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+sourcescripid: SOCFWContractCoverage
+pswd: ''
+signature: ''
+scripttarget: 0
+comment: |
+  Reports, on a tenant, whether each source in a category can satisfy the fields
+  the normalization contract promises. Samples issues through CustomFields, the
+  same surface SOCNormalizeFromList reads at runtime, so the answer reflects what
+  the contract will actually resolve. Per target per source it reports satisfied,
+  candidate (the source has the concept under another name, so a fallback alias
+  closes it), or absent (a real gap). Read-only.
+args:
+  - name: category
+    description: Contract category to measure — endpoint, email, identity, network or cloud.
+    required: true
+    supportedModules: []
+  - name: lifecycle
+    description: >-
+      Lifecycle token (default nist_ir). Selects the contract by naming
+      convention, SOCFrameworkNormalizeMap_<LIFECYCLE.upper()>.
+    required: false
+    defaultValue: nist_ir
+    supportedModules: []
+  - name: query
+    description: >-
+      Incident search query used to sample. Sampling is newest-first, so on a busy
+      tenant a high-volume source crowds the others out — narrow to one vendor
+      (e.g. name:"Check Point") rather than raising limit.
+    required: false
+    supportedModules: []
+  - name: sources
+    description: >-
+      Comma-separated DS tags or ds_ keys to measure, overriding the category
+      lookup in SOCProductCategoryMap_V3. Use this to measure a source that is not
+      in the map yet.
+    required: false
+    supportedModules: []
+  - name: limit
+    description: Maximum issues to sample.
+    required: false
+    defaultValue: '500'
+    supportedModules: []
+  - name: page_size
+    description: Issues per getIncidents call.
+    required: false
+    defaultValue: '100'
+    supportedModules: []
+  - name: min_issues
+    description: >-
+      Minimum issues before a source is reported. A signature drawn from one or
+      two alerts is noise and produces confident nonsense.
+    required: false
+    defaultValue: '10'
+    supportedModules: []
+  - name: present_pct
+    description: Percentage of a source's issues a field must appear on to count as populated.
+    required: false
+    defaultValue: '50'
+    supportedModules: []
+  - name: emit_aliases
+    description: Also print the schema rows that would close the candidate gaps.
+    required: false
+    defaultValue: 'false'
+    auto: PREDEFINED
+    predefined:
+      - 'true'
+      - 'false'
+    supportedModules: []
+outputs:
+  - contextPath: SOCFramework.ContractCoverage.category
+    description: Category measured.
+    type: string
+  - contextPath: SOCFramework.ContractCoverage.issues_sampled
+    description: Issues sampled across all sources.
+    type: number
+  - contextPath: SOCFramework.ContractCoverage.targets
+    description: Number of targets the category declares.
+    type: number
+  - contextPath: SOCFramework.ContractCoverage.sources
+    description: Per source — issues, satisfied, candidate and absent counts.
+    type: unknown
+tags:
+  - SOC
+  - SOC_Framework
+  - Foundation
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified
+    itemVersion: 3.15.1
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
+system: true
