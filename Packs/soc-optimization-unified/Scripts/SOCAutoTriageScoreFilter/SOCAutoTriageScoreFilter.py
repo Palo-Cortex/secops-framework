@@ -277,6 +277,66 @@ def main():
     run_start = time.time()
     budget_hit = False
 
+    rows = []
+    closed_ok = []
+    closed_fail = []
+
+    def close_batch(selected):
+        """Close one page's passing cases, in-process, before the next fetch.
+
+        Fetch and close share one wall-clock budget, and deep offset pagination
+        gets progressively slower. Closing only after the whole backlog is
+        fetched means a large tenant spends the entire budget fetching and
+        enters the close loop already over it — closing nothing, every run,
+        with no progress for the next run to resume from.
+
+        Closing per batch makes partial progress real: whatever was fetched has
+        also been closed, those cases drop out of status=new, and the next run
+        starts from a shallow offset.
+
+        Returns True when the budget is exhausted and the run should stop.
+        """
+        for inc in selected:
+            incident_id = str(inc.get('incident_id', ''))
+            if not incident_id:
+                continue
+
+            if dry_run:
+                # Select only — close nothing. Row tagged shadow so the shadow
+                # value-metrics path can show what WOULD have closed.
+                success, err = True, ''
+            else:
+                if time.time() - run_start > MAX_RUNTIME_SECONDS:
+                    demisto.debug(f'Runtime budget hit during close after '
+                                  f'{len(closed_ok)} closes; stopping with partial progress.')
+                    return True
+                success, err = close_case(incident_id)
+
+            if success:
+                closed_ok.append(incident_id)
+            else:
+                closed_fail.append({'incident_id': incident_id, 'error': err})
+
+            rows.append({
+                'timestamp': str(int(time.time())),
+                'event_type': 'auto_triage',
+                'universal_command': 'auto_close_incident',
+                'action_taken': 'auto_triage_would_close' if dry_run else 'auto_triage_closed',
+                'action_status': 'dry_run' if dry_run else ('success' if success else 'error'),
+                'execution_mode': 'shadow' if dry_run else 'production',
+                'shadow_mode_state': 'shadow' if dry_run else 'not_applicable',
+                'lifecycle': 'AUTO_TRIAGE',
+                'phase': 'triage',
+                'incident_id': incident_id,
+                'incident_domain': inc.get('incident_domain', ''),
+                'aggregated_score': str(inc.get('aggregated_score', '')),
+                'tags': ['auto_triage_would_close' if dry_run else 'auto_triage_closed'],
+                'has_error': (not dry_run and not success),
+                'error_type': '' if (dry_run or success) else 'update_incident_failed',
+                'error_message': '' if (dry_run or success) else err
+            })
+        return False
+
     for batch_num in range(max_batches):
         # Wall-clock guard: stop before the Docker automation timeout. Returning
         # partial progress is safe — the JOB closes what we found, those cases
@@ -312,6 +372,7 @@ def main():
 
         batches_run += 1
         total_scanned += len(incidents)
+        pending = []
 
         for inc in incidents:
             # One malformed incident must never abort the run and leave the rest
@@ -407,70 +468,23 @@ def main():
                     continue
 
                 passed.append(inc)
+                pending.append(inc)
             except Exception as e:
                 demisto.debug(f"Skipping incident {inc.get('incident_id', 'unknown')}: {e}")
                 continue
 
+        if close_batch(pending):
+            budget_hit = True
+            break
+
         # A short page means the age-eligible set is exhausted.
         if len(incidents) < batch_size:
             break
-        # Advance the offset to the next page (filter and order are stable within
-        # a run because nothing is closed until the script returns).
+        # Advance the offset to the next page. Cases closed by this batch leave
+        # status=new, so the age-eligible set shrinks underneath the offset —
+        # advancing by batch_size can skip rows. They are not lost: the next
+        # scheduled run re-scans from a shallow offset.
         search_from += batch_size
-
-    # --- Close phase ---------------------------------------------------------
-    # Close each passing case here, in-process, one update_incident call per ID
-    # (the API has no bulk close). Doing it in this loop instead of a playbook
-    # forEach avoids per-iteration context spin-up — the old task 8 bottleneck
-    # that selected ~1,300/run but only closed dozens. Each dataset row is now
-    # keyed to the ACTUAL close result, so the dataset stops over-counting
-    # un-closed cases that get re-selected every run.
-    rows = []
-    closed_ok = []
-    closed_fail = []
-
-    for inc in passed:
-        incident_id = str(inc.get('incident_id', ''))
-        if not incident_id:
-            continue
-
-        if dry_run:
-            # Select only — close nothing. Row tagged shadow so the shadow
-            # value-metrics path can show what WOULD have closed.
-            success, err = True, ''
-        else:
-            # Same wall-clock budget guards the (slower) close loop. Unclosed
-            # passers stay status=new; the next scheduled run resumes them.
-            if time.time() - run_start > MAX_RUNTIME_SECONDS:
-                budget_hit = True
-                demisto.debug(f'Runtime budget hit during close phase after '
-                              f'{len(closed_ok)} closes; stopping with partial progress.')
-                break
-            success, err = close_case(incident_id)
-
-        if success:
-            closed_ok.append(incident_id)
-        else:
-            closed_fail.append({'incident_id': incident_id, 'error': err})
-
-        rows.append({
-            'timestamp': str(int(time.time())),
-            'event_type': 'auto_triage',
-            'universal_command': 'auto_close_incident',
-            'action_taken': 'auto_triage_would_close' if dry_run else 'auto_triage_closed',
-            'action_status': 'dry_run' if dry_run else ('success' if success else 'error'),
-            'execution_mode': 'shadow' if dry_run else 'production',
-            'shadow_mode_state': 'shadow' if dry_run else 'not_applicable',
-            'lifecycle': 'AUTO_TRIAGE',
-            'phase': 'triage',
-            'incident_id': incident_id,
-            'incident_domain': inc.get('incident_domain', ''),
-            'aggregated_score': str(inc.get('aggregated_score', '')),
-            'tags': ['auto_triage_would_close' if dry_run else 'auto_triage_closed'],
-            'has_error': (not dry_run and not success),
-            'error_type': '' if (dry_run or success) else 'update_incident_failed',
-            'error_message': '' if (dry_run or success) else err
-        })
 
     # One dataset write per run with the actual per-case outcomes. Cases are
     # already closed by this point and this job sits on the Foundation chain, so
