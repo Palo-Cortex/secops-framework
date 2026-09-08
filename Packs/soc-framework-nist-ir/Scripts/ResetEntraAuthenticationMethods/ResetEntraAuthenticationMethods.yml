@@ -1,0 +1,178 @@
+commonfields:
+  id: ResetEntraAuthenticationMethods
+  version: -1
+name: ResetEntraAuthenticationMethods
+script: "import traceback\nfrom typing import Any\n\n\nMETHOD_FAMILIES = [\n    {\n        \"key\": \"authenticator_methods\"\
+  ,\n        \"display\": \"Authenticator\",\n        \"enabled_arg\": \"delete_authenticator_methods\",\n        \"list_command\"\
+  : \"msgraph-user-authenticator-method-list\",\n        \"delete_command\": \"msgraph-user-authenticator-method-delete\"\
+  ,\n    },\n    {\n        \"key\": \"phone_methods\",\n        \"display\": \"Phone\",\n        \"enabled_arg\": \"delete_phone_methods\"\
+  ,\n        \"list_command\": \"msgraph-user-phone-method-list\",\n        \"delete_command\": \"msgraph-user-phone-method-delete\"\
+  ,\n    },\n    {\n        \"key\": \"email_methods\",\n        \"display\": \"Email\",\n        \"enabled_arg\": \"delete_email_methods\"\
+  ,\n        \"list_command\": \"msgraph-user-email-method-list\",\n        \"delete_command\": \"msgraph-user-email-method-delete\"\
+  ,\n    },\n    {\n        \"key\": \"fido2_methods\",\n        \"display\": \"FIDO2\",\n        \"enabled_arg\": \"delete_fido2_methods\"\
+  ,\n        \"list_command\": \"msgraph-user-fido2-method-list\",\n        \"delete_command\": \"msgraph-user-fido2-method-delete\"\
+  ,\n    },\n    {\n        \"key\": \"software_oath_methods\",\n        \"display\": \"Software OATH\",\n        \"enabled_arg\"\
+  : \"delete_software_oath_methods\",\n        \"list_command\": \"msgraph-user-software-oath-method-list\",\n        \"delete_command\"\
+  : \"msgraph-user-software-oath-method-delete\",\n    },\n    {\n        \"key\": \"windows_hello_methods\",\n        \"\
+  display\": \"Windows Hello\",\n        \"enabled_arg\": \"delete_windows_hello_methods\",\n        \"list_command\": \"\
+  msgraph-user-windows-hello-method-list\",\n        \"delete_command\": \"msgraph-user-windows-hello-method-delete\",\n \
+  \   },\n    {\n        \"key\": \"tap_methods\",\n        \"display\": \"Temporary Access Pass\",\n        \"enabled_arg\"\
+  : \"delete_tap_methods\",\n        \"list_command\": \"msgraph-user-temp-access-pass-method-list\",\n        \"delete_command\"\
+  : \"msgraph-user-temp-access-pass-method-delete\",\n    },\n]\n\n\ndef arg_to_bool(value: Any, default: bool = False) ->\
+  \ bool:\n    if value is None:\n        return default\n    if isinstance(value, bool):\n        return value\n    return\
+  \ str(value).strip().lower() in {\"true\", \"yes\", \"y\", \"1\"}\n\n\ndef parse_args(args: dict[str, Any]) -> dict[str,\
+  \ Any]:\n    user_id = args.get(\"user_id\")\n    if not user_id:\n        raise DemistoException(\"Missing required argument:\
+  \ user_id\")\n\n    parsed = {\n        \"user_id\": user_id,\n        \"dry_run\": arg_to_bool(args.get(\"dry_run\"), False),\n\
+  \    }\n\n    for family in METHOD_FAMILIES:\n        parsed[family[\"enabled_arg\"]] = arg_to_bool(args.get(family[\"enabled_arg\"\
+  ]), True)\n\n    return parsed\n\n\ndef execute_command(command: str, args: dict[str, Any]) -> list[dict[str, Any]]:\n \
+  \   result = demisto.executeCommand(command, args)\n    if is_error(result):\n        raise DemistoException(get_error(result))\n\
+  \    return result\n\n\ndef extract_items(command_result: list[dict[str, Any]]) -> list[dict[str, Any]]:\n    items = []\n\
+  \n    for entry in command_result:\n        contents = entry.get(\"Contents\")\n        if isinstance(contents, list):\n\
+  \            items.extend([item for item in contents if isinstance(item, dict)])\n        elif isinstance(contents, dict):\n\
+  \            if isinstance(contents.get(\"value\"), list):\n                items.extend([item for item in contents.get(\"\
+  value\") if isinstance(item, dict)])\n            elif isinstance(contents.get(\"Value\"), list):\n                items.extend([item\
+  \ for item in contents.get(\"Value\") if isinstance(item, dict)])\n            else:\n                items.append(contents)\n\
+  \n    return items\n\n\ndef get_method_id(method: dict[str, Any]) -> str | None:\n    for key in (\"id\", \"method_id\"\
+  , \"authenticationMethodId\"):\n        value = method.get(key)\n        if value:\n            return str(value)\n    return\
+  \ None\n\n\ndef process_family(user_id: str, family: dict[str, str], enabled: bool, dry_run: bool) -> dict[str, Any]:\n\
+  \    summary = {\n        \"family\": family[\"display\"],\n        \"key\": family[\"key\"],\n        \"list_command\"\
+  : family[\"list_command\"],\n        \"delete_command\": family[\"delete_command\"],\n        \"enabled\": enabled,\n  \
+  \      \"dry_run\": dry_run,\n        \"listed\": 0,\n        \"deleted\": 0,\n        \"skipped\": 0,\n        \"failed\"\
+  : 0,\n        \"status\": \"success\",\n        \"methods\": [],\n        \"errors\": [],\n    }\n\n    if not enabled:\n\
+  \        summary[\"status\"] = \"skipped\"\n        summary[\"skipped\"] = 1\n        return summary\n\n    try:\n     \
+  \   list_result = execute_command(family[\"list_command\"], {\"user\": user_id})\n        methods = extract_items(list_result)\n\
+  \        summary[\"listed\"] = len(methods)\n    except Exception as ex:\n        summary[\"status\"] = \"failure\"\n  \
+  \      summary[\"failed\"] = 1\n        summary[\"errors\"].append(f\"List failed: {ex}\")\n        return summary\n\n \
+  \   for method in methods:\n        method_id = get_method_id(method)\n        method_record = {\n            \"id\": method_id,\n\
+  \            \"displayName\": method.get(\"displayName\") or method.get(\"name\"),\n            \"type\": method.get(\"\
+  @odata.type\") or method.get(\"type\"),\n            \"deleted\": False,\n            \"dry_run\": dry_run,\n          \
+  \  \"error\": None,\n        }\n\n        if not method_id:\n            summary[\"failed\"] += 1\n            method_record[\"\
+  error\"] = \"Unable to determine method ID.\"\n            summary[\"errors\"].append(\"Delete skipped: unable to determine\
+  \ method ID.\")\n            summary[\"methods\"].append(method_record)\n            continue\n\n        if dry_run:\n \
+  \           summary[\"skipped\"] += 1\n            summary[\"methods\"].append(method_record)\n            continue\n\n\
+  \        try:\n            execute_command(\n                family[\"delete_command\"],\n                {\n          \
+  \          \"user\": user_id,\n                    \"method_id\": method_id,\n                },\n            )\n      \
+  \      summary[\"deleted\"] += 1\n            method_record[\"deleted\"] = True\n        except Exception as ex:\n     \
+  \       summary[\"failed\"] += 1\n            method_record[\"error\"] = str(ex)\n            summary[\"errors\"].append(f\"\
+  Delete failed for method {method_id}: {ex}\")\n\n        summary[\"methods\"].append(method_record)\n\n    if summary[\"\
+  failed\"] > 0 and summary[\"deleted\"] > 0:\n        summary[\"status\"] = \"partial_failure\"\n    elif summary[\"failed\"\
+  ] > 0:\n        summary[\"status\"] = \"failure\"\n    elif dry_run:\n        summary[\"status\"] = \"dry_run\"\n    else:\n\
+  \        summary[\"status\"] = \"success\"\n\n    return summary\n\n\ndef build_readable_output(user_id: str, dry_run: bool,\
+  \ family_results: list[dict[str, Any]]) -> str:\n    table_rows = [\n        {\n            \"Family\": item[\"family\"\
+  ],\n            \"Status\": item[\"status\"],\n            \"Enabled\": item[\"enabled\"],\n            \"Dry Run\": item[\"\
+  dry_run\"],\n            \"Listed\": item[\"listed\"],\n            \"Deleted\": item[\"deleted\"],\n            \"Skipped\"\
+  : item[\"skipped\"],\n            \"Failed\": item[\"failed\"],\n        }\n        for item in family_results\n    ]\n\n\
+  \    readable = tableToMarkdown(\n        f\"Reset Entra Authentication Methods for {user_id}\",\n        table_rows,\n\
+  \        removeNull=True,\n    )\n\n    errors = []\n    for item in family_results:\n        for error in item.get(\"errors\"\
+  , []):\n            errors.append(f\"- {item['family']}: {error}\")\n\n    if dry_run:\n        readable += \"\\n\\nDry\
+  \ run enabled. No authentication methods were deleted.\"\n\n    if errors:\n        readable += \"\\n\\nPartial failure\
+  \ details:\\n\" + \"\\n\".join(errors)\n\n    return readable\n\n\ndef main():\n    try:\n        args = parse_args(demisto.args())\n\
+  \        user_id = args[\"user_id\"]\n        dry_run = args[\"dry_run\"]\n\n        family_results = []\n        for family\
+  \ in METHOD_FAMILIES:\n            family_results.append(\n                process_family(\n                    user_id=user_id,\n\
+  \                    family=family,\n                    enabled=args[family[\"enabled_arg\"]],\n                    dry_run=dry_run,\n\
+  \                )\n            )\n\n        total_failed = sum(item[\"failed\"] for item in family_results)\n        total_deleted\
+  \ = sum(item[\"deleted\"] for item in family_results)\n\n        overall_status = \"success\"\n        if dry_run:\n   \
+  \         overall_status = \"dry_run\"\n        elif total_failed and total_deleted:\n            overall_status = \"partial_failure\"\
+  \n        elif total_failed and not total_deleted:\n            overall_status = \"failure\"\n\n        outputs = {\n  \
+  \          \"UserID\": user_id,\n            \"DryRun\": dry_run,\n            \"Status\": overall_status,\n           \
+  \ \"TotalDeleted\": total_deleted,\n            \"TotalFailed\": total_failed,\n            \"Families\": family_results,\n\
+  \        }\n\n        return_results(\n            CommandResults(\n                outputs_prefix=\"ResetEntraAuthenticationMethods\"\
+  ,\n                outputs_key_field=\"UserID\",\n                outputs=outputs,\n                readable_output=build_readable_output(user_id,\
+  \ dry_run, family_results),\n            )\n        )\n\n    except Exception as ex:\n        demisto.error(traceback.format_exc())\n\
+  \        return_error(f\"Failed to reset Entra authentication methods. Error: {ex}\")\n\n\nif __name__ in (\"__main__\"\
+  , \"__builtin__\", \"builtins\"):\n    main()"
+type: python
+tags: []
+comment: Lists and deletes supported Entra authentication/MFA methods for a compromised user using the MSGraph User integration.
+  Partial failures are reported but do not stop other method families.
+enabled: true
+args:
+- supportedModules: []
+  name: user_id
+  required: true
+  description: Entra user ID or UPN.
+- supportedModules: []
+  name: delete_authenticator_methods
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: Delete Microsoft Authenticator methods.
+  defaultValue: 'true'
+- supportedModules: []
+  name: delete_phone_methods
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: Delete phone authentication methods.
+  defaultValue: 'true'
+- supportedModules: []
+  name: delete_email_methods
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: Delete email authentication methods.
+  defaultValue: 'true'
+- supportedModules: []
+  name: delete_fido2_methods
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: Delete FIDO2 authentication methods.
+  defaultValue: 'true'
+- supportedModules: []
+  name: delete_software_oath_methods
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: Delete software OATH authentication methods.
+  defaultValue: 'true'
+- supportedModules: []
+  name: delete_windows_hello_methods
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: Delete Windows Hello authentication methods.
+  defaultValue: 'true'
+- supportedModules: []
+  name: delete_tap_methods
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: Delete Temporary Access Pass methods.
+  defaultValue: 'true'
+- supportedModules: []
+  name: dry_run
+  auto: PREDEFINED
+  predefined:
+  - 'true'
+  - 'false'
+  description: List methods and report intended deletions without deleting anything.
+  defaultValue: 'true'
+outputs:
+- contextPath: ResetEntraAuthenticationMethods.UserID
+  description: Entra user ID or UPN processed.
+  type: string
+- contextPath: ResetEntraAuthenticationMethods.Status
+  description: Overall status.
+  type: string
+- contextPath: ResetEntraAuthenticationMethods.TotalDeleted
+  description: Total number of authentication methods deleted.
+  type: number
+- contextPath: ResetEntraAuthenticationMethods.TotalFailed
+  description: Total number of failed list/delete operations.
+  type: number
+- contextPath: ResetEntraAuthenticationMethods.Families
+  description: Per-method-family result details.
+  type: unknown
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.14.92207
+runas: DBotWeakRole
