@@ -39,3 +39,24 @@ lanes:
     - Artifacts.Network.DNS.Query              # network category
   url:
     - Artifacts.Email.ThreatURL         # email category (sole URL source in current contract)
+
+  # Override lanes. The key is a label, not a command: the lane names universal
+  # commands dispatched through SOCCommandWrapper, which resolves each vendor's
+  # arguments from Artifacts.* itself. fire_when is a presence test only — an
+  # alert with no identity, or no endpoint, skips that lane and costs nothing.
+  # Actions run in order; the manager lookup reads what the user lookup left.
+  identity:
+    actions:
+      - soc-enrich-user
+      - soc-enrich-user-manager
+    fire_when:
+      - Artifacts.Identity.User.UPN
+      - Artifacts.Identity.User.Email
+      - Artifacts.Identity.User.SAM
+  device:
+    actions:
+      - soc-enrich-endpoint
+      - soc-enrich-device-logons
+    fire_when:
+      - Artifacts.Endpoint.AgentID
+      - Artifacts.Endpoint.Hostname
