@@ -318,7 +318,7 @@ def normalize_action_actor(raw_actor, shadow_mode):
     if shadow_mode and actor in ("", "analyst"):
         return "shadow"
 
-    if actor in ("automation", "analyst", "shadow", "system"):
+    if actor in ("automation", "analyst", "shadow", "system", "layout"):
         return actor
 
     return "analyst"
@@ -567,6 +567,14 @@ def enrich_payload(payload, ctx, issue, wrapper_values, args):
 
 
 def post_dataset_payload(payload, tags=None):
+    # A dynamic layout section re-runs on every render, so recording its calls
+    # would count opening an issue as acting on it. Layout reads are display
+    # only; the value dataset stays limited to executions the framework or an
+    # analyst actually performed.
+    if payload.get("action_actor") == "layout":
+        demisto.debug("Layout-actor call - dataset write skipped.")
+        return
+
     try:
         result = demisto.executeCommand(
             "socfw-post-to-dataset",
