@@ -1,0 +1,122 @@
+commonfields:
+  id: SOCFWFetchShapeContracts
+  version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOCFWFetchShapeContracts
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+comment: |-
+  Attaches the SOC Framework contract to each alert shape in a case payload.
+
+  The aggregates describe what happened using raw XDM columns. The contract is
+  the normalized surface everything downstream reads, and it carries what XDM
+  does not - resolved identity including the SID, MITRE tactic ids rather than
+  technique strings embedded in an alert name, enrichment provenance, and the
+  vendor routing an action would dispatch on.
+
+  One fetch per shape, not per issue. Shapes are bounded by variety rather than
+  volume, so a campaign of a thousand near-identical issues costs the same
+  handful of fetches as a small case. getContext is in-process and reads
+  investigation context, so this spends no XQL quota.
+
+  Reputation and threat intelligence travel with the contract, under Intel. The
+  contract records that an enrichment lane fired, not what it concluded - the
+  verdict lands in the standard DBotScore, File, IP, Domain, URL, WildFire,
+  AttackPattern and Tactic roots. Without them the reasoner sees "one hash on
+  three hosts" but not that WildFire scored it, which is the distinction between
+  suspicious and malicious on exactly the cases case scope exists for. Whois and
+  DBotFindSimilarIncidents are excluded - together they are the bulk of a context
+  and carry nothing the reasoner needs.
+
+  Only the evidence travels. The contract carries normalization and enrichment
+  provenance that is invaluable for debugging the normalizer and worthless to a
+  reasoner - measured on a 40-shape case, NormalizeFromList alone was 64% of
+  369 KB, and the full payload reached roughly 94,000 tokens and returned an empty
+  verdict. Keeping Artifacts, Product, Intel and lifecycle is a 5.4x reduction
+  with no loss of reasoning material.
+
+  Within those, the whole subtree is taken rather than named fields, which is what
+  lets a schema change flow through - add a row to the normalize map, re-emit,
+  and the new artifact appears in the payload without editing this script. Only
+  that subtree is kept; getContext returns the entire context and the rest does
+  not belong in the payload.
+
+  The representative is chosen by trying several issues from the shape, not just
+  the lowest alert id. A shape groups issues by alert name, source, severity,
+  category and rule - not by whether the entry point ran - so min(alert_id)
+  frequently lands on a dedup-closed issue carrying no contract. That is how a
+  six-shape case resolved 16.7% coverage while five of six shapes had a
+  contracted issue available.
+
+  A representative is a sample, not the union. Issues sharing a shape share their
+  alert name, source, severity, category and rule, but artifact presence can still
+  vary within a shape.
+
+  Declares coverage rather than gating on it. Thin evidence is stated in the
+  payload and the prompt is instructed to weigh it, which it does - a case at
+  16.7% coverage still produced a correct, well-evidenced verdict. A hard
+  threshold discards a good answer to avoid a hypothetical bad one.
+
+  Deferral is reserved for the one case where we do not know what a shape carried:
+  a transient fetch error. It is bounded by max_deferrals, after which the case is
+  analysed with whatever resolved and coverage_note says what was missing. An
+  over-budget case is not deferred at all - it carries the highest-count shapes
+  and declares the rest, because a high-variety case that always exceeds the
+  budget would otherwise never be analysed.
+
+  Deferred cases get no watermark, so selection returns them next run.
+args:
+- name: payloads
+  description: The case payloads from SOCFWBuildCasePayload.
+  isArray: true
+- name: max_fetches_per_case
+  description: Ceiling on getContext calls for a single case. Budget is per case so
+    one large case cannot starve the rest of the run. A case needing more than this
+    is deferred whole rather than analysed from part of its shapes.
+  defaultValue: "40"
+- name: intel_roots
+  description: Context roots carrying reputation and threat intelligence, as a list
+    or comma-separated string. Defaults to DBotScore, File, IP, Domain, URL,
+    WildFire, AttackPattern and Tactic. A customer running Recorded Future, GTI or
+    another feed adds its root here rather than editing the script.
+  isArray: true
+- name: max_deferrals
+  description: Deferrals per case before it is analysed anyway. A transient fetch
+    error is worth waiting on; a case that fails the same way every run must not be
+    stuck forever. There is no coverage threshold - thin evidence is declared in the
+    payload and the prompt weighs it.
+  defaultValue: "2"
+outputs:
+- contextPath: SOCFramework.Case.Payloads
+  description: Fully-contracted case payloads only, each shape carrying its SOC Framework contract.
+- contextPath: SOCFramework.Case.Payloads.ShapeContracts
+  description: Shapes that resolved a contract, shapes with none, and coverage percentage.
+- contextPath: SOCFramework.Case.Deferred
+  description: Cases not analysed this run and why. No watermark is written for them, so they are reselected next run.
+scripttarget: 0
+timeout: 10m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWFetchShapeContracts
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: true
