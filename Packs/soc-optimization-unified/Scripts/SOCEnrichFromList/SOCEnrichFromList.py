@@ -60,6 +60,7 @@ CONTRACT VS BEHAVIOR
 CONSTANT_PACK_VERSION = '3.10.2'
 demisto.debug(f'pack id = soc-optimization-unified, pack version = {CONSTANT_PACK_VERSION}')
 
+import ipaddress
 import json
 
 
@@ -146,6 +147,29 @@ def resolve_paths(paths, ctx):
 # ---------------------------------------------------------------------------
 # Per-lane fire
 # ---------------------------------------------------------------------------
+
+def public_ips_only(values):
+    """Drop addresses no reputation service can say anything about.
+
+    Private, loopback, link-local, CGNAT and multicast space has no reputation.
+    Sending it wastes a lookup on every internal alert, and some providers raise
+    rather than return empty on it, which surfaces as an errored lane on issues
+    that were never enrichable in the first place.
+
+    Anything unparseable is kept. This filter exists to remove certain noise,
+    not to become a second validator.
+    """
+    kept = []
+    for value in values:
+        try:
+            ip = ipaddress.ip_address(str(value).strip())
+        except ValueError:
+            kept.append(value)
+            continue
+        if ip.is_global and not ip.is_multicast:
+            kept.append(value)
+    return kept
+
 
 def fire_lane(lane_name, values):
     """
@@ -266,6 +290,14 @@ def main():
         if not values:
             skipped_empty.append({"lane": lane_name, "reason": "all source paths empty"})
             continue
+
+        if lane_name == "ip":
+            resolved = len(values)
+            values = public_ips_only(values)
+            if not values:
+                skipped_empty.append({"lane": lane_name,
+                                      "reason": f"no public addresses among {resolved} resolved"})
+                continue
 
         if actions:
             ok, ran, msg = fire_actions(actions)
