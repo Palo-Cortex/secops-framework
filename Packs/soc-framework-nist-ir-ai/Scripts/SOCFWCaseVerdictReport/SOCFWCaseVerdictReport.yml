@@ -1,0 +1,116 @@
+commonfields:
+  id: SOCFWCaseVerdictReport
+  version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOCFWCaseVerdictReport
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+comment: |-
+  Writes one case verdict to that case's own War Room and builds its execution row.
+
+  Runs inside SOC Case Analysis Phase after the AI task, once per case. The row
+  is built here rather than in SOCFWBuildCasePayload because that step runs before
+  the analysis and can only describe what was sent, never what was concluded.
+
+  Output is designed against how XSIAM actually renders: markdown and emoji work,
+  HTML does not, whitespace is preserved in a monospace face so columns align, and
+  an entry past roughly 25-30 lines trips the Partial View truncation. Verdict and
+  confidence each get a marker so the left edge stays scannable, and the story
+  array takes the line budget because it is the part analysts read.
+
+  An inconclusive verdict with no story is called out explicitly, since that is
+  what an unresolved prompt input produces and it otherwise reads as reasoning.
+
+  Every argument is a scalar. An object or array argument makes XSIAM run the
+  task once per element, which produced 118 verdict entries for 16 cases and
+  rendered later cases under earlier headers.
+
+  The case contract is schema-driven. Field targets come from
+  SOCFrameworkPhaseContract_V3 writes_by_phase.analysis, not from a list typed
+  into this script, so a schema change propagates by re-emitting the List. Every
+  declared target is seeded with its typed init value, preserving the absent /
+  at-init / populated distinction Containment needs to tell "analysis never ran"
+  from "analysis ran and found nothing".
+
+  The prompt produces 17 of the 22 declared targets. The remaining five are
+  deterministic case facts taken from the case record, and Containment reads two
+  of them - case_score and case_host_count - so a contract built from model
+  output alone would hand it empties.
+
+  Written to SOCFramework.Analysis.AI on the case, not bare Analysis. There is no
+  deterministic case producer to compare against yet, so writing to Analysis
+  would make the first AI output authoritative by default; promotion belongs to
+  SOCPromoteAIPhaseOutput.
+
+  One current summary, not a growing pile. War Room entries cannot be deleted -
+  the delete endpoints return 303 - so the current verdict is tagged
+  socfw-case-verdict and earlier ones are tagged socfw-superseded. The single
+  authoritative summary lives in the case context at SOCFramework.Analysis, which
+  is deleted before being written because Set appends on repeat and would
+  otherwise turn verdict into an array on the second analysis.
+
+  The entry goes to the case, not the JOB. A JOB runs in its own investigation,
+  so a verdict left there lands where no analyst looks. A case investigation
+  accepts entries addressed as INCIDENT-<case_id>, and core-api-post reaches it
+  from inside the JOB. The write is never fatal - a case that cannot be reached
+  still gets its dataset row and its entry in the JOB War Room, and
+  case_warroom_written records which happened.
+args:
+- name: case_id
+  description: Case id for this iteration.
+- name: issue_count
+  description: Issues in the case.
+- name: categories
+  description: Distinct alert sources in the case.
+- name: shape_coverage
+  description: Shapes kept out of shapes found, with issue coverage.
+- name: contract_coverage
+  description: Issues carrying a SOC Framework contract.
+- name: payload
+  description: The collapsed case payload, as a JSON string.
+- name: ai_output
+  description: The AI prompt output for this case, from Analysis.AI.
+outputs:
+- contextPath: CaseAnalysis.ExecutionRow
+  description: The case_analysis execution row, carrying the verdict and the reasoning fields.
+- contextPath: CaseAnalysis.case_id
+  description: The case analysed by this iteration.
+  type: String
+- contextPath: CaseAnalysis.verdict
+  description: The case verdict.
+  type: String
+- contextPath: CaseAnalysis.ExecutionRow.case_warroom_written
+  description: Whether the verdict entry reached the case War Room.
+- contextPath: CaseAnalysis.ExecutionRow.case_contract_written
+  description: Whether SOCFramework.Analysis.AI was written to the case context.
+- contextPath: CaseAnalysis.ExecutionRow.case_contract_note
+  description: Targets populated out of targets declared, or the failure reason.
+- contextPath: CaseAnalysis.ExecutionRow.prior_verdicts_superseded
+  description: Earlier verdict entries tagged superseded on this case.
+scripttarget: 0
+timeout: 5m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWCaseVerdictReport
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: true

@@ -1,0 +1,86 @@
+commonfields:
+  id: SOCFWCaseIterationSetup
+  version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir
+    packName: SOC Framework NIST IR (800-61)
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOCFWCaseIterationSetup
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+comment: |-
+  Pins one case to scalar context keys before the AI task runs.
+
+  XSIAM runs a task once per element when an argument resolves to an array. The
+  sub-playbook input accumulates across forEach iterations, so by the fourteenth
+  case the input is a fourteen-element array and every downstream task fires
+  fourteen times. That triangular series produced 118 verdict entries for 16
+  cases, with later elements rendering under earlier cases' headers.
+
+  This script takes the current iteration's case and writes each field to its own
+  scalar key with setContext, so nothing downstream has an array to iterate. It
+  also clears Analysis.AI, because each iteration must reason from scratch and a
+  re-analysed case must not keep its first answer.
+
+  Also reads any verdict the case already carries and pins it as
+  CaseIter.PriorVerdict. A growing case is re-analysed, and what an analyst wants
+  is not a fresh opinion but what changed. The prompt treats it as reference and
+  the evidence as authoritative, or a wrong first verdict anchors every run after
+  it.
+
+  Fails loudly when no case resolves. An empty input would otherwise produce an
+  inconclusive verdict that reads like reasoning rather than a wiring fault.
+args:
+- name: case
+  description: The case payload for this iteration. Accepts an object, a JSON string,
+    or an accumulated array, in which case the newest element is the current one.
+outputs:
+- contextPath: CaseIter.PriorVerdict
+  description: The verdict this case already carried, as a JSON string, or empty on
+    first analysis. Reference for the prompt, never authoritative - the evidence is.
+  type: String
+- contextPath: CaseIter.ID
+  description: Case id.
+  type: String
+- contextPath: CaseIter.IssueCount
+  description: Issues in the case.
+  type: Number
+- contextPath: CaseIter.Categories
+  description: Distinct alert sources in the case.
+  type: String
+- contextPath: CaseIter.Window
+  description: First and last seen across the case.
+  type: String
+- contextPath: CaseIter.ShapeCoverage
+  description: Shapes kept out of shapes found, with issue coverage.
+  type: String
+- contextPath: CaseIter.ContractCoverage
+  description: Issues carrying a SOC Framework contract.
+  type: String
+- contextPath: CaseIter.Payload
+  description: The collapsed case with per-shape contracts, as a JSON string.
+  type: String
+scripttarget: 0
+timeout: 5m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWCaseIterationSetup
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: true
