@@ -6,7 +6,7 @@ re-attach to a different answer if the assessment were re-run, which is the flaw
 that made free-text agreement tags unusable for measurement.
 
 Args:
-  feedback   agree | disagree | missing_context
+  feedback   correct | wrong | missing_context
   note       optional free text from the analyst
 """
 import json
@@ -15,31 +15,35 @@ from datetime import datetime, timezone
 import demistomock as demisto
 from CommonServerPython import *
 
-# The analyst records their own answer, not whether they agree. Agreement is
-# derived below. An agree/disagree button is relative to a verdict that can change
-# on a re-run, which makes the older free-text agreement tags unusable.
-# Two axes only. Verdict and action agreement are recoverable by joining the
-# assessment row to xdm.issue.status.resolution_reason once the issue closes —
-# the analyst already picks a resolution, in the tenant's own vocabulary, and
-# asking them to state it twice buys nothing.
+# Agreement is recorded, not inferred. It was originally derived by joining the
+# assessment row to xdm.issue.status.resolution_reason on close, on the reasoning
+# that the analyst already states a resolution in the tenant's own vocabulary.
+# That only measures the issues that get closed. Analysts are not being asked to
+# close these, so an agreement rate built that way describes the closing subset
+# rather than the assessments, and silence reads as absence rather than as assent.
 #
-# These two are not recoverable that way: "wrong" is recorded now, against the
-# verdict as it stood, on an issue that may stay open for days; and no resolution
-# value says the contract was incomplete.
+# Each row still snapshots the verdict it judged, so a positive answer stays
+# attached to the answer it was given about even if the assessment is re-run.
 AXIS = {
+    "correct": "verdict",
     "wrong": "verdict",
     "missing_context": "evidence",
 }
 
 LABEL = {
+    "correct": "🟢 Confirmed the assessment",
     "wrong": "🔴 Marked the assessment wrong",
     "missing_context": "🟠 Flagged missing context",
 }
 
 
 def _agreement(feedback, a):
-    """Explicit disagreement only. Agreement is inferred from the resolution."""
-    return False if feedback == "wrong" else None
+    """Explicit only. missing_context judges the evidence, not the verdict."""
+    if feedback == "correct":
+        return True
+    if feedback == "wrong":
+        return False
+    return None
 
 
 def _assessment(ctx):
@@ -134,10 +138,12 @@ def main():
                      "user, or indicator the assessment needed and did not have. That "
                      "names the normalization or enrichment gap; without it this row says "
                      "only that something was absent.")
-    else:
+    elif feedback == "wrong":
         lines.append("  **Please comment on why it was wrong**, particularly if the verdict "
                      "happened to be right but the reasoning or the evidence cited was not. "
                      "Nothing else captures that.")
+    else:
+        lines.append("  Agreement recorded against this verdict. Nothing further needed.")
 
     return_results(CommandResults(readable_output="\n".join(lines)))
 
