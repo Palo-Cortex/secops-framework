@@ -31,7 +31,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-optimization-unified.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-optimization-unified-v3.16.1/soc-optimization-unified-v3.16.1.zip) |
+| `soc-optimization-unified.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-optimization-unified-v3.16.2/soc-optimization-unified-v3.16.2.zip) |
 
 ## Marketplace Dependencies
 
