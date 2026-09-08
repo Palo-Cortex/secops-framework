@@ -312,6 +312,50 @@ def get_or_create_run_id(ctx):
     return run_id
 
 
+def brand_available(brand):
+    """Whether the vendor's brand is registered and has an active instance.
+
+    Answers from the in-process module registry, so it costs nothing. It only
+    short-circuits the dispatch when the brand IS registered and every instance
+    of it is inactive — the one case where absence is proven. An unregistered
+    brand is dispatched anyway, because the platform routes by command name and
+    a differently-named integration may serve the same command.
+
+    Reachability is out of scope: a configured instance with bad credentials
+    still has to be discovered by calling it.
+
+    Fails open. A checker that cannot read the registry must not be the reason
+    an action is skipped.
+    """
+    try:
+        modules = demisto.getModules() or {}
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper: getModules unavailable ({e}); dispatching anyway.")
+        return True
+
+    if not modules:
+        return True
+
+    registered = []
+    for module in modules.values():
+        if not isinstance(module, dict):
+            continue
+        if module.get("brand") == brand:
+            registered.append(module)
+
+    # No module claims this brand. That is not evidence the command is missing:
+    # the platform dispatches by command name, and the vendor labels in
+    # SOCFrameworkActions_V3 do not always equal the installed brand string
+    # ('Trend Micro Vision One' vs 'Trend Micro Vision One V3'). Skipping here
+    # would silently disable actions that work. Dispatch and let the platform
+    # answer.
+    if not registered:
+        demisto.debug(f"SOCCommandWrapper: no module registered for brand '{brand}'; dispatching.")
+        return True
+
+    return any(m.get("state") == "active" for m in registered)
+
+
 def normalize_action_actor(raw_actor, shadow_mode):
     actor = str(raw_actor or "").strip().lower()
 
@@ -916,7 +960,19 @@ def main():
         if using:
             execute_args["using"] = using
 
-        result = demisto.executeCommand(command, execute_args)
+        # Ask the module registry before dispatching. An unavailable brand is
+        # shaped as the error the post-dispatch handler already recognizes, so
+        # the outcome, the record and the dataset row are identical to a real
+        # error 23 — the only difference is that nothing was called.
+        if not brand_available(vendor):
+            result = [{
+                "Type": entryTypes["error"],
+                "ContentsFormat": formats["text"],
+                "Contents": (f"Unsupported Command: {command} — no active instance "
+                             f"of brand '{vendor}' on this tenant."),
+            }]
+        else:
+            result = demisto.executeCommand(command, execute_args)
 
         failed, error_msg = integration_failed(result)
 
