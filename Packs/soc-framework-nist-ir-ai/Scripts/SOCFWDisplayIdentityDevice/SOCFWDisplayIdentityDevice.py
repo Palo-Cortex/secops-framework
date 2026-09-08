@@ -7,8 +7,34 @@ Analysis.* first, which the AI lifecycle does not populate.
 Identity and endpoint are drawn as separate blocks so an alert carrying only one
 of them renders cleanly rather than showing an empty half.
 """
+import json
+
 import demistomock as demisto
 from CommonServerPython import *
+
+_DOT = (
+    "<span style='color:{color};font-size:13px;line-height:1;'>&#9679;</span>"
+    "<span style='color:{color};margin-left:5px;'>{label}</span>"
+)
+
+_STATES = {
+    "contained": ("#e53935", "ISOLATED"),
+    "containment_pending": ("#ffa000", "ISOLATION PENDING"),
+    "normal": ("#43a047", "NORMAL"),
+    "unknown": ("#9e9e9e", "STATUS UNKNOWN"),
+}
+
+_VENDOR_MAP = {
+    "contained": "contained",
+    "isolated": "contained",
+    "containment_requested": "containment_pending",
+    "containment_pending": "containment_pending",
+    "isolation_requested": "containment_pending",
+    "pending isolation": "containment_pending",
+    "lift_containment_approved": "containment_pending",
+    "normal": "normal",
+    "not isolated": "normal",
+}
 
 
 def _v(ctx, path):
@@ -41,6 +67,59 @@ def _block(title, body, color="#0288d1"):
     )
 
 
+def _dot(state):
+    color, label = _STATES[state]
+    return _DOT.format(color=color, label=label)
+
+
+def _endpoint_status(ctx):
+    """Current containment state, read live through the Universal Command.
+
+    The rest of this panel is contract data frozen at playbook time. Containment
+    state is the one field that changes after the alert and that an analyst
+    reads to decide what to do next, so it is fetched at render instead.
+
+    Action_Actor 'layout' keeps the render out of the execution dataset. Nothing
+    is written back to context: a render must not move what C/E/R reads.
+    """
+    if not (_v(ctx, "SOCFramework.Primary.Endpoint")
+            or _v(ctx, "SOCFramework.Artifacts.EndPointID")):
+        return ""
+
+    raw = ""
+    try:
+        result = demisto.executeCommand("SOCCommandWrapper", {
+            "action": "soc-enrich-endpoint",
+            "Action_Actor": "layout",
+            "Phase": "StatusCheck",
+            "tags": "Status Check",
+        })
+        if is_error(result):
+            return _dot("unknown")
+
+        for entry in (result or []):
+            contents = entry.get("Contents") or {}
+            if isinstance(contents, str):
+                try:
+                    contents = json.loads(contents)
+                except ValueError:
+                    continue
+            if isinstance(contents, dict):
+                raw = (demisto.get(contents, "status")
+                       or demisto.get(contents, "containment_status")
+                       or demisto.get(contents, "device_status")
+                       or "")
+                if raw:
+                    break
+    except Exception as e:
+        demisto.debug(f"SOCFWDisplayIdentityDevice: status lookup failed - {e}")
+        return _dot("unknown")
+
+    # An unrecognized or absent status means the EDR did not report one, which
+    # is not the same as the endpoint being healthy.
+    return _dot(_VENDOR_MAP.get(str(raw).lower().strip(), "unknown"))
+
+
 def main():
     ctx = demisto.context()
     ART = "SOCFramework.Artifacts."
@@ -66,7 +145,8 @@ def main():
         ("Event", "Identity.Provider.EventType"),
     ], ART), "#1a237e")
 
-    html += _block("Endpoint", _rows(ctx, [
+    status = _endpoint_status(ctx)
+    html += _block(f"Endpoint&nbsp;&nbsp;{status}" if status else "Endpoint", _rows(ctx, [
         ("Hostname", "Endpoint.Hostname"), ("FQDN", "Endpoint.FQDN"),
         ("IP", "Endpoint.IPAddress"), ("MAC", "Endpoint.MACAddress"),
         ("Domain", "Endpoint.Domain"), ("OS", "Endpoint.OS"),
