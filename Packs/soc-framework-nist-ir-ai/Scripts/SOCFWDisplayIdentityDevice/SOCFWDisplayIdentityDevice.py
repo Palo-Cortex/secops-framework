@@ -37,21 +37,57 @@ _VENDOR_MAP = {
 }
 
 
+PROFILE_LIST = "SOCFrameworkProfileMap_NIST_IR"
+
+
+def load_profile_map():
+    """Vendor source paths per contract field, in preference order.
+
+    Upon Trigger enrichment leaves vendor output in context under its own
+    namespace (MSGraphUser.*, MicrosoftATP.MachineUser.*), not on the contract.
+    This list is what maps one to the other, and per-tenant variance is a list
+    edit rather than a content change. A missing list just means no fallback.
+    """
+    try:
+        res = demisto.executeCommand("getList", {"listName": PROFILE_LIST})
+        data = res[0].get("Contents") if res else None
+        if isinstance(data, str):
+            data = json.loads(data)
+        return (data or {}).get("fields") or {}
+    except Exception as e:
+        demisto.debug(f"SOCFWDisplayIdentityDevice: profile map unavailable - {e}")
+        return {}
+
+
 def _v(ctx, path):
-    val = demisto.get(ctx, path)
+    val = demisto.dt(ctx, path)
     if isinstance(val, list):
-        val = ", ".join(str(v) for v in val if v) or None
-    return val if val not in (None, "", [], {}) else None
+        val = ", ".join(str(v) for v in val if v not in (None, "")) or None
+    return val if val not in (None, "", [], {}, "null") else None
 
 
-def _rows(ctx, pairs, prefix):
+def _rows(ctx, pairs, prefix, profile=None):
+    """Contract first, then vendor output resolved through the profile map.
+
+    A vendor-sourced value is labelled with its namespace so an analyst can tell
+    what the framework normalized from what a live lookup returned.
+    """
+    profile = profile or {}
     out = []
     for label, suffix in pairs:
         v = _v(ctx, prefix + suffix)
-        if v:
+        tag = ""
+        if v is None:
+            for src in (profile.get(suffix) or []):
+                v = _v(ctx, src)
+                if v is not None:
+                    tag = (f" <span style='color:#666;font-size:10px;'>"
+                           f"{src.split('.')[0]}</span>")
+                    break
+        if v is not None:
             out.append(
                 f"<div style='margin:2px 0;'><span style='color:#888;'>{label}</span> "
-                f"<span style='color:#ddd;'>{v}</span></div>"
+                f"<span style='color:#ddd;'>{v}</span>{tag}</div>"
             )
     return "".join(out)
 
@@ -123,6 +159,7 @@ def _endpoint_status(ctx):
 def main():
     ctx = demisto.context()
     ART = "SOCFramework.Artifacts."
+    profile = load_profile_map()
     html = ""
 
     # The primary entity is what the framework resolved as the subject of the
@@ -135,9 +172,13 @@ def main():
         ("Name", "Identity.User.Name"), ("Display name", "Identity.User.DisplayName"),
         ("Email", "Identity.User.Email"), ("UPN", "Identity.User.UPN"),
         ("SAM", "Identity.User.SAM"), ("ID", "Identity.User.ID"),
+        ("Job title", "Identity.User.JobTitle"),
         ("Department", "Identity.User.Department"), ("City", "Identity.User.City"),
+        ("Office", "Identity.User.OfficeLocation"),
+        ("Employee ID", "Identity.User.EmployeeID"),
+        ("Employment status", "Identity.User.EmploymentStatus"),
         ("Manager", "Identity.User.Manager"),
-    ], ART), "#0277bd")
+    ], ART, profile), "#0277bd")
 
     html += _block("Sign-in source", _rows(ctx, [
         ("IP", "Identity.Source.IP"), ("Hostname", "Identity.Source.Hostname"),
@@ -151,8 +192,10 @@ def main():
         ("IP", "Endpoint.IPAddress"), ("MAC", "Endpoint.MACAddress"),
         ("Domain", "Endpoint.Domain"), ("OS", "Endpoint.OS"),
         ("OS version", "Endpoint.OSVersion"), ("Agent ID", "Endpoint.AgentID"),
+        ("Most logon", "Endpoint.MostLogonUser"),
+        ("Newest logon", "Endpoint.NewestLogonUser"),
         ("Tags", "Endpoint.Tags"),
-    ], ART), "#00695c")
+    ], ART, profile), "#00695c")
 
     html += _block("Scope", _rows(ctx, [
         ("Risk score", "RiskScore"), ("Linked issues", "LinkedCount"),
