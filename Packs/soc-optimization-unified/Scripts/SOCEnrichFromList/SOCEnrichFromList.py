@@ -7,10 +7,26 @@ command (|||<lane>) per lane whose source paths resolve to at least one
 non-empty value on the SOCFramework.Artifacts.* surface.
 
 LIST CONVENTION
-  Lane key is BOTH the built-in reputation command name AND its argument name.
-  Example: lane 'ip' fires `!ip ip=<comma-joined values>`. Source paths point
-  into SOCFramework.Artifacts.* (the normalized contract surface populated by
-  Foundation - Normalize Artifacts).
+  A lane is either a list of source paths or an override object.
+
+  List form — lane key is BOTH the built-in reputation command name AND its
+  argument name. Example: lane 'ip' fires `!ip ip=<comma-joined values>`.
+
+  Object form — lane key is a label only. The lane names one or more universal
+  commands, dispatched through SOCCommandWrapper:
+
+      identity:
+        actions: [soc-enrich-user, soc-enrich-user-manager]
+        fire_when: [Artifacts.Identity.User.UPN, ...]
+
+  UC actions resolve their own arguments from SOCFramework.Artifacts.* inside
+  the wrapper, so an override lane passes no values. Its source paths are only
+  a firing condition: an alert with no identity skips the lane and costs
+  nothing. Actions fire in listed order, since later ones may read what earlier
+  ones published.
+
+  Source paths in both forms point into SOCFramework.Artifacts.* (the normalized
+  contract surface populated by Foundation - Normalize Artifacts).
 
 ARGS
   lifecycle             optional — lifecycle token (default 'nist_ir'). Selects
@@ -29,12 +45,11 @@ OUTPUTS
 
 DESIGN NOTES
   - Read-only by definition: no shadow_mode concept here. Enrichment is
-    reputation lookup, never destructive.
-  - No dataset writes. Upon Trigger stays lightweight. Heavier multi-vendor
-    enrichment lives in Analysis-tier hydration (SOCCommandWrapper multi_vendor).
-  - Built-in shortcuts only (|||<lane>). If a future lane needs a non-shortcut
-    command (e.g. enrichIndicators), the schema needs an explicit override field
-    — by design, that case belongs in Analysis, not Upon Trigger.
+    reputation lookup, never destructive. The UC actions reachable from an
+    override lane are the soc-enrich-* family, which ship shadow_mode: false.
+  - Built-in shortcuts have no override field by design. A lane that needs a
+    non-shortcut command names a universal command instead, so routing stays
+    inside the framework rather than hard-coding a vendor here.
 
 CONTRACT VS BEHAVIOR
   This script reads the list as ground truth. To change enrichment behavior,
@@ -153,6 +168,44 @@ def fire_lane(lane_name, values):
         return False, str(e)[:200]
 
 
+def fire_actions(actions):
+    """Run an override lane's universal commands through SOCCommandWrapper.
+
+    No values are passed. The wrapper resolves each action's vendor arguments
+    from SOCFramework.Artifacts.* itself, and picks the vendor from the product
+    category, so this stays vendor-agnostic.
+
+    One action failing does not stop the lane — a tenant missing a manager
+    integration should still get the user record.
+    """
+    ok, failures = [], []
+    for action in actions:
+        try:
+            result = demisto.executeCommand("SOCCommandWrapper", {
+                "action": action,
+                "Action_Actor": "automation",
+                "Phase": "Enrichment",
+                "tags": "Enrichment",
+            })
+            err = ""
+            if isinstance(result, list):
+                for entry in result:
+                    if isinstance(entry, dict) and entry.get("Type") == entryTypes.get("error", 4):
+                        err = str(entry.get("Contents", ""))[:200]
+                        break
+            if err:
+                failures.append({"action": action, "error": err})
+            else:
+                ok.append(action)
+        except Exception as e:
+            failures.append({"action": action, "error": str(e)[:200]})
+
+    if failures:
+        return False, ok, f"{len(ok)} ran, {len(failures)} failed: " + \
+            "; ".join(f"{f['action']} ({f['error']})" for f in failures)
+    return True, ok, f"{len(ok)} action(s) ran"
+
+
 def warroom_log(title, payload):
     try:
         demisto.results({
@@ -189,8 +242,23 @@ def main():
     skipped_empty = []
     errored = []
 
-    for lane_name, source_paths in lanes.items():
-        if not isinstance(source_paths, list) or not source_paths:
+    for lane_name, lane_spec in lanes.items():
+        # A lane is either a list of source paths (built-in reputation command)
+        # or an object naming universal commands to dispatch instead.
+        if isinstance(lane_spec, dict):
+            actions = lane_spec.get("actions") or []
+            source_paths = lane_spec.get("fire_when") or []
+            if not actions:
+                skipped_empty.append({"lane": lane_name, "reason": "no actions in list"})
+                continue
+        elif isinstance(lane_spec, list):
+            actions = None
+            source_paths = lane_spec
+        else:
+            skipped_empty.append({"lane": lane_name, "reason": "unrecognized lane shape"})
+            continue
+
+        if not source_paths:
             skipped_empty.append({"lane": lane_name, "reason": "no source_paths in list"})
             continue
 
@@ -199,8 +267,15 @@ def main():
             skipped_empty.append({"lane": lane_name, "reason": "all source paths empty"})
             continue
 
-        ok, msg = fire_lane(lane_name, values)
-        record = {"lane": lane_name, "values": values, "value_count": len(values), "message": msg}
+        if actions:
+            ok, ran, msg = fire_actions(actions)
+            record = {"lane": lane_name, "actions": ran, "value_count": len(values),
+                      "message": msg}
+        else:
+            ok, msg = fire_lane(lane_name, values)
+            record = {"lane": lane_name, "values": values, "value_count": len(values),
+                      "message": msg}
+
         if ok:
             fired.append(record)
         else:
