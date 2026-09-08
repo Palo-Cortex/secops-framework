@@ -46,7 +46,7 @@ def _salvage(text):
     cut = text.rfind('",')
     while cut > 0:
         try:
-            obj = json.loads(text[:cut + 1] + "}")
+            obj = json.loads(text[:cut + 1] + "}", strict=False)
             obj["truncated"] = True
             return obj
         except (ValueError, TypeError):
@@ -71,10 +71,16 @@ def _load(raw):
     if isinstance(raw, str) and raw.strip():
         text = raw
         start, end = text.find("{"), text.rfind("}")
-        if start != -1 and end > start:
-            text = text[start:end + 1]
+        if start != -1:
+            # A reply cut off by the token limit opens the object and never
+            # closes it. Trimming only when both braces are present hands the
+            # model's preamble to the parser, and to _salvage after it, which
+            # then has narration to recover from instead of the object.
+            text = text[start:end + 1] if end > start else text[start:]
         try:
-            return json.loads(text)
+            # strict=False tolerates raw newlines and tabs inside string values.
+            # Models emit them; the verdict is still readable.
+            return json.loads(text, strict=False)
         except (ValueError, TypeError):
             obj = _salvage(text)
             if obj is None:

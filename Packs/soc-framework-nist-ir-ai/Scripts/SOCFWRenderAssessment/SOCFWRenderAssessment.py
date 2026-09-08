@@ -48,10 +48,13 @@ def _as_object(raw):
         return raw
     if isinstance(raw, str) and raw.strip():
         start, end = raw.find('{'), raw.rfind('}')
-        if start != -1 and end > start:
-            raw = raw[start:end + 1]
+        if start != -1:
+            # No closing brace means the reply was cut off, not that there is
+            # no object. Trim from the opening brace either way so _salvage
+            # gets the fragment rather than the model's preamble.
+            raw = raw[start:end + 1] if end > start else raw[start:]
         try:
-            return json.loads(raw)
+            return json.loads(raw, strict=False)
         except (ValueError, TypeError):
             return _salvage(raw)
     return None
@@ -69,7 +72,7 @@ def _salvage(raw):
         cut = raw.rfind("},")
     while cut > 0:
         try:
-            obj = json.loads(raw[:cut + 1] + "}")
+            obj = json.loads(raw[:cut + 1] + "}", strict=False)
             obj["_truncated"] = True
             return obj
         except (ValueError, TypeError):
