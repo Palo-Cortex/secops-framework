@@ -1,7 +1,9 @@
 """Layout button handler: the assessment was correct.
 
-The note is optional here. An analyst confirming a good assessment should not
-have to justify it, and a required argument leaves the prompt's Submit disabled.
+Declares no arguments, so XSIAM runs it on click with no prompt. Confirming a
+good assessment should cost one click; the sibling buttons take a note because
+"wrong" and "missing context" are only useful with a reason attached.
+
 The feedback value is baked in rather than passed from the button, which is why
 there is a script per choice.
 """
@@ -10,9 +12,7 @@ from CommonServerPython import *
 
 
 def main():
-    note = (demisto.args() or {}).get("note") or ""
-    res = demisto.executeCommand("SOCFWAssessmentFeedback",
-                                 {"feedback": "correct", "note": note})
+    res = demisto.executeCommand("SOCFWAssessmentFeedback", {"feedback": "correct"})
     if isError(res):
         return_error(f"Could not record feedback: {get_error(res)}")
         return
