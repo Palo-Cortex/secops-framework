@@ -312,6 +312,39 @@ def get_or_create_run_id(ctx):
     return run_id
 
 
+def brand_available(brand):
+    """Whether this tenant has an active instance of the vendor's brand.
+
+    demisto.getModules() answers from the in-process module registry, so an
+    absent or disabled integration costs nothing to detect. Without it the
+    wrapper learns the same thing from the dispatcher, which is only cheap when
+    the failure is error 23 — an installed but unreachable instance is paid for
+    as a full network timeout on every action, on every issue.
+
+    Reachability is deliberately out of scope: a configured instance with bad
+    credentials still has to be discovered by calling it. This answers
+    "is it here", not "does it work".
+
+    Fails open. A checker that cannot read the registry must not be the reason
+    an action is skipped.
+    """
+    try:
+        modules = demisto.getModules() or {}
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper: getModules unavailable ({e}); dispatching anyway.")
+        return True
+
+    if not modules:
+        return True
+
+    for module in modules.values():
+        if not isinstance(module, dict):
+            continue
+        if module.get("brand") == brand and module.get("state") == "active":
+            return True
+    return False
+
+
 def normalize_action_actor(raw_actor, shadow_mode):
     actor = str(raw_actor or "").strip().lower()
 
@@ -916,7 +949,19 @@ def main():
         if using:
             execute_args["using"] = using
 
-        result = demisto.executeCommand(command, execute_args)
+        # Ask the module registry before dispatching. An unavailable brand is
+        # shaped as the error the post-dispatch handler already recognizes, so
+        # the outcome, the record and the dataset row are identical to a real
+        # error 23 — the only difference is that nothing was called.
+        if not brand_available(vendor):
+            result = [{
+                "Type": entryTypes["error"],
+                "ContentsFormat": formats["text"],
+                "Contents": (f"Unsupported Command: {command} — no active instance "
+                             f"of brand '{vendor}' on this tenant."),
+            }]
+        else:
+            result = demisto.executeCommand(command, execute_args)
 
         failed, error_msg = integration_failed(result)
 
