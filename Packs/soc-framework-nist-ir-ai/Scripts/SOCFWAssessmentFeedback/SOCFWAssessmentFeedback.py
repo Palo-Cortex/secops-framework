@@ -143,7 +143,7 @@ def main():
                      "happened to be right but the reasoning or the evidence cited was not. "
                      "Nothing else captures that.")
     else:
-        lines.append("  Recorded as agreement against this verdict. No comment needed.")
+        lines.append("  Agreement recorded against this verdict. Nothing further needed.")
 
     return_results(CommandResults(readable_output="\n".join(lines)))
 
