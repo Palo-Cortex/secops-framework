@@ -60,7 +60,21 @@ def load_profile_map():
 
 
 def _v(ctx, path):
-    val = demisto.dt(ctx, path)
+    # Contract paths are plain dotted keys, so demisto.get resolves them locally.
+    # Only the profile map's vendor paths need bracket indexing, and those go to
+    # demisto.dt, which evaluates server-side and returns HTTP 400 when the path
+    # does not fit the data — a [0] index against a map, for instance. Profile
+    # paths are vendor-shaped guesses by design, so a miss is the normal case and
+    # must not take the panel down with it.
+    if "[" in path:
+        try:
+            val = demisto.dt(ctx, path)
+        except Exception as e:
+            demisto.debug(f"SOCFWDisplayIdentityDevice: dt failed on {path} - {e}")
+            return None
+    else:
+        val = demisto.get(ctx, path)
+
     if isinstance(val, list):
         val = ", ".join(str(v) for v in val if v not in (None, "")) or None
     return val if val not in (None, "", [], {}, "null") else None
