@@ -9,7 +9,19 @@ import json
 import demistomock as demisto
 from CommonServerPython import *
 
-PENDING = "<div style='color:#888;font-style:italic;padding:8px;'>Assessment running...</div>"
+_MSG = "<div style='color:#888;font-style:italic;padding:8px;'>{}</div>"
+
+# An absent verdict has two very different causes and they used to read the same.
+# The layout can be served to an issue no lifecycle playbook ever touched — no
+# trigger matched, or the trigger did not fire — and claiming an assessment is
+# running on one of those is a false statement an analyst will wait on.
+NOT_RUN = _MSG.format(
+    "No lifecycle playbook has run on this issue, so there is nothing to assess. "
+    "Start one from the Work Plan tab."
+)
+NO_VERDICT_YET = _MSG.format(
+    "The lifecycle is running. No assessment verdict has been written yet."
+)
 
 VERDICT_COLOR = {
     "malicious": "#c62828",
@@ -112,7 +124,13 @@ def main():
     case_story = demisto.get(ctx, "SOCFramework.Analysis.AI.story") or demisto.get(ctx, "Analysis.story")
 
     if not verdict and not case_verdict:
-        demisto.results({"ContentsFormat": formats["html"], "Type": entryTypes["note"], "Contents": PENDING})
+        # SOCFramework.lifecycle is stamped by the entry playbook and by nothing
+        # else. A layout render calling SOCCommandWrapper writes SOCFramework.RunID,
+        # so the namespace existing is not evidence a playbook ran; the lifecycle
+        # marker is.
+        ran = demisto.get(ctx, "SOCFramework.lifecycle") not in (None, "", [], {})
+        demisto.results({"ContentsFormat": formats["html"], "Type": entryTypes["note"],
+                         "Contents": NO_VERDICT_YET if ran else NOT_RUN})
         return
 
     html = "<div style='padding:4px;'>"
