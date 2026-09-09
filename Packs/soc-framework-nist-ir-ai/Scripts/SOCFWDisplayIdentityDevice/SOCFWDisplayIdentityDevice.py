@@ -132,7 +132,8 @@ def _endpoint_status(ctx):
     Action_Actor 'layout' keeps the render out of the execution dataset. Nothing
     is written back to context: a render must not move what C/E/R reads.
     """
-    if not (_v(ctx, "SOCFramework.Primary.Endpoint")
+    if not (_v(ctx, "SOCFramework.Artifacts.Endpoint.AgentID")
+            or _v(ctx, "SOCFramework.Primary.Endpoint")
             or _v(ctx, "SOCFramework.Artifacts.EndPointID")):
         return ""
 
@@ -170,10 +171,34 @@ def _endpoint_status(ctx):
     return _dot(_VENDOR_MAP.get(str(raw).lower().strip(), "unknown"))
 
 
+def _enrich_identity():
+    """Directory attributes fetched at render, returning refreshed context.
+
+    CIE supplies only part of what this panel shows, so the rest comes from a
+    live directory lookup rather than the contract. Action_Actor 'layout' keeps
+    these out of the execution dataset, and the results are read back through
+    the profile map instead of being written to the contract, so a render still
+    does not move what C/E/R reads.
+    """
+    for action in ("soc-enrich-user", "soc-enrich-user-manager"):
+        try:
+            demisto.executeCommand("SOCCommandWrapper", {
+                "action": action,
+                "Action_Actor": "layout",
+                "Phase": "IdentityLookup",
+                "tags": "Identity Lookup",
+            })
+        except Exception as e:
+            demisto.debug(f"SOCFWDisplayIdentityDevice: {action} failed - {e}")
+
+    return demisto.context()
+
+
 def main():
     ctx = demisto.context()
     ART = "SOCFramework.Artifacts."
     profile = load_profile_map()
+    ctx = _enrich_identity()
     html = ""
 
     # The primary entity is what the framework resolved as the subject of the
