@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-framework-nist-ir-ai` |
-| Version | `1.1.3` |
+| Version | `1.1.4` |
 | Category | Utilities |
 | Pack Path | `Packs/soc-framework-nist-ir-ai` |
 | Manifest | [`Packs/soc-framework-nist-ir-ai/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/xsoar_config.json) |
@@ -25,7 +25,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-framework-nist-ir-ai.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-ai-v1.1.3/soc-framework-nist-ir-ai-v1.1.3.zip) |
+| `soc-framework-nist-ir-ai.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-ai-v1.1.4/soc-framework-nist-ir-ai-v1.1.4.zip) |
 
 ## Jobs
 
