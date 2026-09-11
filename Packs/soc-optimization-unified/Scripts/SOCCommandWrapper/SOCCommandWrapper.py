@@ -15,13 +15,16 @@ def utc_now():
     return datetime.utcnow().isoformat() + "Z"
 
 
-def warroom_log(title, payload, tags=None):
+def warroom_log(title, payload, tags=None, footer=""):
     try:
+        readable = f"### {title}\n```json\n{json.dumps(payload, indent=2)}\n```"
+        if footer:
+            readable += f"\n{footer}"
         entry = {
             "Type": EntryType.NOTE,
             "ContentsFormat": "json",
             "Contents": payload,
-            "HumanReadable": f"### {title}\n```json\n{json.dumps(payload, indent=2)}\n```"
+            "HumanReadable": readable
         }
 
         if tags:
@@ -31,6 +34,34 @@ def warroom_log(title, payload, tags=None):
 
     except Exception as e:
         demisto.debug(f"warroom_log failed: {str(e)}")
+
+
+def shadow_footer(action, actor):
+    """How to make this specific action real, printed where it is noticed.
+
+    Names the action and the caller, because the two are now separable: an
+    analyst clicking a layout button and the containment JOB are different
+    callers and can be flipped independently.
+    """
+    caller = str(actor or "").strip().lower() or "this caller"
+    return (
+        "\n**This was a simulation.** No vendor command ran.\n\n"
+        f"To make `{action}` real, edit it in the `SOCFrameworkActions_V3` list:\n\n"
+        "```json\n"
+        f"\"{action}\": {{\n"
+        "  \"shadow_mode\": false\n"
+        "}\n"
+        "```\n\n"
+        f"To make it real for {caller} only, and keep every other caller "
+        "simulated:\n\n"
+        "```json\n"
+        f"\"{action}\": {{\n"
+        "  \"shadow_mode\": true,\n"
+        f"  \"shadow_mode_by_actor\": {{ \"{caller}\": false }}\n"
+        "}\n"
+        "```\n\n"
+        "_Actions stay simulated until someone changes this deliberately._"
+    )
 
 
 def _try_json_loads(s):
@@ -354,6 +385,46 @@ def brand_available(brand):
         return True
 
     return any(m.get("state") == "active" for m in registered)
+
+
+def resolve_shadow_mode(action_entry, raw_actor):
+    """Whether this dispatch is simulated, for this caller.
+
+    shadow_mode is the action-level default and stays the only required field.
+    Where an action also carries shadow_mode_by_actor, the caller decides:
+
+        "shadow_mode": true,
+        "shadow_mode_by_actor": {"analyst": false, "automation": true}
+
+    That separates the two things one flag used to conflate. A customer can let
+    analysts really contain from the issue layout while the JOB still only
+    simulates, which is the order most SOCs want to adopt in - a human in the
+    loop on every real action before any of it runs unattended.
+
+    Resolved on the raw actor, because normalize_action_actor rewrites "analyst"
+    to "shadow" once shadowing is decided and would erase the distinction.
+    """
+    default = action_entry.get("shadow_mode", False)
+    if not isinstance(default, bool):
+        default = str(default).lower() == "true"
+
+    by_actor = action_entry.get("shadow_mode_by_actor")
+    if not isinstance(by_actor, dict):
+        return default
+
+    actor = str(raw_actor or "").strip().lower()
+    # An unrecognised or absent caller falls back to the action default rather
+    # than to whichever entry happens to be first - an unknown caller is the
+    # case where simulating is the safer guess.
+    if actor not in by_actor:
+        return default
+
+    value = by_actor[actor]
+    if not isinstance(value, bool):
+        value = str(value).lower() == "true"
+    demisto.debug(
+        f"resolve_shadow_mode: actor={actor} shadow={value} (default {default})")
+    return value
 
 
 def normalize_action_actor(raw_actor, shadow_mode):
@@ -714,9 +785,7 @@ def main():
     )
 
     # Read shadow_mode from the action entry — single source of truth
-    shadow_mode = action_entry.get("shadow_mode", False)
-    if not isinstance(shadow_mode, bool):
-        shadow_mode = str(shadow_mode).lower() == "true"
+    shadow_mode = resolve_shadow_mode(action_entry, args.get("Action_Actor"))
 
     responses = action_entry.get("responses", {})
 
@@ -915,6 +984,11 @@ def main():
             "action_actor": normalize_action_actor(args.get("Action_Actor"), True),
             "execution_mode": "shadow",
             "shadow_mode_state": "collected",
+            # Carried on the row so a dashboard or an export can say what to
+            # change, not just that something was suppressed.
+            "shadow_disable_hint": (
+                f"set shadow_mode false on {action} in SOCFrameworkActions_V3, "
+                f"or shadow_mode_by_actor for one caller"),
             "has_error": False,
             "error_type": "",
             "error_message": "",
@@ -933,7 +1007,8 @@ def main():
         warroom_log(
             "SOC Framework - SHADOW MODE (Command Not Executed)",
             record,
-            tags
+            tags,
+            footer=shadow_footer(action, args.get("Action_Actor"))
         )
 
         return_results("Shadow Mode: command not executed")
