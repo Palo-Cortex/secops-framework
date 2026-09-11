@@ -1,0 +1,105 @@
+{
+  "id": "SOCFrameworkEnvironment_V3",
+  "name": "SOCFrameworkEnvironment_V3",
+  "defaults": {
+    "unmatched_tier": "tier2",
+    "match_order": "first_match_wins"
+  },
+  "tiers": {
+    "tier0": {
+      "label": "Business critical",
+      "authority": "approve",
+      "note": "Loss of this asset or identity degrades the whole environment, not one user."
+    },
+    "tier1": {
+      "label": "Important",
+      "authority": "approve"
+    },
+    "tier2": {
+      "label": "Standard",
+      "authority": "auto"
+    }
+  },
+  "entries": [
+    {
+      "name": "domain_controllers",
+      "entity_type": "endpoint",
+      "match_field": "hostname",
+      "match_type": "regex",
+      "match": "(?i)^(dc|adds|ad)[-_]?[0-9]*$",
+      "tier": "tier0",
+      "deny_actions": ["soc-isolate-endpoint"],
+      "note": "Isolation severs Kerberos and LDAP for every host that authenticates here, so the blast radius of the response exceeds the incident."
+    },
+    {
+      "name": "certificate_authority",
+      "entity_type": "endpoint",
+      "match_field": "hostname",
+      "match_type": "regex",
+      "match": "(?i)(^|[-_])(ca|pki)([-_]|[0-9]|$)",
+      "tier": "tier0",
+      "deny_actions": ["soc-isolate-endpoint"],
+      "note": "Certificate issuance and revocation checking stop environment-wide."
+    },
+    {
+      "name": "virtualization_hosts",
+      "entity_type": "endpoint",
+      "match_field": "hostname",
+      "match_type": "regex",
+      "match": "(?i)^(esx|esxi|hyperv|vmhost)[-_]?[0-9]*",
+      "tier": "tier0",
+      "deny_actions": ["soc-isolate-endpoint"],
+      "note": "Contains every guest on the host, most of which are unrelated to the incident."
+    },
+    {
+      "name": "security_tooling",
+      "entity_type": "endpoint",
+      "match_field": "hostname",
+      "match_type": "regex",
+      "match": "(?i)^(siem|soar|edr|xdr|vault|jump|bastion)[-_]?[0-9]*",
+      "tier": "tier0",
+      "deny_actions": ["soc-isolate-endpoint", "soc-kill-process"],
+      "note": "Responding on the response infrastructure removes the ability to respond to anything else."
+    },
+    {
+      "name": "production_databases",
+      "entity_type": "endpoint",
+      "match_field": "hostname",
+      "match_type": "regex",
+      "match": "(?i)(^|[-_])(sql|ora|db|pgsql)[-_]?(prd|prod)?[0-9]*",
+      "tier": "tier1",
+      "require_approval_actions": ["soc-isolate-endpoint", "soc-kill-process"],
+      "note": "Recoverable but customer-visible. A human confirms the outage is worth it."
+    },
+    {
+      "name": "break_glass_accounts",
+      "entity_type": "identity",
+      "match_field": "username",
+      "match_type": "regex",
+      "match": "(?i)(^|\\\\)(breakglass|emergency|firecall)",
+      "tier": "tier0",
+      "deny_actions": ["soc-disable-user", "soc-reset-password", "soc-revoke-tokens"],
+      "note": "These are the credentials used to recover from a bad response, so they must survive one."
+    },
+    {
+      "name": "service_accounts",
+      "entity_type": "identity",
+      "match_field": "username",
+      "match_type": "regex",
+      "match": "(?i)(^|\\\\)(svc|srv|sa)[-_.]",
+      "tier": "tier1",
+      "require_approval_actions": ["soc-disable-user", "soc-reset-password"],
+      "note": "One service account often backs several applications, and the dependency list is rarely written down."
+    },
+    {
+      "name": "privileged_identities",
+      "entity_type": "identity",
+      "match_field": "username",
+      "match_type": "regex",
+      "match": "(?i)(^|\\\\)(admin|da|ea)[-_.]|[-_.](adm|admin)$",
+      "tier": "tier1",
+      "require_approval_actions": ["soc-disable-user"],
+      "note": "Disabling the account an incident responder is using to respond is a self-inflicted outage."
+    }
+  ]
+}

@@ -63,6 +63,7 @@ def read_watermark(rows):
             'covered_issues': int(r.get('analysed_covered_issues') or 0),
             'total_issues': int(r.get('analysed_total_issues') or 0),
             'analyses': int(r.get('analyses') or 0),
+            'attempts': int(r.get('attempts') or 0),
         }
     return out
 
@@ -112,6 +113,7 @@ def main():
     # early analysis costs more runs and returns a worse contract. Analysing once,
     # late, beats analysing three times, early.
     settle_minutes = int(args.get('settle_minutes') or 15)
+    max_attempts = int(args.get('max_attempts') or 6)
     # Unless it never goes quiet. Past this age it is analysed as it stands, so a
     # continuously active case still gets a verdict - and well inside the six-hour
     # auto-close window, or the closure veto never applies.
@@ -128,6 +130,7 @@ def main():
     skipped_small = 0
     skipped_low_score = 0
     skipped_max_analyses = 0
+    skipped_max_attempts = 0
     skipped_settling = 0
     recheck_coverage = 0
     search_from = 0
@@ -191,6 +194,9 @@ def main():
                 if wm is not None and wm.get('analyses', 0) >= max_analyses:
                     skipped_max_analyses += 1
                     continue
+                if wm is not None and wm.get('attempts', 0) >= max_attempts:
+                    skipped_max_attempts += 1
+                    continue
                 if wm is not None:
                     grew = alert_count > wm['alert_count']
                     incomplete = (wm['total_issues'] > 0
@@ -237,6 +243,7 @@ def main():
         'skipped_single_issue': skipped_small,
         'skipped_low_score': skipped_low_score,
         'skipped_max_analyses': skipped_max_analyses,
+        'skipped_max_attempts': skipped_max_attempts,
         'skipped_settling': skipped_settling,
         'reselected_for_coverage': recheck_coverage,
         'min_issues': min_issues,

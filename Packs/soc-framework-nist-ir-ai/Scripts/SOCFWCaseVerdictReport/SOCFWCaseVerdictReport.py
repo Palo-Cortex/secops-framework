@@ -36,9 +36,17 @@ SUPERSEDED_TAG = 'socfw-superseded'
 
 
 def api(uri, body):
-    """POST to the XSOAR API from inside a playbook via the Core REST API."""
-    return demisto.executeCommand('core-api-post',
-                                  {'uri': uri, 'body': json.dumps(body)})
+    """POST to the XSOAR API from inside a playbook via the Core REST API.
+
+    core-api-post does not raise on a failed call, so a write that never landed
+    used to return success. Every caller now gets the response and can tell.
+    """
+    res = demisto.executeCommand('core-api-post',
+                                 {'uri': uri, 'body': json.dumps(body)})
+    entry = res[0] if isinstance(res, list) and res else res
+    if isinstance(entry, dict) and entry.get('Type') == entryTypes['error']:
+        raise DemistoException(str(entry.get('Contents'))[:200])
+    return res
 
 
 def supersede_prior(case_id):
@@ -48,7 +56,7 @@ def supersede_prior(case_id):
     verdict is made findable by tag instead. Without this a re-analysed case
     accumulates verdicts with no indication which one is live.
     """
-    inv = f'INCIDENT-{case_id}'
+    inv = str(case_id)
     tagged = 0
     try:
         res = api(f'/xsoar/public/v1/investigation/{inv}', {'pageSize': 200, 'page': 0})
@@ -136,40 +144,87 @@ def write_case_contract(case_id, ai, case, payload):
     # Analysis. There is no deterministic case producer to compare against yet,
     # so writing to Analysis would make the first AI output authoritative by
     # default. Promotion is SOCPromoteAIPhaseOutput's decision, not this one.
-    inv = f'INCIDENT-{case_id}'
-    blob = json.dumps(contract, separators=(',', ':'))
+    # Written from a member issue with setParentIncidentContext, not from the
+    # case. Executing !Set inside a case investigation returns a nil pointer
+    # panic, so the case is reached upward from one of its issues instead.
+    issue = member_issue(case_id, payload)
+    if not issue:
+        return False, 'no member issue to write from'
+
+    # The value rides a command line inside backticks, so a backtick or newline
+    # in free text - compromise_decision, story - terminates it early. That fails
+    # as a normal entry rather than an error entry, which is why this used to
+    # report success while writing nothing.
+    blob = (json.dumps(contract, separators=(',', ':'))
+            .replace('`', "'").replace('\r', ' ').replace('\n', ' '))
     try:
-        # Delete first - Set appends on repeat, which would turn verdict into an
-        # array on the second analysis and break every consumer.
-        api('/xsoar/public/v1/entry/execute/sync',
-            {'investigationId': inv, 'data': '!DeleteContext key=SOCFramework.Analysis.AI'})
-        api('/xsoar/public/v1/entry/execute/sync',
-            {'investigationId': inv,
-             'data': f'!Set key=SOCFramework.Analysis.AI value=`{blob}`'})
-        return True, f'{populated}/{len(spec)} targets populated'
+        res = api('/xsoar/public/v1/entry/execute/sync',
+                  {'investigationId': issue,
+                   'data': f'!setParentIncidentContext key=SOCFramework.Analysis.AI '
+                           f'value=`{blob}`'})
     except Exception as e:
         demisto.debug(f'SOCFWCaseVerdictReport: case contract write failed: {e}')
         return False, str(e)[:100]
+
+    # Confirm from the response rather than from the absence of an exception.
+    entry = res[0] if isinstance(res, list) and res else res
+    said = str((entry or {}).get('Contents') or '')
+    if 'set' not in said.lower():
+        demisto.debug(f'SOCFWCaseVerdictReport: contract not set: {said[:200]}')
+        return False, f'not set: {said[:80]}'
+    return True, f'{populated}/{len(spec)} targets populated'
+
+
+def member_issue(case_id, payload):
+    """An issue investigation belonging to this case, to write upward from.
+
+    A case investigation accepts entries but not command execution - !Set inside
+    one returns a nil pointer panic. setParentIncidentContext run from a member
+    issue reaches the case instead, which is the only route that works.
+    """
+    for shape in (payload.get('shapes') or []):
+        sid = shape.get('contract_from') or shape.get('sample_alert_id')
+        if sid:
+            return str(sid)
+    try:
+        res = api('/xsoar/public/v1/incidents/search',
+                  {'filter': {'page': 0, 'size': 1,
+                              'query': f'caseid:{case_id}'}})
+        entry = res[0] if isinstance(res, list) and res else res
+        contents = (entry or {}).get('Contents')
+        if isinstance(contents, str):
+            contents = json.loads(contents)
+        # core-api-post nests the API body under response on some paths and
+        # returns it bare on others.
+        for node in (contents, (contents or {}).get('response')):
+            data = (node or {}).get('data') if isinstance(node, dict) else None
+            if data:
+                return str(data[0].get('id'))
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseVerdictReport: no member issue for {case_id}: {e}')
+    return ''
 
 
 def post_to_case(case_id, markdown):
     """Write the verdict entry to the case's own War Room.
 
     The JOB runs in its own investigation, so a return_results here lands where
-    no analyst looks. A case investigation accepts entries addressed as
-    INCIDENT-<case_id>, and core-api-post reaches it from inside the JOB.
+    no analyst looks.
 
-    Never fatal. A case that cannot be written to still has its dataset row and
-    its entry in the JOB War Room.
+    Uses /entry, not /entry/execute/sync. The sync endpoint's `data` field is a
+    command line, so markdown beginning with "##" was parsed as a command and
+    wrote nothing, while core-api-post's silence let the caller report success.
+
+    Never fatal. A case that cannot be written to still has its dataset row.
     """
-    payload = json.dumps({
-        'investigationId': f'INCIDENT-{case_id}',
-        'data': markdown,
-    })
     try:
-        demisto.executeCommand('core-api-post', {
-            'uri': '/xsoar/public/v1/entry/execute/sync',
-            'body': payload,
+        # INCIDENT-<case_id>, not the bare id. Both are addressable and both
+        # accept entries, but only this one is what the case War Room renders -
+        # entries written to the bare investigation exist and are invisible.
+        api('/xsoar/public/v1/entry', {
+            'investigationId': f'INCIDENT-{case_id}',
+            'data': markdown,
+            'markdown': True,
         })
         return True, ''
     except Exception as e:
@@ -231,8 +286,17 @@ def main():
         except Exception:
             categories = [c.strip() for c in categories.split(',') if c.strip()]
 
+    # A run that produced nothing must not render as a verdict. INCONCLUSIVE is
+    # a judgement the model did not make, and reading it as one is how a case the
+    # reasoner could not handle passes for a clean bill of health.
+    story = ai.get('story') or []
+    if isinstance(story, str):
+        story = [story]
+
+    headline = (f"{verdict.upper()}   {conf} {confidence or 'unknown'}"
+                if story else "NO VERDICT — model returned nothing")
     lines = [
-        f"{mark} **CASE {case_id}** — {verdict.upper()}   {conf} {confidence or 'unknown'}",
+        f"{mark} **CASE {case_id}** — {headline}",
         "",
         f"  issues        {case.get('IssueCount')}"
         f"   ·  shapes {shape_cov.get('kept')}/{shape_cov.get('total')}"
@@ -254,9 +318,6 @@ def main():
         for k, v in scope:
             lines.append(f"  {k:<13} {v}")
 
-    story = ai.get('story') or []
-    if isinstance(story, str):
-        story = [story]
     if story:
         lines.append("")
         lines.append("  **ANALYSIS**")
@@ -322,27 +383,128 @@ def main():
     # rendered block so the receiving investigation prints it verbatim.
     body = '\n'.join(lines)
     superseded = supersede_prior(case_id)
-    written, err = post_to_case(case_id, f'!Print value=`{body}`')
-    try:
-        payload_obj = json.loads(case.get('Payload') or '{}')
-    except Exception:
-        payload_obj = {}
-    contract_written, contract_note = write_case_contract(case_id, ai, case, payload_obj)
+
+    # Context before War Room. The contract is what downstream phases and the
+    # case layout read; the entry is for a human. If only one lands, it should
+    # be the one the framework depends on.
+    #
+    # A run that produced no story writes neither. Flash returns an empty object
+    # often enough that publishing an inconclusive contract would overwrite a
+    # good verdict from an earlier attempt - last write wins in the context.
+    # Payload arrives as a dict when the JOB passes it through context and as a
+    # string when it round-trips through an argument. json.loads on a dict raises,
+    # which silently produced an empty payload - and with no shapes there was no
+    # member issue, so the contract and the title both went unwritten while the
+    # War Room entry succeeded.
+    raw_payload = case.get('Payload')
+    if isinstance(raw_payload, dict):
+        payload_obj = raw_payload
+    else:
+        try:
+            payload_obj = json.loads(raw_payload or '{}')
+        except Exception:
+            payload_obj = {}
+
+    # Most of the case contract does not come from the model. Issue count,
+    # shapes, entities, categories and coverage are read from the SOCFW contracts
+    # the lifecycle already wrote. Gating all of it on the model meant a Flash
+    # failure erased work that was already done, and left the case looking as
+    # though nothing had touched it.
+    #
+    # So: every analysed case gets a contract and a War Room entry. The AI fields
+    # are filled only when there is a story. A run with no verdict never
+    # overwrites one that had a verdict - superseded counts prior verdict entries,
+    # and a case that already has one is left alone.
+    has_verdict = bool(story)
+    marked, mark_note = False, 'no verdict'
+
+    if has_verdict or superseded == 0:
+        contract_written, contract_note = write_case_contract(
+            case_id, ai, case, payload_obj)
+        written, err = post_to_case(case_id, body)
+        if has_verdict:
+            issue = member_issue(case_id, payload_obj)
+            if issue:
+                marked, mark_note = mark_case_title(case_id, issue)
+        if not has_verdict:
+            contract_note = '{} (no verdict - deterministic fields only)'.format(
+                contract_note)
+    else:
+        contract_written, contract_note = False, 'no verdict, prior verdict kept'
+        written, err = False, 'no verdict, prior verdict kept'
+
     row['case_warroom_written'] = written
     row['case_contract_written'] = contract_written
     row['case_contract_note'] = contract_note
     row['prior_verdicts_superseded'] = superseded
+    row['case_title_marked'] = marked
+    row['case_title_note'] = mark_note
 
     demisto.setContext('CaseAnalysis.ExecutionRow', row)
     demisto.setContext('CaseAnalysis.case_id', case_id)
     demisto.setContext('CaseAnalysis.verdict', verdict)
 
-    trace = (f"\n\n  ↳ case {case_id}: War Room entry written"
-             f"{f', contract {contract_note}' if contract_written else f', CONTRACT WRITE FAILED ({contract_note})'}"
-             f"{f', {superseded} prior verdict(s) superseded' if superseded else ''}"
-             if written else f"\n\n  ⚫ case War Room write failed: {err}")
+    if not has_verdict and not written:
+        trace = "\n\n  ⚫ no verdict produced — prior verdict on the case kept"
+    elif not has_verdict:
+        trace = ("\n\n  ⚪ no verdict produced — case contract written from the "
+                 f"lifecycle contracts only ({contract_note})")
+    elif written:
+        trace = (f"\n\n  ↳ case {case_id}: contract {contract_note}, War Room entry written"
+                 f"{f', title {mark_note}' if marked else ''}"
+                 f"{f', {superseded} prior verdict(s) superseded' if superseded else ''}")
+    else:
+        trace = f"\n\n  ⚫ case write failed: {err}"
     return_results(CommandResults(readable_output=body + trace))
 
 
 if __name__ in ('__main__', '__builtin__', 'builtins'):
     main()
+
+
+# A visible mark on the case title so an analyst scanning the case list can see
+# which cases the reasoner has already worked.
+AI_MARK = '\u2731'
+
+
+def mark_case_title(case_id, issue):
+    """Prefix the case title once, from a member issue.
+
+    The case title in XSIAM is `description`. setParentIncidentFields rejects
+    `name` outright and accepts `description`; `incident_name` is the generated
+    "X along with N other issues" string and is not what the UI shows.
+
+    Idempotent by checking the current title rather than a flag, so a case
+    analysed three times carries one mark and a hand-edited title stays correct.
+    """
+    try:
+        body = json.dumps({'request_data': {'filters': [
+            {'field': 'incident_id_list', 'operator': 'in',
+             'value': [str(case_id)]}]}})
+        res = demisto.executeCommand(
+            'core-api-post',
+            {'uri': '/public_api/v1/incidents/get_incidents/', 'body': body})
+        if isinstance(res, list):
+            res = res[0] if res else {}
+        rows = (demisto.get(res, 'response.reply.incidents')
+                or demisto.get(res, 'reply.incidents') or [])
+        row = rows[0] if rows else {}
+        title = str(row.get('description') or row.get('incident_name') or '').strip()
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseVerdictReport: cannot read case title: {e}')
+        return False, str(e)[:80]
+
+    if not title:
+        return False, 'case title unavailable'
+    if title.startswith(AI_MARK):
+        return True, 'already marked'
+
+    marked = f'{AI_MARK} {title}'.replace('"', "'")
+    try:
+        api('/xsoar/public/v1/entry/execute/sync',
+            {'investigationId': str(issue),
+             'data': f'!setParentIncidentFields description="{marked}"'})
+        return True, 'marked'
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseVerdictReport: case retitle failed: {e}')
+        return False, str(e)[:80]

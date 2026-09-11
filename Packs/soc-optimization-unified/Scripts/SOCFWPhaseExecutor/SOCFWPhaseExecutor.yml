@@ -1,0 +1,72 @@
+fromversion: 6.10.0
+commonfields:
+  id: SOCFWPhaseExecutor
+  version: -1
+name: SOCFWPhaseExecutor
+comment: |-
+  Decides which steps of a lifecycle phase plan actually dispatch.
+
+  The plan proposes actions and their order. This applies the customer's
+  environment rules and phase policy, checks the contract can supply the
+  arguments, checks the tenant can reach the vendor, and dedups against what
+  already ran. Steps that dispatch go through SOCCommandWrapper; steps that do
+  not still produce an execution row, because a step that did not run is the
+  finding.
+dockerimage: demisto/python3:3.12.12.5490952
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+pswd: ''
+restrictioncenter: {}
+runas: DBotWeakRole
+runonce: false
+scripttarget: 0
+signature: ''
+sourcescripid: SOCFWPhaseExecutor
+subtype: python3
+system: true
+tags:
+- SOC
+- SOC_Framework
+- Commands
+type: python
+args:
+- name: phase
+  description: Lifecycle phase this plan belongs to (containment, eradication, recovery).
+  defaultValue: containment
+- name: plan
+  description: JSON array of steps. Leave empty to read the plan from context,
+    which is the safe default - a ${...} argument resolving to an array makes
+    XSIAM run the task once per element.
+- name: plan_key
+  description: Context path holding the plan when the plan argument is not supplied.
+  defaultValue: SOCFramework.Phase.Proposed
+- name: case_id
+  description: Case the plan applies to. Used for ledger scope and dataset attribution.
+outputs:
+- contextPath: SOCFramework.Phase.Plan.step
+  description: Position of the step in the executed order.
+  type: Number
+- contextPath: SOCFramework.Phase.Plan.action
+  description: Universal command name for the step.
+  type: String
+- contextPath: SOCFramework.Phase.Plan.capability
+  description: Human readable capability the step represents.
+  type: String
+- contextPath: SOCFramework.Phase.Plan.status
+  description: Outcome - dispatched, direction, awaiting_approval, integration_unavailable,
+    contract_gap, content_gap, environment_denied, policy_blocked, or duplicate.
+  type: String
+- contextPath: SOCFramework.Phase.Plan.gap_kind
+  description: config_gap, content_gap, contract_gap, or policy.
+  type: String
+- contextPath: SOCFramework.Phase.Plan.reason
+  description: Why the step reached that outcome.
+  type: String
+- contextPath: SOCFramework.Phase.Plan.entity_value
+  description: Entity the step acts on.
+  type: String
+- contextPath: SOCFramework.Phase.Plan.asset_tier
+  description: Environment tier matched for the entity.
+  type: String
+script: ''
