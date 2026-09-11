@@ -254,7 +254,7 @@ tasks:
       - '130'
     scriptarguments:
       query:
-        simple: "dataset = issues\n| alter incident_id = arrayindex(xdm.issue.case_ids, 0)\n| filter incident_id in (${SOCFramework.Case.CandidateFilter}) and xdm.issue.domain = \"SECURITY\"\n| alter source_tag = arrayindex(original_tags, 0)\n| alter name_parts = split(xdm.issue.name, \" | \")\n| alter shape_key = concat(arrayindex(name_parts, 1), \" | \", arrayindex(name_parts, 2))\n| comp count() as n, min(_time) as first_seen, max(_time) as last_seen,\n       min(xdm.issue.id) as sample_alert_id,\n       values(xdm.issue.id) as candidate_ids,\n       values(xdm.issue.name) as issue_names\n       by incident_id, shape_key, source_tag, xdm.issue.severity,\n          xdm.issue.category, xdm.issue.detection.rule_id\n| sort asc incident_id, desc n"
+        simple: "dataset = issues\n| alter incident_id = arrayindex(xdm.issue.case_ids, 0)\n| filter incident_id in (${SOCFramework.Case.CandidateFilter}) and xdm.issue.domain = \"SECURITY\"\n| alter source_tag = arrayindex(original_tags, 0)\n| alter name_parts = split(xdm.issue.name, \" | \")\n| alter shape_key = concat(arrayindex(name_parts, 1), \" | \", arrayindex(name_parts, 2))\n| comp count() as n, min(_time) as first_seen, max(_time) as last_seen,\n       min(xdm.issue.id) as sample_alert_id,\n       values(xdm.issue.id) as candidate_ids,\n       values(xdm.issue.name) as issue_names\n       by incident_id, shape_key, source_tag, xdm.issue.severity,\n          xdm.issue.category, xdm.issue.detection.rule_id\n| sort asc incident_id, desc n\n| limit 1000"
       query_name:
         simple: socfw_case_shapes
       time_frame:
@@ -290,7 +290,7 @@ tasks:
       - '155'
     scriptarguments:
       query:
-        simple: "dataset = alerts\n| filter incident_id in (${SOCFramework.Case.CandidateFilter})\n| alter sha = arraystring(file_sha256, \"|\")\n| alter lip = arraystring(local_ip, \"|\")\n| comp count() as n by incident_id, host_name, endpoint_id, sha, lip\n| sort asc incident_id, desc n"
+        simple: "dataset = alerts\n| filter incident_id in (${SOCFramework.Case.CandidateFilter})\n| alter sha = arraystring(file_sha256, \"|\")\n| alter lip = arraystring(local_ip, \"|\")\n| comp count() as n by incident_id, host_name, endpoint_id, sha, lip\n| sort asc incident_id, desc n\n| limit 1000"
       query_name:
         simple: socfw_case_entities
       time_frame:
@@ -326,7 +326,7 @@ tasks:
       - '160'
     scriptarguments:
       query:
-        simple: "dataset = issues\n| alter incident_id = arrayindex(xdm.issue.case_ids, 0)\n| filter incident_id in (${SOCFramework.Case.CandidateFilter}) and xdm.issue.domain = \"SECURITY\"\n| alter covered = if(playbook_run_status = \"completed\", 1, 0)\n| comp count() as n, sum(covered) as covered_issues,\n       min(xdm.issue.domain) as issue_domain\n       by incident_id\n| sort asc incident_id"
+        simple: "dataset = issues\n| alter incident_id = arrayindex(xdm.issue.case_ids, 0)\n| filter incident_id in (${SOCFramework.Case.CandidateFilter}) and xdm.issue.domain = \"SECURITY\"\n| alter covered = if(playbook_run_status = \"completed\", 1, 0)\n| comp count() as n, sum(covered) as covered_issues,\n       min(xdm.issue.domain) as issue_domain\n       by incident_id\n| sort asc incident_id\n| limit 1000"
       query_name:
         simple: socfw_case_coverage
       time_frame:
