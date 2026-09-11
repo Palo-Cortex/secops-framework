@@ -218,8 +218,11 @@ def post_to_case(case_id, markdown):
     Never fatal. A case that cannot be written to still has its dataset row.
     """
     try:
+        # INCIDENT-<case_id>, not the bare id. Both are addressable and both
+        # accept entries, but only this one is what the case War Room renders -
+        # entries written to the bare investigation exist and are invisible.
         api('/xsoar/public/v1/entry', {
-            'investigationId': str(case_id),
+            'investigationId': f'INCIDENT-{case_id}',
             'data': markdown,
             'markdown': True,
         })
@@ -283,8 +286,17 @@ def main():
         except Exception:
             categories = [c.strip() for c in categories.split(',') if c.strip()]
 
+    # A run that produced nothing must not render as a verdict. INCONCLUSIVE is
+    # a judgement the model did not make, and reading it as one is how a case the
+    # reasoner could not handle passes for a clean bill of health.
+    story = ai.get('story') or []
+    if isinstance(story, str):
+        story = [story]
+
+    headline = (f"{verdict.upper()}   {conf} {confidence or 'unknown'}"
+                if story else "NO VERDICT — model returned nothing")
     lines = [
-        f"{mark} **CASE {case_id}** — {verdict.upper()}   {conf} {confidence or 'unknown'}",
+        f"{mark} **CASE {case_id}** — {headline}",
         "",
         f"  issues        {case.get('IssueCount')}"
         f"   ·  shapes {shape_cov.get('kept')}/{shape_cov.get('total')}"
@@ -306,9 +318,6 @@ def main():
         for k, v in scope:
             lines.append(f"  {k:<13} {v}")
 
-    story = ai.get('story') or []
-    if isinstance(story, str):
-        story = [story]
     if story:
         lines.append("")
         lines.append("  **ANALYSIS**")
@@ -396,18 +405,33 @@ def main():
         except Exception:
             payload_obj = {}
 
+    # Most of the case contract does not come from the model. Issue count,
+    # shapes, entities, categories and coverage are read from the SOCFW contracts
+    # the lifecycle already wrote. Gating all of it on the model meant a Flash
+    # failure erased work that was already done, and left the case looking as
+    # though nothing had touched it.
+    #
+    # So: every analysed case gets a contract and a War Room entry. The AI fields
+    # are filled only when there is a story. A run with no verdict never
+    # overwrites one that had a verdict - superseded counts prior verdict entries,
+    # and a case that already has one is left alone.
     has_verdict = bool(story)
     marked, mark_note = False, 'no verdict'
-    if has_verdict:
+
+    if has_verdict or superseded == 0:
         contract_written, contract_note = write_case_contract(
             case_id, ai, case, payload_obj)
         written, err = post_to_case(case_id, body)
-        issue = member_issue(case_id, payload_obj)
-        if issue:
-            marked, mark_note = mark_case_title(case_id, issue)
+        if has_verdict:
+            issue = member_issue(case_id, payload_obj)
+            if issue:
+                marked, mark_note = mark_case_title(case_id, issue)
+        if not has_verdict:
+            contract_note = '{} (no verdict - deterministic fields only)'.format(
+                contract_note)
     else:
-        contract_written, contract_note = False, 'no verdict to publish'
-        written, err = False, 'no verdict to publish'
+        contract_written, contract_note = False, 'no verdict, prior verdict kept'
+        written, err = False, 'no verdict, prior verdict kept'
 
     row['case_warroom_written'] = written
     row['case_contract_written'] = contract_written
@@ -420,8 +444,11 @@ def main():
     demisto.setContext('CaseAnalysis.case_id', case_id)
     demisto.setContext('CaseAnalysis.verdict', verdict)
 
-    if not has_verdict:
-        trace = "\n\n  ⚫ no verdict produced — nothing published to the case"
+    if not has_verdict and not written:
+        trace = "\n\n  ⚫ no verdict produced — prior verdict on the case kept"
+    elif not has_verdict:
+        trace = ("\n\n  ⚪ no verdict produced — case contract written from the "
+                 f"lifecycle contracts only ({contract_note})")
     elif written:
         trace = (f"\n\n  ↳ case {case_id}: contract {contract_note}, War Room entry written"
                  f"{f', title {mark_note}' if marked else ''}"
