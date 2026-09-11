@@ -1,5 +1,5 @@
 adopted: true
-id: JOB - SOC Case Analysis
+id: JOB - SOC Case Containment
 version: -1
 contentitemexportablefields:
   contentitemfields:
@@ -17,7 +17,7 @@ aclowner:
   id: ''
   type: ''
   name: ''
-name: JOB - SOC Case Analysis
+name: JOB - SOC Case Containment
 description: "Runs the NIST IR Detection & Analysis phase once per case, on a schedule, instead of once per issue.\n\nIssue-level automation ends at Foundation - Upon Trigger, which builds the SOC Framework contract and exits. This JOB selects cases with unanalysed issues, collapses each case to its distinct alert shapes and entity sets with a small number of XQL aggregates, and hands one structured payload per case to the AI case analysis prompt.\n\nThe collapse is what makes case scope affordable: a case of N issues reduces to the number of distinct alert shapes, hosts, hashes and addresses it contains, which is bounded by variety rather than by issue count. Aggregates run once across all candidate cases and are partitioned per case in memory.\n\nEnable and disable via the XSIAM Jobs UI. Schedule frequency is the tuning knob; there is no shadow mode inside a JOB."
 tags:
 - SOC
@@ -28,10 +28,10 @@ starttaskid: '0'
 tasks:
   '0':
     id: '0'
-    taskid: 8d67fab7-506a-4ab7-8ffe-ecb6ffda541e
+    taskid: 11cfd873-f421-457a-9f98-7a68d6c66700
     type: start
     task:
-      id: 8d67fab7-506a-4ab7-8ffe-ecb6ffda541e
+      id: 11cfd873-f421-457a-9f98-7a68d6c66700
       version: -1
       name: ''
       iscommand: false
@@ -53,10 +53,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '100':
     id: '100'
-    taskid: 8bcdeb85-a5c8-422f-8238-f903545a2748
+    taskid: 0dc21e34-7d2d-42c7-a408-2a57a8b26d9e
     type: regular
     task:
-      id: 8bcdeb85-a5c8-422f-8238-f903545a2748
+      id: 0dc21e34-7d2d-42c7-a408-2a57a8b26d9e
       version: -1
       name: Read JOB config
       description: Reads the Case Analysis JOB tuning block from SOCOptimizationConfig_V3. A JOB has no issue context, so every value must come from a list read or an API call.
@@ -75,7 +75,7 @@ tasks:
       force:
         simple: 'true'
       key:
-        simple: SOCFramework.Case.Config
+        simple: SOCFramework.Containment.Config
       value:
         complex:
           root: lists
@@ -104,10 +104,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '105':
     id: '105'
-    taskid: 5692c812-909c-4f67-8a0e-071209ddb12d
+    taskid: d73c9fcd-7c4f-47b0-b210-10753e2826eb
     type: regular
     task:
-      id: 5692c812-909c-4f67-8a0e-071209ddb12d
+      id: d73c9fcd-7c4f-47b0-b210-10753e2826eb
       version: -1
       name: Aggregate — analysis watermark
       description: Per-case analysis history from the execution dataset. This is the watermark. A pack-installed List is system-owned and a JOB cannot write to it, so the dataset is what records which cases have been analysed and at what issue and contract counts.
@@ -122,7 +122,7 @@ tasks:
       - '110'
     scriptarguments:
       query:
-        simple: "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"case_analysis\" and case_id != null\n| alter produced = if(prompt_output_bytes > 100, 1, 0)\n| comp sum(produced) as analyses,\n       count() as attempts,\n       max(issue_count) as analysed_issue_count,\n       max(contract_covered_issues) as analysed_covered_issues,\n       max(contract_total_issues) as analysed_total_issues,\n       max(_time) as analysed_at\n       by case_id"
+        simple: "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"case_containment\" and case_id != null\n| alter produced = if(reasoning_status = \"no_output\", 0, 1)\n| comp sum(produced) as analyses,\n       count() as attempts,\n       max(issue_count) as analysed_issue_count,\n       max(contract_covered_issues) as analysed_covered_issues,\n       max(contract_total_issues) as analysed_total_issues,\n       max(_time) as analysed_at\n       by case_id"
       query_name:
         simple: socfw_case_watermark
       time_frame:
@@ -140,10 +140,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '110':
     id: '110'
-    taskid: c007078b-c19d-4cda-802f-241605eebe26
+    taskid: c1a1fbdf-9e7a-4886-a3b1-9271614b74b3
     type: regular
     task:
-      id: c007078b-c19d-4cda-802f-241605eebe26
+      id: c1a1fbdf-9e7a-4886-a3b1-9271614b74b3
       version: -1
       name: Select candidate cases
       description: Pages get_alerts and returns the cases eligible for analysis this run, plus a comma-separated id list for the aggregate filters. Writes SOCFramework.Case.Candidates and SOCFramework.Case.CandidateFilter.
@@ -158,23 +158,23 @@ tasks:
       - '115'
     scriptarguments:
       batch_size:
-        simple: ${SOCFramework.Case.Config.CaseBatchSize}
+        simple: ${SOCFramework.Containment.Config.CaseBatchSize}
       domain:
-        simple: ${SOCFramework.Case.Config.CaseDomain}
+        simple: ${SOCFramework.Containment.Config.CaseDomain}
       min_issues:
-        simple: ${SOCFramework.Case.Config.CaseMinIssues}
+        simple: ${SOCFramework.Containment.Config.CaseMinIssues}
       min_score:
-        simple: ${SOCFramework.Case.Config.CaseMinScore}
+        simple: ${SOCFramework.Containment.Config.CaseMinScore}
       max_analyses:
-        simple: ${SOCFramework.Case.Config.CaseMaxAnalyses}
+        simple: ${SOCFramework.Containment.Config.CaseMaxAnalyses}
       max_attempts:
-        simple: ${SOCFramework.Case.Config.CaseMaxAttempts}
+        simple: ${SOCFramework.Containment.Config.CaseMaxAttempts}
       settle_minutes:
-        simple: ${SOCFramework.Case.Config.CaseSettleMinutes}
+        simple: ${SOCFramework.Containment.Config.CaseSettleMinutes}
       max_wait_minutes:
-        simple: ${SOCFramework.Case.Config.CaseMaxWaitMinutes}
+        simple: ${SOCFramework.Containment.Config.CaseMaxWaitMinutes}
       max_batches:
-        simple: ${SOCFramework.Case.Config.CaseMaxBatches}
+        simple: ${SOCFramework.Containment.Config.CaseMaxBatches}
       watermark_rows:
         complex:
           root: PaloAltoNetworksXQL.GenericQuery
@@ -182,7 +182,7 @@ tasks:
           transformers:
           - operator: Stringify
       window_hours:
-        simple: ${SOCFramework.Case.Config.CaseWindowHours}
+        simple: ${SOCFramework.Containment.Config.CaseWindowHours}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -196,10 +196,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '115':
     id: '115'
-    taskid: 3676d45d-257c-4679-84a8-8a8783c6568f
+    taskid: 0363f4cf-a237-4757-ba92-97fa95b83747
     type: condition
     task:
-      id: 3676d45d-257c-4679-84a8-8a8783c6568f
+      id: 0363f4cf-a237-4757-ba92-97fa95b83747
       version: -1
       name: Any candidates?
       description: Skip the aggregates when nothing was selected. Each aggregate charges quota whether or not it matches anything, so a quiet run should cost one get_alerts call and no XQL at all. This is what makes a tight schedule affordable.
@@ -236,10 +236,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '120':
     id: '120'
-    taskid: f141c09e-82f8-443d-8e1e-7301763ea48b
+    taskid: 91be0774-7304-42ac-96b8-2bff1851cf02
     type: regular
     task:
-      id: f141c09e-82f8-443d-8e1e-7301763ea48b
+      id: 91be0774-7304-42ac-96b8-2bff1851cf02
       version: -1
       name: Aggregate — issue shapes
       description: Distinct alert shapes per case with occurrence counts and first/last seen. Occurrence count is evidence of intensity, not noise, and first_seen ordering is what carries a cross-category pivot.
@@ -258,7 +258,7 @@ tasks:
       query_name:
         simple: socfw_case_shapes
       time_frame:
-        simple: ${SOCFramework.Case.Config.CaseWindowHours} hours
+        simple: ${SOCFramework.Containment.Config.CaseWindowHours} hours
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -272,10 +272,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '130':
     id: '130'
-    taskid: 385110af-a15e-4e03-87d5-8e458c9c57f9
+    taskid: 21d4897b-b8a1-44d9-8471-c53752a4bc93
     type: regular
     task:
-      id: 385110af-a15e-4e03-87d5-8e458c9c57f9
+      id: 21d4897b-b8a1-44d9-8471-c53752a4bc93
       version: -1
       name: Aggregate — entities
       description: Distinct host, hash and address combinations per case, in one query rather than three. Array fields are joined to delimited strings instead of expanded, because arrayexpand drops the whole row when the field is null, which silently removed an entire case that carried addresses but no file hashes, and expanding two array fields multiplies rows. The correlated row also keeps which host carried which binary and which address, which three separate aggregates threw away.
@@ -294,7 +294,7 @@ tasks:
       query_name:
         simple: socfw_case_entities
       time_frame:
-        simple: ${SOCFramework.Case.Config.CaseWindowHours} hours
+        simple: ${SOCFramework.Containment.Config.CaseWindowHours} hours
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -308,10 +308,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '155':
     id: '155'
-    taskid: 4a0e0bc7-9798-43ab-88c2-cf9512ebc671
+    taskid: 0b503ba1-5c13-43e3-9ab5-9263f63c1ac8
     type: regular
     task:
-      id: 4a0e0bc7-9798-43ab-88c2-cf9512ebc671
+      id: 0b503ba1-5c13-43e3-9ab5-9263f63c1ac8
       version: -1
       name: Aggregate — contract coverage
       description: Counts, per case, how many issues ran an entry-point playbook to completion. Only those issues carry a SOC Framework contract. A security case with zero covered issues means the entry point did not fire, which is a coverage gap worth surfacing rather than a case to silently analyse from vendor fields.
@@ -330,7 +330,7 @@ tasks:
       query_name:
         simple: socfw_case_coverage
       time_frame:
-        simple: ${SOCFramework.Case.Config.CaseWindowHours} hours
+        simple: ${SOCFramework.Containment.Config.CaseWindowHours} hours
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -344,10 +344,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '160':
     id: '160'
-    taskid: 21680553-2703-4a26-8adc-7c9f7bf0c840
+    taskid: 8a9ad42f-79e0-48be-96c6-836c85c35692
     type: regular
     task:
-      id: 21680553-2703-4a26-8adc-7c9f7bf0c840
+      id: 8a9ad42f-79e0-48be-96c6-836c85c35692
       version: -1
       name: Build case payloads
       description: Partitions the four aggregate result sets by case and emits one payload per case. Applies the shape cap and records the coverage percentage so a truncated payload is never silently truncated.
@@ -364,11 +364,11 @@ tasks:
       candidates:
         simple: ${SOCFramework.Case.Candidates}
       max_shapes:
-        simple: ${SOCFramework.Case.Config.CaseMaxShapes}
+        simple: ${SOCFramework.Containment.Config.CaseMaxShapes}
       min_shapes:
-        simple: ${SOCFramework.Case.Config.CaseMinShapes}
+        simple: ${SOCFramework.Containment.Config.CaseMinShapes}
       campaign_issues:
-        simple: ${SOCFramework.Case.Config.CaseCampaignIssues}
+        simple: ${SOCFramework.Containment.Config.CaseCampaignIssues}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ''
@@ -382,10 +382,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '165':
     id: '165'
-    taskid: 060d2c48-0af7-49fa-8269-abb1e7d2dbf1
+    taskid: b1cf7fcd-0293-4efe-969c-8ce0630f26fc
     type: regular
     task:
-      id: 060d2c48-0af7-49fa-8269-abb1e7d2dbf1
+      id: b1cf7fcd-0293-4efe-969c-8ce0630f26fc
       version: -1
       name: Attach shape contracts
       description: Reads the SOC Framework contract for one representative issue per alert shape and attaches it to that shape. This is what makes the payload contract-grounded rather than XDM-grounded, and it is bounded by shape count rather than issue count. The whole SOCFramework subtree is taken, so schema changes reach the prompt without editing the script.
@@ -400,13 +400,13 @@ tasks:
       - '170'
     scriptarguments:
       intel_roots:
-        simple: ${SOCFramework.Case.Config.CaseIntelRoots}
+        simple: ${SOCFramework.Containment.Config.CaseIntelRoots}
       max_deferrals:
-        simple: ${SOCFramework.Case.Config.CaseMaxDeferrals}
+        simple: ${SOCFramework.Containment.Config.CaseMaxDeferrals}
       max_payload_chars:
-        simple: ${SOCFramework.Case.Config.CaseMaxPayloadChars}
+        simple: ${SOCFramework.Containment.Config.CaseMaxPayloadChars}
       max_fetches_per_case:
-        simple: ${SOCFramework.Case.Config.CaseMaxContractFetches}
+        simple: ${SOCFramework.Containment.Config.CaseMaxContractFetches}
       payloads:
         simple: ${SOCFramework.Case.Payloads}
     separatecontext: false
@@ -422,35 +422,31 @@ tasks:
     isautoswitchedtoquietmode: false
   '170':
     id: '170'
-    taskid: e56d0ea7-6f0c-4e4f-88be-37fbf8494029
+    taskid: e55bf90a-3035-4727-aa02-b3b5a1248cf3
     type: playbook
     task:
-      id: e56d0ea7-6f0c-4e4f-88be-37fbf8494029
+      id: e55bf90a-3035-4727-aa02-b3b5a1248cf3
       version: -1
-      name: SOC Case Analysis Phase
-      description: Runs Detection & Analysis once per case. forEach iterates SOCFramework.Case.Payloads, so each iteration holds a single case and its fields resolve as scalars. The aiTask lives inside this sub-playbook, not here, which is what lets this JOB ship unchanged to regions without AI.
-      playbookName: SOC Case Analysis Phase
-      type: playbook
+      name: Contain candidate cases
+      description: Builds a containment plan per case and hands it to SOCFWPhaseExecutor,
+        which applies environment vetoes, phase policy, contract resolution and
+        reachability before anything dispatches. Loops in-process rather than forEach
+        so the payload array never reaches a task argument. Also produces eradication
+        and recovery directions, which run directions_only for now.
+      scriptName: SOCFWCaseContainment
+      type: regular
       iscommand: false
       brand: ''
-      playbooktaskmissingcomponent:
-      istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
       - '177'
     scriptarguments:
-      Case:
+      cases:
         complex:
           root: SOCFramework.Case.Payloads
-    separatecontext: true
+    separatecontext: false
     continueonerror: true
     continueonerrortype: ''
-    loop:
-      iscommand: false
-      exitCondition: ''
-      wait: 1
-      max: 100
-      forEach: true
     view: "{\n  \"position\": {\n    \"x\": 162.5,\n    \"y\": 1885\n  }\n}"
     note: false
     timertriggers: []
@@ -461,12 +457,12 @@ tasks:
     isautoswitchedtoquietmode: false
   '177':
     id: '177'
-    taskid: 1a44e8c8-3693-44a0-8596-a3410b21295c
+    taskid: b8bcd2af-1398-4bc8-a196-0fe1ce654332
     type: regular
     task:
-      id: 1a44e8c8-3693-44a0-8596-a3410b21295c
+      id: b8bcd2af-1398-4bc8-a196-0fe1ce654332
       version: -1
-      name: Post Case Analysis to Execution Dataset
+      name: Post Case Containment to Execution Dataset
       description: Writes one case_analysis_run row and one case_analysis row per case to xsiam_socfw_ir_execution_raw via the socfw_ir_execution_writer instance. Query cost travels with the run row so schedule frequency can be tuned against measured quota spend. continueonerror true — dataset write failure must never stop the chain.
       script: '|||socfw-post-to-dataset'
       type: regular
@@ -498,10 +494,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '180':
     id: '180'
-    taskid: 8c9ca85f-606b-4f99-8107-00e73a0bca85
+    taskid: f7ba2937-c548-4739-8aa8-d61675fee1b1
     type: regular
     task:
-      id: 8c9ca85f-606b-4f99-8107-00e73a0bca85
+      id: f7ba2937-c548-4739-8aa8-d61675fee1b1
       version: -1
       name: Close Job
       description: A JOB investigation that is never closed accumulates.
@@ -527,10 +523,10 @@ tasks:
     isautoswitchedtoquietmode: false
   '190':
     id: '190'
-    taskid: 84a38f94-da7d-45cd-819d-0279560fb117
+    taskid: 549996f1-0831-4a39-9ec5-5547e99cc379
     type: title
     task:
-      id: 84a38f94-da7d-45cd-819d-0279560fb117
+      id: 549996f1-0831-4a39-9ec5-5547e99cc379
       version: -1
       name: Done
       type: title
@@ -549,7 +545,7 @@ tasks:
     isoversize: false
     isautoswitchedtoquietmode: false
 outlinetasks: {}
-system: true
+system: false
 view: "{\n  \"linkLabelsPosition\": {},\n  \"paper\": {\n    \"dimensions\": {\n      \"height\": 2450,\n      \"width\": 492.5,\n      \"x\": 50,\n      \"y\": 50\n    }\n  }\n}"
 inputs: []
 outputs: []

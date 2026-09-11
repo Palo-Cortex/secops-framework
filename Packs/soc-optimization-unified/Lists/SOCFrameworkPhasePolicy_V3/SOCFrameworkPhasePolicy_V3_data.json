@@ -1,0 +1,60 @@
+{
+  "id": "SOCFrameworkPhasePolicy_V3",
+  "name": "SOCFrameworkPhasePolicy_V3",
+  "defaults": {
+    "authority": "recommend_only",
+    "resolution": "environment_tier_can_tighten_never_loosen"
+  },
+  "authority_levels": {
+    "auto": "Executor dispatches without a human.",
+    "approve": "Executor posts the step and waits for an analyst to approve it.",
+    "recommend_only": "Executor writes the step into the plan and never dispatches it."
+  },
+  "phases": {
+    "containment": {
+      "enabled": true,
+      "mode": "execute",
+      "authority_by_scope": {
+        "artifact": "auto",
+        "host": "approve",
+        "identity": "approve"
+      },
+      "max_actions_per_case": 25,
+      "min_verdict": "malicious",
+      "min_confidence": "medium"
+    },
+    "eradication": {
+      "enabled": true,
+      "mode": "directions_only",
+      "authority_by_scope": {
+        "artifact": "recommend_only",
+        "host": "recommend_only",
+        "identity": "recommend_only"
+      },
+      "note": "The analyst executes these through the action surface, so the framework still times the phase and MTTE stays measured."
+    },
+    "recovery": {
+      "enabled": true,
+      "mode": "directions_only",
+      "require_verification": true,
+      "reverse_only_live_actions": true,
+      "authority_by_scope": {
+        "artifact": "recommend_only",
+        "host": "recommend_only",
+        "identity": "recommend_only"
+      },
+      "note": "reverse_only_live_actions keeps recovery off entries the ledger recorded as shadow, which never happened and so cannot be undone."
+    }
+  },
+  "ticketing": {
+    "enabled": true,
+    "scope": "case",
+    "create_on": {
+      "min_verdict": "suspicious",
+      "min_case_score": 40
+    },
+    "update_on_phase_change": true,
+    "close_on_case_close": true,
+    "note": "Ticket scope is the case. Per-issue tickets rebuild the alert storm that case grouping exists to remove."
+  }
+}

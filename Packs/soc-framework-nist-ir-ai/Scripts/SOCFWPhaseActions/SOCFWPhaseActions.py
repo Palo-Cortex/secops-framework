@@ -104,7 +104,9 @@ def action_button(label, action):
     payload = json.dumps({
         "message": clean,
         "action": "SOCCommandWrapper",
-        "params": {"action": action},
+        # Identifies the caller so shadow_mode_by_actor can let an analyst act
+        # for real while the JOB still only simulates.
+        "params": {"action": action, "Action_Actor": "analyst"},
     }, separators=(",", ":"))
     # Bare %%%...%%% per the markdown reference. Wrapping it in colour markdown
     # breaks the parse, and anything between the markers that is not valid JSON

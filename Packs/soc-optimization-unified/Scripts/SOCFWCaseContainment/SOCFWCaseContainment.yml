@@ -1,0 +1,54 @@
+fromversion: 6.10.0
+commonfields:
+  id: SOCFWCaseContainment
+  version: -1
+name: SOCFWCaseContainment
+comment: |-
+  Runs the containment phase across every candidate case in one invocation.
+
+  Loops in-process rather than forEach-ing a sub-playbook, because XSIAM runs a
+  task once per element when an argument resolves to an array. Per case it builds
+  a containment plan from the case payload, hands it to SOCFWPhaseExecutor, and
+  records the outcome. Eradication and recovery plans are produced as analyst
+  directions so those phases are measured from the first run even though nothing
+  automates them yet.
+dockerimage: demisto/python3:3.12.12.5490952
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+pswd: ''
+restrictioncenter: {}
+runas: DBotWeakRole
+runonce: false
+scripttarget: 0
+signature: ''
+sourcescripid: SOCFWCaseContainment
+subtype: python3
+system: true
+tags:
+- SOC
+- SOC_Framework
+- Commands
+type: python
+script: ''
+args:
+- name: cases
+  description: Case payload objects from SOCFWBuildCasePayload, each carrying ID and
+    Payload. Passed as an array and iterated in-process.
+  required: true
+outputs:
+- contextPath: SOCFramework.Containment.Cases.case_id
+  description: Case the containment run applied to.
+  type: String
+- contextPath: SOCFramework.Containment.Cases.containment_state
+  description: contained, partially_contained, uncontained, or nothing_to_contain.
+  type: String
+- contextPath: SOCFramework.Containment.Cases.planned
+  description: Number of containment steps proposed for the case.
+  type: Number
+- contextPath: SOCFramework.Containment.Cases.decisions
+  description: Per-step outcome from SOCFWPhaseExecutor.
+- contextPath: SOCFramework.Containment.Cases.eradication_directions
+  description: Ordered eradication steps for an analyst to execute.
+- contextPath: SOCFramework.Containment.Cases.recovery_directions
+  description: Ordered recovery steps, gated on verification.
