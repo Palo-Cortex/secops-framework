@@ -1,0 +1,44 @@
+commonfields:
+  id: SOCFWPhaseActions
+  version: -1
+name: SOCFWPhaseActions
+comment: |-
+  Renders the containment actions actually available on this issue, as clickable
+  War Room action buttons. Issue scope is assessment and containment escalation
+  only - eradication and recovery are case-level phases.
+
+  Layout buttons are static - a section item carries a fixed scriptId and has no
+  condition - so the layout cannot vary buttons by product category. This runs
+  behind one button per phase and computes the set at click time from
+  SOCActionClassMap_V3 and SOCFrameworkActions_V3.
+
+  An action is offered only when the tenant can reach a vendor for it and the
+  contract can supply that vendor's arguments, which are the same checks
+  SOCFWPhaseExecutor makes before dispatch. Buttons invoke SOCCommandWrapper, so
+  shadow mode, the action registry and the execution row all apply.
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.8.1983910
+tags:
+- SOC
+- SOC_Framework
+enabled: true
+hidden: false
+runas: DBotWeakRole
+runonce: false
+scripttarget: 0
+fromversion: 6.10.0
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+system: false
+script: ''
+args:
+- name: phase
+  description: Lifecycle phase to offer actions for. Containment is the only phase
+    with meaning at issue scope.
+  defaultValue: containment
+outputs: []
