@@ -1,148 +1,370 @@
 rule_id: 0
-name: SOC MDO365 - Email Threat Detected
 fromversion: 6.10.0
-description: >
-  Detects high-confidence email threats from Microsoft Defender for Office 365
-  (Graph Security Alerts). Fires on high/medium-severity alerts in the
-  InitialAccess and LateralMovement categories with actionable statuses (new,
-  inProgress, queued, running, partiallyRemediated). Maps raw Graph Security
-  Alert fields to fw_email_* and socfwemailthreat* alert fields consumed by
-  Foundation_-_Normalize_Email_V3. Groups with SOC Proofpoint TAP - Threat
-  Detected via shared fw_email_* namespace. Groups with SOC Microsoft Graph
-  Defender EndPoint via shared incidentId on the Microsoft Security Graph.
-  Suppressed 24h per emailmessageid (providerAlertId) to prevent duplicate
-  alerts from Microsoft auto-remediation sequences.
-
-  Value Drivers: VD1 (Reduce Risk) — MTTD via Analysis.verdict timestamp.
-                 VD3 (Operational Efficiency) — automation % via value_tags.
-
-  SOC Challenges: Repetitive Workflows (auto-triage of MDO365 email alert bursts).
-                  Lack of Visibility (normalizes MDO365 into Email category
-                  alongside Proofpoint for unified case view).
-
 tags:
+  - SOCFramework
+  - Passthrough
   - Email
+  - MicrosoftDefenderForOffice365
   - InitialAccess
   - LateralMovement
   - T1566
   - T1566.001
   - T1566.002
   - T1534
-  - MicrosoftDefenderForOffice365
-  - SOCFramework
-
-xql_query: |
-  config case_sensitive = false
-  | dataset = msft_graph_security_alerts_raw
-  | filter serviceSource = "microsoftDefenderForOffice365"
-      and severity in ("high", "medium")
-      and status in ("new", "inProgress", "queued", "running", "partiallyRemediated")
-      and category in ("InitialAccess", "LateralMovement")
-  | alter
-      vendor_name                = "Microsoft",
-      product_name               = productName,
-      fw_email_alert_id          = id,
-      fw_email_incident_id       = to_string(incidentId),
-      fw_email_subject           = title,
-      fw_email_threat_severity   = severity,
-      fw_email_category          = category,
-      fw_email_mitre_techniques  = arraystring(mitreTechniques -> [], ","),
-      fw_email_tactic_id         = if(category = "InitialAccess", "TA0001",
-                                      category = "LateralMovement", "TA0008",
-                                      ""),
-      fw_email_detection_source  = detectionSource,
-      fw_email_service_source    = serviceSource,
-      fw_email_tenant_id         = tenantId,
-      fw_email_alert_url         = alertWebUrl,
-      fw_email_description       = description,
-      fw_email_first_activity    = firstActivityDateTime,
-      fw_email_last_activity     = lastActivityDateTime,
-      emailmessageid             = providerAlertId,
-      socfwemailthreat_type      = category,
-      socfwemailthreat_status    = status,
-      socfwemailthreat_source    = serviceSource,
-      socfwemailthreat_detection = detectionSource
-  | fields
-      _time,
-      vendor_name,
-      product_name,
-      fw_email_alert_id,
-      fw_email_incident_id,
-      fw_email_subject,
-      fw_email_threat_severity,
-      fw_email_category,
-      fw_email_tactic_id,
-      fw_email_mitre_techniques,
-      fw_email_detection_source,
-      fw_email_service_source,
-      fw_email_tenant_id,
-      fw_email_alert_url,
-      fw_email_description,
-      fw_email_first_activity,
-      fw_email_last_activity,
-      emailmessageid,
-      socfwemailthreat_type,
-      socfwemailthreat_status,
-      socfwemailthreat_source,
-      socfwemailthreat_detection
-
 action: ALERTS
-alert_name: >
-  [Email] $fw_email_service_source | $fw_email_category | $fw_email_subject
-alert_description: $fw_email_description
-alert_domain: DOMAIN_SECURITY
 alert_category: User Defined
-user_defined_category: fw_email_category
-user_defined_severity: fw_email_threat_severity
-severity: User Defined
-dataset: alerts
-drilldown_query_timeframe: ALERT
-execution_mode: REAL_TIME
-search_window: null
-simple_schedule: null
-crontab: null
-timezone: null
-alert_type: null
-investigation_query_link: ''
-is_enabled: true
-suppression_enabled: true
-suppression_duration: 24 hours
-suppression_fields:
-  - emailmessageid
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
 alert_fields:
-  mitretacticid: fw_email_tactic_id
-  mitretacticname: fw_email_category
-  mitretechniqueid: fw_email_mitre_techniques
-  mitretechniquename: fw_email_mitre_techniques
+  vendor: vendor
+  product: product
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  alert_description: alert_description
+  severity: severity
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  agent_device_domain: agent_device_domain
+  actor_effective_username: actor_effective_username
+  actor_process_image_name: actor_process_image_name
+  actor_process_image_path: actor_process_image_path
+  actor_process_image_sha256: actor_process_image_sha256
+  actor_process_command_line: actor_process_command_line
+  actor_process_os_pid: actor_process_os_pid
+  causality_actor_process_image_name: causality_actor_process_image_name
+  causality_actor_process_image_path: causality_actor_process_image_path
+  causality_actor_process_image_sha256: causality_actor_process_image_sha256
+  action_file_name: action_file_name
+  action_file_path: action_file_path
+  action_file_sha256: action_file_sha256
+  action_local_ip: action_local_ip
+  action_remote_ip: action_remote_ip
+  dns_query_name: dns_query_name
+  user_principal: user_principal
+  causality_actor_causality_id: causality_synth
+  xdmsourceprocesscausalityid: causality_synth
+  userid: user_principal
+  usersid: mailbox_sid
+  socfwidentityuserdisplayname: idr_display_name
+  emailmessageid: emailmessageid
+  emailsenderip: email_sender_ipv4
+  emailsource: email_sender
+  fw_email_recipient: fw_email_recipient
+  fw_email_internet_message_id: fw_email_internet_message_id
+  fw_email_network_message_id: fw_email_network_message_id
+  fw_email_sender: fw_email_sender
+  fw_email_subject: fw_email_subject
+  clickedurls: socfwemailthreaturl
+  filehash: attachment_sha256
+  socfwemaildeliveryaction: socfwemaildeliveryaction
+  socfwemaildirection: socfwemaildirection
+  socfwemailthreaturl: socfwemailthreaturl
+  socfwemailthreattype: socfwemailthreattype
+  socfwemailcampaignid: socfwemailcampaignid
   fw_email_alert_id: fw_email_alert_id
   fw_email_incident_id: fw_email_incident_id
-  fw_email_subject: fw_email_subject
   fw_email_threat_severity: fw_email_threat_severity
   fw_email_category: fw_email_category
   fw_email_tactic_id: fw_email_tactic_id
   fw_email_mitre_techniques: fw_email_mitre_techniques
   fw_email_detection_source: fw_email_detection_source
   fw_email_service_source: fw_email_service_source
-  fw_email_tenant_id: fw_email_tenant_id
   fw_email_alert_url: fw_email_alert_url
+  fw_email_tenant_id: fw_email_tenant_id
   fw_email_description: fw_email_description
   fw_email_first_activity: fw_email_first_activity
   fw_email_last_activity: fw_email_last_activity
-  emailmessageid: emailmessageid
   socfwemailthreat_type: socfwemailthreat_type
   socfwemailthreat_status: socfwemailthreat_status
   socfwemailthreat_source: socfwemailthreat_source
   socfwemailthreat_detection: socfwemailthreat_detection
-  vendor: vendor_name
-  product: product_name
-  externallink: fw_email_alert_url
+  username: actor_effective_username
+  filename: action_file_name
+  filesha256: action_file_sha256
+  remoteip: action_remote_ip
+  alert_name: alert_name
+alert_name: $alert_name
+alert_type: null
+crontab: '*/10 * * * *'
+dataset: alerts
+name: SOC MDO365 - Email Threat Detected
+description: >-
+  Creates an XSIAM alert for each Microsoft Defender for Office 365 email threat
+  from the Microsoft Graph Security alerts feed. Parses the Graph evidence array
+  for the analyzed message (recipient, sender, message ids, delivery action,
+  threats, URLs, attachment hash) and the recipient mailbox, canonicalizes the
+  recipient email-first as the grouping pivot, and groups with Defender for
+  Endpoint alerts of the same Defender incident via the synthetic causality id.
+drilldown_query_timeframe: ALERT
+execution_mode: SCHEDULED
+global_rule_id: SOC MDO365 - Email Threat Detected
+investigation_query_link: |-
+  dataset = msft_graph_security_alerts_raw
+  | filter incidentId = $incidentId
+  | fields _time, productName, serviceSource, title, severity, status
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
 mitre_defs:
   TA0001 - Initial Access:
-    - T1566 - Phishing
-    - T1566.001 - Spearphishing Attachment
-    - T1566.002 - Spearphishing Link
+  - T1566 - Phishing
+  - T1566.001 - Spearphishing Attachment
+  - T1566.002 - Spearphishing Link
   TA0008 - Lateral Movement:
-    - T1534 - Internal Spearphishing
-global_rule_id: SOC MDO365 - Email Threat Detected
-mapping_strategy: CUSTOM
-lookup_mapping: []
+  - T1534 - Internal Spearphishing
+search_window: 20 minutes
+severity: User Defined
+simple_schedule: 10 minutes
+suppression_duration: 24 hours
+suppression_enabled: true
+suppression_fields:
+- emailmessageid
+timezone: null
+user_defined_category: tactic
+user_defined_severity: severity
+xql_query: |
+  dataset = msft_graph_security_alerts_raw
+  | alter vendor_name = "Microsoft", product_name = productName
+
+  | filter serviceSource = "microsoftDefenderForOffice365"
+  | filter severity in ("high", "medium")
+  | filter status in ("new", "inProgress", "queued", "running", "partiallyRemediated")
+  | filter category in ("InitialAccess", "LateralMovement")
+
+  | alter tactic = category
+
+  | alter
+      cat_norm  = replace(replace(replace(replace(lowercase(category), " ", ""), "-", ""), "_", ""), ".", "")
+  | alter
+      mitre_tactic          = category,
+      mitre_tactic_id       = if(
+          cat_norm contains "initialaccess",       "TA0001",
+          cat_norm contains "execution",           "TA0002",
+          cat_norm contains "persistence",         "TA0003",
+          cat_norm contains "privilegeescalation", "TA0004",
+          cat_norm contains "defenseevasion",      "TA0005",
+          cat_norm contains "credentialaccess",    "TA0006",
+          cat_norm contains "discovery",           "TA0007",
+          cat_norm contains "lateralmovement",     "TA0008",
+          cat_norm contains "collection",          "TA0009",
+          cat_norm contains "commandandcontrol",   "TA0011",
+          cat_norm contains "exfiltration",        "TA0010",
+          cat_norm contains "impact",              "TA0040",
+          ""),
+      mitre_technique_first = arrayindex(mitreTechniques -> [], 0),
+      mitre_technique_str   = arraystring(mitreTechniques -> [], ",")
+
+  | alter
+      messageEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "analyzedMessageEvidence"), 0),
+      mailboxEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "mailboxEvidence"), 0),
+      userEvidence    = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "userEvidence"), 0),
+      urlEvidence     = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "urlEvidence"), 0),
+      fileEvidence    = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "fileEvidence"), 0),
+      clusterEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "mailClusterEvidence"), 0)
+
+  | alter
+      email_recipient       = messageEvidence -> recipientEmailAddress,
+      email_sender          = messageEvidence -> p1Sender.emailAddress,
+      email_sender_header   = messageEvidence -> p2Sender.emailAddress,
+      email_sender_domain   = messageEvidence -> p1Sender.domainName,
+      email_subject         = messageEvidence -> subject,
+      email_network_msg_id  = messageEvidence -> networkMessageId,
+      email_internet_msg_id = messageEvidence -> internetMessageId,
+      email_urls            = messageEvidence -> urls,
+      email_url_count       = messageEvidence -> urlCount,
+      email_delivery_action = messageEvidence -> deliveryAction,
+      email_delivery_loc    = messageEvidence -> deliveryLocation,
+      email_threats         = messageEvidence -> threats,
+      email_attachment_cnt  = messageEvidence -> attachmentsCount,
+      email_sender_ip       = messageEvidence -> senderIp,
+      email_direction       = messageEvidence -> antiSpamDirection,
+      email_received        = messageEvidence -> receivedDateTime
+
+  | alter
+      mailbox_address   = mailboxEvidence -> primaryAddress,
+      mailbox_upn       = mailboxEvidence -> userAccount.userPrincipalName,
+      mailbox_sid       = mailboxEvidence -> userAccount.userSid,
+      mailbox_display   = mailboxEvidence -> displayName,
+      evidence_user_upn = userEvidence -> userAccount.userPrincipalName
+
+  | alter
+      url_first         = urlEvidence -> url,
+      attachment_name   = fileEvidence -> fileDetails.fileName,
+      attachment_sha256 = fileEvidence -> fileDetails.sha256,
+      cluster_by        = clusterEvidence -> clusterBy,
+      cluster_value     = clusterEvidence -> clusterByValue,
+      cluster_count     = clusterEvidence -> emailCount
+
+  | alter email_sender_ipv4 = if(email_sender_ip ~= "(?:\\d{1,3}\\.){3}\\d{1,3}", email_sender_ip, null)
+
+  | alter recipient_first = lowercase(coalesce(mailbox_upn, mailbox_address, email_recipient, evidence_user_upn))
+  | alter user_principal  = recipient_first
+  | alter user_name       = recipient_first
+  | alter display_name    = mailbox_display
+  | alter actor_effective_username = recipient_first
+
+  | alter causality_synth = if(incidentId != null, concat("msgraph-incident-", to_string(incidentId)), null)
+
+  | alter alert_name = concat(
+          "[Email] ",
+          coalesce(recipient_first, "Unknown Recipient"),
+          " - ",
+          coalesce(category, "Detection"),
+          ": ",
+          coalesce(title, "Defender for Office 365 alert")
+      )
+
+  | alter alert_description = concat(
+          coalesce(description, "Microsoft Defender for Office 365 alert"),
+          " | Recipient: ",  coalesce(recipient_first, "Unknown"),
+          " | Sender: ",     coalesce(email_sender, "Unknown"),
+          " | Subject: ",    coalesce(email_subject, ""),
+          " | Delivery: ",   coalesce(email_delivery_action, "Unknown"),
+          " | Threats: ",    coalesce(to_string(email_threats), ""),
+          " | Severity: ",   coalesce(severity, "Unknown")
+      )
+
+  | alter
+          vendor                               = vendor_name,
+          product                              = product_name,
+          originalalertid                      = providerAlertId,
+          originalalertname                    = alert_name,
+          originalalertsource                  = productName,
+          externallink                         = alertWebUrl,
+          severity                             = severity,
+          mitretacticid                        = mitre_tactic_id,
+          mitretacticname                      = mitre_tactic,
+          mitretechniqueid                     = mitre_technique_str,
+          mitretechniquename                   = mitre_technique_str,
+          agent_hostname                       = null,
+          agent_id                             = null,
+          agent_device_domain                  = null,
+          actor_process_image_name             = null,
+          actor_process_image_path             = null,
+          actor_process_image_sha256           = null,
+          actor_process_command_line           = null,
+          actor_process_os_pid                 = null,
+          causality_actor_process_image_name   = null,
+          causality_actor_process_image_path   = null,
+          causality_actor_process_image_sha256 = null,
+          action_file_name                     = attachment_name,
+          action_file_path                     = null,
+          action_file_sha256                   = attachment_sha256,
+          action_local_ip                      = null,
+          action_remote_ip                     = email_sender_ipv4,
+          dns_query_name                       = email_sender_domain
+
+  | alter
+          fw_email_alert_id          = id,
+          fw_email_incident_id       = to_string(incidentId),
+          fw_email_subject           = coalesce(email_subject, title),
+          fw_email_threat_severity   = severity,
+          fw_email_category          = category,
+          fw_email_tactic_id         = mitre_tactic_id,
+          fw_email_mitre_techniques  = mitre_technique_str,
+          fw_email_detection_source  = detectionSource,
+          fw_email_service_source    = serviceSource,
+          fw_email_alert_url         = alertWebUrl,
+          fw_email_tenant_id         = tenantId,
+          fw_email_description       = description,
+          fw_email_first_activity    = firstActivityDateTime,
+          fw_email_last_activity     = lastActivityDateTime,
+          fw_email_recipient         = recipient_first,
+          fw_email_sender            = email_sender,
+          emailmessageid             = providerAlertId,
+          fw_email_internet_message_id = email_internet_msg_id,
+          fw_email_network_message_id  = email_network_msg_id,
+          socfwemailthreat_type      = category,
+          socfwemailthreat_status    = status,
+          socfwemailthreat_source    = serviceSource,
+          socfwemailthreat_detection = detectionSource,
+          socfwemailthreattype       = to_string(email_threats),
+          socfwemaildeliveryaction   = email_delivery_action,
+          socfwemaildirection        = email_direction,
+          socfwemailthreaturl        = coalesce(url_first, to_string(email_urls)),
+          socfwemailcampaignid       = if(cluster_by != null, concat(cluster_by, "=", coalesce(cluster_value, "")), null)
+
+  | alter idr_sid = null,
+          idr_upn = user_principal,
+          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
+          idr_netbios = null,
+          idr_display_name = null,
+          idr_domain_name = null,
+          idr_sam_account_name = null,
+          idr_on_prem_sid = null
+
+  // ============== CIE ENRICHMENT (optional, OFF by default) ==============
+  // Cloud Identity Engine enrichment is disabled. To enable it:
+  //   1. Set this rule to a schedule (it ships REAL_TIME):
+  //        execution mode = SCHEDULED
+  //        crontab        = */10 * * * *
+  //        search window  = 20 minutes
+  //        schedule label = 10 minutes
+  //   2. Delete the /* and */ lines that wrap the block below.
+  // The join coalesces socfw_identity_map values OVER the inline idr_* fields;
+  // the alert-field mappings do not change. Requires SOC IdentityResolve.
+  // ----------------------------------------------------------------------
+  /*
+  | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+  | alter cie_join_key = lowercase(coalesce(if(user_principal contains "@", user_principal, null), if(user_name contains "@", user_name, null)))
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter type = "user"
+      | alter cie_join_key = lowercase(coalesce(upn, email))
+      | dedup cie_join_key by asc netbios_and_sam_account_name
+      | fields cie_join_key,
+               sid                          as map_sid,
+               upn                          as map_upn,
+               email                        as map_email,
+               display_name                 as map_display,
+               domain_name                  as map_domain,
+               sam_account_name             as map_sam,
+               on_prem_sid                  as map_on_prem_sid,
+               netbios_and_sam_account_name as map_netbios,
+               title                        as map_title,
+               department                   as map_department,
+               manager_raw                  as map_manager,
+               country                      as map_country,
+               company_name                 as map_company,
+               location                     as map_location,
+               account_status               as map_account_status
+    ) as m cie_join_key = m.cie_join_key
+  | alter idr_sid              = coalesce(map_sid, idr_sid),
+          idr_upn              = coalesce(map_upn, idr_upn),
+          idr_email            = coalesce(map_email, idr_email),
+          idr_display_name     = coalesce(map_display, idr_display_name),
+          idr_domain_name      = coalesce(map_domain, idr_domain_name),
+          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
+          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
+          idr_netbios          = coalesce(map_netbios, idr_netbios),
+          idr_title            = map_title,
+          idr_department       = map_department,
+          idr_manager          = map_manager,
+          idr_country          = map_country,
+          idr_company          = map_company,
+          idr_location         = map_location,
+          idr_account_status   = map_account_status
+  | alter _time = _insert_time
+  */
+  // ===================== END CIE ENRICHMENT =============================
+  | alter original_display_name   = display_name,
+          original_user_principal = user_principal
+
+  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
+          email          = idr_email,
+          user_principal = coalesce(idr_upn, user_principal)
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
+  | alter email     = idr_email
+
+  | alter original_user_name = user_name
+  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))
+  | fields
+      _time, incidentId, productName, vendor_name, product_name, title, description, severity, status, tactic, category, alertWebUrl, providerAlertId, mitreTechniques, mitre_tactic, mitre_tactic_id, mitre_technique_first, mitre_technique_str, recipient_first, user_principal, user_name, display_name, causality_synth, email_recipient, email_sender, email_sender_header, email_sender_domain, email_subject, email_network_msg_id, email_internet_msg_id, email_urls, email_url_count, email_delivery_action, email_delivery_loc, email_threats, email_attachment_cnt, email_sender_ip, email_sender_ipv4, email_direction, email_received, mailbox_address, mailbox_upn, mailbox_sid, mailbox_display, url_first, attachment_name, attachment_sha256, cluster_by, cluster_value, cluster_count, alert_name, alert_description, *
