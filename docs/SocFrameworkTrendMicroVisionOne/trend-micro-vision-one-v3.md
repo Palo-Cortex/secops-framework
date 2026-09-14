@@ -188,7 +188,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     if(
       mitre_technique_id_raw != null and mitre_technique_id_raw != "",
       if(mitre_technique_id_raw contains ".",
-         arrayindex(regextract(mitre_technique_id_raw, "(T\\d+)\\."), 0),
+         arrayindex(regextract(mitre_technique_id_raw, "(T\d+)\."), 0),
          mitre_technique_id_raw),
       "-"
     )
@@ -294,7 +294,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter filepath =
     coalesce(
       reg_path,
-      arrayindex(regextract(cmdline, "^\\s*([^\\s]+)"), 0)
+      arrayindex(regextract(cmdline, "^\s*([^\s]+)"), 0)
     )
 | alter filename = replace(filepath, "^.*[\\\\/]", "")
 
