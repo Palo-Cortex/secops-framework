@@ -1,0 +1,475 @@
+# ============================================================================
+# Microsoft Defender for Office 365 — Microsoft Graph Security Alerts
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Emits into the existing pack SocFrameworkMicrosoftEmail, replacing the
+# hand-authored rule of the same name. Scope filters, suppression, emailmessageid and the MITRE surface are
+# preserved from the shipped rule; every other change is additive.
+#
+# Shares msft_graph_security_alerts_raw with the MDE contract. Partition:
+#   MDE : productName in ("Microsoft Defender for Endpoint", "Microsoft Defender XDR")
+#   MDO : serviceSource = "microsoftDefenderForOffice365"
+# Verify on each tenant that no alert matches both.
+# ============================================================================
+vendor: microsoft-defender-office365
+product: Microsoft Defender for Office 365
+data_source: msft_graph_security_alerts_raw
+category: Email
+pack: SocFrameworkMicrosoftEmail
+
+raw_schema:
+
+  # Top-level columns (ac survey 2026-09-14; json blobs arrive as strings)
+  id:                    {type: string, is_array: false}
+  title:                 {type: string, is_array: false}
+  description:           {type: string, is_array: false}
+  category:              {type: string, is_array: false}
+  severity:              {type: string, is_array: false}
+  status:                {type: string, is_array: false}
+  serviceSource:         {type: string, is_array: false}
+  detectionSource:       {type: string, is_array: false}
+  productName:           {type: string, is_array: false}
+  providerAlertId:       {type: string, is_array: false}
+  alertWebUrl:           {type: string, is_array: false}
+  incidentId:            {type: string, is_array: false}
+  tenantId:              {type: string, is_array: false}
+  firstActivityDateTime: {type: string, is_array: false}
+  lastActivityDateTime:  {type: string, is_array: false}
+  mitreTechniques:       {type: json,   is_array: true}
+  evidence:              {type: json,   is_array: true,
+                          json_subfields: ["@odata.type",
+                                           recipientEmailAddress, p1Sender, p2Sender, subject,
+                                           networkMessageId, internetMessageId, urls, urlCount,
+                                           deliveryAction, deliveryLocation, threats,
+                                           attachmentsCount, senderIp, antiSpamDirection,
+                                           receivedDateTime,
+                                           primaryAddress, displayName, userAccount,
+                                           url, fileDetails,
+                                           clusterBy, clusterByValue, emailCount, networkMessageIds]}
+
+
+correlation_rules:
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC MDO365 - Email Threat Detected'
+    name: 'SOC MDO365 - Email Threat Detected'
+    description: >-
+      Creates an XSIAM alert for each Microsoft Defender for Office 365 email
+      threat from the Microsoft Graph Security alerts feed. Parses the Graph
+      evidence array for the analyzed message (recipient, sender, message ids,
+      delivery action, threats, URLs, attachment hash) and the recipient
+      mailbox, canonicalizes the recipient email-first as the grouping pivot,
+      and groups with Defender for Endpoint alerts of the same Defender
+      incident via the synthetic causality id.
+    tags:
+      - SOCFramework
+      - Passthrough
+      - Email
+      - MicrosoftDefenderForOffice365
+      - InitialAccess
+      - LateralMovement
+      - T1566
+      - T1566.001
+      - T1566.002
+      - T1534
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: SCHEDULED
+      mapping_strategy: CUSTOM
+      user_defined_category: tactic
+      user_defined_severity: severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    crontab: "*/10 * * * *"
+    search_window: 20 minutes
+    simple_schedule: 10 minutes
+    alert_name: '$alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 24 hours
+      fields: [emailmessageid]
+      notes: |
+        Preserved from the shipped rule: emailmessageid = providerAlertId
+        (Graph's per-alert unique id), 24h window. The real message ids are
+        additive fields (fw_email_internet_message_id / fw_email_network_message_id).
+
+    identity: true
+    # Email-first join: MDO evidence carries the recipient address (and the
+    # mailbox's userAccount UPN when present); no reliable SID. The shared
+    # seed/finalization derives idr_* from user_principal with CIE off.
+    cie_join: upn_email
+    cie_schedule:
+      crontab: '*/10 * * * *'
+      search_window: 20 minutes
+      simple_schedule: 10 minutes
+
+    pre_alter: |
+      // Vendor / product (required for SOCProductCategoryMap routing)
+      | alter vendor_name = "Microsoft", product_name = productName
+
+      // ---- Scope: Defender for Office 365 only. Partition with the MDE rule
+      //      (productName in MDE/XDR). Preserved from the shipped rule.
+      | filter serviceSource = "microsoftDefenderForOffice365"
+      | filter severity in ("high", "medium")
+      | filter status in ("new", "inProgress", "queued", "running", "partiallyRemediated")
+      | filter category in ("InitialAccess", "LateralMovement")
+
+      // Tactic alias — drives user_defined_category
+      | alter tactic = category
+
+      // MITRE — same derivation as the MDE contract so both rules agree
+      | alter
+          cat_norm  = replace(replace(replace(replace(lowercase(category), " ", ""), "-", ""), "_", ""), ".", "")
+      | alter
+          mitre_tactic          = category,
+          mitre_tactic_id       = if(
+              cat_norm contains "initialaccess",       "TA0001",
+              cat_norm contains "execution",           "TA0002",
+              cat_norm contains "persistence",         "TA0003",
+              cat_norm contains "privilegeescalation", "TA0004",
+              cat_norm contains "defenseevasion",      "TA0005",
+              cat_norm contains "credentialaccess",    "TA0006",
+              cat_norm contains "discovery",           "TA0007",
+              cat_norm contains "lateralmovement",     "TA0008",
+              cat_norm contains "collection",          "TA0009",
+              cat_norm contains "commandandcontrol",   "TA0011",
+              cat_norm contains "exfiltration",        "TA0010",
+              cat_norm contains "impact",              "TA0040",
+              ""),
+          mitre_technique_first = arrayindex(mitreTechniques -> [], 0),
+          mitre_technique_str   = arraystring(mitreTechniques -> [], ",")
+
+      // ---- Evidence: first element of each type we care about
+      | alter
+          messageEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "analyzedMessageEvidence"), 0),
+          mailboxEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "mailboxEvidence"), 0),
+          userEvidence    = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "userEvidence"), 0),
+          urlEvidence     = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "urlEvidence"), 0),
+          fileEvidence    = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "fileEvidence"), 0),
+          clusterEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "mailClusterEvidence"), 0)
+
+      // Analyzed message
+      | alter
+          email_recipient       = messageEvidence -> recipientEmailAddress,
+          email_sender          = messageEvidence -> p1Sender.emailAddress,
+          email_sender_header   = messageEvidence -> p2Sender.emailAddress,
+          email_sender_domain   = messageEvidence -> p1Sender.domainName,
+          email_subject         = messageEvidence -> subject,
+          email_network_msg_id  = messageEvidence -> networkMessageId,
+          email_internet_msg_id = messageEvidence -> internetMessageId,
+          email_urls            = messageEvidence -> urls,
+          email_url_count       = messageEvidence -> urlCount,
+          email_delivery_action = messageEvidence -> deliveryAction,
+          email_delivery_loc    = messageEvidence -> deliveryLocation,
+          email_threats         = messageEvidence -> threats,
+          email_attachment_cnt  = messageEvidence -> attachmentsCount,
+          email_sender_ip       = messageEvidence -> senderIp,
+          email_direction       = messageEvidence -> antiSpamDirection,
+          email_received        = messageEvidence -> receivedDateTime
+
+      // Recipient mailbox / user
+      | alter
+          mailbox_address   = mailboxEvidence -> primaryAddress,
+          mailbox_upn       = mailboxEvidence -> userAccount.userPrincipalName,
+          mailbox_sid       = mailboxEvidence -> userAccount.userSid,
+          mailbox_display   = mailboxEvidence -> displayName,
+          evidence_user_upn = userEvidence -> userAccount.userPrincipalName
+
+      // URL / attachment / cluster
+      | alter
+          url_first         = urlEvidence -> url,
+          attachment_name   = fileEvidence -> fileDetails.fileName,
+          attachment_sha256 = fileEvidence -> fileDetails.sha256,
+          cluster_by        = clusterEvidence -> clusterBy,
+          cluster_value     = clusterEvidence -> clusterByValue,
+          cluster_count     = clusterEvidence -> emailCount
+
+      // Sender IP as IPv4 only (canonical action_remote_ip is IPv4)
+      | alter email_sender_ipv4 = if(email_sender_ip ~= "(?:\\d{1,3}\\.){3}\\d{1,3}", email_sender_ip, null)
+
+      // ---- Identity: recipient, email-first. The recipient is who the
+      //      lifecycle acts on (the mailbox that got the phish), matching the
+      //      Proofpoint rule. user_principal / user_name feed the shared seed
+      //      + finalization (identity: true) → actor_effective_username.
+      | alter recipient_first = lowercase(coalesce(mailbox_upn, mailbox_address, email_recipient, evidence_user_upn))
+      | alter user_principal  = recipient_first
+      | alter user_name       = recipient_first
+      | alter display_name    = mailbox_display
+      | alter actor_effective_username = recipient_first
+
+      // Cross-rule grouping: same synthetic causality as the MDE contract, so
+      // an MDO phish and the MDE detonation from one Defender incident land in
+      // one XSIAM case. Never collides with process causality GUIDs.
+      | alter causality_synth = if(incidentId != null, concat("msgraph-incident-", to_string(incidentId)), null)
+
+      // Title: [Email] {recipient} - {tactic}: {vendor title}
+      | alter alert_name = concat(
+              "[Email] ",
+              coalesce(recipient_first, "Unknown Recipient"),
+              " - ",
+              coalesce(category, "Detection"),
+              ": ",
+              coalesce(title, "Defender for Office 365 alert")
+          )
+
+      | alter alert_description = concat(
+              coalesce(description, "Microsoft Defender for Office 365 alert"),
+              " | Recipient: ",  coalesce(recipient_first, "Unknown"),
+              " | Sender: ",     coalesce(email_sender, "Unknown"),
+              " | Subject: ",    coalesce(email_subject, ""),
+              " | Delivery: ",   coalesce(email_delivery_action, "Unknown"),
+              " | Threats: ",    coalesce(to_string(email_threats), ""),
+              " | Severity: ",   coalesce(severity, "Unknown")
+          )
+
+      // ============================================================
+      // CANONICAL CORE NORMALIZATION
+      // Endpoint / process columns stay null for email alerts.
+      // ============================================================
+      | alter
+              vendor                               = vendor_name,
+              product                              = product_name,
+              originalalertid                      = providerAlertId,
+              originalalertname                    = alert_name,
+              originalalertsource                  = productName,
+              externallink                         = alertWebUrl,
+              severity                             = severity,
+              mitretacticid                        = mitre_tactic_id,
+              mitretacticname                      = mitre_tactic,
+              mitretechniqueid                     = mitre_technique_str,
+              mitretechniquename                   = mitre_technique_str,
+              agent_hostname                       = null,
+              agent_id                             = null,
+              agent_device_domain                  = null,
+              actor_process_image_name             = null,
+              actor_process_image_path             = null,
+              actor_process_image_sha256           = null,
+              actor_process_command_line           = null,
+              actor_process_os_pid                 = null,
+              causality_actor_process_image_name   = null,
+              causality_actor_process_image_path   = null,
+              causality_actor_process_image_sha256 = null,
+              action_file_name                     = attachment_name,
+              action_file_path                     = null,
+              action_file_sha256                   = attachment_sha256,
+              action_local_ip                      = null,
+              action_remote_ip                     = email_sender_ipv4,
+              dns_query_name                       = email_sender_domain
+
+      // ---- Email surface preserved from the shipped rule (fw_email_* /
+      //      socfwemailthreat*), plus the Proofpoint-aligned issue fields
+      //      Foundation_-_Normalize_Email_V3 reads.
+      | alter
+              fw_email_alert_id          = id,
+              fw_email_incident_id       = to_string(incidentId),
+              fw_email_subject           = coalesce(email_subject, title),
+              fw_email_threat_severity   = severity,
+              fw_email_category          = category,
+              fw_email_tactic_id         = mitre_tactic_id,
+              fw_email_mitre_techniques  = mitre_technique_str,
+              fw_email_detection_source  = detectionSource,
+              fw_email_service_source    = serviceSource,
+              fw_email_alert_url         = alertWebUrl,
+              fw_email_tenant_id         = tenantId,
+              fw_email_description       = description,
+              fw_email_first_activity    = firstActivityDateTime,
+              fw_email_last_activity     = lastActivityDateTime,
+              fw_email_recipient         = recipient_first,
+              fw_email_sender            = email_sender,
+              emailmessageid             = providerAlertId,
+              fw_email_internet_message_id = email_internet_msg_id,
+              fw_email_network_message_id  = email_network_msg_id,
+              socfwemailthreat_type      = category,
+              socfwemailthreat_status    = status,
+              socfwemailthreat_source    = serviceSource,
+              socfwemailthreat_detection = detectionSource,
+              socfwemailthreattype       = to_string(email_threats),
+              socfwemaildeliveryaction   = email_delivery_action,
+              socfwemaildirection        = email_direction,
+              socfwemailthreaturl        = coalesce(url_first, to_string(email_urls)),
+              socfwemailcampaignid       = if(cluster_by != null, concat(cluster_by, "=", coalesce(cluster_value, "")), null)
+
+    final_projection:
+      - _time
+      - incidentId
+      - productName
+      - vendor_name
+      - product_name
+      - title
+      - description
+      - severity
+      - status
+      - tactic
+      - category
+      - alertWebUrl
+      - providerAlertId
+      - mitreTechniques
+      - mitre_tactic
+      - mitre_tactic_id
+      - mitre_technique_first
+      - mitre_technique_str
+      - recipient_first
+      - user_principal
+      - user_name
+      - display_name
+      - causality_synth
+      - email_recipient
+      - email_sender
+      - email_sender_header
+      - email_sender_domain
+      - email_subject
+      - email_network_msg_id
+      - email_internet_msg_id
+      - email_urls
+      - email_url_count
+      - email_delivery_action
+      - email_delivery_loc
+      - email_threats
+      - email_attachment_cnt
+      - email_sender_ip
+      - email_sender_ipv4
+      - email_direction
+      - email_received
+      - mailbox_address
+      - mailbox_upn
+      - mailbox_sid
+      - mailbox_display
+      - url_first
+      - attachment_name
+      - attachment_sha256
+      - cluster_by
+      - cluster_value
+      - cluster_count
+      - alert_name
+      - alert_description
+      - '*'
+
+    alert_fields:
+
+      # === CANONICAL CORE — identical across every vendor pack ===
+      - {issue_field: vendor, source: vendor, bucket: computed}
+      - {issue_field: product, source: product, bucket: computed}
+      - {issue_field: originalalertid, source: originalalertid, bucket: computed}
+      - {issue_field: originalalertname, source: originalalertname, bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink, source: externallink, bucket: computed}
+      - {issue_field: alert_description, source: alert_description, bucket: computed}
+      - {issue_field: severity, source: severity, bucket: computed}
+      - {issue_field: mitretacticid, source: mitretacticid, bucket: computed}
+      - {issue_field: mitretacticname, source: mitretacticname, bucket: computed}
+      - {issue_field: mitretechniqueid, source: mitretechniqueid, bucket: computed}
+      - {issue_field: mitretechniquename, source: mitretechniquename, bucket: computed}
+      - {issue_field: agent_hostname, source: agent_hostname, bucket: computed}
+      - {issue_field: agent_id, source: agent_id, bucket: computed}
+      - {issue_field: agent_device_domain, source: agent_device_domain, bucket: computed}
+      - {issue_field: actor_effective_username, source: actor_effective_username, bucket: computed}
+      - {issue_field: actor_process_image_name, source: actor_process_image_name, bucket: computed}
+      - {issue_field: actor_process_image_path, source: actor_process_image_path, bucket: computed}
+      - {issue_field: actor_process_image_sha256, source: actor_process_image_sha256, bucket: computed}
+      - {issue_field: actor_process_command_line, source: actor_process_command_line, bucket: computed}
+      - {issue_field: actor_process_os_pid, source: actor_process_os_pid, bucket: computed}
+      - {issue_field: causality_actor_process_image_name, source: causality_actor_process_image_name, bucket: computed}
+      - {issue_field: causality_actor_process_image_path, source: causality_actor_process_image_path, bucket: computed}
+      - {issue_field: causality_actor_process_image_sha256, source: causality_actor_process_image_sha256, bucket: computed}
+      - {issue_field: action_file_name, source: action_file_name, bucket: computed}
+      - {issue_field: action_file_path, source: action_file_path, bucket: computed}
+      - {issue_field: action_file_sha256, source: action_file_sha256, bucket: computed}
+      - {issue_field: action_local_ip, source: action_local_ip, bucket: computed}
+      - {issue_field: action_remote_ip, source: action_remote_ip, bucket: computed}
+      - {issue_field: dns_query_name, source: dns_query_name, bucket: computed}
+
+      # === Cross-rule grouping pivots ===
+      - {issue_field: user_principal,               source: user_principal,   bucket: computed}
+      - {issue_field: causality_actor_causality_id, source: causality_synth,  bucket: computed}
+      - {issue_field: xdmsourceprocesscausalityid,  source: causality_synth,  bucket: computed}
+      - {issue_field: userid,                       source: user_principal,   bucket: computed}
+      - {issue_field: usersid,                      source: mailbox_sid,      bucket: computed}
+      - {issue_field: socfwidentityuserdisplayname, source: idr_display_name, bucket: cie}
+
+      # === Email surface (Foundation_-_Normalize_Email_V3 + Proofpoint parity) ===
+      - {issue_field: emailmessageid,           source: emailmessageid,           bucket: computed}
+      - {issue_field: emailsenderip,            source: email_sender_ipv4,        bucket: computed}
+      - {issue_field: emailsource,              source: email_sender,             bucket: computed}
+      - {issue_field: fw_email_recipient,       source: fw_email_recipient,       bucket: computed}
+      - {issue_field: fw_email_internet_message_id, source: fw_email_internet_message_id, bucket: computed}
+      - {issue_field: fw_email_network_message_id,  source: fw_email_network_message_id,  bucket: computed}
+      - {issue_field: fw_email_sender,          source: fw_email_sender,          bucket: computed}
+      - {issue_field: fw_email_subject,         source: fw_email_subject,         bucket: computed}
+      - {issue_field: clickedurls,              source: socfwemailthreaturl,      bucket: computed}
+      - {issue_field: filehash,                 source: attachment_sha256,        bucket: computed}
+      - {issue_field: socfwemaildeliveryaction, source: socfwemaildeliveryaction, bucket: computed}
+      - {issue_field: socfwemaildirection,      source: socfwemaildirection,      bucket: computed}
+      - {issue_field: socfwemailthreaturl,      source: socfwemailthreaturl,      bucket: computed}
+      - {issue_field: socfwemailthreattype,     source: socfwemailthreattype,     bucket: computed}
+      - {issue_field: socfwemailcampaignid,     source: socfwemailcampaignid,     bucket: computed}
+
+      # === Preserved from the shipped rule ===
+      - {issue_field: fw_email_alert_id,         source: fw_email_alert_id,         bucket: computed}
+      - {issue_field: fw_email_incident_id,      source: fw_email_incident_id,      bucket: computed}
+      - {issue_field: fw_email_threat_severity,  source: fw_email_threat_severity,  bucket: computed}
+      - {issue_field: fw_email_category,         source: fw_email_category,         bucket: computed}
+      - {issue_field: fw_email_tactic_id,        source: fw_email_tactic_id,        bucket: computed}
+      - {issue_field: fw_email_mitre_techniques, source: fw_email_mitre_techniques, bucket: computed}
+      - {issue_field: fw_email_detection_source, source: fw_email_detection_source, bucket: computed}
+      - {issue_field: fw_email_service_source,   source: fw_email_service_source,   bucket: computed}
+      - {issue_field: fw_email_alert_url,        source: fw_email_alert_url,        bucket: computed}
+      - {issue_field: fw_email_tenant_id,        source: fw_email_tenant_id,        bucket: computed}
+      - {issue_field: fw_email_description,      source: fw_email_description,      bucket: computed}
+      - {issue_field: fw_email_first_activity,   source: fw_email_first_activity,   bucket: computed}
+      - {issue_field: fw_email_last_activity,    source: fw_email_last_activity,    bucket: computed}
+      - {issue_field: socfwemailthreat_type,      source: socfwemailthreat_type,      bucket: computed}
+      - {issue_field: socfwemailthreat_status,    source: socfwemailthreat_status,    bucket: computed}
+      - {issue_field: socfwemailthreat_source,    source: socfwemailthreat_source,    bucket: computed}
+      - {issue_field: socfwemailthreat_detection, source: socfwemailthreat_detection, bucket: computed}
+
+      # === cliName aliases (issue.* surface Foundation reads) ===
+      - {issue_field: username,   source: actor_effective_username, bucket: computed}
+      - {issue_field: filename,   source: action_file_name,         bucket: computed}
+      - {issue_field: filesha256, source: action_file_sha256,       bucket: computed}
+      - {issue_field: remoteip,   source: action_remote_ip,         bucket: computed}
+      - {issue_field: alert_name, source: alert_name,               bucket: computed}
+
+    mitre_defs:
+      "TA0001 - Initial Access":
+        - "T1566 - Phishing"
+        - "T1566.001 - Spearphishing Attachment"
+        - "T1566.002 - Spearphishing Link"
+      "TA0008 - Lateral Movement":
+        - "T1534 - Internal Spearphishing"
+
+    investigation_query_link: |-
+      // Other Graph alerts from the same Defender incident
+      dataset = msft_graph_security_alerts_raw
+      | filter incidentId = $incidentId
+      | fields _time, productName, serviceSource, title, severity, status
+
+    contributes:
+      - User
+      - User.UPN
+      - User.SID
+      - User.DisplayName
+      - Email.Recipient
+      - Email.Sender
+      - Email.SenderIP
+      - Email.Subject
+      - Email.MessageID
+      - Email.DeliveryAction
+      - Email.Direction
+      - Email.ThreatURL
+      - Email.ThreatType
+      - Email.CampaignID
+      - Target.File
+      - Target.SHA256
+      - Network.RemoteIP
+      - MITRE.Tactic
+      - MITRE.TacticID
+      - MITRE.Technique
+      - MITRE.TechniqueID

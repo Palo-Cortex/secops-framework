@@ -10,6 +10,12 @@
 | Pack Path | `Packs/SocFrameworkMicrosoftEmail` |
 | Manifest | [`Packs/SocFrameworkMicrosoftEmail/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkMicrosoftEmail/xsoar_config.json) |
 
+## Schemas
+
+Reference documentation for the schemas this pack defines.
+
+- [Microsoft Defender for Office 365 (microsoft-defender-office365)](microsoft-defender-office365.md)
+
 ## Custom Packs Installed
 
 Additional custom packs the installer pulls in alongside this pack.
