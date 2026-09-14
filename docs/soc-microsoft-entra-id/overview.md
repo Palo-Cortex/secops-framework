@@ -10,6 +10,12 @@
 | Pack Path | `Packs/soc-microsoft-entra-id` |
 | Manifest | [`Packs/soc-microsoft-entra-id/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-microsoft-entra-id/xsoar_config.json) |
 
+## Schemas
+
+Reference documentation for the schemas this pack defines.
+
+- [Entra ID (microsoft-entra-id)](microsoft-entra-id-signins.md)
+
 ## Custom Packs Installed
 
 Additional custom packs the installer pulls in alongside this pack.

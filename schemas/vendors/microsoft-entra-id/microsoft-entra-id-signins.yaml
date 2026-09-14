@@ -1,0 +1,287 @@
+# ============================================================================
+# Microsoft Entra ID — Sign-in logs (risky / failed sign-ins)
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Contract-izes the shipped hand-authored rule "SOC Identity - Entra ID
+# Suspicious Sign-In". The shipped XQL (gate, severity, category, sign_in_action,
+# alert_name/description, location, domain, MITRE) is carried over VERBATIM;
+# every alert_field it mapped is preserved with the same source. Additive:
+# canonical core, identity block (zero-seed + commented CIE overlay), lowercased
+# actor_effective_username (email-first, matches every other vendor rule),
+# DS tag, SCHEDULED execution (collector _raw dataset).
+#
+# The shipped header's rationale still stands: XSIAM native identity analytics
+# overlap this rule on production data; it exists for PoV demonstration with
+# synthetic data. Measured on a live tenant: ~155k events/day pass the gate.
+# Scope is NOT changed here; enabling on production volume needs a decision.
+#
+# Field references resolve case-insensitively on tenants observed (camelCase
+# keys in the survey, lowercase in the rule) — keep lowercase as shipped.
+# ============================================================================
+vendor: microsoft-entra-id
+product: Entra ID
+data_source: msft_azure_ad_raw
+category: Identity
+pack: soc-microsoft-entra-id
+
+raw_schema:
+  id:                    {type: string, is_array: false}
+  correlationid:         {type: string, is_array: false}
+  createddatetime:       {type: string, is_array: false}
+  userprincipalname:     {type: string, is_array: false}
+  userdisplayname:       {type: string, is_array: false}
+  userid:                {type: string, is_array: false}
+  usertype:              {type: string, is_array: false}
+  appdisplayname:        {type: string, is_array: false}
+  appid:                 {type: string, is_array: false}
+  resourcedisplayname:   {type: string, is_array: false}
+  ipaddress:             {type: string, is_array: false}
+  autonomoussystemnumber: {type: int,   is_array: false}
+  clientappused:         {type: string, is_array: false}
+  isinteractive:         {type: boolean, is_array: false}
+  conditionalaccessstatus: {type: string, is_array: false}
+  risklevelduringsignin: {type: string, is_array: false}
+  risklevelaggregated:   {type: string, is_array: false}
+  riskstate:             {type: string, is_array: false}
+  riskdetail:            {type: string, is_array: false}
+  riskeventtypes_v2:     {type: json,   is_array: true}
+  status:                {type: json,   is_array: false}
+  location:              {type: json,   is_array: false}
+  devicedetail:          {type: json,   is_array: false}
+
+
+correlation_rules:
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC Identity - Entra ID Suspicious Sign-In'
+    name: 'SOC Identity - Entra ID Suspicious Sign-In'
+    description: >-
+      Fires on Entra ID sign-in events with risk indicators: failed authentication, elevated risk level, or risky sign-in state. Designed for SOC Framework PoV scenarios using synthetic identity data. Note: XSIAM has native behavioral identity analytics that will also fire on real data after baseline learning. This rule is for immediate PoV demonstration — document overlap with native detections during PS handoff.
+    tags:
+      - SOCFramework
+      - Detection
+      - Identity
+      - EntraID
+      - T1078
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: SCHEDULED
+      mapping_strategy: CUSTOM
+      user_defined_category: alert_category
+      user_defined_severity: alert_severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    crontab: "*/10 * * * *"
+    search_window: 20 minutes
+    simple_schedule: 10 minutes
+    alert_name: 'SOC Identity - $alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 1 hours
+      fields: [correlationid]
+      notes: Preserved from the shipped rule.
+
+    identity: true
+    cie_join: upn_email
+    cie_schedule:
+      crontab: '*/10 * * * *'
+      search_window: 20 minutes
+      simple_schedule: 10 minutes
+
+    pre_alter: |
+      // Vendor / product (required for SOCProductCategoryMap routing)
+      | alter vendor_name = "Microsoft", product_name = "Entra ID"
+
+      // Extract nested status fields (status is a JSON string)
+      | alter
+          error_code     = json_extract_scalar(status, "$.errorCode"),
+          failure_reason = json_extract_scalar(status, "$.failureReason")
+
+      // Gate: only fire on events with risk indicators
+      // 1. Failed auth (errorCode != 0)
+      // 2. Risk level elevated during sign-in
+      // 3. Risk state indicates active risk
+      | filter (
+          error_code != "0"
+          or risklevelduringsignin not in ("none", "")
+          or riskstate not in ("none", "")
+      )
+
+      // Exclude baseline normal events (no risk, successful)
+      | filter not (error_code = "0" and risklevelduringsignin = "none" and riskstate = "none")
+
+      // Alert severity based on risk level
+      | alter
+          alert_severity = if(
+              risklevelduringsignin = "high", "SEV_050_CRITICAL",
+              risklevelduringsignin = "medium", "SEV_040_HIGH",
+              error_code != "0", "SEV_030_MEDIUM",
+              "SEV_020_LOW"
+          ),
+          alert_category = "Identity Security",
+          sign_in_action = if(
+              error_code != "0", "failed_sign_in",
+              risklevelduringsignin = "high", "risky_sign_in",
+              risklevelduringsignin = "medium", "risky_sign_in",
+              "suspicious_sign_in"
+          ),
+          alert_name = concat(
+              "[Identity] ",
+              coalesce(userprincipalname, userdisplayname, "Unknown"),
+              if(error_code != "0",
+                  concat(" - Failed Auth (", error_code, ") to ", coalesce(appdisplayname, "Unknown App")),
+                  concat(" - Risky Sign-In (", coalesce(risklevelduringsignin, "unknown"), ") to ", coalesce(appdisplayname, "Unknown App"))
+              )
+          ),
+          alert_description = concat(
+              if(error_code != "0", "Failed authentication", "Risky sign-in detected"),
+              " | User: ", coalesce(userprincipalname, "Unknown"),
+              " | App: ", coalesce(appdisplayname, "Unknown"),
+              " | IP: ", coalesce(ipaddress, "Unknown"),
+              " | Risk: ", coalesce(risklevelduringsignin, "none"),
+              " | Location: ", coalesce(json_extract_scalar(location, "$.countryOrRegion"), "Unknown")
+          )
+
+      // Location as flat string for alert_fields
+      | alter location_str = concat(
+          coalesce(json_extract_scalar(location, "$.city"), ""),
+          ", ",
+          coalesce(json_extract_scalar(location, "$.state"), ""),
+          ", ",
+          coalesce(json_extract_scalar(location, "$.countryOrRegion"), "")
+      )
+
+      // Domain extraction from UPN
+      | alter domain_part = arrayindex(split(userprincipalname, "@"), 1)
+
+      // Error code as string for alert_fields
+      | alter error_code_str = to_string(error_code)
+
+      // MITRE ATT&CK — Identity events are Valid Accounts / Initial Access
+      | alter
+          mitre_tactic       = "Initial Access",
+          mitre_tactic_id    = "TA0001",
+          mitre_technique    = "Valid Accounts",
+          mitre_technique_id = "T1078",
+          mitre_ids_str      = "T1078 - Valid Accounts"
+
+      // ============================================================
+      // ADDITIVE — canonical core, identity block, tags. Nothing above changes.
+      // ============================================================
+      | alter
+              original_upn = userprincipalname
+      | alter
+              user_principal = userprincipalname,
+              user_name      = lowercase(userprincipalname),
+              display_name   = userdisplayname
+
+      | alter
+              vendor              = vendor_name,
+              product             = product_name,
+              originalalertid     = coalesce(correlationid, id),
+              originalalertname   = alert_name,
+              originalalertsource = "Microsoft Entra ID - Sign-in Logs",
+              externallink        = null,
+              severity            = if(
+                  alert_severity = "SEV_050_CRITICAL", "Critical",
+                  alert_severity = "SEV_040_HIGH",     "High",
+                  alert_severity = "SEV_030_MEDIUM",   "Medium",
+                  "Low"),
+              agent_hostname      = null,
+              agent_id            = null,
+              action_local_ip     = null,
+              action_remote_ip    = ipaddress,
+              actor_effective_username = lowercase(userprincipalname),
+        agent_device_domain      = domain_part
+
+      | alter entra_sign_in_id   = id,
+              entra_risk_detail  = riskdetail,
+              entra_risk_events  = to_string(riskeventtypes_v2),
+              entra_client_app   = clientappused,
+              entra_is_interactive = isinteractive,
+              entra_user_type    = usertype,
+              entra_asn          = to_string(autonomoussystemnumber)
+
+      // Tag injection — DS:Microsoft/Entra ID → ds_microsoft_entra_id
+      | alter alert_tags = arraycreate("DS:Microsoft/Entra ID", "DOM:Security")
+
+
+    final_projection:
+      - _time
+      - '*'
+
+    alert_fields:
+      # === Preserved from the shipped rule (same sources) ===
+      - {issue_field: agent_device_domain, source: domain_part, bucket: computed}
+      - {issue_field: action_remote_ip, source: action_remote_ip, bucket: computed}
+      - {issue_field: vendor, source: vendor_name, bucket: computed}
+      - {issue_field: product, source: product_name, bucket: computed}
+      - {issue_field: user_principal, source: userprincipalname, bucket: raw}
+      - {issue_field: userid, source: userprincipalname, bucket: raw}
+      - {issue_field: usersid, source: userid, bucket: raw}
+      - {issue_field: socfwidentityaction, source: sign_in_action, bucket: computed}
+      - {issue_field: socfwidentityapp, source: appdisplayname, bucket: raw}
+      - {issue_field: socfwidentityresource, source: resourcedisplayname, bucket: raw}
+      - {issue_field: socfwidentityrisk, source: risklevelduringsignin, bucket: raw}
+      - {issue_field: socfwidentityriskstate, source: riskstate, bucket: raw}
+      - {issue_field: socfwidentitylocation, source: location_str, bucket: computed}
+      - {issue_field: socfwidentitycondaccess, source: conditionalaccessstatus, bucket: raw}
+      - {issue_field: socfwidentityerrorcode, source: error_code_str, bucket: computed}
+      - {issue_field: socfwidentityfailurereason, source: failure_reason, bucket: computed}
+      - {issue_field: mitretacticid, source: mitre_tactic_id, bucket: computed}
+      - {issue_field: mitretacticname, source: mitre_tactic, bucket: computed}
+      - {issue_field: mitretechniqueid, source: mitre_ids_str, bucket: computed}
+      - {issue_field: mitretechniquename, source: mitre_ids_str, bucket: computed}
+
+      # === Additive: canonical core ===
+      - {issue_field: actor_effective_username, source: actor_effective_username, bucket: computed}
+      - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
+      - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink,        source: externallink,        bucket: computed}
+      - {issue_field: alert_description,   source: alert_description,   bucket: computed}
+      - {issue_field: severity,            source: severity,            bucket: computed}
+      - {issue_field: agent_hostname,      source: agent_hostname,      bucket: computed}
+      - {issue_field: agent_id,            source: agent_id,            bucket: computed}
+      - {issue_field: action_local_ip,     source: action_local_ip,     bucket: computed}
+      - {issue_field: username,            source: actor_effective_username, bucket: computed}
+      - {issue_field: remoteip,            source: action_remote_ip,    bucket: computed}
+      - {issue_field: domain,              source: agent_device_domain, bucket: computed}
+      - {issue_field: socfwidentityuserdisplayname, source: idr_display_name, bucket: cie}
+
+      # === Additive: Entra extensions ===
+      - {issue_field: entra_sign_in_id,    source: entra_sign_in_id,    bucket: computed}
+      - {issue_field: entra_risk_detail,   source: entra_risk_detail,   bucket: computed}
+      - {issue_field: entra_risk_events,   source: entra_risk_events,   bucket: computed}
+      - {issue_field: entra_client_app,    source: entra_client_app,    bucket: computed}
+      - {issue_field: entra_is_interactive, source: entra_is_interactive, bucket: computed}
+      - {issue_field: entra_user_type,     source: entra_user_type,     bucket: computed}
+      - {issue_field: entra_asn,           source: entra_asn,           bucket: computed}
+      - {issue_field: tags,                source: alert_tags,          bucket: computed}
+      - {issue_field: alert_name,          source: alert_name,          bucket: computed}
+
+    mitre_defs: {}
+
+    investigation_query_link: |-
+      // Sign-ins for the same user in the window
+      dataset = msft_azure_ad_raw
+      | filter lowercase(userprincipalname) = $actor_effective_username
+      | fields _time, appdisplayname, ipaddress, risklevelduringsignin, riskstate, conditionalaccessstatus, status
+
+    contributes:
+      - User
+      - User.UPN
+      - User.Domain
+      - Network.RemoteIP
+      - MITRE.Tactic
+      - MITRE.TacticID
+      - MITRE.Technique
+      - MITRE.TechniqueID
