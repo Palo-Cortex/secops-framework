@@ -1,0 +1,312 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - DLP
+  - MicrosoftPurview
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor
+  product: product
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  alert_description: alert_description
+  severity: severity
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  agent_device_domain: agent_device_domain
+  actor_effective_username: actor_effective_username
+  action_file_name: action_file_name
+  action_file_path: action_file_path
+  action_file_sha256: action_file_sha256
+  user_principal: user_principal
+  userid: user_principal
+  usersid: evidence_user_sid
+  samaccountname: evidence_user_sam
+  username: actor_effective_username
+  causality_actor_causality_id: causality_synth
+  xdmsourceprocesscausalityid: causality_synth
+  hostname: agent_hostname
+  agentid: agent_id
+  filename: action_file_name
+  filepath: action_file_path
+  filesha256: action_file_sha256
+  socfwidentityuserdisplayname: idr_display_name
+  emailmessageid: emailmessageid
+  fw_email_recipient: fw_email_recipient
+  fw_email_sender: fw_email_sender
+  fw_email_subject: fw_email_subject
+  emailsource: fw_email_sender
+  socfwemaildeliveryaction: socfwemaildeliveryaction
+  dlp_alert_policy_id: dlp_alert_policy_id
+  dlp_incident_id: dlp_incident_id
+  dlp_first_activity: dlp_first_activity
+  dlp_last_activity: dlp_last_activity
+  dlp_app_name: dlp_app_name
+  dlp_app_instance: dlp_app_instance
+  dlp_app_id: dlp_app_id
+  dlp_file_size: dlp_file_size
+  dlp_file_action: dlp_file_action
+  dlp_recipient: dlp_recipient
+  dlp_attachments: dlp_attachments
+  tags: alert_tags
+  alert_name: alert_name
+alert_name: $alert_name
+alert_type: null
+crontab: '*/10 * * * *'
+dataset: alerts
+name: SOC Purview DLP - Policy Alert
+description: >-
+  Creates an XSIAM alert for each Microsoft Purview Data Loss Prevention alert
+  in the Microsoft Graph Security feed (serviceSource = dataLossPrevention).
+  Parses the Graph evidence for the acting user, the file, the message (email
+  DLP) and the cloud app (SharePoint / OneDrive / Exchange), canonicalizes the
+  user email-first as the grouping pivot, and groups with Defender alerts of the
+  same Defender incident via the synthetic causality id. Injects
+  DS:Microsoft/Data Loss Prevention and DOM:Security so Foundation Product
+  Classification routes to DLP.
+drilldown_query_timeframe: ALERT
+execution_mode: SCHEDULED
+global_rule_id: SOC Purview DLP - Policy Alert
+investigation_query_link: |-
+  dataset = msft_graph_security_alerts_raw
+  | filter incidentId = $incidentId
+  | fields _time, productName, serviceSource, title, severity, status
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs: {}
+search_window: 20 minutes
+severity: User Defined
+simple_schedule: 10 minutes
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- providerAlertId
+timezone: null
+user_defined_category: tactic
+user_defined_severity: severity
+xql_query: |
+  dataset = msft_graph_security_alerts_raw
+  | alter vendor_name = "Microsoft", product_name = productName
+
+  | filter serviceSource = "dataLossPrevention"
+  | filter status != "resolved"
+
+  | alter tactic = category
+
+  | alter severity = if(
+          lowercase(severity) = "high",   "High",
+          lowercase(severity) = "medium", "Medium",
+          lowercase(severity) = "low",    "Low",
+          lowercase(severity) = "informational", "Informational",
+          "Low"
+      )
+
+  | alter cat_norm = replace(replace(replace(replace(lowercase(category), " ", ""), "-", ""), "_", ""), ".", "")
+  | alter
+      mitre_tactic          = category,
+      mitre_tactic_id       = if(
+          cat_norm contains "exfiltration",        "TA0010",
+          cat_norm contains "collection",          "TA0009",
+          cat_norm contains "initialaccess",       "TA0001",
+          cat_norm contains "impact",              "TA0040",
+          ""),
+      mitre_technique_first = arrayindex(mitreTechniques -> [], 0),
+      mitre_technique_str   = arraystring(mitreTechniques -> [], ",")
+
+  | alter
+      userEvidence    = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "userEvidence"), 0),
+      fileEvidence    = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "fileEvidence"), 0),
+      messageEvidence = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "analyzedMessageEvidence"), 0),
+      appEvidence     = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "cloudApplicationEvidence"), 0),
+      deviceEvidence  = arrayindex(arrayfilter(evidence -> [], "@element" -> ["@odata.type"] contains "deviceEvidence"), 0)
+
+  | alter
+      evidence_user_upn     = userEvidence -> userAccount.userPrincipalName,
+      evidence_user_sid     = userEvidence -> userAccount.userSid,
+      evidence_user_display = userEvidence -> userAccount.displayName,
+      evidence_user_domain  = userEvidence -> userAccount.domainName,
+      evidence_user_sam     = userEvidence -> userAccount.accountName
+
+  | alter
+      dlp_file_name     = fileEvidence -> fileDetails.fileName,
+      dlp_file_path     = fileEvidence -> fileDetails.filePath,
+      dlp_file_sha256   = fileEvidence -> fileDetails.sha256,
+      dlp_file_size     = fileEvidence -> fileDetails.fileSize,
+      dlp_file_device   = fileEvidence -> mdeDeviceId,
+      dlp_file_action   = fileEvidence -> detectionStatus
+
+  | alter
+      dlp_recipient     = messageEvidence -> recipientEmailAddress,
+      dlp_sender        = messageEvidence -> p1Sender.emailAddress,
+      dlp_subject       = messageEvidence -> subject,
+      dlp_internet_msg  = messageEvidence -> internetMessageId,
+      dlp_network_msg   = messageEvidence -> networkMessageId,
+      dlp_delivery      = messageEvidence -> deliveryAction,
+      dlp_attachments   = messageEvidence -> attachmentsCount
+
+  | alter
+      dlp_app_name      = appEvidence -> displayName,
+      dlp_app_instance  = appEvidence -> instanceName,
+      dlp_app_id        = appEvidence -> saasAppId,
+      dlp_device_host   = deviceEvidence -> hostName,
+      dlp_device_id     = deviceEvidence -> mdeDeviceId
+
+  | alter acting_user = lowercase(coalesce(evidence_user_upn, dlp_sender))
+  | alter user_principal = acting_user
+  | alter user_name      = coalesce(acting_user, evidence_user_sam)
+  | alter display_name   = evidence_user_display
+  | alter actor_effective_username = acting_user
+
+  | alter causality_synth = if(incidentId != null, concat("msgraph-incident-", to_string(incidentId)), null)
+
+  | alter alert_name = concat(
+          "[DLP] ",
+          coalesce(acting_user, "Unknown User"),
+          " - ",
+          coalesce(category, "Policy Match"),
+          ": ",
+          coalesce(title, "Purview DLP alert")
+      )
+
+  | alter alert_description = concat(
+          coalesce(description, "Microsoft Purview DLP policy alert"),
+          " | User: ",      coalesce(acting_user, "Unknown"),
+          " | App: ",       coalesce(dlp_app_name, dlp_app_instance, "-"),
+          " | File: ",      coalesce(dlp_file_name, "-"),
+          " | Recipient: ", coalesce(dlp_recipient, "-"),
+          " | Subject: ",   coalesce(dlp_subject, ""),
+          " | Severity: ",  coalesce(severity, "Unknown")
+      )
+
+  | alter
+          vendor                               = vendor_name,
+          product                              = product_name,
+          originalalertid                      = providerAlertId,
+          originalalertname                    = alert_name,
+          originalalertsource                  = productName,
+          externallink                         = alertWebUrl,
+          severity                             = severity,
+          mitretacticid                        = mitre_tactic_id,
+          mitretacticname                      = mitre_tactic,
+          mitretechniqueid                     = mitre_technique_first,
+          mitretechniquename                   = mitre_technique_str,
+          agent_hostname                       = dlp_device_host,
+          agent_id                             = coalesce(dlp_device_id, dlp_file_device),
+          agent_device_domain                  = evidence_user_domain,
+          actor_process_image_name             = null,
+          actor_process_image_path             = null,
+          actor_process_image_sha256           = null,
+          actor_process_command_line           = null,
+          actor_process_os_pid                 = null,
+          causality_actor_process_image_name   = null,
+          causality_actor_process_image_path   = null,
+          causality_actor_process_image_sha256 = null,
+          action_file_name                     = dlp_file_name,
+          action_file_path                     = dlp_file_path,
+          action_file_sha256                   = dlp_file_sha256,
+          action_local_ip                      = null,
+          action_remote_ip                     = null
+
+  | alter
+          dlp_alert_policy_id        = alertPolicyId,
+          dlp_incident_id            = to_string(incidentId),
+          dlp_first_activity         = firstActivityDateTime,
+          dlp_last_activity          = lastActivityDateTime,
+          emailmessageid             = dlp_internet_msg,
+          fw_email_recipient         = dlp_recipient,
+          fw_email_sender            = dlp_sender,
+          fw_email_subject           = dlp_subject,
+          socfwemaildeliveryaction   = dlp_delivery
+
+  | alter alert_tags = arraycreate("DS:Microsoft/Data Loss Prevention", "DOM:Security")
+
+  | alter idr_sid = null,
+          idr_upn = user_principal,
+          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
+          idr_netbios = null,
+          idr_display_name = null,
+          idr_domain_name = null,
+          idr_sam_account_name = null,
+          idr_on_prem_sid = null
+
+  // ============== CIE ENRICHMENT (optional, OFF by default) ==============
+  // Cloud Identity Engine enrichment is disabled. To enable it:
+  //   1. Set this rule to a schedule (it ships REAL_TIME):
+  //        execution mode = SCHEDULED
+  //        crontab        = */10 * * * *
+  //        search window  = 20 minutes
+  //        schedule label = 10 minutes
+  //   2. Delete the /* and */ lines that wrap the block below.
+  // The join coalesces socfw_identity_map values OVER the inline idr_* fields;
+  // the alert-field mappings do not change. Requires SOC IdentityResolve.
+  // ----------------------------------------------------------------------
+  /*
+  | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+  | alter cie_join_key = lowercase(coalesce(if(user_principal contains "@", user_principal, null), if(user_name contains "@", user_name, null)))
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter type = "user"
+      | alter cie_join_key = lowercase(coalesce(upn, email))
+      | dedup cie_join_key by asc netbios_and_sam_account_name
+      | fields cie_join_key,
+               sid                          as map_sid,
+               upn                          as map_upn,
+               email                        as map_email,
+               display_name                 as map_display,
+               domain_name                  as map_domain,
+               sam_account_name             as map_sam,
+               on_prem_sid                  as map_on_prem_sid,
+               netbios_and_sam_account_name as map_netbios,
+               title                        as map_title,
+               department                   as map_department,
+               manager_raw                  as map_manager,
+               country                      as map_country,
+               company_name                 as map_company,
+               location                     as map_location,
+               account_status               as map_account_status
+    ) as m cie_join_key = m.cie_join_key
+  | alter idr_sid              = coalesce(map_sid, idr_sid),
+          idr_upn              = coalesce(map_upn, idr_upn),
+          idr_email            = coalesce(map_email, idr_email),
+          idr_display_name     = coalesce(map_display, idr_display_name),
+          idr_domain_name      = coalesce(map_domain, idr_domain_name),
+          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
+          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
+          idr_netbios          = coalesce(map_netbios, idr_netbios),
+          idr_title            = map_title,
+          idr_department       = map_department,
+          idr_manager          = map_manager,
+          idr_country          = map_country,
+          idr_company          = map_company,
+          idr_location         = map_location,
+          idr_account_status   = map_account_status
+  | alter _time = _insert_time
+  */
+  // ===================== END CIE ENRICHMENT =============================
+  | alter original_display_name   = display_name,
+          original_user_principal = user_principal
+
+  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
+          email          = idr_email,
+          user_principal = coalesce(idr_upn, user_principal)
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
+  | alter email     = idr_email
+
+  | alter original_user_name = user_name
+  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))
+  | fields
+      _time, incidentId, productName, vendor_name, product_name, title, description, severity, status, tactic, category, alertWebUrl, providerAlertId, alertPolicyId, mitreTechniques, mitre_tactic, mitre_tactic_id, mitre_technique_first, mitre_technique_str, acting_user, user_principal, user_name, display_name, evidence_user_upn, evidence_user_sid, evidence_user_sam, evidence_user_domain, causality_synth, dlp_file_name, dlp_file_path, dlp_file_sha256, dlp_file_size, dlp_file_device, dlp_file_action, dlp_recipient, dlp_sender, dlp_subject, dlp_internet_msg, dlp_network_msg, dlp_delivery, dlp_attachments, dlp_app_name, dlp_app_instance, dlp_app_id, dlp_device_host, dlp_device_id, dlp_alert_policy_id, dlp_incident_id, dlp_first_activity, dlp_last_activity, alert_name, alert_description, alert_tags, *
