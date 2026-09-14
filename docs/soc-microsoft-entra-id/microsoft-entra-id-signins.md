@@ -53,7 +53,7 @@ Fields available in the raw ingest dataset.
 | subtype | `passthrough` |
 | fromversion | `6.10.0` |
 
-Fires on Entra ID sign-in events with risk indicators: failed authentication, elevated risk level, or risky sign-in state. Designed for SOC Framework PoV scenarios using synthetic identity data. Note: XSIAM has native behavioral identity analytics that will also fire on real data after baseline learning. This rule is for immediate PoV demonstration — document overlap with native detections during PS handoff.
+Creates an XSIAM alert for Entra ID sign-in events with risk indicators: failed authentication, elevated risk level during sign-in, or an active risk state. Canonicalizes the user principal email-first as the identity grouping pivot and maps the source IP, application, resource, risk and conditional-access context. XSIAM native behavioral identity analytics also fire on this data after baseline learning; this rule fires on field values immediately.
 
 **Tags:** `SOCFramework`, `Detection`, `Identity`, `EntraID`, `T1078`
 
