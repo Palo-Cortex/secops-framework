@@ -247,7 +247,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 // IP evidence — discriminate IPv4 vs IPv6 by regex
 | alter
-    evidence_remote_ipv4 = if(ipEvidence -> ipAddress ~= "(?:\\d{1,3}\\.){3}\\d{1,3}",
+    evidence_remote_ipv4 = if(ipEvidence -> ipAddress ~= "(?:\d{1,3}\.){3}\d{1,3}",
                               ipEvidence -> ipAddress, null),
     evidence_remote_ipv6 = if(ipEvidence -> ipAddress ~= "^[0-9a-f:]+$",
                               ipEvidence -> ipAddress, null)
