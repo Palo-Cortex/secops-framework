@@ -243,7 +243,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     cluster_count     = clusterEvidence -> emailCount
 
 // Sender IP as IPv4 only (canonical action_remote_ip is IPv4)
-| alter email_sender_ipv4 = if(email_sender_ip ~= "(?:\\d{1,3}\\.){3}\\d{1,3}", email_sender_ip, null)
+| alter email_sender_ipv4 = if(email_sender_ip ~= "(?:\d{1,3}\.){3}\d{1,3}", email_sender_ip, null)
 
 // ---- Identity: recipient, email-first. The recipient is who the
 //      lifecycle acts on (the mailbox that got the phish), matching the
