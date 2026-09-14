@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkMicrosoftEmail` |
-| Version | `1.0.5` |
+| Version | `1.0.6` |
 | Category | Email Security |
 | Pack Path | `Packs/SocFrameworkMicrosoftEmail` |
 | Manifest | [`Packs/SocFrameworkMicrosoftEmail/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkMicrosoftEmail/xsoar_config.json) |
