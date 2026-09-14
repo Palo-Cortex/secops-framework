@@ -66,11 +66,12 @@ CATEGORY_MAP = {
     "Network":          "Network Security",
     "Email":            "Email Security",
     "Identity":         "Identity",
-    "Cloud":            "Cloud",
-    "Workload":         "Cloud",
+    "Cloud":            "Cloud IR",
+    "Workload":         "Cloud IR",
     "SaaS":             "Email Security",
     "PAM":              "Identity",
     "Data":             "Utilities",
+    "DLP":              "DLP",
     "agentic_endpoint": "Endpoint",
 }
 
