@@ -227,7 +227,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         dst_sensor_id    = target_endpoint_sensor_id,
         idp_logon_domain = logon_domain
 
-| alter dst_ip = arrayindex(regextract(to_json_string(network_accesses), "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"), 0)
+| alter dst_ip = arrayindex(regextract(to_json_string(network_accesses), "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"), 0)
 
 | alter user_name      = coalesce(user_name, src_account_name),
         user_principal = coalesce(user_principal, src_account_upn),
