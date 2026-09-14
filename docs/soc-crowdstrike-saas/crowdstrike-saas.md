@@ -141,16 +141,16 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 | alter tmp_user_names  = json_extract_array(to_json_string(user_names), "$")
 | alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)
-| alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+\"([^\"]+)\""), 0)
-| alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), 0)
-| alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)"), 0)
+| alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\buser\s+\"([^\"]+)\""), 0)
+| alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, ""), "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), 0)
+| alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, ""), "(?i)\buser\s+([A-Za-z0-9._%+@-]+)"), 0)
 | alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)
 
 | alter crowdstrike_original_user_name    = user_name
 | alter crowdstrike_original_display_name = display_name
 | alter actor_effective_username = user_name
 
-| alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b"), 0)
+| alter local_ip = arrayindex(regextract(coalesce(event_summary, description, ""), "\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"), 0)
 
 | alter idr_email            = if(user_name contains "@", lowercase(user_name), null),
         idr_upn              = if(user_name contains "@", user_name, null),
