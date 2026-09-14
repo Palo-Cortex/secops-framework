@@ -8,7 +8,7 @@ Correlation rules for Microsoft Entra ID (formerly Azure AD) sign-in events.
 
 ## Prerequisite
 
-The `msft_azure_ad_raw` dataset must exist and have a populated schema before this pack is installed. On PoV tenants without real Entra ID data, use the SOC Framework PoV Test Pack seed:
+The `msft_azure_ad_raw` dataset must exist and have a populated schema before this pack is installed. On tenants without Entra ID data yet, seed the dataset with the SOC Framework test pack:
 
 ```
 !SOCFWPoVSend list_name=SOCFWPoVData_Identity_TurlaCarbon_V1 source_name=identity seed=true
@@ -20,7 +20,7 @@ On production tenants with the Office 365 data source configured, the dataset al
 
 ## Native Detection Overlap
 
-XSIAM has native behavioral identity analytics (UEBA, Identity Threat Detection) that will also fire on real Entra ID data after baseline learning. This rule fires immediately on field values without requiring a behavioral baseline — designed for PoV demonstration with synthetic data. Document the overlap during PS handoff and consider disabling this rule once native detections are confirmed active.
+XSIAM has native behavioral identity analytics (UEBA, Identity Threat Detection) that will also fire on real Entra ID data after baseline learning. This rule fires immediately on field values, without waiting for a baseline; expect overlap with native detections on live data.
 
 ## Correlation Rules
 
