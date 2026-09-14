@@ -11,19 +11,13 @@ alert_category: User Defined
 alert_description: $alert_description
 alert_domain: DOMAIN_SECURITY
 alert_fields:
-  # -- Core identity ----------------------------------------------------------
-  actor_effective_username: userprincipalname
   agent_device_domain: domain_part
-  action_remote_ip: ipaddress
+  action_remote_ip: action_remote_ip
   vendor: vendor_name
   product: product_name
-
-  # -- Identity context -------------------------------------------------------
   user_principal: userprincipalname
   userid: userprincipalname
   usersid: userid
-
-  # -- SOC Framework identity fields ------------------------------------------
   socfwidentityaction: sign_in_action
   socfwidentityapp: appdisplayname
   socfwidentityresource: resourcedisplayname
@@ -33,16 +27,36 @@ alert_fields:
   socfwidentitycondaccess: conditionalaccessstatus
   socfwidentityerrorcode: error_code_str
   socfwidentityfailurereason: failure_reason
-
-  # -- MITRE ATT&CK fields ---------------------------------------------------
   mitretacticid: mitre_tactic_id
   mitretacticname: mitre_tactic
   mitretechniqueid: mitre_ids_str
   mitretechniquename: mitre_ids_str
-
+  actor_effective_username: actor_effective_username
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  alert_description: alert_description
+  severity: severity
+  agent_hostname: agent_hostname
+  agent_id: agent_id
+  action_local_ip: action_local_ip
+  username: actor_effective_username
+  remoteip: action_remote_ip
+  domain: agent_device_domain
+  socfwidentityuserdisplayname: idr_display_name
+  entra_sign_in_id: entra_sign_in_id
+  entra_risk_detail: entra_risk_detail
+  entra_risk_events: entra_risk_events
+  entra_client_app: entra_client_app
+  entra_is_interactive: entra_is_interactive
+  entra_user_type: entra_user_type
+  entra_asn: entra_asn
+  tags: alert_tags
+  alert_name: alert_name
 alert_name: SOC Identity - $alert_name
 alert_type: null
-crontab: null
+crontab: '*/10 * * * *'
 dataset: alerts
 name: SOC Identity - Entra ID Suspicious Sign-In
 description: >-
@@ -53,59 +67,42 @@ description: >-
   This rule is for immediate PoV demonstration — document overlap with native
   detections during PS handoff.
 drilldown_query_timeframe: ALERT
-execution_mode: REAL_TIME
+execution_mode: SCHEDULED
 global_rule_id: SOC Identity - Entra ID Suspicious Sign-In
-investigation_query_link: ''
+investigation_query_link: |-
+  dataset = msft_azure_ad_raw
+  | filter lowercase(userprincipalname) = $actor_effective_username
+  | fields _time, appdisplayname, ipaddress, risklevelduringsignin, riskstate, conditionalaccessstatus, status
 is_enabled: true
 lookup_mapping: []
 mapping_strategy: CUSTOM
-search_window: null
+mitre_defs: {}
+search_window: 20 minutes
 severity: User Defined
-simple_schedule: null
+simple_schedule: 10 minutes
 suppression_duration: 1 hours
 suppression_enabled: true
 suppression_fields:
-  - correlationid
+- correlationid
 timezone: null
 user_defined_category: alert_category
 user_defined_severity: alert_severity
 xql_query: |
-  /*
-  Title:   SOC Identity - Entra ID Suspicious Sign-In
-  Dataset: msft_azure_ad_raw
-  Version: 1.0.0
-  Note:    Dataset populated via Office 365 data source → Microsoft Graph API
-           checkboxes for Entra ID sign-in logs.
-           All field names are lowercase per XSIAM ingestion normalization.
-           XSIAM has native behavioral identity analytics that overlap with
-           this rule on production tenants with real data. This rule exists
-           for immediate PoV demonstration with synthetic data where native
-           analytics have no baseline to detect against.
-  */
   dataset = msft_azure_ad_raw
-
-  // Vendor / product (required for SOCProductCategoryMap routing)
   | alter vendor_name = "Microsoft", product_name = "Entra ID"
 
-  // Extract nested status fields (status is a JSON string)
   | alter
       error_code     = json_extract_scalar(status, "$.errorCode"),
       failure_reason = json_extract_scalar(status, "$.failureReason")
 
-  // Gate: only fire on events with risk indicators
-  // 1. Failed auth (errorCode != 0)
-  // 2. Risk level elevated during sign-in
-  // 3. Risk state indicates active risk
   | filter (
       error_code != "0"
       or risklevelduringsignin not in ("none", "")
       or riskstate not in ("none", "")
   )
 
-  // Exclude baseline normal events (no risk, successful)
   | filter not (error_code = "0" and risklevelduringsignin = "none" and riskstate = "none")
 
-  // Alert severity based on risk level
   | alter
       alert_severity = if(
           risklevelduringsignin = "high", "SEV_050_CRITICAL",
@@ -137,7 +134,6 @@ xql_query: |
           " | Location: ", coalesce(json_extract_scalar(location, "$.countryOrRegion"), "Unknown")
       )
 
-  // Location as flat string for alert_fields
   | alter location_str = concat(
       coalesce(json_extract_scalar(location, "$.city"), ""),
       ", ",
@@ -146,16 +142,128 @@ xql_query: |
       coalesce(json_extract_scalar(location, "$.countryOrRegion"), "")
   )
 
-  // Domain extraction from UPN
   | alter domain_part = arrayindex(split(userprincipalname, "@"), 1)
 
-  // Error code as string for alert_fields
   | alter error_code_str = to_string(error_code)
 
-  // MITRE ATT&CK — Identity events are Valid Accounts / Initial Access
   | alter
       mitre_tactic       = "Initial Access",
       mitre_tactic_id    = "TA0001",
       mitre_technique    = "Valid Accounts",
       mitre_technique_id = "T1078",
       mitre_ids_str      = "T1078 - Valid Accounts"
+
+  | alter
+          original_upn = userprincipalname
+  | alter
+          user_principal = userprincipalname,
+          user_name      = lowercase(userprincipalname),
+          display_name   = userdisplayname
+
+  | alter
+          vendor              = vendor_name,
+          product             = product_name,
+          originalalertid     = coalesce(correlationid, id),
+          originalalertname   = alert_name,
+          originalalertsource = "Microsoft Entra ID - Sign-in Logs",
+          externallink        = null,
+          severity            = if(
+              alert_severity = "SEV_050_CRITICAL", "Critical",
+              alert_severity = "SEV_040_HIGH",     "High",
+              alert_severity = "SEV_030_MEDIUM",   "Medium",
+              "Low"),
+          agent_hostname      = null,
+          agent_id            = null,
+          action_local_ip     = null,
+          action_remote_ip    = ipaddress,
+          actor_effective_username = lowercase(userprincipalname),
+    agent_device_domain      = domain_part
+
+  | alter entra_sign_in_id   = id,
+          entra_risk_detail  = riskdetail,
+          entra_risk_events  = to_string(riskeventtypes_v2),
+          entra_client_app   = clientappused,
+          entra_is_interactive = isinteractive,
+          entra_user_type    = usertype,
+          entra_asn          = to_string(autonomoussystemnumber)
+
+  | alter alert_tags = arraycreate("DS:Microsoft/Entra ID", "DOM:Security")
+
+  | alter idr_sid = null,
+          idr_upn = user_principal,
+          idr_email = if(user_principal contains "@", lowercase(user_principal), if(user_name contains "@", lowercase(user_name), null)),
+          idr_netbios = null,
+          idr_display_name = null,
+          idr_domain_name = null,
+          idr_sam_account_name = null,
+          idr_on_prem_sid = null
+
+  // ============== CIE ENRICHMENT (optional, OFF by default) ==============
+  // Cloud Identity Engine enrichment is disabled. To enable it:
+  //   1. Set this rule to a schedule (it ships REAL_TIME):
+  //        execution mode = SCHEDULED
+  //        crontab        = */10 * * * *
+  //        search window  = 20 minutes
+  //        schedule label = 10 minutes
+  //   2. Delete the /* and */ lines that wrap the block below.
+  // The join coalesces socfw_identity_map values OVER the inline idr_* fields;
+  // the alert-field mappings do not change. Requires SOC IdentityResolve.
+  // ----------------------------------------------------------------------
+  /*
+  | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+  | alter cie_join_key = lowercase(coalesce(if(user_principal contains "@", user_principal, null), if(user_name contains "@", user_name, null)))
+  | join type = left (
+      dataset = socfw_identity_map
+      | filter type = "user"
+      | alter cie_join_key = lowercase(coalesce(upn, email))
+      | dedup cie_join_key by asc netbios_and_sam_account_name
+      | fields cie_join_key,
+               sid                          as map_sid,
+               upn                          as map_upn,
+               email                        as map_email,
+               display_name                 as map_display,
+               domain_name                  as map_domain,
+               sam_account_name             as map_sam,
+               on_prem_sid                  as map_on_prem_sid,
+               netbios_and_sam_account_name as map_netbios,
+               title                        as map_title,
+               department                   as map_department,
+               manager_raw                  as map_manager,
+               country                      as map_country,
+               company_name                 as map_company,
+               location                     as map_location,
+               account_status               as map_account_status
+    ) as m cie_join_key = m.cie_join_key
+  | alter idr_sid              = coalesce(map_sid, idr_sid),
+          idr_upn              = coalesce(map_upn, idr_upn),
+          idr_email            = coalesce(map_email, idr_email),
+          idr_display_name     = coalesce(map_display, idr_display_name),
+          idr_domain_name      = coalesce(map_domain, idr_domain_name),
+          idr_sam_account_name = coalesce(map_sam, idr_sam_account_name),
+          idr_on_prem_sid      = coalesce(map_on_prem_sid, idr_on_prem_sid),
+          idr_netbios          = coalesce(map_netbios, idr_netbios),
+          idr_title            = map_title,
+          idr_department       = map_department,
+          idr_manager          = map_manager,
+          idr_country          = map_country,
+          idr_company          = map_company,
+          idr_location         = map_location,
+          idr_account_status   = map_account_status
+  | alter _time = _insert_time
+  */
+  // ===================== END CIE ENRICHMENT =============================
+  | alter original_display_name   = display_name,
+          original_user_principal = user_principal
+
+  | alter display_name   = coalesce(idr_display_name, idr_sam_account_name, display_name),
+          email          = idr_email,
+          user_principal = coalesce(idr_upn, user_principal)
+  | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))
+
+  | alter idr_email = coalesce(idr_email, idr_upn, if(user_principal contains "@", lowercase(user_principal), null), if(user_name contains "@", lowercase(user_name), null))
+  | alter email     = idr_email
+
+  | alter original_user_name = user_name
+  | alter user_name = if(user_name contains "$", user_name, coalesce(idr_email, idr_upn, user_name))
+  | fields
+      _time, *
