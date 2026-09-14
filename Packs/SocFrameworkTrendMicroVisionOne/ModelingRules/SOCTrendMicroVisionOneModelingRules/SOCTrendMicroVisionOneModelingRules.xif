@@ -93,8 +93,8 @@ filter alert_provider = "SAE"
   xdm.source.host.device_id = entityIdsDeviceId,
 
   /* ---- Source — IPs (split v4/v6 from entity_value.ips) ---- */
-  xdm.source.ipv4 = arrayindex(regextract(entityValueIps, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"), 0),
-  xdm.source.ipv6 = arrayindex(regextract(entityValueIps, "((?:[a-fA-F\\d]{0,4}\\:){2,7}[a-fA-F\\d]{0,4})"), 0),
+  xdm.source.ipv4 = arrayindex(regextract(entityValueIps, "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"), 0),
+  xdm.source.ipv6 = arrayindex(regextract(entityValueIps, "((?:[a-fA-F\d]{0,4}\:){2,7}[a-fA-F\d]{0,4})"), 0),
 
   /* ---- Source — process ---- */
   xdm.source.process.command_line    = indicatorsValuesCommandLine,
@@ -200,8 +200,8 @@ filter alert_provider = "SAE"
   xdm.source.process.executable.sha256 = to_string(json_extract_scalar(_raw_json, "$.objectFileHashSha256")),
   xdm.source.host.device_id            = to_string(json_extract_scalar(_raw_json, "$.endpointGUID")),
 
-  xdm.source.ipv6 = arrayindex(regextract(extract_source_ipv6, "((?:[a-fA-F\\d]{0,4}\\:){2,7}[a-fA-F\\d]{0,4})"), 0),
-  xdm.source.ipv4 = arrayindex(regextract(extract_source_ipv4, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"),       0),
+  xdm.source.ipv6 = arrayindex(regextract(extract_source_ipv6, "((?:[a-fA-F\d]{0,4}\:){2,7}[a-fA-F\d]{0,4})"), 0),
+  xdm.source.ipv4 = arrayindex(regextract(extract_source_ipv4, "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"),       0),
 
   xdm.source.process.pid    = to_integer(json_extract_scalar(_raw_json, "$.processPid")),
   xdm.source.port           = to_integer(json_extract_scalar(_raw_json, "$.spt")),
@@ -234,8 +234,8 @@ filter alert_provider = "SAE"
   xdm.intermediate.process.executable.path = to_string(json_extract_scalar(_raw_json, "$.processFilePath")),
 
   xdm.target.port           = to_integer(json_extract_scalar(_raw_json, "$.dpt")),
-  xdm.target.ipv4           = arrayindex(regextract(extract_target_ip, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"), 0),
-  xdm.target.ipv6           = arrayindex(regextract(extract_target_ip, "((?:[a-fA-F\\d]{0,4}\\:){2,7}[a-fA-F\\d]{0,4})"), 0),
+  xdm.target.ipv4           = arrayindex(regextract(extract_target_ip, "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"), 0),
+  xdm.target.ipv6           = arrayindex(regextract(extract_target_ip, "((?:[a-fA-F\d]{0,4}\:){2,7}[a-fA-F\d]{0,4})"), 0),
   xdm.target.host.hostname  = to_string(json_extract_scalar(_raw_json, "$.dhost")),
   xdm.target.host.mac_addresses = arraycreate(to_string(json_extract_scalar(_raw_json, "$.dmac"))),
   xdm.target.host.os        = to_string(json_extract_scalar(_raw_json, "$.dOSName")),
@@ -343,8 +343,8 @@ filter alert_provider = "SAE"
   xdm.source.process.executable.size   = to_integer(json_extract_scalar(_raw_json, "$.detail.processFileSize")),
   xdm.source.process.executable.file_type = to_string(json_extract_scalar(_raw_json, "$.detail.processTrueType")),
 
-  xdm.source.ipv6 = arrayindex(regextract(extract_source_ipv6, "((?:[a-fA-F\\d]{0,4}\\:){2,7}[a-fA-F\\d]{0,4})"), 0),
-  xdm.source.ipv4 = arrayindex(regextract(extract_source_ipv4, "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"),       0),
+  xdm.source.ipv6 = arrayindex(regextract(extract_source_ipv6, "((?:[a-fA-F\d]{0,4}\:){2,7}[a-fA-F\d]{0,4})"), 0),
+  xdm.source.ipv4 = arrayindex(regextract(extract_source_ipv4, "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"),       0),
 
   xdm.source.host.mac_addresses = coalesce(
     arraycreate(to_string(json_extract_scalar(_raw_json, "$.detail.smac"))),
