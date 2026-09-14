@@ -1,0 +1,411 @@
+# ============================================================================
+# SpyCloud Enterprise Protection — Compromised Credential / Infostealer Feed
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Source-of-truth contract for the SOC Framework's pack content generator.
+# Emits:
+#   - ModelingRules/<id>/<id>.xif + .yml + _schema.json   (from modeling_rule)
+#   - CorrelationRules/<n>.yml                          (one per correlation_rules entry)
+#
+# Grounded in the ac tenant survey (2026-09-14): 57 top-level fields.
+# Observed vocabulary: breach_category [combolist, infostealer].
+#
+# SCOPE: infostealer records only — an infected device plus an exposed
+# credential is a live compromise (Cloud IR). Combolist / breach-list
+# exposures are identity hygiene and are NOT turned into issues here.
+#
+# SENSITIVE: the feed carries password, password_plaintext, cc_number, cc_bin,
+# cc_expiration, cc_last_four, phone, address_1, full_name, postal_code.
+# None of these are declared in raw_schema, referenced in XQL, projected, or
+# mapped. Keep it that way.
+# ============================================================================
+vendor: spycloud
+product: Enterprise Protection
+data_source: spycloudenterpriseprotectionfeed_generic_alert_raw
+category: Cloud
+pack: soc-spycloud-enterprise-protection
+
+raw_schema:
+
+  # ---- Record identity ----
+  document_id:                {type: string, is_array: false}
+  source_id:                  {type: float,  is_array: false}
+  log_id:                     {type: string, is_array: false}
+  origin_id:                  {type: string, is_array: false}
+  severity:                   {type: float,  is_array: false}
+  breach_category:            {type: string, is_array: false}
+  breach_title:               {type: string, is_array: false}
+  spycloud_publish_date:      {type: int,    is_array: false}
+
+  # ---- Exposed identity (email-first pivot) ----
+  email:                      {type: string, is_array: false}
+  email_domain:               {type: string, is_array: false}
+  email_username:             {type: string, is_array: false}
+  username:                   {type: string, is_array: false}
+  domain:                     {type: string, is_array: false}
+  password_type:              {type: string, is_array: false}
+
+  # ---- Infected device ----
+  infected_machine_id:        {type: string, is_array: false}
+  infected_path:              {type: string, is_array: false}
+  infected_time:              {type: datetime, is_array: false}
+  user_hostname:              {type: string, is_array: false}
+  user_os:                    {type: string, is_array: false}
+  user_sys_domain:            {type: string, is_array: false}
+  user_sys_registered_owner:  {type: string, is_array: false}
+  ip_addresses:               {type: json,   is_array: true}
+  av_softwares:               {type: json,   is_array: true}
+  user_browser:               {type: string, is_array: false}
+  country_code:               {type: string, is_array: false}
+
+  # ---- Target of the exposed credential ----
+  target_domain:              {type: string, is_array: false}
+  target_subdomain:           {type: string, is_array: false}
+  target_url:                 {type: string, is_array: false}
+
+
+modeling_rule:
+  fromversion: "6.10.0"
+  modeling_rule_id: SOC_SpyCloudEP_ModelingRule
+  modeling_rule_name: SOC SpyCloud Enterprise Protection Modeling Rule
+  directory_name: SOCSpyCloudEPModelingRules
+
+  fields:
+    - xdm_path: xdm.event.id
+      expression: to_string(document_id)
+      sources: [document_id]
+      issue_field: originalalertid
+
+    - xdm_path: xdm.event.type
+      expression: breach_category
+      sources: [breach_category]
+
+    - xdm_path: xdm.alert.original_alert_id
+      expression: to_string(document_id)
+      sources: [document_id]
+
+    - xdm_path: xdm.alert.name
+      expression: breach_title
+      sources: [breach_title]
+      issue_field: originalalertname
+
+    - xdm_path: xdm.alert.severity
+      expression: to_string(severity)
+      sources: [severity]
+      issue_field: severity
+
+    - xdm_path: xdm.alert.category
+      expression: breach_category
+      sources: [breach_category]
+
+  contributes: []
+
+
+correlation_rules:
+
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC SpyCloud - Infostealer Credential Exposure'
+    name: 'SOC SpyCloud - Infostealer Credential Exposure'
+    description: >-
+      Creates an XSIAM alert for each SpyCloud Enterprise Protection infostealer
+      record (spycloudenterpriseprotectionfeed_generic_alert_raw, breach_category =
+      infostealer): a corporate credential harvested from an infected device.
+      Canonicalizes the exposed email as the identity pivot, maps the infected
+      host, its IP and the stealer path to the endpoint/network pivots, and
+      injects DS:SpyCloud/Enterprise Protection so Foundation routes the alert.
+      Credential material and personal data in the feed are never read.
+    tags:
+      - SOCFramework
+      - Passthrough
+      - Cloud
+      - Identity
+      - SpyCloud
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: SCHEDULED
+      mapping_strategy: CUSTOM
+      user_defined_category: sc_category
+      user_defined_severity: severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    crontab: "*/10 * * * *"
+    search_window: 20 minutes
+    simple_schedule: 10 minutes
+    alert_name: '$alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 24 hours
+      fields: [originalalertid]
+      notes: |
+        document_id is SpyCloud's per-record unique id. A record can be
+        republished; 24h suppression keeps one issue per record per day.
+
+    identity: true
+    cie_join: upn_email
+    cie_schedule:
+      crontab: '*/10 * * * *'
+      search_window: 20 minutes
+      simple_schedule: 10 minutes
+
+    pre_alter: |
+      // Vendor / product (required for SOCProductCategoryMap routing)
+      | alter vendor_name = "SpyCloud", product_name = "Enterprise Protection"
+
+      // Scope: infostealer records only (see header)
+      | filter breach_category = "infostealer"
+
+      | alter sc_category = "Credential Exposure"
+
+      // SpyCloud severity (2 / 5 / 20 / 25) → XSIAM ladder
+      | alter sc_sev = to_float(severity)
+      | alter severity = if(
+              sc_sev >= 25, "Critical",
+              sc_sev >= 20, "High",
+              sc_sev >= 5,  "Medium",
+              "Low"
+          )
+
+      // Infected device IP (first of the array), timestamps
+      | alter
+              sc_ip_first      = arrayindex(ip_addresses -> [], 0),
+              sc_infected_time = infected_time,
+              sc_av            = arraystring(av_softwares -> [], ", ")
+      // Array elements keep their JSON quotes; regextract pulls the bare IPv4.
+      // NOTE: XQL regex escapes are single-backslash; "\\d" never matches.
+      | alter sc_ipv4 = arrayindex(regextract(sc_ip_first, "([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"), 0)
+
+      // ---- Identity: the exposed corporate email, email-first.
+      | alter exposed_email = lowercase(coalesce(email, if(username contains "@", username, null)))
+      | alter user_principal = exposed_email
+      | alter user_name      = coalesce(exposed_email, username)
+      | alter display_name   = user_sys_registered_owner
+      | alter actor_effective_username = coalesce(exposed_email, lowercase(username))
+
+      // Title: [Cloud] {email} - Credential Exposure: {breach}
+      | alter alert_name = concat(
+              "[Cloud] ",
+              coalesce(exposed_email, username, "Unknown"),
+              " - Credential Exposure: ",
+              coalesce(breach_title, "Infostealer")
+          )
+
+      | alter alert_description = concat(
+              "SpyCloud infostealer record: a credential for ",
+              coalesce(exposed_email, username, "an unknown account"),
+              " was harvested from an infected device.",
+              " | Target: ",    coalesce(target_domain, "Unknown"),
+              " | Host: ",      coalesce(user_hostname, infected_machine_id, "Unknown"),
+              " | OS: ",        coalesce(user_os, "-"),
+              " | Stealer path: ", coalesce(infected_path, "-"),
+              " | Infected: ",  coalesce(to_string(sc_infected_time), "-"),
+              " | AV: ",        coalesce(sc_av, "-"),
+              " | Password type: ", coalesce(password_type, "-"),
+              " | Severity: ",  coalesce(severity, "Unknown")
+          )
+
+      // ============================================================
+      // CANONICAL CORE NORMALIZATION
+      // ============================================================
+      | alter
+              vendor                               = vendor_name,
+              product                              = product_name,
+              originalalertid                      = document_id,
+              originalalertname                    = coalesce(breach_title, "Infostealer credential exposure"),
+              originalalertsource                  = "SpyCloud - Enterprise Protection",
+              externallink                         = null,
+              severity                             = severity,
+              mitretacticid                        = "TA0006",
+              mitretacticname                      = "Credential Access",
+              mitretechniqueid                     = "T1555",
+              mitretechniquename                   = "Credentials from Password Stores",
+              agent_hostname                       = user_hostname,
+              agent_id                             = infected_machine_id,
+              agent_device_domain                  = user_sys_domain,
+              actor_process_image_name             = null,
+              actor_process_image_path             = infected_path,
+              actor_process_image_sha256           = null,
+              actor_process_command_line           = null,
+              actor_process_os_pid                 = null,
+              causality_actor_process_image_name   = null,
+              causality_actor_process_image_path   = null,
+              causality_actor_process_image_sha256 = null,
+              action_file_name                     = null,
+              action_file_path                     = null,
+              action_file_sha256                   = null,
+              action_local_ip                      = sc_ipv4,
+              action_remote_ip                     = null,
+              dns_query_name                       = target_domain
+
+      // SpyCloud extensions (no credential material, no PII)
+      | alter
+              spycloud_breach_category   = breach_category,
+              spycloud_breach_title      = breach_title,
+              spycloud_severity          = severity,
+              spycloud_document_id       = document_id,
+              spycloud_source_id         = to_string(source_id),
+              spycloud_publish_date      = spycloud_publish_date,
+              spycloud_target_domain     = target_domain,
+              spycloud_target_url        = target_url,
+              spycloud_infected_host     = user_hostname,
+              spycloud_infected_machine  = infected_machine_id,
+              spycloud_infected_path     = infected_path,
+              spycloud_infected_time     = sc_infected_time,
+              spycloud_user_os           = user_os,
+              spycloud_av_software       = sc_av,
+              spycloud_password_type     = password_type,
+              spycloud_country           = country_code
+
+      // Tag injection — DS:SpyCloud/Enterprise Protection → ds_spycloud_enterprise_protection
+      | alter alert_tags = arraycreate("DS:SpyCloud/Enterprise Protection", "DOM:Security")
+
+    final_projection:
+      - _time
+      - document_id
+      - breach_category
+      - breach_title
+      - sc_category
+      - sc_sev
+      - severity
+      - exposed_email
+      - user_principal
+      - user_name
+      - display_name
+      - username
+      - email_domain
+      - target_domain
+      - target_url
+      - user_hostname
+      - infected_machine_id
+      - infected_path
+      - sc_infected_time
+      - sc_ipv4
+      - sc_av
+      - user_os
+      - user_sys_domain
+      - password_type
+      - country_code
+      - alert_name
+      - alert_description
+      - vendor
+      - product
+      - originalalertid
+      - originalalertname
+      - originalalertsource
+      - externallink
+      - mitretacticid
+      - mitretacticname
+      - mitretechniqueid
+      - mitretechniquename
+      - agent_hostname
+      - agent_id
+      - agent_device_domain
+      - actor_process_image_path
+      - action_local_ip
+      - dns_query_name
+      - spycloud_breach_category
+      - spycloud_breach_title
+      - spycloud_severity
+      - spycloud_document_id
+      - spycloud_source_id
+      - spycloud_publish_date
+      - spycloud_target_domain
+      - spycloud_target_url
+      - spycloud_infected_host
+      - spycloud_infected_machine
+      - spycloud_infected_path
+      - spycloud_infected_time
+      - spycloud_user_os
+      - spycloud_av_software
+      - spycloud_password_type
+      - spycloud_country
+      - alert_tags
+      - '*'
+
+    alert_fields:
+
+      # === CANONICAL CORE ===
+      - {issue_field: vendor,              source: vendor,              bucket: computed}
+      - {issue_field: product,             source: product,             bucket: computed}
+      - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
+      - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink,        source: externallink,        bucket: computed}
+      - {issue_field: alert_description,   source: alert_description,   bucket: computed}
+      - {issue_field: severity,            source: severity,            bucket: computed}
+      - {issue_field: mitretacticid,       source: mitretacticid,       bucket: computed}
+      - {issue_field: mitretacticname,     source: mitretacticname,     bucket: computed}
+      - {issue_field: mitretechniqueid,    source: mitretechniqueid,    bucket: computed}
+      - {issue_field: mitretechniquename,  source: mitretechniquename,  bucket: computed}
+      - {issue_field: agent_hostname,      source: agent_hostname,      bucket: computed}
+      - {issue_field: agent_id,            source: agent_id,            bucket: computed}
+      - {issue_field: agent_device_domain, source: agent_device_domain, bucket: computed}
+      - {issue_field: actor_effective_username, source: actor_effective_username, bucket: computed}
+      - {issue_field: actor_process_image_path, source: actor_process_image_path, bucket: computed}
+      - {issue_field: action_local_ip,     source: action_local_ip,     bucket: computed}
+      - {issue_field: dns_query_name,      source: dns_query_name,      bucket: computed}
+
+      # === Grouping pivots / cliName aliases ===
+      - {issue_field: user_principal,      source: user_principal,      bucket: computed}
+      - {issue_field: userid,              source: user_principal,      bucket: computed}
+      - {issue_field: username,            source: actor_effective_username, bucket: computed}
+      - {issue_field: hostname,            source: agent_hostname,      bucket: computed}
+      - {issue_field: agentid,             source: agent_id,            bucket: computed}
+      - {issue_field: domain,              source: agent_device_domain, bucket: computed}
+      - {issue_field: localip,             source: action_local_ip,     bucket: computed}
+      - {issue_field: initiatorpath,       source: actor_process_image_path, bucket: computed}
+      - {issue_field: socfwidentityuserdisplayname, source: idr_display_name, bucket: cie}
+
+      # === SpyCloud extensions ===
+      - {issue_field: spycloud_breach_category,  source: spycloud_breach_category,  bucket: computed}
+      - {issue_field: spycloud_breach_title,     source: spycloud_breach_title,     bucket: computed}
+      - {issue_field: spycloud_severity,         source: spycloud_severity,         bucket: computed}
+      - {issue_field: spycloud_document_id,      source: spycloud_document_id,      bucket: computed}
+      - {issue_field: spycloud_source_id,        source: spycloud_source_id,        bucket: computed}
+      - {issue_field: spycloud_publish_date,     source: spycloud_publish_date,     bucket: computed}
+      - {issue_field: spycloud_target_domain,    source: spycloud_target_domain,    bucket: computed}
+      - {issue_field: spycloud_target_url,       source: spycloud_target_url,       bucket: computed}
+      - {issue_field: spycloud_infected_host,    source: spycloud_infected_host,    bucket: computed}
+      - {issue_field: spycloud_infected_machine, source: spycloud_infected_machine, bucket: computed}
+      - {issue_field: spycloud_infected_path,    source: spycloud_infected_path,    bucket: computed}
+      - {issue_field: spycloud_infected_time,    source: spycloud_infected_time,    bucket: computed}
+      - {issue_field: spycloud_user_os,          source: spycloud_user_os,          bucket: computed}
+      - {issue_field: spycloud_av_software,      source: spycloud_av_software,      bucket: computed}
+      - {issue_field: spycloud_password_type,    source: spycloud_password_type,    bucket: computed}
+      - {issue_field: spycloud_country,          source: spycloud_country,          bucket: computed}
+
+      # === Tags ===
+      - {issue_field: tags,                source: alert_tags,          bucket: computed}
+      - {issue_field: alert_name,          source: alert_name,          bucket: computed}
+
+    mitre_defs: {}
+
+    investigation_query_link: |-
+      // Other SpyCloud records for the same exposed email
+      dataset = spycloudenterpriseprotectionfeed_generic_alert_raw
+      | filter lowercase(email) = $exposed_email
+      | fields _time, breach_category, breach_title, severity, target_domain, user_hostname
+
+    contributes:
+      - User
+      - User.UPN
+      - User.DisplayName
+      - Endpoint.Hostname
+      - Endpoint.AgentID
+      - Endpoint.Domain
+      - Endpoint.OS
+      - Network.LocalIP
+      - Network.Domain
+      - Process.Path
+      - MITRE.Tactic
+      - MITRE.TacticID
+      - MITRE.Technique
+      - MITRE.TechniqueID
