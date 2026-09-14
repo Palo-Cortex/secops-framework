@@ -6,7 +6,7 @@
 |---|---|
 | ID | `soc-framework-nist-ir-ai` |
 | Version | `1.1.4` |
-| Category | Utilities |
+| Category | Use Cases |
 | Pack Path | `Packs/soc-framework-nist-ir-ai` |
 | Manifest | [`Packs/soc-framework-nist-ir-ai/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/xsoar_config.json) |
 

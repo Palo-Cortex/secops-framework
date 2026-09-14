@@ -1,0 +1,487 @@
+# ============================================================================
+# Nozomi Networks Guardian — OT / ICS Security Alerts
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Source-of-truth contract for the SOC Framework's pack content generator.
+# Emits:
+#   - ModelingRules/<id>/<id>.xif + .yml + _schema.json   (from modeling_rule)
+#   - CorrelationRules/<n>.yml                          (one per correlation_rules entry)
+#
+# Grounded in the ac tenant survey (2026-09-14): 100 fields, top-level columns
+# parsed by the generic alert collector; `properties` and `parents` arrive as
+# JSON-encoded strings. Observed vocabulary (aggregate, non-identifying):
+#   is_security  [true]    status [open]    trigger_type [packet_rules, stix_indicators]
+#   ti_source    [nozomi, mandiant]
+#   type_name    [Malicious domain, Packet rule match, Suspicious Activity, MITM attack]
+#   threat_name  [Generic - TROJAN, Log4Shell, MULTI_TROJAN_Generic]
+#   risk         numeric string 1..10    protocol [ssh, tftp, dns, ntp, arp, radius, http, other]
+# ============================================================================
+vendor: nozomi-networks
+product: Guardian
+data_source: nozomi_networks_generic_alert_raw
+category: Network
+pack: soc-nozomi-guardian
+
+raw_schema:
+
+  # ---- Alert identity / classification ----
+  id:                  {type: string,  is_array: false}
+  type_id:             {type: string,  is_array: false}
+  type_name:           {type: string,  is_array: false}
+  name:                {type: string,  is_array: false}
+  description:         {type: string,  is_array: false}
+  threat_name:         {type: string,  is_array: false}
+  risk:                {type: string,  is_array: false}
+  severity:            {type: float,   is_array: false}
+  status:              {type: string,  is_array: false}
+  ack:                 {type: boolean, is_array: false}
+  is_security:         {type: boolean, is_array: false}
+  is_incident:         {type: boolean, is_array: false}
+  trigger_id:          {type: string,  is_array: false}
+  trigger_type:        {type: string,  is_array: false}
+  ti_source:           {type: string,  is_array: false}
+  appliance_host:      {type: string,  is_array: false}
+  capture_device:      {type: string,  is_array: false}
+  bpf_filter:          {type: string,  is_array: false}
+  time:                {type: float,   is_array: false}
+  created_time:        {type: float,   is_array: false}
+  closed_time:         {type: float,   is_array: false}
+  record_created_at:   {type: float,   is_array: false}
+  record_updated_at:   {type: float,   is_array: false}
+
+  # ---- Network 5-tuple + OT context ----
+  ip_src:              {type: string,  is_array: false}
+  ip_dst:              {type: string,  is_array: false}
+  mac_src:             {type: string,  is_array: false}
+  mac_dst:             {type: string,  is_array: false}
+  port_src:            {type: float,   is_array: false}
+  port_dst:            {type: float,   is_array: false}
+  protocol:            {type: string,  is_array: false}
+  transport_protocol:  {type: string,  is_array: false}
+  id_src:              {type: string,  is_array: false}
+  id_dst:              {type: string,  is_array: false}
+  label_src:           {type: string,  is_array: false}
+  label_dst:           {type: string,  is_array: false}
+  zone_src:            {type: string,  is_array: false}
+  zone_dst:            {type: string,  is_array: false}
+  src_roles:           {type: string,  is_array: false}
+  dst_roles:           {type: string,  is_array: false}
+
+  # ---- JSON-encoded payloads (json_extract) ----
+  # properties: $.mitre_attack_enterprise.techniques[].{id,name,tactic},
+  #             $.mitre_attack_for_ics.techniques[].{id,name,tactic},
+  #             $.malicious_indicator, $.details_malicious_domain.value,
+  #             $.details_malicious_ip.value, $.cause, $.solution, $.rule_name
+  properties:          {type: json,    is_array: false}
+  parents:             {type: json,    is_array: false}
+
+
+modeling_rule:
+  fromversion: "6.10.0"
+  modeling_rule_id: SOC_NozomiGuardian_ModelingRule
+  modeling_rule_name: SOC Nozomi Guardian Modeling Rule
+  directory_name: SOCNozomiGuardianModelingRules
+
+  # Only XDM paths already validated in shipped packs (Check Point NDR).
+  # Vendor / product auto-populate from _vendor / _product.
+  fields:
+    - xdm_path: xdm.event.id
+      expression: to_string(id)
+      sources: [id]
+      issue_field: originalalertid
+
+    - xdm_path: xdm.event.type
+      expression: type_name
+      sources: [type_name]
+
+    - xdm_path: xdm.alert.original_alert_id
+      expression: to_string(id)
+      sources: [id]
+
+    - xdm_path: xdm.alert.name
+      expression: name
+      sources: [name]
+      issue_field: originalalertname
+
+    - xdm_path: xdm.alert.description
+      expression: description
+      sources: [description]
+      issue_field: alert_description
+
+    - xdm_path: xdm.alert.severity
+      expression: to_string(risk)
+      sources: [risk]
+      issue_field: severity
+      notes: Raw Nozomi risk (0-10). The correlation rule maps it to the XSIAM ladder.
+
+    - xdm_path: xdm.alert.category
+      expression: type_name
+      sources: [type_name]
+
+    - xdm_path: xdm.alert.subcategory
+      expression: threat_name
+      sources: [threat_name]
+
+    - xdm_path: xdm.source.ipv4
+      expression: ip_src
+      sources: [ip_src]
+      issue_field: action_remote_ip
+
+    - xdm_path: xdm.target.ipv4
+      expression: ip_dst
+      sources: [ip_dst]
+      issue_field: action_local_ip
+
+    - xdm_path: xdm.target.port
+      expression: to_integer(port_dst)
+      sources: [port_dst]
+      issue_field: action_remote_port
+
+  contributes:
+    - Network.RemoteIP
+    - Network.LocalIP
+    - Network.RemotePort
+
+
+correlation_rules:
+
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC Nozomi Guardian - Security Alerts'
+    name: 'SOC Nozomi Guardian - Security Alerts'
+    description: >-
+      Reshapes Nozomi Networks Guardian security alerts (nozomi_networks_generic_alert_raw)
+      into properly-formed XSIAM alerts for the SOC Framework Network category.
+      Maps the OT 5-tuple to the canonical network pivots, the Nozomi risk score to
+      XSIAM severity, MITRE Enterprise (ICS as fallback) from the properties payload,
+      and injects DS:Nozomi Networks/Guardian and DOM:Security so Foundation Product
+      Classification routes the alert.
+    tags:
+      - SOCFramework
+      - Passthrough
+      - Network
+      - OT
+      - NozomiNetworks
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: SCHEDULED
+      mapping_strategy: CUSTOM
+      user_defined_category: nz_category
+      user_defined_severity: severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    crontab: "*/10 * * * *"
+    search_window: 20 minutes
+    simple_schedule: 10 minutes
+    alert_name: '$alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 1 hours
+      fields: [originalalertid]
+      notes: |
+        originalalertid sources from Nozomi's per-alert `id`. Hourly suppression
+        absorbs re-polls of an alert still `open` before it is acknowledged.
+
+    pre_alter: |
+      // Vendor / product (required for SOCProductCategoryMap routing)
+      | alter vendor_name = "Nozomi Networks", product_name = "Guardian"
+
+      // Scope: security alerts only (operational / asset-change alerts are
+      // is_security = false on Guardian and belong to OT ops, not the SOC).
+      | filter is_security = true
+
+      // Numeric helpers
+      | alter
+              nz_risk      = to_float(risk),
+              nz_port_src  = to_integer(port_src),
+              nz_port_dst  = to_integer(port_dst)
+
+      // Risk (0-10) → XSIAM severity ladder
+      | alter severity = if(
+              nz_risk >= 9, "Critical",
+              nz_risk >= 7, "High",
+              nz_risk >= 4, "Medium",
+              "Low"
+          )
+
+      // Category from Nozomi's alert type
+      | alter nz_category = coalesce(type_name, "Network")
+
+      // ---- properties payload (JSON string) ----
+      | alter
+              mitre_ent_id     = json_extract_scalar(properties, "$.mitre_attack_enterprise.techniques[0].id"),
+              mitre_ent_name   = json_extract_scalar(properties, "$.mitre_attack_enterprise.techniques[0].name"),
+              mitre_ent_tactic = json_extract_scalar(properties, "$.mitre_attack_enterprise.techniques[0].tactic"),
+              mitre_ics_id     = json_extract_scalar(properties, "$.mitre_attack_for_ics.techniques[0].id"),
+              mitre_ics_name   = json_extract_scalar(properties, "$.mitre_attack_for_ics.techniques[0].name"),
+              mitre_ics_tactic = json_extract_scalar(properties, "$.mitre_attack_for_ics.techniques[0].tactic"),
+              nz_indicator     = json_extract_scalar(properties, "$.malicious_indicator"),
+              nz_mal_domain    = json_extract_scalar(properties, "$.details_malicious_domain.value"),
+              nz_mal_ip        = json_extract_scalar(properties, "$.details_malicious_ip.value"),
+              nz_cause         = json_extract_scalar(properties, "$.cause"),
+              nz_solution      = json_extract_scalar(properties, "$.solution"),
+              nz_rule_name     = json_extract_scalar(properties, "$.rule_name")
+
+      // MITRE: Enterprise first, ICS as fallback. Tactic name → TA id via the
+      // same normalised if-chain the Defender contracts use (+ ICS tactics).
+      | alter
+              mitre_technique_id   = coalesce(mitre_ent_id, mitre_ics_id),
+              mitre_technique_name = coalesce(mitre_ent_name, mitre_ics_name),
+              mitre_tactic_name    = coalesce(mitre_ent_tactic, mitre_ics_tactic)
+      | alter tac_norm = replace(replace(replace(replace(lowercase(coalesce(mitre_tactic_name, "")), " ", ""), "-", ""), "_", ""), ".", "")
+      | alter mitre_tactic_id = if(
+              tac_norm contains "reconnaissance",       "TA0043",
+              tac_norm contains "resourcedevelopment",  "TA0042",
+              tac_norm contains "initialaccess",        "TA0001",
+              tac_norm contains "execution",            "TA0002",
+              tac_norm contains "persistence",          "TA0003",
+              tac_norm contains "privilegeescalation",  "TA0004",
+              tac_norm contains "defenseevasion",       "TA0005",
+              tac_norm contains "credentialaccess",     "TA0006",
+              tac_norm contains "discovery",            "TA0007",
+              tac_norm contains "lateralmovement",      "TA0008",
+              tac_norm contains "collection",           "TA0009",
+              tac_norm contains "commandandcontrol",    "TA0011",
+              tac_norm contains "exfiltration",         "TA0010",
+              tac_norm contains "impact",               "TA0040",
+              tac_norm contains "inhibitresponse",      "TA0107",
+              tac_norm contains "impairprocesscontrol", "TA0106",
+              tac_norm contains "evasion",              "TA0103",
+              null)
+
+      // Domain pivot: malicious domain indicator when the alert carries one
+      | alter dns_name = coalesce(nz_mal_domain, if(nz_indicator ~= "^[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", nz_indicator, null))
+
+      // Title: [Network] {src} → {dst} - {type}: {threat|name}
+      | alter alert_name = concat(
+              "[Network] ",
+              coalesce(ip_src, label_src, "Unknown"),
+              " → ",
+              coalesce(ip_dst, label_dst, "Unknown"),
+              " - ",
+              coalesce(type_name, "Security Alert"),
+              ": ",
+              coalesce(threat_name, name, "Anomaly")
+          )
+
+      | alter alert_description = concat(
+              coalesce(description, name, "Nozomi Guardian security alert"),
+              " | Source: ",      coalesce(ip_src, "Unknown"), " (", coalesce(label_src, zone_src, "-"), ")",
+              " | Destination: ", coalesce(ip_dst, "Unknown"), " (", coalesce(label_dst, zone_dst, "-"), ")",
+              " | Port: ",        coalesce(to_string(nz_port_dst), "-"),
+              " | Protocol: ",    coalesce(protocol, transport_protocol, "-"),
+              " | Risk: ",        coalesce(risk, "-"),
+              " | Trigger: ",     coalesce(trigger_type, "-"),
+              " | TI: ",          coalesce(ti_source, "-"),
+              " | Cause: ",       coalesce(nz_cause, "")
+          )
+
+      // ============================================================
+      // CANONICAL CORE NORMALIZATION
+      // Endpoint-shaped columns stay null for network alerts.
+      // Direction convention matches Check Point NDR: the source node
+      // (Nozomi's attacker side) → action_remote_ip, destination → local.
+      // ============================================================
+      | alter
+              vendor              = vendor_name,
+              product             = product_name,
+              originalalertid     = id,
+              originalalertname   = coalesce(name, type_name),
+              originalalertsource = "Nozomi Networks - Guardian",
+              externallink        = null,
+              severity            = severity,
+              mitretacticid       = mitre_tactic_id,
+              mitretacticname     = mitre_tactic_name,
+              mitretechniqueid    = mitre_technique_id,
+              mitretechniquename  = mitre_technique_name,
+              action_local_ip     = ip_dst,
+              action_remote_ip    = ip_src,
+              action_remote_port  = nz_port_dst,
+              action_local_port   = nz_port_src,
+              dns_query_name      = dns_name
+
+      // Nozomi-specific extensions
+      | alter
+              nozomi_type_id          = type_id,
+              nozomi_type_name        = type_name,
+              nozomi_threat_name      = threat_name,
+              nozomi_risk             = risk,
+              nozomi_is_incident      = is_incident,
+              nozomi_trigger_type     = trigger_type,
+              nozomi_ti_source        = ti_source,
+              nozomi_src_label        = label_src,
+              nozomi_dst_label        = label_dst,
+              nozomi_src_mac          = mac_src,
+              nozomi_dst_mac          = mac_dst,
+              nozomi_src_zone         = zone_src,
+              nozomi_dst_zone         = zone_dst,
+              nozomi_protocol         = coalesce(protocol, transport_protocol),
+              nozomi_appliance        = appliance_host,
+              nozomi_indicator        = nz_indicator,
+              nozomi_malicious_ip     = nz_mal_ip,
+              nozomi_solution         = nz_solution,
+              nozomi_rule_name        = nz_rule_name,
+              nozomi_ics_technique_id = mitre_ics_id
+
+      // Tag injection — load-bearing for routing (DS:Nozomi Networks/Guardian →
+      // ds_nozomi_networks_guardian in SOCProductCategoryMap_V3 → Network).
+      | alter alert_tags = arraycreate("DS:Nozomi Networks/Guardian", "DOM:Security")
+
+    final_projection:
+      - id
+      - name
+      - type_id
+      - type_name
+      - threat_name
+      - risk
+      - nz_risk
+      - nz_category
+      - severity
+      - status
+      - is_incident
+      - trigger_type
+      - ti_source
+      - ip_src
+      - ip_dst
+      - mac_src
+      - mac_dst
+      - nz_port_src
+      - nz_port_dst
+      - protocol
+      - transport_protocol
+      - label_src
+      - label_dst
+      - zone_src
+      - zone_dst
+      - appliance_host
+      - mitre_tactic_id
+      - mitre_tactic_name
+      - mitre_technique_id
+      - mitre_technique_name
+      - mitre_ics_id
+      - nz_indicator
+      - nz_mal_domain
+      - nz_mal_ip
+      - nz_cause
+      - nz_solution
+      - nz_rule_name
+      - dns_name
+      - alert_name
+      - alert_description
+      - vendor
+      - product
+      - originalalertid
+      - originalalertname
+      - originalalertsource
+      - externallink
+      - mitretacticid
+      - mitretacticname
+      - mitretechniqueid
+      - mitretechniquename
+      - action_local_ip
+      - action_remote_ip
+      - action_remote_port
+      - action_local_port
+      - dns_query_name
+      - nozomi_type_id
+      - nozomi_type_name
+      - nozomi_threat_name
+      - nozomi_risk
+      - nozomi_is_incident
+      - nozomi_trigger_type
+      - nozomi_ti_source
+      - nozomi_src_label
+      - nozomi_dst_label
+      - nozomi_src_mac
+      - nozomi_dst_mac
+      - nozomi_src_zone
+      - nozomi_dst_zone
+      - nozomi_protocol
+      - nozomi_appliance
+      - nozomi_indicator
+      - nozomi_malicious_ip
+      - nozomi_solution
+      - nozomi_rule_name
+      - nozomi_ics_technique_id
+      - alert_tags
+      - "*"
+
+    alert_fields:
+
+      # === CANONICAL CORE ===
+      - {issue_field: vendor,              source: vendor,              bucket: computed}
+      - {issue_field: product,             source: product,             bucket: computed}
+      - {issue_field: originalalertid,     source: originalalertid,     bucket: computed}
+      - {issue_field: originalalertname,   source: originalalertname,   bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink,        source: externallink,        bucket: computed}
+      - {issue_field: alert_description,   source: alert_description,   bucket: computed}
+      - {issue_field: severity,            source: severity,            bucket: computed}
+
+      # === MITRE ===
+      - {issue_field: mitretacticid,       source: mitretacticid,       bucket: mitre}
+      - {issue_field: mitretacticname,     source: mitretacticname,     bucket: mitre}
+      - {issue_field: mitretechniqueid,    source: mitretechniqueid,    bucket: mitre}
+      - {issue_field: mitretechniquename,  source: mitretechniquename,  bucket: mitre}
+
+      # === Network grouping pivots (Foundation_-_Normalize_Network_V3) ===
+      - {issue_field: action_local_ip,     source: action_local_ip,     bucket: computed}
+      - {issue_field: action_remote_ip,    source: action_remote_ip,    bucket: computed}
+      - {issue_field: action_remote_port,  source: action_remote_port,  bucket: computed}
+      - {issue_field: action_local_port,   source: action_local_port,   bucket: computed}
+      - {issue_field: dns_query_name,      source: dns_query_name,      bucket: computed}
+      - {issue_field: localip,             source: action_local_ip,     bucket: computed}
+      - {issue_field: remoteip,            source: action_remote_ip,    bucket: computed}
+
+      # === Nozomi extensions ===
+      - {issue_field: nozomi_type_id,          source: nozomi_type_id,          bucket: computed}
+      - {issue_field: nozomi_type_name,        source: nozomi_type_name,        bucket: computed}
+      - {issue_field: nozomi_threat_name,      source: nozomi_threat_name,      bucket: computed}
+      - {issue_field: nozomi_risk,             source: nozomi_risk,             bucket: computed}
+      - {issue_field: nozomi_is_incident,      source: nozomi_is_incident,      bucket: computed}
+      - {issue_field: nozomi_trigger_type,     source: nozomi_trigger_type,     bucket: computed}
+      - {issue_field: nozomi_ti_source,        source: nozomi_ti_source,        bucket: computed}
+      - {issue_field: nozomi_src_label,        source: nozomi_src_label,        bucket: computed}
+      - {issue_field: nozomi_dst_label,        source: nozomi_dst_label,        bucket: computed}
+      - {issue_field: nozomi_src_mac,          source: nozomi_src_mac,          bucket: computed}
+      - {issue_field: nozomi_dst_mac,          source: nozomi_dst_mac,          bucket: computed}
+      - {issue_field: nozomi_src_zone,         source: nozomi_src_zone,         bucket: computed}
+      - {issue_field: nozomi_dst_zone,         source: nozomi_dst_zone,         bucket: computed}
+      - {issue_field: nozomi_protocol,         source: nozomi_protocol,         bucket: computed}
+      - {issue_field: nozomi_appliance,        source: nozomi_appliance,        bucket: computed}
+      - {issue_field: nozomi_indicator,        source: nozomi_indicator,        bucket: computed}
+      - {issue_field: nozomi_malicious_ip,     source: nozomi_malicious_ip,     bucket: computed}
+      - {issue_field: nozomi_solution,         source: nozomi_solution,         bucket: computed}
+      - {issue_field: nozomi_rule_name,        source: nozomi_rule_name,        bucket: computed}
+      - {issue_field: nozomi_ics_technique_id, source: nozomi_ics_technique_id, bucket: computed}
+
+      # === Tags (load-bearing for routing) ===
+      - {issue_field: tags,                source: alert_tags,          bucket: computed}
+      - {issue_field: alert_name,          source: alert_name,          bucket: computed}
+
+    mitre_defs: {}
+
+    investigation_query_link: |-
+      // Other Guardian alerts between the same two nodes
+      dataset = nozomi_networks_generic_alert_raw
+      | filter ip_src = $ip_src and ip_dst = $ip_dst
+      | fields _time, type_name, threat_name, risk, protocol, status
+
+    contributes:
+      - Network.RemoteIP
+      - Network.LocalIP
+      - Network.RemotePort
+      - Network.LocalPort
+      - Network.Domain
+      - MITRE.Tactic
+      - MITRE.TacticID
+      - MITRE.Technique
+      - MITRE.TechniqueID

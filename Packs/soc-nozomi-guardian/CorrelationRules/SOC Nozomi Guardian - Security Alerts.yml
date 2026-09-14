@@ -1,0 +1,214 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Network
+  - OT
+  - NozomiNetworks
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor
+  product: product
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  alert_description: alert_description
+  severity: severity
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  action_local_ip: action_local_ip
+  action_remote_ip: action_remote_ip
+  action_remote_port: action_remote_port
+  action_local_port: action_local_port
+  dns_query_name: dns_query_name
+  localip: action_local_ip
+  remoteip: action_remote_ip
+  nozomi_type_id: nozomi_type_id
+  nozomi_type_name: nozomi_type_name
+  nozomi_threat_name: nozomi_threat_name
+  nozomi_risk: nozomi_risk
+  nozomi_is_incident: nozomi_is_incident
+  nozomi_trigger_type: nozomi_trigger_type
+  nozomi_ti_source: nozomi_ti_source
+  nozomi_src_label: nozomi_src_label
+  nozomi_dst_label: nozomi_dst_label
+  nozomi_src_mac: nozomi_src_mac
+  nozomi_dst_mac: nozomi_dst_mac
+  nozomi_src_zone: nozomi_src_zone
+  nozomi_dst_zone: nozomi_dst_zone
+  nozomi_protocol: nozomi_protocol
+  nozomi_appliance: nozomi_appliance
+  nozomi_indicator: nozomi_indicator
+  nozomi_malicious_ip: nozomi_malicious_ip
+  nozomi_solution: nozomi_solution
+  nozomi_rule_name: nozomi_rule_name
+  nozomi_ics_technique_id: nozomi_ics_technique_id
+  tags: alert_tags
+  alert_name: alert_name
+alert_name: $alert_name
+alert_type: null
+crontab: '*/10 * * * *'
+dataset: alerts
+name: SOC Nozomi Guardian - Security Alerts
+description: >-
+  Reshapes Nozomi Networks Guardian security alerts
+  (nozomi_networks_generic_alert_raw) into properly-formed XSIAM alerts for the
+  SOC Framework Network category. Maps the OT 5-tuple to the canonical network
+  pivots, the Nozomi risk score to XSIAM severity, MITRE Enterprise (ICS as
+  fallback) from the properties payload, and injects DS:Nozomi Networks/Guardian
+  and DOM:Security so Foundation Product Classification routes the alert.
+drilldown_query_timeframe: ALERT
+execution_mode: SCHEDULED
+global_rule_id: SOC Nozomi Guardian - Security Alerts
+investigation_query_link: |-
+  dataset = nozomi_networks_generic_alert_raw
+  | filter ip_src = $ip_src and ip_dst = $ip_dst
+  | fields _time, type_name, threat_name, risk, protocol, status
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs: {}
+search_window: 20 minutes
+severity: User Defined
+simple_schedule: 10 minutes
+suppression_duration: 1 hours
+suppression_enabled: true
+suppression_fields:
+- originalalertid
+timezone: null
+user_defined_category: nz_category
+user_defined_severity: severity
+xql_query: |
+  dataset = nozomi_networks_generic_alert_raw
+  | alter vendor_name = "Nozomi Networks", product_name = "Guardian"
+
+  | filter is_security = true
+
+  | alter
+          nz_risk      = to_float(risk),
+          nz_port_src  = to_integer(port_src),
+          nz_port_dst  = to_integer(port_dst)
+
+  | alter severity = if(
+          nz_risk >= 9, "Critical",
+          nz_risk >= 7, "High",
+          nz_risk >= 4, "Medium",
+          "Low"
+      )
+
+  | alter nz_category = coalesce(type_name, "Network")
+
+  | alter
+          mitre_ent_id     = json_extract_scalar(properties, "$.mitre_attack_enterprise.techniques[0].id"),
+          mitre_ent_name   = json_extract_scalar(properties, "$.mitre_attack_enterprise.techniques[0].name"),
+          mitre_ent_tactic = json_extract_scalar(properties, "$.mitre_attack_enterprise.techniques[0].tactic"),
+          mitre_ics_id     = json_extract_scalar(properties, "$.mitre_attack_for_ics.techniques[0].id"),
+          mitre_ics_name   = json_extract_scalar(properties, "$.mitre_attack_for_ics.techniques[0].name"),
+          mitre_ics_tactic = json_extract_scalar(properties, "$.mitre_attack_for_ics.techniques[0].tactic"),
+          nz_indicator     = json_extract_scalar(properties, "$.malicious_indicator"),
+          nz_mal_domain    = json_extract_scalar(properties, "$.details_malicious_domain.value"),
+          nz_mal_ip        = json_extract_scalar(properties, "$.details_malicious_ip.value"),
+          nz_cause         = json_extract_scalar(properties, "$.cause"),
+          nz_solution      = json_extract_scalar(properties, "$.solution"),
+          nz_rule_name     = json_extract_scalar(properties, "$.rule_name")
+
+  | alter
+          mitre_technique_id   = coalesce(mitre_ent_id, mitre_ics_id),
+          mitre_technique_name = coalesce(mitre_ent_name, mitre_ics_name),
+          mitre_tactic_name    = coalesce(mitre_ent_tactic, mitre_ics_tactic)
+  | alter tac_norm = replace(replace(replace(replace(lowercase(coalesce(mitre_tactic_name, "")), " ", ""), "-", ""), "_", ""), ".", "")
+  | alter mitre_tactic_id = if(
+          tac_norm contains "reconnaissance",       "TA0043",
+          tac_norm contains "resourcedevelopment",  "TA0042",
+          tac_norm contains "initialaccess",        "TA0001",
+          tac_norm contains "execution",            "TA0002",
+          tac_norm contains "persistence",          "TA0003",
+          tac_norm contains "privilegeescalation",  "TA0004",
+          tac_norm contains "defenseevasion",       "TA0005",
+          tac_norm contains "credentialaccess",     "TA0006",
+          tac_norm contains "discovery",            "TA0007",
+          tac_norm contains "lateralmovement",      "TA0008",
+          tac_norm contains "collection",           "TA0009",
+          tac_norm contains "commandandcontrol",    "TA0011",
+          tac_norm contains "exfiltration",         "TA0010",
+          tac_norm contains "impact",               "TA0040",
+          tac_norm contains "inhibitresponse",      "TA0107",
+          tac_norm contains "impairprocesscontrol", "TA0106",
+          tac_norm contains "evasion",              "TA0103",
+          null)
+
+  | alter dns_name = coalesce(nz_mal_domain, if(nz_indicator ~= "^[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", nz_indicator, null))
+
+  | alter alert_name = concat(
+          "[Network] ",
+          coalesce(ip_src, label_src, "Unknown"),
+          " → ",
+          coalesce(ip_dst, label_dst, "Unknown"),
+          " - ",
+          coalesce(type_name, "Security Alert"),
+          ": ",
+          coalesce(threat_name, name, "Anomaly")
+      )
+
+  | alter alert_description = concat(
+          coalesce(description, name, "Nozomi Guardian security alert"),
+          " | Source: ",      coalesce(ip_src, "Unknown"), " (", coalesce(label_src, zone_src, "-"), ")",
+          " | Destination: ", coalesce(ip_dst, "Unknown"), " (", coalesce(label_dst, zone_dst, "-"), ")",
+          " | Port: ",        coalesce(to_string(nz_port_dst), "-"),
+          " | Protocol: ",    coalesce(protocol, transport_protocol, "-"),
+          " | Risk: ",        coalesce(risk, "-"),
+          " | Trigger: ",     coalesce(trigger_type, "-"),
+          " | TI: ",          coalesce(ti_source, "-"),
+          " | Cause: ",       coalesce(nz_cause, "")
+      )
+
+  | alter
+          vendor              = vendor_name,
+          product             = product_name,
+          originalalertid     = id,
+          originalalertname   = coalesce(name, type_name),
+          originalalertsource = "Nozomi Networks - Guardian",
+          externallink        = null,
+          severity            = severity,
+          mitretacticid       = mitre_tactic_id,
+          mitretacticname     = mitre_tactic_name,
+          mitretechniqueid    = mitre_technique_id,
+          mitretechniquename  = mitre_technique_name,
+          action_local_ip     = ip_dst,
+          action_remote_ip    = ip_src,
+          action_remote_port  = nz_port_dst,
+          action_local_port   = nz_port_src,
+          dns_query_name      = dns_name
+
+  | alter
+          nozomi_type_id          = type_id,
+          nozomi_type_name        = type_name,
+          nozomi_threat_name      = threat_name,
+          nozomi_risk             = risk,
+          nozomi_is_incident      = is_incident,
+          nozomi_trigger_type     = trigger_type,
+          nozomi_ti_source        = ti_source,
+          nozomi_src_label        = label_src,
+          nozomi_dst_label        = label_dst,
+          nozomi_src_mac          = mac_src,
+          nozomi_dst_mac          = mac_dst,
+          nozomi_src_zone         = zone_src,
+          nozomi_dst_zone         = zone_dst,
+          nozomi_protocol         = coalesce(protocol, transport_protocol),
+          nozomi_appliance        = appliance_host,
+          nozomi_indicator        = nz_indicator,
+          nozomi_malicious_ip     = nz_mal_ip,
+          nozomi_solution         = nz_solution,
+          nozomi_rule_name        = nz_rule_name,
+          nozomi_ics_technique_id = mitre_ics_id
+
+  | alter alert_tags = arraycreate("DS:Nozomi Networks/Guardian", "DOM:Security")
+  | fields
+      id, name, type_id, type_name, threat_name, risk, nz_risk, nz_category, severity, status, is_incident, trigger_type, ti_source, ip_src, ip_dst, mac_src, mac_dst, nz_port_src, nz_port_dst, protocol, transport_protocol, label_src, label_dst, zone_src, zone_dst, appliance_host, mitre_tactic_id, mitre_tactic_name, mitre_technique_id, mitre_technique_name, mitre_ics_id, nz_indicator, nz_mal_domain, nz_mal_ip, nz_cause, nz_solution, nz_rule_name, dns_name, alert_name, alert_description, vendor, product, originalalertid, originalalertname, originalalertsource, externallink, mitretacticid, mitretacticname, mitretechniqueid, mitretechniquename, action_local_ip, action_remote_ip, action_remote_port, action_local_port, dns_query_name, nozomi_type_id, nozomi_type_name, nozomi_threat_name, nozomi_risk, nozomi_is_incident, nozomi_trigger_type, nozomi_ti_source, nozomi_src_label, nozomi_dst_label, nozomi_src_mac, nozomi_dst_mac, nozomi_src_zone, nozomi_dst_zone, nozomi_protocol, nozomi_appliance, nozomi_indicator, nozomi_malicious_ip, nozomi_solution, nozomi_rule_name, nozomi_ics_technique_id, alert_tags, *
