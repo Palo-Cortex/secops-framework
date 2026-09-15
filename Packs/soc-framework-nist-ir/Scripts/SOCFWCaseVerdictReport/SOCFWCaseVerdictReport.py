@@ -132,6 +132,18 @@ def write_case_contract(case_id, ai, case, payload):
     contract['analysed_at'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     contract['analysed_by'] = 'ai'
 
+    # Framework-derived, not model output, and deliberately not a merge. Cases
+    # opened from one batch of issues can be a single intrusion split across
+    # several records, and the platform groups issues into cases but never cases
+    # into cases - so nothing on the tenant will ever reconcile them. Surfaced on
+    # the case for an analyst to decide, on the same principle that dedup marks
+    # duplicates rather than self-closing them: marking is recoverable, merging
+    # is not.
+    siblings = [str(s) for s in (case.get('Siblings') or [])]
+    if siblings:
+        contract['sibling_cases'] = siblings
+        contract['sibling_review'] = 'suggested'
+
     # Shadow: the AI verdict lands under Analysis.AI on the case, not bare
     # Analysis. There is no deterministic case producer to compare against yet,
     # so writing to Analysis would make the first AI output authoritative by
@@ -177,6 +189,75 @@ def post_to_case(case_id, markdown):
         return False, str(e)[:120]
 
 
+# Markers the AI gateway and the task runner use when a prompt call fails.
+# LLM-specific only. 'Error from Scripts' matches any script failure in the
+# investigation, and reading the war room picks up errors from other tasks and
+# earlier iterations - which produced a stale traceback being reported as the
+# model's failure. A diagnostic that reports the wrong cause is worse than one
+# that reports nothing.
+AI_ERROR_MARKERS = ('failed to execute LLM', 'AI Gateway failed to generate content')
+
+
+def ai_error_text(raw, limit=320):
+    """Pull the model-call failure out of the aiTask's entries, if there was one.
+
+    The aiTask runs continueonerror, so a gateway rejection becomes an error
+    entry and the playbook moves on with an empty Analysis.AI - which at this
+    point is indistinguishable from a prompt that ran and returned nothing.
+
+    That ambiguity is expensive. Measured: a full day reading "model returned
+    nothing" as an unreliable model, while every call on the tenant was coming
+    back `AI Gateway failed to generate content: 400 Bad Request` on a 200-byte
+    input. The error was specific, immediate and swallowed.
+    """
+    text = str(raw or '')
+    for marker in AI_ERROR_MARKERS:
+        start = text.find(marker)
+        if start >= 0:
+            return ' '.join(text[start:start + limit].split())
+    return ''
+
+
+def recent_ai_error(limit=300):
+    """Read this run's own error entries rather than trusting a task binding.
+
+    lastCompletedTaskEntries arrives empty through the task argument, and a
+    binding that resolves to nothing looks exactly like a model that returned
+    nothing - the precise ambiguity this is supposed to remove. Reading the
+    investigation directly takes the binding out of the path.
+
+    Everything stays inside the try, including the unwrap. api() returns the raw
+    core-api-post list, and calling .get() on it outside the guard raised
+    AttributeError mid-render - which killed the whole entry rather than
+    degrading to "no error found", so the case silently stopped being reported
+    at all. A diagnostic must never be able to suppress the thing it reports on.
+    """
+    try:
+        inv = (demisto.investigation() or {}).get('id')
+        if not inv:
+            return ''
+        # A large page deliberately. pageSize returns entries from the start of
+        # the investigation, and the aiTask fires late in a run that emits
+        # twenty-plus entries - a small window reads the beginning of the JOB
+        # and reports "no error" from a place the error could never be.
+        res = api('/xsoar/public/v1/investigation/' + str(inv),
+                  {'pageSize': limit})
+        entry = res[0] if isinstance(res, list) and res else res
+        body = entry.get('Contents') if isinstance(entry, dict) else entry
+        if isinstance(body, str):
+            body = json.loads(body)
+        if isinstance(body, dict):
+            body = body.get('response') or body
+        for item in reversed((body or {}).get('entries') or []):
+            if isinstance(item, dict):
+                found = ai_error_text(item.get('contents'))
+                if found:
+                    return found
+    except Exception as exc:
+        demisto.debug(f'SOCFWCaseVerdictReport: entry read failed: {exc}')
+    return ''
+
+
 def as_obj(value):
     """Coerce a context value to a dict.
 
@@ -207,8 +288,14 @@ def main():
     # Scalars only. An object or array argument makes XSIAM run this task once
     # per element, which is what produced 118 entries for 16 cases.
     case_id = str(args.get('case_id') or 'unknown')
+    # Arrives comma-joined because an array argument would run this task
+    # once per sibling.
+    siblings = [x.strip() for x in str(args.get('siblings') or '').split(',')
+                if x.strip()]
+    ai_error = ai_error_text(args.get('ai_error'))
     case = {
         'ID': case_id,
+        'Siblings': siblings,
         'IssueCount': args.get('issue_count'),
         'Categories': args.get('categories'),
         'ShapeCoverage': as_obj(args.get('shape_coverage')),
@@ -240,6 +327,8 @@ def main():
         f"  categories    {', '.join(categories) if categories else '—'}",
         f"  response      {'recommended' if responded else 'not recommended'}",
     ]
+    if siblings:
+        lines.append(f"  siblings      {', '.join(siblings)}")
 
     scope = [
         ('compromise', ai.get('compromise_level')),
@@ -257,6 +346,10 @@ def main():
     story = ai.get('story') or []
     if isinstance(story, str):
         story = [story]
+
+    # Binding first, self-read as the fallback. Either way the entry states why.
+    if not story and not ai_error:
+        ai_error = recent_ai_error()
     if story:
         lines.append("")
         lines.append("  **ANALYSIS**")
@@ -266,10 +359,23 @@ def main():
         if len(story) > len(shown):
             lines.append(f"  … {len(story) - len(shown)} further step(s) omitted")
 
+    if siblings:
+        lines.append("")
+        lines.append(f"  \U0001F517 **POSSIBLE MERGE** \u2014 shares hosts or users and an "
+                     f"opening time with case {', '.join(siblings)}.")
+        lines.append("     Likely one intrusion across several case records. Evidence "
+                     "for earlier or later stages may sit there rather than here.")
+        lines.append("     The framework marks and does not merge \u2014 an analyst decides.")
+
     if verdict == 'inconclusive' and not story:
         lines.append("")
-        lines.append("  ⚫ No reasoning returned. Check the prompt inputs resolved — "
-                     "an empty payload produces this exact result.")
+        if ai_error:
+            lines.append("  \u26ab The model call failed. This is not an empty payload — "
+                         "the prompt never ran.")
+            lines.append(f"     {ai_error}")
+        else:
+            lines.append("  \u26ab No reasoning returned with no call error. The prompt ran "
+                         "and produced nothing; check the inputs resolved.")
 
     # The execution row, now carrying what was concluded rather than only what
     # was sent. event_type matches the existing convention (dedup, auto_triage,
@@ -314,8 +420,13 @@ def main():
         'prompt_input_tokens_est': len(str(case.get('Payload') or '')) // 4,
         'prompt_output_bytes': len(json.dumps(ai, separators=(',', ':'))),
         'prompt_output_tokens_est': len(json.dumps(ai, separators=(',', ':'))) // 4,
+        'sibling_cases': siblings,
+        'sibling_count': len(siblings),
+        'sibling_review': 'suggested' if siblings else None,
         'story_steps': len(story),
-        'reasoning_status': 'promoted' if story else 'no_output',
+        'reasoning_status': ('promoted' if story
+                             else 'call_failed' if ai_error else 'no_output'),
+        'ai_error': ai_error or None,
     }
 
     # The entry belongs on the case, not in the JOB's own War Room. Wrap the

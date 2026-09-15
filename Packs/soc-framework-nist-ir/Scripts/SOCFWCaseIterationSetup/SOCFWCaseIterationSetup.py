@@ -90,6 +90,14 @@ def main():
             value = json.dumps(value, separators=(',', ':'))
         demisto.setContext(f'CaseIter.{f}', value if value is not None else '')
 
+    # Comma-joined scalar, deliberately. An array argument makes XSIAM run the
+    # consuming task once per element - the trap that produced 118 entries for
+    # 16 cases - so the sibling list travels as a string and is split on arrival.
+    sibs = case.get('Siblings') or []
+    demisto.setContext(
+        'CaseIter.Siblings',
+        ','.join(str(x) for x in sibs) if isinstance(sibs, list) else str(sibs or ''))
+
     prior = read_prior_verdict(case.get('ID'))
     demisto.setContext('CaseIter.PriorVerdict',
                        json.dumps(prior, separators=(',', ':')) if prior else '')

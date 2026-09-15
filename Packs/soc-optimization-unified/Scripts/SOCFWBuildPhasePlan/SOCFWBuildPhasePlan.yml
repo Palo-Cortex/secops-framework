@@ -1,0 +1,55 @@
+fromversion: 6.10.0
+commonfields:
+  id: SOCFWBuildPhasePlan
+  version: -1
+name: SOCFWBuildPhasePlan
+comment: |-
+  Builds a lifecycle phase plan from the normalized contract, with no model
+  involved.
+
+  Emits one step per registry action belonging to the phase whose arguments the
+  contract can supply, ordered by sequence_rank. Step shape matches what the AI
+  planner produces, so SOCFWPhaseExecutor consumes either without change.
+dockerimage: demisto/python3:3.12.12.5490952
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+pswd: ''
+restrictioncenter: {}
+runas: DBotWeakRole
+runonce: false
+scripttarget: 0
+signature: ''
+sourcescripid: SOCFWBuildPhasePlan
+subtype: python3
+system: true
+tags:
+- SOC
+- SOC_Framework
+- Commands
+type: python
+script: ''
+args:
+- name: phase
+  description: Lifecycle phase to plan (containment, eradication, recovery).
+  defaultValue: containment
+- name: include_gaps
+  description: Keep actions the contract cannot supply an entity for, turning the
+    plan into a capability-coverage report. Defaults to false.
+  defaultValue: 'false'
+outputs:
+- contextPath: SOCFramework.Phase.Proposed.action
+  description: Universal command name for the proposed step.
+  type: String
+- contextPath: SOCFramework.Phase.Proposed.entity_type
+  description: Entity scope the action operates on.
+  type: String
+- contextPath: SOCFramework.Phase.Proposed.entity_value
+  description: Entity resolved from the contract.
+  type: String
+- contextPath: SOCFramework.Phase.Proposed.order
+  description: Proposed order, from sequence_rank.
+  type: Number
+- contextPath: SOCFramework.Phase.Proposed.planner
+  description: Which producer built the step.
+  type: String

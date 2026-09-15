@@ -61,6 +61,18 @@ args:
 - name: max_shapes
   description: Maximum distinct alert shapes carried per case, highest count first.
   defaultValue: "40"
+- name: min_coverage_pct
+  description: Minimum percentage of a case's issues that must have completed their
+    entry-point playbook before the case is analysed. Selection's settle window is
+    a time proxy for "the issues have finished"; this is the measurement. Below the
+    floor the case is deferred and returns next run at full coverage, rather than
+    producing a verdict over part of the evidence and being re-analysed anyway.
+  defaultValue: "100"
+- name: max_wait_minutes
+  description: Age past which a case is analysed even if it never reaches the coverage
+    floor, so a case whose issues never complete still gets a verdict. The contract
+    records what it actually covered.
+  defaultValue: "120"
 outputs:
 - contextPath: SOCFramework.Case.Payloads
   description: One entry per case, each carrying the prompt inputs for that case.
