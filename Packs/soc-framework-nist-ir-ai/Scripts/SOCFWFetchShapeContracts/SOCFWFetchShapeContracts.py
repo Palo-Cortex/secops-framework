@@ -49,6 +49,56 @@ DEFAULT_INTEL_ROOTS = ('DBotScore', 'File', 'IP', 'Domain', 'URL', 'WildFire',
                        'AttackPattern', 'Tactic')
 
 
+# Entry-vector artifacts promoted from the shape contracts to case level.
+#
+# Declared leaf paths rather than key-name matching. An inferred indicator set
+# changes shape silently whenever the normalize map does, and promoting the
+# wrong leaf is worse than promoting none.
+INDICATOR_PATHS = (
+    ('urls', ('Email', 'ThreatURL')),
+    ('email_senders', ('Email', 'From')),
+    ('email_recipients', ('Email', 'To')),
+    ('email_subjects', ('Email', 'Subject')),
+)
+
+
+def _dig(node, path):
+    for key in path:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node
+
+
+def collect_indicators(shapes):
+    """Lift the entry vector out of the per-shape contracts to case level.
+
+    The contract already carries the URL, sender and recipient that say how an
+    intrusion started, but they sit inside one shape's contract among twenty,
+    and the case-level entity blocks the reasoner leads on - hosts, hashes,
+    addresses - have no dimension for them. Measured on a spearphish-led replay:
+    the verdict named three hosts and a hash, correctly, and never mentioned
+    initial access, with the URL sitting in the payload the whole time.
+
+    Collected across every shape rather than the kept ones, and attached before
+    the character budget runs, because the phishing shape is a single
+    occurrence and so is the first thing the budget drops.
+    """
+    out = {}
+    for shape in shapes or []:
+        artifacts = (shape.get('contract') or {}).get('Artifacts') or {}
+        for label, path in INDICATOR_PATHS:
+            value = _dig(artifacts, path)
+            if value in (None, '', [], {}):
+                continue
+            bucket = out.setdefault(label, [])
+            for item in (value if isinstance(value, list) else [value]):
+                item = str(item).strip()
+                if item and item not in bucket:
+                    bucket.append(item)
+    return out
+
+
 def intel_roots(arg):
     """Resolve which context roots carry threat intelligence.
 
@@ -202,6 +252,13 @@ def main():
                              'attempt': prior_deferrals + 1,
                              'reason': f'{transient} contract fetch(es) failed'})
             continue
+
+        # Entry vector first, while every shape still has its contract - the
+        # budget below drops the lowest-occurrence shapes, and a phishing shape
+        # is a single occurrence.
+        indicators = collect_indicators(shapes)
+        if indicators:
+            payload['indicators'] = indicators
 
         # Hard platform limit: the LLM rejects a prompt over 100,000 characters
         # outright - "prompt length 385102 exceeds maximum allowed length". A

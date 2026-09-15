@@ -76,6 +76,87 @@ def supersede_prior(case_id):
     return tagged
 
 
+# Where the case-scoped analysis contract lives on the case, and the leaf that
+# commits it. analysed_at is written last and alone: readers gate on it, so a
+# run that dies part way through leaves a contract that reads as absent rather
+# than as a half-populated verdict.
+CONTRACT_ROOT = 'SOCFramework.Analysis.AI'
+BARRIER_LEAF = 'analysed_at'
+
+
+def write_contract_leaf(issue, leaf, value):
+    """Write one contract leaf to the case context, from a member issue.
+
+    Leaf by leaf rather than one JSON blob because a blob is stored as a STRING:
+    ${SOCFramework.Analysis.AI.verdict} resolves to null however clean the value
+    is, and stringify=false does not change it (measured on the tenant).
+    Individual leaves produce a real object that a playbook task argument can
+    bind to without a script in between, which is the point of calling this a
+    contract at all.
+
+    Every leaf lands as a STRING regardless of how it is written. Measured on
+    the tenant: `87`, 87 and "87" all read back as "87", and true reads back as
+    "true". There is no literal form that preserves a number, a boolean or an
+    array through this command, so the phase contract's declared number /
+    boolean / array types describe the shape the model produced, not the shape
+    the case context holds. A reader comparing case_score numerically has to
+    coerce. Backticks are kept anyway because they are what protects free text
+    from terminating the command line early.
+    """
+    if isinstance(value, bool):
+        rendered = 'true' if value else 'false'
+    elif isinstance(value, (int, float)):
+        rendered = str(value)
+    elif isinstance(value, (list, dict)):
+        rendered = json.dumps(value, separators=(',', ':'))
+    elif value is None:
+        rendered = ''
+    else:
+        rendered = str(value)
+
+    # The value rides a command line inside backticks, so a backtick or a
+    # newline in free text - story, compromise_decision - terminates it early.
+    # That fails as a normal entry rather than an error entry, which is how this
+    # used to report success while writing nothing.
+    rendered = rendered.replace('`', "'").replace('\r', ' ').replace('\n', ' ')
+
+    try:
+        res = api('/xsoar/public/v1/entry/execute/sync',
+                  {'investigationId': str(issue),
+                   'data': f'!setParentIncidentContext key={CONTRACT_ROOT}.{leaf} '
+                           f'value=`{rendered}`'})
+    except Exception as e:
+        return False, str(e)[:60]
+    entry = res[0] if isinstance(res, list) and res else res
+    said = str((entry or {}).get('Contents') or '')
+    if 'set' not in said.lower():
+        return False, said[:60]
+    return True, ''
+
+
+def clear_case_contract(case_id):
+    """Remove the whole contract subtree from the case before rewriting it.
+
+    setParentIncidentContext APPENDS on every repeat write and ignores
+    append=false - two writes leave ["first","second"] and a reader resolves the
+    oldest. Measured on the tenant: append=false is accepted and silently does
+    nothing, and individual leaves accumulate the same way, so clearing the
+    subtree is the only route that leaves exactly one value.
+
+    Runs IN the case investigation. !Set there returns a nil pointer panic,
+    which is why the write goes up from a member issue - but DeleteContext runs
+    there fine. That asymmetry is why the clear went missing.
+    """
+    try:
+        api('/xsoar/public/v1/entry/execute/sync',
+            {'investigationId': f'INCIDENT-{case_id}',
+             'data': f'!DeleteContext key={CONTRACT_ROOT}'})
+        return True, ''
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseVerdictReport: case contract clear failed: {e}')
+        return False, str(e)[:80]
+
+
 def load_analysis_contract():
     """Return the analysis write targets declared by SOCFrameworkPhaseContract_V3.
 
@@ -137,8 +218,33 @@ def write_case_contract(case_id, ai, case, payload):
             populated += 1
         contract[leaf] = value
 
-    contract['analysed_at'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     contract['analysed_by'] = 'ai'
+
+    # The contract describes its own coverage. max_analyses caps re-analysis at
+    # 2, so a case that keeps attracting issues gets a verdict over the issue
+    # set it actually saw and then stops being revisited - correctly, since
+    # re-reasoning on volume alone is not worth the spend. That is only honest
+    # if the contract says what it covered: a reader comparing these against the
+    # case's current alert_count can tell a current verdict from one that covers
+    # half the case. Without them a stale verdict and a fresh one are
+    # indistinguishable, which matters more now every field is individually
+    # bindable and therefore reads as authoritative.
+    coverage = case.get('ContractCoverage') or {}
+    contract['analysed_issue_count'] = case.get('IssueCount')
+    contract['analysed_covered_issues'] = coverage.get('covered_issues')
+    contract['analysed_total_issues'] = coverage.get('total_issues')
+
+    # Framework-derived, not model output, and deliberately not a merge. Cases
+    # opened from one batch of issues can be a single intrusion split across
+    # several records, and the platform groups issues into cases but never cases
+    # into cases - so nothing on the tenant will ever reconcile them. Surfaced on
+    # the case for an analyst to decide, on the same principle that dedup marks
+    # duplicates rather than self-closing them: marking is recoverable, merging
+    # is not.
+    siblings = [str(s) for s in (case.get('Siblings') or [])]
+    if siblings:
+        contract['sibling_cases'] = siblings
+        contract['sibling_review'] = 'suggested'
 
     # Shadow: the AI verdict lands under Analysis.AI on the case, not bare
     # Analysis. There is no deterministic case producer to compare against yet,
@@ -151,28 +257,34 @@ def write_case_contract(case_id, ai, case, payload):
     if not issue:
         return False, 'no member issue to write from'
 
-    # The value rides a command line inside backticks, so a backtick or newline
-    # in free text - compromise_decision, story - terminates it early. That fails
-    # as a normal entry rather than an error entry, which is why this used to
-    # report success while writing nothing.
-    blob = (json.dumps(contract, separators=(',', ':'))
-            .replace('`', "'").replace('\r', ' ').replace('\n', ' '))
-    try:
-        res = api('/xsoar/public/v1/entry/execute/sync',
-                  {'investigationId': issue,
-                   'data': f'!setParentIncidentContext key=SOCFramework.Analysis.AI '
-                           f'value=`{blob}`'})
-    except Exception as e:
-        demisto.debug(f'SOCFWCaseVerdictReport: case contract write failed: {e}')
-        return False, str(e)[:100]
+    cleared, clear_err = clear_case_contract(case_id)
+    if not cleared:
+        # Writing on top of an uncleared subtree reinstates the accumulation
+        # this whole path exists to remove, so stop rather than append.
+        return False, f'clear failed, write skipped: {clear_err}'
 
-    # Confirm from the response rather than from the absence of an exception.
-    entry = res[0] if isinstance(res, list) and res else res
-    said = str((entry or {}).get('Contents') or '')
-    if 'set' not in said.lower():
-        demisto.debug(f'SOCFWCaseVerdictReport: contract not set: {said[:200]}')
-        return False, f'not set: {said[:80]}'
-    return True, f'{populated}/{len(spec)} targets populated'
+    written, failed = 0, []
+    for leaf, value in contract.items():
+        ok, err = write_contract_leaf(issue, leaf, value)
+        if ok:
+            written += 1
+        else:
+            failed.append(f'{leaf}: {err}')
+
+    # The barrier is withheld if any data leaf failed, so a partial write reads
+    # as "analysis never ran" rather than as a finished verdict over a subset of
+    # the fields. Fail absent, never fail plausible.
+    if failed:
+        return False, (f'{written}/{len(contract)} leaves written, barrier withheld — '
+                       + '; '.join(failed)[:140])
+
+    ok, err = write_contract_leaf(
+        issue, BARRIER_LEAF, datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'))
+    if not ok:
+        return False, f'{written} leaves written, barrier failed: {err}'
+
+    return True, (f'{populated}/{len(spec)} targets populated, '
+                  f'{written + 1} leaves written, barrier set')
 
 
 def member_issue(case_id, payload):
@@ -230,6 +342,75 @@ def post_to_case(case_id, markdown):
     except Exception as e:
         demisto.debug(f'SOCFWCaseVerdictReport: could not write to case {case_id}: {e}')
         return False, str(e)[:120]
+
+
+# Markers the AI gateway and the task runner use when a prompt call fails.
+# LLM-specific only. 'Error from Scripts' matches any script failure in the
+# investigation, and reading the war room picks up errors from other tasks and
+# earlier iterations - which produced a stale traceback being reported as the
+# model's failure. A diagnostic that reports the wrong cause is worse than one
+# that reports nothing.
+AI_ERROR_MARKERS = ('failed to execute LLM', 'AI Gateway failed to generate content')
+
+
+def ai_error_text(raw, limit=320):
+    """Pull the model-call failure out of the aiTask's entries, if there was one.
+
+    The aiTask runs continueonerror, so a gateway rejection becomes an error
+    entry and the playbook moves on with an empty Analysis.AI - which at this
+    point is indistinguishable from a prompt that ran and returned nothing.
+
+    That ambiguity is expensive. Measured: a full day reading "model returned
+    nothing" as an unreliable model, while every call on the tenant was coming
+    back `AI Gateway failed to generate content: 400 Bad Request` on a 200-byte
+    input. The error was specific, immediate and swallowed.
+    """
+    text = str(raw or '')
+    for marker in AI_ERROR_MARKERS:
+        start = text.find(marker)
+        if start >= 0:
+            return ' '.join(text[start:start + limit].split())
+    return ''
+
+
+def recent_ai_error(limit=300):
+    """Read this run's own error entries rather than trusting a task binding.
+
+    lastCompletedTaskEntries arrives empty through the task argument, and a
+    binding that resolves to nothing looks exactly like a model that returned
+    nothing - the precise ambiguity this is supposed to remove. Reading the
+    investigation directly takes the binding out of the path.
+
+    Everything stays inside the try, including the unwrap. api() returns the raw
+    core-api-post list, and calling .get() on it outside the guard raised
+    AttributeError mid-render - which killed the whole entry rather than
+    degrading to "no error found", so the case silently stopped being reported
+    at all. A diagnostic must never be able to suppress the thing it reports on.
+    """
+    try:
+        inv = (demisto.investigation() or {}).get('id')
+        if not inv:
+            return ''
+        # A large page deliberately. pageSize returns entries from the start of
+        # the investigation, and the aiTask fires late in a run that emits
+        # twenty-plus entries - a small window reads the beginning of the JOB
+        # and reports "no error" from a place the error could never be.
+        res = api('/xsoar/public/v1/investigation/' + str(inv),
+                  {'pageSize': limit})
+        entry = res[0] if isinstance(res, list) and res else res
+        body = entry.get('Contents') if isinstance(entry, dict) else entry
+        if isinstance(body, str):
+            body = json.loads(body)
+        if isinstance(body, dict):
+            body = body.get('response') or body
+        for item in reversed((body or {}).get('entries') or []):
+            if isinstance(item, dict):
+                found = ai_error_text(item.get('contents'))
+                if found:
+                    return found
+    except Exception as exc:
+        demisto.debug(f'SOCFWCaseVerdictReport: entry read failed: {exc}')
+    return ''
 
 
 def as_obj(value):
@@ -295,8 +476,14 @@ def main():
     # Scalars only. An object or array argument makes XSIAM run this task once
     # per element, which is what produced 118 entries for 16 cases.
     case_id = str(args.get('case_id') or 'unknown')
+    # Arrives comma-joined because an array argument would run this task
+    # once per sibling.
+    siblings = [x.strip() for x in str(args.get('siblings') or '').split(',')
+                if x.strip()]
+    ai_error = ai_error_text(args.get('ai_error'))
     case = {
         'ID': case_id,
+        'Siblings': siblings,
         'IssueCount': args.get('issue_count'),
         'Categories': args.get('categories'),
         'ShapeCoverage': as_obj(args.get('shape_coverage')),
@@ -326,6 +513,10 @@ def main():
     if isinstance(story, str):
         story = [story]
 
+    # Binding first, self-read as the fallback. Either way the entry states why.
+    if not story and not ai_error:
+        ai_error = recent_ai_error()
+
     headline = (f"{verdict.upper()}   {conf} {confidence or 'unknown'}"
                 if story else "NO VERDICT — model returned nothing")
     lines = [
@@ -337,6 +528,8 @@ def main():
         f"  categories    {', '.join(categories) if categories else '—'}",
         f"  response      {'recommended' if responded else 'not recommended'}",
     ]
+    if siblings:
+        lines.append(f"  siblings      {', '.join(siblings)}")
 
     scope = [
         ('compromise', ai.get('compromise_level')),
@@ -360,10 +553,23 @@ def main():
         if len(story) > len(shown):
             lines.append(f"  … {len(story) - len(shown)} further step(s) omitted")
 
+    if siblings:
+        lines.append("")
+        lines.append(f"  \U0001F517 **POSSIBLE MERGE** \u2014 shares hosts or users and an "
+                     f"opening time with case {', '.join(siblings)}.")
+        lines.append("     Likely one intrusion across several case records. Evidence "
+                     "for earlier or later stages may sit there rather than here.")
+        lines.append("     The framework marks and does not merge \u2014 an analyst decides.")
+
     if verdict == 'inconclusive' and not story:
         lines.append("")
-        lines.append("  ⚫ No reasoning returned. Check the prompt inputs resolved — "
-                     "an empty payload produces this exact result.")
+        if ai_error:
+            lines.append("  \u26ab The model call failed. This is not an empty payload — "
+                         "the prompt never ran.")
+            lines.append(f"     {ai_error}")
+        else:
+            lines.append("  \u26ab No reasoning returned with no call error. The prompt ran "
+                         "and produced nothing; check the inputs resolved.")
 
     # The execution row, now carrying what was concluded rather than only what
     # was sent. event_type matches the existing convention (dedup, auto_triage,
@@ -408,8 +614,13 @@ def main():
         'prompt_input_tokens_est': len(str(case.get('Payload') or '')) // 4,
         'prompt_output_bytes': len(json.dumps(ai, separators=(',', ':'))),
         'prompt_output_tokens_est': len(json.dumps(ai, separators=(',', ':'))) // 4,
+        'sibling_cases': siblings,
+        'sibling_count': len(siblings),
+        'sibling_review': 'suggested' if siblings else None,
         'story_steps': len(story),
-        'reasoning_status': 'promoted' if story else 'no_output',
+        'reasoning_status': ('promoted' if story
+                             else 'call_failed' if ai_error else 'no_output'),
+        'ai_error': ai_error or None,
     }
 
     # The entry belongs on the case, not in the JOB's own War Room. Wrap the
