@@ -263,6 +263,24 @@ def main():
             'ips': ip_rows,
         }
 
+        # One intrusion can occupy several case records. Say so in the payload
+        # rather than let a verdict describe half an intrusion as the whole of
+        # one: on the split replay the half holding initial access and
+        # persistence named the domain controller as the origin, because the
+        # half holding the entry point was a different case. The instruction to
+        # read a missing stage as unknown rather than absent is the part that
+        # matters - a confident wrong narrative is worse than a hedged one.
+        siblings = cand.get('siblings') or []
+        if siblings:
+            payload['sibling_cases'] = siblings
+            payload['sibling_note'] = (
+                'This case shares hosts or users and a time window with '
+                f'{len(siblings)} other case(s): {", ".join(siblings)}. They are '
+                'likely one intrusion split across several case records. '
+                'Evidence for earlier or later stages of this intrusion may sit '
+                'in those cases rather than this one, so treat a missing entry '
+                'point or a missing later stage as unknown, not absent.')
+
         if len(case_shapes) < min_shapes and cov_total < campaign_issues:
             single_shape.append({'case_id': cid, 'issues': cov_total,
                                  'shapes': len(case_shapes),
@@ -281,6 +299,7 @@ def main():
                               'issue_coverage_pct': coverage},
             'ContractCoverage': {'covered_issues': cov_ok, 'total_issues': cov_total,
                                  'pct': cov_pct},
+            'Siblings': siblings,
             'Payload': json.dumps(payload, separators=(',', ':')),
         })
 
@@ -336,9 +355,20 @@ def main():
         'min_coverage_pct': min_coverage_pct,
         'cases_single_shape': len(single_shape),
         'skipped_unchanged': stats.get('skipped_unchanged'),
-        'skipped_terminal': stats.get('skipped_terminal'),
+        # Renamed from skipped_terminal when selection inverted to an allow-list.
+        # A case skipped for status has to stay distinguishable from one skipped
+        # by the watermark, and the breakdown names the statuses so a status the
+        # allow-list does not know about is visible in the ledger rather than
+        # only in the absence of candidates.
+        'skipped_ineligible_status': stats.get('skipped_ineligible_status'),
+        'skipped_status_breakdown': stats.get('skipped_status_breakdown'),
+        'eligible_statuses': stats.get('eligible_statuses'),
         'skipped_out_of_domain': stats.get('skipped_out_of_domain'),
         'reselected_for_coverage': stats.get('reselected_for_coverage'),
+        'sibling_groups': stats.get('sibling_groups'),
+        'watermark_cases': stats.get('watermark_cases'),
+        'watermark_note': stats.get('watermark_note'),
+        'cases_with_siblings': stats.get('cases_with_siblings'),
         'domain': stats.get('domain'),
         'xql_queries': cost['queries'],
         'xql_cost_charged': cost['cost_charged'],
@@ -362,6 +392,7 @@ def main():
             'contract_coverage_pct': p['ContractCoverage']['pct'],
             'payload_bytes': len(p['Payload']),
             'categories': p['Categories'],
+            'sibling_cases': p.get('Siblings') or [],
         })
 
     # setContext assigns; CommandResults outputs append. Downstream tasks read
