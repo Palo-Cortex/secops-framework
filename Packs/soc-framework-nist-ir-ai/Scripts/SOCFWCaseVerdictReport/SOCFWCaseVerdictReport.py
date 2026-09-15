@@ -249,6 +249,39 @@ def as_obj(value):
     return value if isinstance(value, dict) else {}
 
 
+EXECUTION_WRITER = 'socfw_ir_execution_writer'
+
+
+def post_execution_row(row):
+    """Write the verdict row to xsiam_socfw_ir_execution_raw from this script.
+
+    Verified on the tenant: socfw-post-to-dataset accepts the full row - 45 of
+    47 fields landed on a direct call, the two missing being the ones sent as
+    None. So the command and the dataset were never the problem; the task
+    binding was.
+
+    Not fatal. A case that cannot write its row still has its contract and its
+    War Room entry - but the note is returned so the failure is visible in the
+    entry instead of being swallowed by continueonerror, which is how this went
+    unnoticed across 12,527 rows.
+    """
+    try:
+        blob = json.dumps(row, separators=(',', ':'), default=str)
+        res = demisto.executeCommand('socfw-post-to-dataset',
+                                     {'JSON': blob, 'using': EXECUTION_WRITER})
+        if isinstance(res, list):
+            res = res[0] if res else {}
+        said = str((res or {}).get('Contents') or '')
+        # Confirm from the response, not from the absence of an exception. The
+        # writer answers "Posted N event(s) to the HTTP Collector."
+        if 'post' not in said.lower() and 'event' not in said.lower():
+            return False, f'unconfirmed: {said[:80]}'
+        return True, f'{len(row)} fields, {len(blob)}B'
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseVerdictReport: execution row post failed: {e}')
+        return False, str(e)[:100]
+
+
 def main():
     args = demisto.args()
 
@@ -444,6 +477,23 @@ def main():
     demisto.setContext('CaseAnalysis.case_id', case_id)
     demisto.setContext('CaseAnalysis.verdict', verdict)
 
+    # Post the row here rather than through a task binding. The sub-playbook
+    # runs separatecontext: true, and the task that used to read
+    # CaseAnalysis.ExecutionRow never received it - so the dataset recorded the
+    # JOB's PRE-analysis row (action_actor: framework, written before the prompt
+    # runs) and never a verdict. prompt_output_bytes was therefore null on every
+    # row ever written, which makes the watermark's
+    #   analyses = if(prompt_output_bytes > 100, 1, 0)
+    # compute 0 for every case - so max_analyses has never once fired and only
+    # max_attempts ever limited a case.
+    #
+    # setContext above is kept for anything reading the key, but nothing is
+    # allowed to depend on a binding resolving it. This is the second silent
+    # failure from a Stringify task binding on this JOB; the contract write and
+    # the War Room entry already go direct from here, and now so does this.
+    row_posted, row_note = post_execution_row(row)
+    demisto.setContext('CaseAnalysis.RowPosted', row_posted)
+
     if not has_verdict and not written:
         trace = "\n\n  ⚫ no verdict produced — prior verdict on the case kept"
     elif not has_verdict:
@@ -455,6 +505,11 @@ def main():
                  f"{f', {superseded} prior verdict(s) superseded' if superseded else ''}")
     else:
         trace = f"\n\n  ⚫ case write failed: {err}"
+
+    # The ledger is the scaling path, so a dropped row is a first-class failure,
+    # not a detail. Said out loud either way.
+    trace += (f"\n  ↳ ledger row: {row_note}" if row_posted
+              else f"\n  ⚫ LEDGER ROW NOT WRITTEN — {row_note}")
     return_results(CommandResults(readable_output=body + trace))
 
 

@@ -146,6 +146,12 @@ def main():
     shapes = by_case(results['shapes'])
     entities = by_case(results['entities'])
     coverage_rows = by_case(results['coverage'])
+    # Full coverage by default. Anything less is a case still filling, and the
+    # settle window in selection cannot see that - it only sees the clock.
+    min_coverage_pct = float(demisto.args().get('min_coverage_pct') or 100)
+    max_wait_minutes = float(demisto.args().get('max_wait_minutes') or 120)
+    now_ms = int(datetime.utcnow().timestamp() * 1000)
+    deferred_coverage = []
 
     payloads = []
     uncontracted = []
@@ -164,6 +170,24 @@ def main():
             uncontracted.append({'case_id': cid, 'issues': cov_total,
                                  'issue_domain': cov.get('issue_domain'),
                                  'incident_domain': cand.get('incident_domain')})
+            continue
+
+        # Coverage floor. Selection's settle window is a TIME proxy for "the
+        # issues have finished"; this is the measurement. A case analysed at
+        # partial coverage produces a verdict over part of the evidence, then
+        # comes back anyway once the stragglers land their contracts - so early
+        # analysis costs a second AI call and returns the worse contract first.
+        #
+        # Analysing once, late, on complete evidence beats analysing twice.
+        # The age escape stops a case that never reaches full coverage from
+        # going dark: past max_wait_minutes it is analysed as it stands, and the
+        # contract records what it covered.
+        created = int(cand.get('creation_time') or 0)
+        age_min = ((now_ms - created) / 60000.0) if created else 0
+        if cov_pct < min_coverage_pct and age_min < max_wait_minutes:
+            deferred_coverage.append({'case_id': cid, 'covered': cov_ok,
+                                      'total': cov_total, 'pct': cov_pct,
+                                      'age_minutes': round(age_min, 1)})
             continue
 
         case_shapes = sorted(shapes.get(cid, []),
@@ -276,6 +300,12 @@ def main():
     if uncontracted:
         readable += '\n\n' + tableToMarkdown(
             'Skipped — no contracted issues (entry point never ran)', uncontracted)
+    if deferred_coverage:
+        readable += '\n\n' + tableToMarkdown(
+            f'Deferred — below the {min_coverage_pct}% coverage floor, issues still '
+            f'executing (returns next run; forced past {max_wait_minutes}m old)',
+            deferred_coverage)
+
     if single_shape:
         readable += '\n\n' + tableToMarkdown(
             f'Skipped — fewer than {min_shapes} shapes and under {campaign_issues} '
@@ -300,6 +330,10 @@ def main():
         'cases_candidates': stats.get('candidates'),
         'cases_analysed': len(payloads),
         'cases_uncontracted': len(uncontracted),
+        # Deferred, not skipped: these come back next run at full coverage. The
+        # count is what distinguishes "waiting for evidence" from "nothing to do".
+        'cases_deferred_coverage': len(deferred_coverage),
+        'min_coverage_pct': min_coverage_pct,
         'cases_single_shape': len(single_shape),
         'skipped_unchanged': stats.get('skipped_unchanged'),
         'skipped_terminal': stats.get('skipped_terminal'),

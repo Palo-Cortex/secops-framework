@@ -122,7 +122,7 @@ tasks:
       - '110'
     scriptarguments:
       query:
-        simple: "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"case_analysis\" and case_id != null\n| alter produced = if(prompt_output_bytes > 100, 1, 0)\n| comp sum(produced) as analyses,\n       count() as attempts,\n       max(issue_count) as analysed_issue_count,\n       max(contract_covered_issues) as analysed_covered_issues,\n       max(contract_total_issues) as analysed_total_issues,\n       max(_time) as analysed_at\n       by case_id"
+        simple: "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"case_analysis\" and case_id != null and case_id != \"unknown\" and action_actor = \"ai\"\n| alter produced = if(prompt_output_bytes > 100, 1, 0)\n| comp sum(produced) as analyses,\n       count() as attempts,\n       max(issue_count) as analysed_issue_count,\n       max(contract_covered_issues) as analysed_covered_issues,\n       max(contract_total_issues) as analysed_total_issues,\n       max(_time) as analysed_at\n       by case_id"
       query_name:
         simple: socfw_case_watermark
       time_frame:
@@ -365,6 +365,8 @@ tasks:
         simple: ${SOCFramework.Case.Candidates}
       max_shapes:
         simple: ${SOCFramework.Case.Config.CaseMaxShapes}
+      min_coverage_pct:
+        simple: ${SOCFramework.Case.Config.CaseMinCoveragePct}
       min_shapes:
         simple: ${SOCFramework.Case.Config.CaseMinShapes}
       campaign_issues:
@@ -397,7 +399,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - '170'
+      - '167'
     scriptarguments:
       intel_roots:
         simple: ${SOCFramework.Case.Config.CaseIntelRoots}
@@ -413,6 +415,50 @@ tasks:
     continueonerror: true
     continueonerrortype: ''
     view: "{\n  \"position\": {\n    \"x\": 162.5,\n    \"y\": 1700\n  }\n}"
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '167':
+    id: '167'
+    taskid: 9f2c5b41-7d3e-4a86-b0c2-51e8d7a4f913
+    type: condition
+    task:
+      id: 9f2c5b41-7d3e-4a86-b0c2-51e8d7a4f913
+      version: -1
+      name: Any payloads?
+      description: >-
+        Gate the analysis phase on PAYLOADS, not on candidates. The coverage
+        floor in SOCFWBuildCasePayload can defer every candidate, so a run can
+        select a case and still build nothing. Running the sub-playbook with an
+        empty input fired the verdict report against no case - case_id fell
+        through to "unknown" and it wrote a junk row to the execution dataset
+        and, worse, into the watermark aggregate. Candidates is what we WANTED
+        to analyse; payloads is what we CAN.
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent:
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '177'
+      'yes':
+      - '170'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: SOCFramework.Case.Payloads
+            iscontext: true
+    continueonerrortype: ''
+    view: "{\n  \"position\": {\n    \"x\": 50,\n    \"y\": 1700\n  }\n}"
     note: false
     timertriggers: []
     ignoreworker: false

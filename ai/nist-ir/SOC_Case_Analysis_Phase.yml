@@ -160,7 +160,7 @@ tasks:
       istaskmissingcomponenterrordismissed: false
     nexttasks:
       '#none#':
-      - "25"
+      - "30"
     scriptarguments:
       case_id:
         simple: ${CaseIter.ID}
@@ -176,6 +176,13 @@ tasks:
         simple: ${CaseIter.PriorVerdict}
       shape_coverage:
         simple: ${CaseIter.ShapeCoverage}
+      siblings:
+        simple: ${CaseIter.Siblings}
+      ai_error:
+        complex:
+          root: lastCompletedTaskEntries
+          transformers:
+          - operator: Stringify
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -184,49 +191,6 @@ tasks:
         "position": {
           "x": 50,
           "y": 590
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "25":
-    id: "25"
-    taskid: 58aba93a-092b-45c4-8445-93ba08adeb4f
-    type: regular
-    task:
-      id: 58aba93a-092b-45c4-8445-93ba08adeb4f
-      version: -1
-      name: Post Case Verdict to Execution Dataset
-      description: Writes the case_analysis row via socfw_ir_execution_writer.
-      script: '|||socfw-post-to-dataset'
-      type: regular
-      iscommand: true
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "30"
-    scriptarguments:
-      JSON:
-        complex:
-          root: CaseAnalysis.ExecutionRow
-          transformers:
-          - operator: Stringify
-      using:
-        simple: socfw_ir_execution_writer
-    separatecontext: false
-    continueonerror: true
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 50,
-          "y": 775
         }
       }
     note: false
