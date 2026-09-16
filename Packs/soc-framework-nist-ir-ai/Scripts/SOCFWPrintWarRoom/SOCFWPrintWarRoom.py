@@ -1,20 +1,22 @@
-"""Layout button handler. Exports the case War Room to a markdown file.
+"""Layout button handler. Exports the issue War Room to a markdown file.
 
 The War Room is already the complete record of what the SOC did - who acted,
 when, through which vendor command, and what came back. What it is not is
 portable: it lives behind a tenant login and truncates on screen. This renders
 it to a file an analyst can hand to legal, who print it to PDF themselves.
 
+Scope is the issue the button was pressed on, not the case it belongs to.
+
 Deliberately lifecycle-agnostic and read-only. It reads entries and writes a
 file. It executes nothing, so there is no Shadow Mode gate on it and no
 SOCCommandWrapper call - printing a record is not an action against the
 environment.
 
-Shadow Mode does matter for what the file SAYS. During a PoV every C/E/R action
-is simulated, and a record that renders those as actions taken is a document
-asserting containment that never happened. Rather than infer the tenant's mode,
-this counts the wrapper's own shadow markers in the entries and banners the file
-accordingly. The evidence for the banner is the same evidence the reader sees.
+The export is verbatim. Entries are reproduced as written, in the order they
+were recorded, with nothing summarised, reordered or interpreted. Where the
+platform logged that a command was not executed, that entry says so in its own
+words and the reader sees it in place. This script adds no verdict of its own
+on top of the record.
 """
 
 import json
@@ -24,20 +26,7 @@ from datetime import datetime, timezone
 import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401,F403
 
-# How an entry declares which mode it ran in. Two forms each: the wrapper's
-# human banner ("SHADOW MODE (Command Not Executed)") and the execution_mode
-# field it writes to the dataset.
-#
-# Matched on the whole phrase, not the word "shadow" alone - a case carrying
-# Shadow IT fields is not a simulated response, and mis-bannering a production
-# record as a simulation is as damaging as the reverse. For the same reason
-# the underscore form `shadow_mode` is deliberately NOT matched: it appears in
-# `shadow_mode_state: production`, where it means the opposite.
-SHADOW_MARKER = re.compile(
-    r"shadow\s+mode|execution_mode['\"\s:=]+shadow", re.IGNORECASE)
-EXECUTED_MARKER = re.compile(r"execution_mode['\"\s:=]+production", re.IGNORECASE)
-
-MAX_ENTRIES = 5000       # Past this the case is not a document.
+MAX_ENTRIES = 5000       # Past this the issue is not a document.
 MAX_ENTRY_CHARS = 20000  # Per entry. Anything larger is a payload dump.
 
 # Entry type -> label. XSOAR/XSIAM numeric entry types; unknown types fall
@@ -73,8 +62,8 @@ def unwrap(res):
     return res
 
 
-def fetch_entries(case_id):
-    """Return every War Room entry for the case, oldest first.
+def fetch_entries(issue_id):
+    """Return every War Room entry for the issue, oldest first.
 
     One unpaged read, deliberately. Verified against the platform: the
     investigation endpoint accepts `page` and then ignores it - every page
@@ -83,9 +72,9 @@ def fetch_entries(case_id):
 
     The id goes in bare. Prefixing it with INCIDENT- or ISSUE- does not fail;
     it returns an empty investigation shell and creates that shell as a side
-    effect, which reads as "the case has no entries" when it has plenty.
+    effect, which reads as "this issue has no entries" when it has plenty.
     """
-    res = unwrap(api(f"/xsoar/public/v1/investigation/{case_id}", {}))
+    res = unwrap(api(f"/xsoar/public/v1/investigation/{issue_id}", {}))
     entries = (demisto.get(res, "Contents.response.entries")
                or demisto.get(res, "Contents.entries")
                or demisto.get(res, "response.entries")
@@ -96,7 +85,7 @@ def fetch_entries(case_id):
 
     truncated = None
     if len(entries) > MAX_ENTRIES:
-        truncated = (f"Entry cap reached: this case has {len(entries)} entries "
+        truncated = (f"Entry cap reached: this issue has {len(entries)} entries "
                      f"and only the first {MAX_ENTRIES} are included. This "
                      f"export is incomplete.")
         entries = entries[:MAX_ENTRIES]
@@ -118,7 +107,7 @@ def entry_text(entry):
         cut = len(contents) - MAX_ENTRY_CHARS
         return (contents[:MAX_ENTRY_CHARS]
                 + f"\n\n[... {cut} characters omitted from this entry. "
-                  f"The full text is in the War Room on the case.]"), True
+                  f"The full text is in the War Room on the issue.]"), True
     return contents, False
 
 
@@ -141,10 +130,6 @@ def ts(value):
         return str(value)
 
 
-def plural(n, one, many):
-    return f"{n} {one if n == 1 else many}"
-
-
 def current_user():
     """Who pressed the button. Best effort - the export is valid without it."""
     try:
@@ -158,20 +143,20 @@ def current_user():
     return "unknown"
 
 
-def header(inc, entries, shadow_count, executed_count, truncated):
+def header(inc, entries, truncated):
     """The cover block. Everything a reader needs to place the document."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     opened = ts(inc.get("created"))
     closed = ts(inc.get("closed")) if inc.get("closed") else "not closed"
 
     lines = [
-        f"# War Room Record - Case {inc.get('id')}",
+        f"# War Room Record - Issue {inc.get('id')}",
         "",
-        f"**{inc.get('name') or '(unnamed case)'}**",
+        f"**{inc.get('name') or '(unnamed issue)'}**",
         "",
         "| | |",
         "|---|---|",
-        f"| Case ID | {inc.get('id')} |",
+        f"| Issue ID | {inc.get('id')} |",
         f"| Severity | {inc.get('severity')} |",
         f"| Status | {inc.get('status')} |",
         f"| Owner | {inc.get('owner') or 'unassigned'} |",
@@ -181,7 +166,7 @@ def header(inc, entries, shadow_count, executed_count, truncated):
         f"| Exported | {now} |",
         f"| Exported by | {current_user()} |",
         "",
-        "This is a verbatim export of the War Room for the case above, in the "
+        "This is a verbatim export of the War Room for the issue above, in the "
         "order events were recorded. Nothing has been summarised, reordered, or "
         "removed except where an omission is stated inline.",
         "",
@@ -190,44 +175,16 @@ def header(inc, entries, shadow_count, executed_count, truncated):
     if truncated:
         lines += [f"> **INCOMPLETE EXPORT.** {truncated}", ""]
 
-    if shadow_count:
-        lines += [
-            "> ## SIMULATED RESPONSE - NOT A RECORD OF ACTIONS TAKEN",
-            ">",
-            f"> {plural(shadow_count, 'entry', 'entries')} in this record "
-            f"{'carries' if shadow_count == 1 else 'carry'} the platform's "
-            "Shadow Mode marker. Shadow Mode means the response action was "
-            "evaluated and logged but **the vendor command was never sent** - "
-            "no host was isolated, no account was disabled, no file was "
-            "removed.",
-            ">",
-            "> Entries so marked describe what the platform would have done. "
-            "They must not be read, cited, or forwarded as evidence that the "
-            "action occurred."
-            + (f" {plural(executed_count, 'entry', 'entries')} in this record "
-               f"{'is' if executed_count == 1 else 'are'} marked as executed "
-               "against production; those are actions actually taken."
-               if executed_count else
-               " No entry in this record is marked as executed against "
-               "production."),
-            "",
-        ]
 
     lines += ["---", ""]
     return lines
 
 
 def render(inc, entries, truncated):
-    shadow_count = 0
-    executed_count = 0
     body = []
 
     for i, e in enumerate(entries, 1):
         text, cut = entry_text(e)
-        if SHADOW_MARKER.search(text):
-            shadow_count += 1
-        elif EXECUTED_MARKER.search(text):
-            executed_count += 1
 
         kind = ENTRY_TYPES.get(e.get("type"), f"type {e.get('type')}")
         cat = e.get("category")
@@ -254,25 +211,25 @@ def render(inc, entries, truncated):
             body.append("> This entry was truncated for length. See note above.")
         body.append("")
 
-    return "\n".join(header(inc, entries, shadow_count, executed_count, truncated)
-                     + body), shadow_count
+    return "\n".join(header(inc, entries, truncated) + body)
 
 
 def main():
     try:
         inc = demisto.incident() or {}
-        case_id = inc.get("id")
-        if not case_id:
+        issue_id = inc.get("id")
+        if not issue_id:
             return_results(CommandResults(readable_output=(
-                "⚫ **Print War Room** - no case in scope.\n\n"
-                "This script reads the War Room of the case it is run from. Run "
-                "it from the button on a case layout, not from the Playground.")))
+                "⚫ **Print War Room** - no issue in scope.\n\n"
+                "This script reads the War Room of the issue it is run from. Run "
+                "it from the button on an issue layout, not from the Playground.")))
             return
 
-        entries, truncated = fetch_entries(case_id)
+        entries, truncated = fetch_entries(issue_id)
         if not entries:
             return_results(CommandResults(readable_output=(
-                f"⚫ **Print War Room** - case {case_id} returned no entries.\n\n"
+                f"⚫ **Print War Room** - issue {issue_id} returned no "
+                "entries.\n\n"
                 "The investigation read succeeded but carried no entries, so "
                 "nothing was written - this is not an empty export, it is no "
                 "export. Check that the Core REST API integration instance is "
@@ -280,19 +237,14 @@ def main():
                 "access.")))
             return
 
-        content, shadow_count = render(inc, entries, truncated)
+        content = render(inc, entries, truncated)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        filename = f"WarRoom_Case-{case_id}_{stamp}.md"
+        filename = f"WarRoom_Issue-{issue_id}_{stamp}.md"
 
         note = (f"✅ **Print War Room** - {len(entries)} entries exported to "
-                f"`{filename}`, attached to this case.\n\n"
+                f"`{filename}`, attached to this issue.\n\n"
                 "Open the attachment and print to PDF from your browser or "
                 "editor.")
-        if shadow_count:
-            note += (f"\n\n🟠 **{shadow_count} Shadow Mode entr"
-                     f"{'y' if shadow_count == 1 else 'ies'}** — the export is "
-                     "bannered as a simulation. Response actions in it were "
-                     "logged, not executed.")
         if truncated:
             note += f"\n\n🟠 {truncated}"
 
