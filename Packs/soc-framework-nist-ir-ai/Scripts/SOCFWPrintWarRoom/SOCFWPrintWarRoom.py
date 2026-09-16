@@ -24,14 +24,20 @@ from datetime import datetime, timezone
 import demistomock as demisto  # noqa: F401
 from CommonServerPython import *  # noqa: F401,F403
 
-# The string SOCCommandWrapper writes when it declines to call the vendor. If
-# the wrapper's wording changes this banner goes quiet, so it is matched loosely
-# on the two words that carry the meaning rather than the full sentence.
-SHADOW_MARKER = re.compile(r"shadow\s+mode", re.IGNORECASE)
+# How an entry declares which mode it ran in. Two forms each: the wrapper's
+# human banner ("SHADOW MODE (Command Not Executed)") and the execution_mode
+# field it writes to the dataset.
+#
+# Matched on the whole phrase, not the word "shadow" alone - a case carrying
+# Shadow IT fields is not a simulated response, and mis-bannering a production
+# record as a simulation is as damaging as the reverse. For the same reason
+# the underscore form `shadow_mode` is deliberately NOT matched: it appears in
+# `shadow_mode_state: production`, where it means the opposite.
+SHADOW_MARKER = re.compile(
+    r"shadow\s+mode|execution_mode['\"\s:=]+shadow", re.IGNORECASE)
 EXECUTED_MARKER = re.compile(r"execution_mode['\"\s:=]+production", re.IGNORECASE)
 
-PAGE_SIZE = 200
-MAX_PAGES = 50          # 10,000 entries. Past this the case is not a document.
+MAX_ENTRIES = 5000       # Past this the case is not a document.
 MAX_ENTRY_CHARS = 20000  # Per entry. Anything larger is a payload dump.
 
 # Entry type -> label. XSOAR/XSIAM numeric entry types; unknown types fall
@@ -42,6 +48,7 @@ ENTRY_TYPES = {
     2: "download",
     3: "file",
     4: "error",
+    6: "chat",
     9: "pinned",
     11: "image",
     13: "playbook",
@@ -69,28 +76,30 @@ def unwrap(res):
 def fetch_entries(case_id):
     """Return every War Room entry for the case, oldest first.
 
-    Paginated because the API caps a page and a worked case runs to hundreds of
-    entries. Returns the entries plus a note when the page cap was hit, so the
-    file can say it is partial instead of quietly being partial.
+    One unpaged read, deliberately. Verified against the platform: the
+    investigation endpoint accepts `page` and then ignores it - every page
+    returns the same window - so a paging loop yields duplicates rather than
+    more entries. Asking with no paging arguments returns the whole set.
+
+    The id goes in bare. Prefixing it with INCIDENT- or ISSUE- does not fail;
+    it returns an empty investigation shell and creates that shell as a side
+    effect, which reads as "the case has no entries" when it has plenty.
     """
-    inv = f"INCIDENT-{case_id}"
-    entries = []
-    truncated = None
-    for page in range(MAX_PAGES):
-        res = unwrap(api(f"/xsoar/public/v1/investigation/{inv}",
-                         {"pageSize": PAGE_SIZE, "page": page}))
-        batch = (demisto.get(res, "Contents.response.entries")
-                 or demisto.get(res, "response.entries") or [])
-        if not batch:
-            break
-        entries.extend(batch)
-        if len(batch) < PAGE_SIZE:
-            break
-    else:
-        truncated = (f"Entry cap reached: only the first {MAX_PAGES * PAGE_SIZE} "
-                     f"entries were retrieved. This export is incomplete.")
+    res = unwrap(api(f"/xsoar/public/v1/investigation/{case_id}", {}))
+    entries = (demisto.get(res, "Contents.response.entries")
+               or demisto.get(res, "Contents.entries")
+               or demisto.get(res, "response.entries")
+               or (res.get("entries") if isinstance(res, dict) else None)
+               or [])
 
     entries.sort(key=lambda e: e.get("created") or "")
+
+    truncated = None
+    if len(entries) > MAX_ENTRIES:
+        truncated = (f"Entry cap reached: this case has {len(entries)} entries "
+                     f"and only the first {MAX_ENTRIES} are included. This "
+                     f"export is incomplete.")
+        entries = entries[:MAX_ENTRIES]
     return entries, truncated
 
 
@@ -221,7 +230,18 @@ def render(inc, entries, truncated):
             executed_count += 1
 
         kind = ENTRY_TYPES.get(e.get("type"), f"type {e.get('type')}")
-        who = e.get("user") or e.get("modified_by") or "system"
+        cat = e.get("category")
+        if cat and cat not in kind:
+            kind = f"{kind}, {cat}"
+
+        # Most entries carry no user - they are the platform acting, not a
+        # person. Naming the playbook and task that produced them is the
+        # attribution a reader actually needs; "system" on forty lines is not.
+        task = e.get("entryTask") or {}
+        who = e.get("user") or e.get("modified_by")
+        if not who:
+            pb, tn = task.get("playbookName"), task.get("taskName")
+            who = (f"{pb} / {tn}" if pb and tn else pb or tn or "automation")
         tags = e.get("tags") or []
 
         body.append(f"### {i}. {ts(e.get('created'))} - {who} ({kind})")
@@ -253,9 +273,11 @@ def main():
         if not entries:
             return_results(CommandResults(readable_output=(
                 f"⚫ **Print War Room** - case {case_id} returned no entries.\n\n"
-                "The case exists but the investigation read came back empty. "
-                "Check that the Core REST API integration instance is enabled "
-                "and its API key carries investigation read access.")))
+                "The investigation read succeeded but carried no entries, so "
+                "nothing was written - this is not an empty export, it is no "
+                "export. Check that the Core REST API integration instance is "
+                "enabled and that its API key carries investigation read "
+                "access.")))
             return
 
         content, shadow_count = render(inc, entries, truncated)
