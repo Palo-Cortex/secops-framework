@@ -1,11 +1,19 @@
-"""Layout button handler. Exports the issue War Room to a markdown file.
+"""Layout button handler. Exports the issue War Room to a printable HTML file.
 
 The War Room is already the complete record of what the SOC did - who acted,
 when, through which vendor command, and what came back. What it is not is
 portable: it lives behind a tenant login and truncates on screen. This renders
-it to a file an analyst can hand to legal, who print it to PDF themselves.
+it to a file an analyst opens in a browser and prints straight to PDF.
 
 Scope is the issue the button was pressed on, not the case it belongs to.
+
+HTML rather than markdown because the destination is paper. A browser gives
+page breaks, repeating context and a print dialog for free; a .md file gives
+none of that and renders as raw text in most things that open it.
+
+The file is self-contained - CSS inline, no fonts, scripts, or images fetched
+from anywhere. It opens the same on a machine with no network and nothing
+installed, which is the machine it will eventually be read on.
 
 Deliberately lifecycle-agnostic and read-only. It reads entries and writes a
 file. It executes nothing, so there is no Shadow Mode gate on it and no
@@ -19,8 +27,8 @@ words and the reader sees it in place. This script adds no verdict of its own
 on top of the record.
 """
 
+import html
 import json
-import re
 from datetime import datetime, timezone
 
 import demistomock as demisto  # noqa: F401
@@ -47,6 +55,59 @@ ENTRY_TYPES = {
     17: "map",
     20: "video",
 }
+
+# Print-first stylesheet. Black on white, no colour that costs anything in
+# toner or meaning in greyscale. @page owns the margins so the browser's own
+# header and footer do not collide with content.
+CSS = """
+@page { margin: 18mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font: 11pt/1.45 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: #111; background: #fff; margin: 0 auto; padding: 24px; max-width: 60em;
+}
+h1 { font-size: 17pt; margin: 0 0 2px; }
+.subtitle { font-size: 12pt; font-weight: 600; margin: 0 0 16px; color: #333; }
+table.meta { border-collapse: collapse; margin: 0 0 16px; font-size: 10pt; }
+table.meta th, table.meta td {
+  border: 1px solid #bbb; padding: 3px 10px; text-align: left; vertical-align: top;
+}
+table.meta th { background: #f2f2f2; font-weight: 600; white-space: nowrap; }
+.statement { font-size: 10pt; color: #333; margin: 0 0 16px; }
+.warn {
+  border: 1.5px solid #111; padding: 8px 12px; margin: 0 0 16px; font-size: 10pt;
+}
+hr { border: 0; border-top: 1px solid #999; margin: 18px 0; }
+.entry { margin: 0 0 14px; }
+.entry h2 {
+  font-size: 10.5pt; font-weight: 600; margin: 0 0 4px;
+  padding-bottom: 2px; border-bottom: 1px solid #ddd;
+  /* Never strand a heading at the foot of a page. */
+  page-break-after: avoid; break-after: avoid;
+}
+.entry h2 .num { color: #666; margin-right: 4px; }
+.entry h2 .kind { font-weight: 400; color: #666; }
+.tags { font-size: 9pt; color: #666; margin: 0 0 4px; font-style: italic; }
+pre {
+  font: 9.5pt/1.4 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  background: #f7f7f7; border: 1px solid #ddd; border-left: 3px solid #999;
+  padding: 7px 10px; margin: 0;
+  /* Long command lines and JSON must wrap, not run off the page edge. */
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+}
+.empty { color: #666; font-style: italic; font-size: 10pt; margin: 0; }
+.note { font-size: 9pt; color: #444; margin: 4px 0 0; }
+footer {
+  margin-top: 24px; padding-top: 8px; border-top: 1px solid #999;
+  font-size: 9pt; color: #555;
+}
+@media print {
+  body { padding: 0; max-width: none; }
+  /* Keep short entries whole; long ones have to break somewhere. */
+  .entry { page-break-inside: avoid; break-inside: avoid; }
+  .entry.long { page-break-inside: auto; break-inside: auto; }
+}
+"""
 
 
 def api(uri, body):
@@ -111,11 +172,15 @@ def entry_text(entry):
     return contents, False
 
 
-def fence(text):
-    """Wrap in a code fence long enough to survive backticks in the content."""
-    longest = max((len(m) for m in re.findall(r"`+", text)), default=0)
-    bar = "`" * max(3, longest + 1)
-    return f"{bar}\n{text}\n{bar}"
+def esc(value):
+    """Escape for HTML text content.
+
+    Entry bodies are full of angle brackets, ampersands and raw JSON. Anything
+    unescaped either vanishes from the rendered page or corrupts the markup
+    after it - in a document whose only job is to be complete, a silently
+    dropped line is the worst possible failure.
+    """
+    return html.escape("" if value is None else str(value), quote=True)
 
 
 def ts(value):
@@ -143,46 +208,44 @@ def current_user():
     return "unknown"
 
 
-def header(inc, entries, truncated):
+def header(inc, entries, truncated, exported_at, exported_by):
     """The cover block. Everything a reader needs to place the document."""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    opened = ts(inc.get("created"))
-    closed = ts(inc.get("closed")) if inc.get("closed") else "not closed"
-
-    lines = [
-        f"# War Room Record - Issue {inc.get('id')}",
-        "",
-        f"**{inc.get('name') or '(unnamed issue)'}**",
-        "",
-        "| | |",
-        "|---|---|",
-        f"| Issue ID | {inc.get('id')} |",
-        f"| Severity | {inc.get('severity')} |",
-        f"| Status | {inc.get('status')} |",
-        f"| Owner | {inc.get('owner') or 'unassigned'} |",
-        f"| Opened | {opened} |",
-        f"| Closed | {closed} |",
-        f"| Entries | {len(entries)} |",
-        f"| Exported | {now} |",
-        f"| Exported by | {current_user()} |",
-        "",
-        "This is a verbatim export of the War Room for the issue above, in the "
-        "order events were recorded. Nothing has been summarised, reordered, or "
-        "removed except where an omission is stated inline.",
-        "",
+    rows = [
+        ("Issue ID", inc.get("id")),
+        ("Severity", inc.get("severity")),
+        ("Status", inc.get("status")),
+        ("Owner", inc.get("owner") or "unassigned"),
+        ("Opened", ts(inc.get("created"))),
+        ("Closed", ts(inc.get("closed")) if inc.get("closed") else "not closed"),
+        ("Entries", len(entries)),
+        ("Exported", exported_at),
+        ("Exported by", exported_by),
     ]
-
+    out = [
+        "<h1>War Room Record</h1>",
+        f"<p class=\"subtitle\">{esc(inc.get('name') or '(unnamed issue)')}</p>",
+        "<table class=\"meta\">",
+    ]
+    out += [f"<tr><th>{esc(k)}</th><td>{esc(v)}</td></tr>" for k, v in rows]
+    out += [
+        "</table>",
+        "<p class=\"statement\">This is a verbatim export of the War Room for "
+        "the issue above, in the order events were recorded. Nothing has been "
+        "summarised, reordered, or removed except where an omission is stated "
+        "inline.</p>",
+    ]
     if truncated:
-        lines += [f"> **INCOMPLETE EXPORT.** {truncated}", ""]
-
-
-    lines += ["---", ""]
-    return lines
+        out.append(f"<div class=\"warn\"><strong>INCOMPLETE EXPORT.</strong> "
+                   f"{esc(truncated)}</div>")
+    out.append("<hr>")
+    return out
 
 
 def render(inc, entries, truncated):
-    body = []
+    exported_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    exported_by = current_user()
 
+    body = []
     for i, e in enumerate(entries, 1):
         text, cut = entry_text(e)
 
@@ -199,19 +262,43 @@ def render(inc, entries, truncated):
         if not who:
             pb, tn = task.get("playbookName"), task.get("taskName")
             who = (f"{pb} / {tn}" if pb and tn else pb or tn or "automation")
+
+        # Short entries are kept whole across a page break; tall ones cannot be
+        # and are marked so the rule does not push a mostly-empty page.
+        long_cls = " long" if text.count("\n") > 30 or len(text) > 2500 else ""
+
+        body.append(f"<section class=\"entry{long_cls}\">")
+        body.append(f"<h2><span class=\"num\">{i}.</span>{esc(ts(e.get('created')))}"
+                    f" &mdash; {esc(who)} <span class=\"kind\">({esc(kind)})</span></h2>")
         tags = e.get("tags") or []
-
-        body.append(f"### {i}. {ts(e.get('created'))} - {who} ({kind})")
         if tags:
-            body.append(f"*tags: {', '.join(str(t) for t in tags)}*")
-        body.append("")
-        body.append(fence(text) if text else "*(empty entry)*")
+            body.append("<p class=\"tags\">tags: "
+                        f"{esc(', '.join(str(t) for t in tags))}</p>")
+        body.append(f"<pre>{esc(text)}</pre>" if text
+                    else "<p class=\"empty\">(empty entry)</p>")
         if cut:
-            body.append("")
-            body.append("> This entry was truncated for length. See note above.")
-        body.append("")
+            body.append("<p class=\"note\">This entry was truncated for length. "
+                        "See note above.</p>")
+        body.append("</section>")
 
-    return "\n".join(header(inc, entries, truncated) + body)
+    title = f"War Room Record - Issue {inc.get('id')}"
+    return "\n".join([
+        "<!DOCTYPE html>",
+        "<html lang=\"en\">",
+        "<head>",
+        "<meta charset=\"utf-8\">",
+        f"<title>{esc(title)}</title>",
+        f"<style>{CSS}</style>",
+        "</head>",
+        "<body>",
+        *header(inc, entries, truncated, exported_at, exported_by),
+        *body,
+        f"<footer>{esc(title)} &mdash; {len(entries)} entries &mdash; "
+        f"exported {esc(exported_at)} by {esc(exported_by)}.</footer>",
+        "</body>",
+        "</html>",
+        "",
+    ])
 
 
 def main():
@@ -221,30 +308,29 @@ def main():
         if not issue_id:
             return_results(CommandResults(readable_output=(
                 "⚫ **Print War Room** - no issue in scope.\n\n"
-                "This script reads the War Room of the issue it is run from. Run "
-                "it from the button on an issue layout, not from the Playground.")))
+                "This script reads the War Room of the issue it is run from. "
+                "Run it from the button on an issue layout, not from the "
+                "Playground.")))
             return
 
         entries, truncated = fetch_entries(issue_id)
         if not entries:
             return_results(CommandResults(readable_output=(
                 f"⚫ **Print War Room** - issue {issue_id} returned no "
-                "entries.\n\n"
-                "The investigation read succeeded but carried no entries, so "
-                "nothing was written - this is not an empty export, it is no "
-                "export. Check that the Core REST API integration instance is "
-                "enabled and that its API key carries investigation read "
-                "access.")))
+                "entries.\n\nThe investigation read succeeded but carried no "
+                "entries, so nothing was written - this is not an empty "
+                "export, it is no export. Check that the Core REST API "
+                "integration instance is enabled and that its API key carries "
+                "investigation read access.")))
             return
 
         content = render(inc, entries, truncated)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        filename = f"WarRoom_Issue-{issue_id}_{stamp}.md"
+        filename = f"WarRoom_Issue-{issue_id}_{stamp}.html"
 
         note = (f"✅ **Print War Room** - {len(entries)} entries exported to "
                 f"`{filename}`, attached to this issue.\n\n"
-                "Open the attachment and print to PDF from your browser or "
-                "editor.")
+                "Download it, open it in a browser, and print to PDF.")
         if truncated:
             note += f"\n\n🟠 {truncated}"
 
