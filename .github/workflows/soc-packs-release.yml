@@ -336,26 +336,42 @@ jobs:
               if final.exists():
                   final.unlink()
 
-              # demisto-sdk builds the installable shape: content at the zip
-              # root in prepared form, plus a metadata.json enumerating
-              # contentItems. A plain `zip -r` of the source tree installs as an
-              # empty pack even when the server accepts it.
-              staging = dist / "sdk" / pack
-              if staging.exists():
-                  shutil.rmtree(staging)
-              staging.mkdir(parents=True)
-              run(["demisto-sdk", "zip-packs",
-                   "-i", str((packs_dir / pack).resolve()),
-                   "-o", str(staging.resolve())])
-              built = staging / "uploadable_packs" / f"{pack}.zip"
-              if not built.exists():
-                  raise RuntimeError(f"{pack}: demisto-sdk produced no zip at {built}")
-              shutil.move(str(built), str(final))
+              # Build with `zip -r` from the Packs dir, producing a zip whose
+              # root is the pack directory.
+              #
+              # DO NOT switch this back to `demisto-sdk zip-packs`. Verified on
+              # SDK 1.39.3: zip-packs silently DROPS all XSIAM-only content
+              # types -- CorrelationRules, ModelingRules and XSIAMDashboards --
+              # while keeping XSOAR types (Playbooks, Scripts, Lists,
+              # IncidentFields). A rules-only vendor pack builds a zip holding
+              # nothing but pack_metadata.json, README.md and ReleaseNotes, and
+              # the release goes out green and uninstallable. That shipped
+              # soc-crowdstrike-{falcon,idp,saas} as empty packs (#1073).
+              #
+              # verify_pack_zip.py below is the gate that makes a recurrence
+              # impossible: it opens the built zip and fails the release if any
+              # content file present in the pack source is missing.
+              run(["zip", "-r", "-q", str(final.resolve()), pack], cwd=str(packs_dir))
 
               if not final.exists():
                   raise RuntimeError(f"{pack}: zip produced no output at {final}")
 
-              print(f"Built: {final}")
+              # ---- release gate: the zip must contain the pack's content ----
+              # subprocess.run directly: the run() helper above hardcodes
+              # check=True and returns None, so it cannot report a failure
+              # without raising.
+              verify_cmd = ["python3", "tools/verify_pack_zip.py",
+                            "--pack-root", str(packs_dir / pack),
+                            "--zip", str(final)]
+              print("+", " ".join(verify_cmd))
+              verify = subprocess.run(verify_cmd, check=False)
+              if verify.returncode != 0:
+                  raise RuntimeError(
+                      f"{pack}: built zip failed content verification -- refusing to "
+                      f"publish an incomplete pack. See the report above."
+                  )
+
+              print(f"Built and verified: {final}")
 
               gh("release", "create", tag, str(final),
                  "-t", f"{pack} v{version}",
