@@ -145,6 +145,48 @@ def main() -> int:
         mark = "MISSING" if miss_in_d else "ok"
         print(f"    {d:<20} {len(by_dir[d]) - len(miss_in_d)}/{len(by_dir[d])}  {mark}")
 
+    problems: list[str] = []
+
+    # --- metadata.json: Marketplace reads the pack version from this file ---
+    # It is generated at build time by copying pack_metadata.json; it is not in
+    # the repo. Absent metadata.json == no version reported in Marketplace.
+    meta_member = next(
+        (m for m in members if m == "metadata.json" or m.endswith("/metadata.json")), None
+    )
+    src_meta = pack_root / "pack_metadata.json"
+    if meta_member is None:
+        problems.append(
+            "metadata.json missing from the zip -- Marketplace reads the pack "
+            "version from it. The release job must copy pack_metadata.json to "
+            "metadata.json at the pack root before zipping (see #1072)."
+        )
+    elif src_meta.is_file():
+        import json as _json
+        with zipfile.ZipFile(zip_path) as z:
+            try:
+                zipped_ver = _json.loads(z.read(meta_member)).get("currentVersion")
+            except Exception:
+                zipped_ver = None
+        src_ver = _json.loads(src_meta.read_text()).get("currentVersion")
+        if zipped_ver != src_ver:
+            problems.append(
+                f"metadata.json version mismatch: zip reports {zipped_ver!r}, "
+                f"pack_metadata.json is {src_ver!r}. Marketplace would show the wrong version."
+            )
+        else:
+            print(f"    {'metadata.json':<20} present, version {zipped_ver}  ok")
+
+    # --- repo-only files must not ship inside the pack ---
+    for repo_only in sorted(REPO_ONLY_NAMES):
+        hit = next((m for m in members if m.split("/")[-1] == repo_only), None)
+        if hit:
+            problems.append(f"{repo_only} must not ship inside the pack zip (found at {hit}).")
+
+    if problems:
+        print(f"\n  FAIL  {len(problems)} packaging problem(s):")
+        for p in problems:
+            print(f"      - {p}")
+
     if missing:
         print(f"\n  FAIL  {len(missing)} content file(s) absent from the zip:")
         for rel in missing:
@@ -154,10 +196,13 @@ def main() -> int:
             "  A release built from this zip installs as an empty pack.\n"
             "  Build the zip with:  cd Packs && zip -r <out>/<pack>-v<ver>.zip <pack>\n"
         )
+
+    if missing or problems:
         return 1
 
     if not args.quiet:
-        print(f"\n  PASS  all {len(expected)} content file(s) present.\n")
+        print(f"\n  PASS  all {len(expected)} content file(s) present, "
+              f"metadata.json correct, no repo-only files shipped.\n")
     return 0
 
 

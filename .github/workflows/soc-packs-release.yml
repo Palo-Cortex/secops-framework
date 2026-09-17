@@ -351,7 +351,20 @@ jobs:
               # verify_pack_zip.py below is the gate that makes a recurrence
               # impossible: it opens the built zip and fails the release if any
               # content file present in the pack source is missing.
-              run(["zip", "-r", "-q", str(final.resolve()), pack], cwd=str(packs_dir))
+              # /xsoar/contentpacks/installed/upload reads metadata.json at the
+              # pack root, and Marketplace reports the version from it. The repo
+              # carries pack_metadata.json only, so copy it in for the duration
+              # of the zip and remove it afterwards (restored from #1072 -- it
+              # was lost when the builder was reverted off zip-packs).
+              # xsoar_config.json is repo-only and must not ship inside the pack.
+              server_meta = pack_path / "metadata.json"
+              shutil.copyfile(meta_path, server_meta)
+              try:
+                  run(["zip", "-r", "-q", str(final.resolve()), pack,
+                       "--exclude", f"{pack}/xsoar_config.json"],
+                      cwd=str(packs_dir.resolve()))
+              finally:
+                  server_meta.unlink(missing_ok=True)
 
               if not final.exists():
                   raise RuntimeError(f"{pack}: zip produced no output at {final}")
