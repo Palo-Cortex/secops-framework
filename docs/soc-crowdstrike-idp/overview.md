@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-crowdstrike-idp.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-idp-v1.0.4/soc-crowdstrike-idp-v1.0.4.zip) |
+| `soc-crowdstrike-idp.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-idp-v1.0.4/soc-crowdstrike-idp-v1.0.4.zip) |
 
 ## Marketplace Dependencies
 
