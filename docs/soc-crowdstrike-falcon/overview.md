@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-crowdstrike-falcon.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-falcon-v1.1.21/soc-crowdstrike-falcon-v1.1.21.zip) |
+| `soc-crowdstrike-falcon.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-falcon-v1.1.21/soc-crowdstrike-falcon-v1.1.21.zip) |
 
 ## Marketplace Dependencies
 

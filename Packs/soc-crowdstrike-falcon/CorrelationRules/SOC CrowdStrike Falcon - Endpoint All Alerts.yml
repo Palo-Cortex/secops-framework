@@ -1,3 +1,4 @@
+system: false
 rule_id: 0
 fromversion: 6.10.0
 action: ALERTS
@@ -5,6 +6,14 @@ alert_category: User Defined
 alert_description: '$alert_description | User: $actor_effective_username | Display Name: $display_name | Email: $idr_email | UPN: $idr_upn | Domain: $idr_domain_name | SAM: $idr_sam_account_name | SID: $idr_sid | On-Prem SID: $idr_on_prem_sid | NetBIOS: $idr_netbios'
 alert_domain: DOMAIN_SECURITY
 alert_fields:
+  hostos: device_platform_name
+  agentossubtype: device_os_version
+  hostfqdn: device_fqdn
+  hostip: local_ip
+  initiatormd5: md5
+  osparentid: parent_local_process_id
+  endpointisolationstatus: device_status
+  categoryname: objective
   mac: mac_address
   domain: agent_device_domain
   userid: user_principal
@@ -161,6 +170,10 @@ xql_query: |
           external_ip                  = device->external_ip,
           mac_address                  = device->mac_address,
           device_id                    = device->device_id,
+          device_os_version            = device->os_version,
+          device_platform_name         = device->platform_name,
+          device_status                = device->status,
+          device_fqdn                  = if(device->machine_domain != null, concat(device->hostname, ".", device->machine_domain), device->hostname),
           device_ou                    = device->ou[],
           parent_process_name          = parent_details->filename,
           parent_process_cmd           = parent_details->cmdline,
