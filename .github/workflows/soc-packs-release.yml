@@ -356,12 +356,19 @@ jobs:
               # carries pack_metadata.json only, so copy it in for the duration
               # of the zip and remove it afterwards (restored from #1072 -- it
               # was lost when the builder was reverted off zip-packs).
-              # xsoar_config.json is repo-only and must not ship inside the pack.
+              # Repo-only files must not ship inside the pack. This list is the
+              # mirror of REPO_ONLY_NAMES in tools/verify_pack_zip.py -- if they
+              # drift apart the gate rejects a file this builder included, which
+              # is exactly what happened on run 35269272665.
+              repo_only = ["xsoar_config.json", "preflight_overrides.json"]
+              excludes = []
+              for name in repo_only:
+                  excludes += ["--exclude", f"{pack}/{name}"]
+
               server_meta = pack_path / "metadata.json"
               shutil.copyfile(meta_path, server_meta)
               try:
-                  run(["zip", "-r", "-q", str(final.resolve()), pack,
-                       "--exclude", f"{pack}/xsoar_config.json"],
+                  run(["zip", "-r", "-q", str(final.resolve()), pack, *excludes],
                       cwd=str(packs_dir.resolve()))
               finally:
                   server_meta.unlink(missing_ok=True)
