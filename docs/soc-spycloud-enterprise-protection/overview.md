@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-spycloud-enterprise-protection` |
-| Version | `1.1.0` |
+| Version | `1.1.2` |
 | Category | Cloud IR |
 | Pack Path | `Packs/soc-spycloud-enterprise-protection` |
 | Manifest | [`Packs/soc-spycloud-enterprise-protection/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-spycloud-enterprise-protection/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-spycloud-enterprise-protection.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-spycloud-enterprise-protection-v1.1.0/soc-spycloud-enterprise-protection-v1.1.0.zip) |
+| `soc-spycloud-enterprise-protection.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-spycloud-enterprise-protection-v1.1.2/soc-spycloud-enterprise-protection-v1.1.2.zip) |
 
 ## Marketplace Dependencies
 

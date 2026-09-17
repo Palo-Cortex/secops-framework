@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkMicrosoftDefender` |
-| Version | `1.2.14` |
+| Version | `1.2.16` |
 | Category | Endpoint |
 | Pack Path | `Packs/SocFrameworkMicrosoftDefender` |
 | Manifest | [`Packs/SocFrameworkMicrosoftDefender/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkMicrosoftDefender/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `SocFrameworkMicrosoftDefender.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkMicrosoftDefender-v1.2.14/SocFrameworkMicrosoftDefender-v1.2.14.zip) |
+| `SocFrameworkMicrosoftDefender.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkMicrosoftDefender-v1.2.16/SocFrameworkMicrosoftDefender-v1.2.16.zip) |
 
 ## Marketplace Dependencies
 
