@@ -116,6 +116,22 @@ def validate_mapping(doc: dict) -> list[str]:
         subtype = cr.get("subtype")
         mitre_defs = cr.get("mitre_defs", {})
 
+        # timezone must be a real zone. The platform rejects null outright:
+        #   POST /public_api/v1/correlations/insert
+        #   HTTP 400 "Failed to create correlation rule due to: Invalid timezone"
+        # The pack still installs and the installer reports success, so a null
+        # here ships a pack whose rule silently never exists on the tenant.
+        # soc-crowdstrike-{idp,saas} shipped this way from their first commit
+        # (#962/#963) — cloned from soc-crowdstrike-falcon one PR after falcon
+        # fixed the same bug (#961), and the fix was never propagated.
+        if "timezone" in cr and not cr["timezone"]:
+            errors.append(
+                f"{prefix}.timezone is null/empty — the platform returns "
+                f"HTTP 400 'Invalid timezone' and the rule is never created, "
+                f"while the pack install still reports success. Use a real "
+                f"zone (e.g. UTC)."
+            )
+
         if subtype == "passthrough":
             # mitre_defs and MITRE alert_fields on passthrough are author preferences:
             # - When the vendor ships MITRE per-alert (e.g. CrowdStrike Falcon's
@@ -445,7 +461,13 @@ def _build_correlation_yml(doc: dict, cr: dict) -> str:
     else:
         lines.append("suppression_enabled: false")
 
-    lines.append(f'timezone: {_yaml_scalar(cr.get("timezone"))}')
+    # A missing timezone must NOT become null. The platform rejects null:
+    #   POST /correlations/insert -> HTTP 400 "Invalid timezone", rule never
+    #   created, while the pack install still reports success. Defaulting here
+    #   is what stops a schema that simply omits the key from shipping a pack
+    #   whose rule silently does not exist. Schemas may still set it explicitly
+    #   (pan-cie uses America/New_York); validate_mapping rejects explicit null.
+    lines.append(f'timezone: {_yaml_scalar(cr.get("timezone") or "UTC")}')
     if sc.get("user_defined_category"):
         lines.append(f'user_defined_category: {sc["user_defined_category"]}')
     if sc.get("user_defined_severity"):
