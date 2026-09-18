@@ -73,6 +73,10 @@ def _salvage(raw):
     while cut > 0:
         try:
             obj = json.loads(raw[:cut + 1] + "}", strict=False)
+            # `truncated` is canonical — SOCFWCloseDecision and the decision row
+            # read it. `_truncated` is kept alongside so an object promoted by an
+            # older build still renders the cut-off note.
+            obj["truncated"] = True
             obj["_truncated"] = True
             return obj
         except (ValueError, TypeError):
@@ -143,7 +147,7 @@ def render(obj, max_blockers=MAX_BLOCKER_LINES):
         if len(blockers) > max_blockers:
             lines.append(f"  · … and {len(blockers) - max_blockers} more")
 
-    if obj.get('_truncated'):
+    if obj.get('truncated') or obj.get('_truncated'):
         lines.append("")
         lines.append("  ⚫ The model's reply was cut off by the output-token limit; "
                      "this is the part that survived.")
