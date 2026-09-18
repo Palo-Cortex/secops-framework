@@ -95,6 +95,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 | Issue Field | Source | Bucket | Description |
 |---|---|---|---|
+| `vendor` | `vendor_name` |  |  |
 | `product` | `product_name` |  |  |
 | `userid` | `user_principal` |  |  |
 | `usersid` | `idr_sid` |  |  |
