@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-crowdstrike-idp` |
-| Version | `1.1.3` |
+| Version | `1.1.4` |
 | Category | Identity |
 | Pack Path | `Packs/soc-crowdstrike-idp` |
 | Manifest | [`Packs/soc-crowdstrike-idp/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-crowdstrike-idp/xsoar_config.json) |
@@ -30,4 +30,4 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-crowdstrike-idp.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-idp-v1.1.3/soc-crowdstrike-idp-v1.1.3.zip) |
+| `soc-crowdstrike-idp.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-idp-v1.1.4/soc-crowdstrike-idp-v1.1.4.zip) |
