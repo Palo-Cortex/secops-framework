@@ -31,19 +31,3 @@ Additional custom packs the installer pulls in alongside this pack.
 | Pack | System | Source |
 |---|---|---|
 | `soc-crowdstrike-idp.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-idp-v1.1.3/soc-crowdstrike-idp-v1.1.3.zip) |
-
-## Marketplace Dependencies
-
-Marketplace packs the installer ensures are present on the tenant.
-
-| ID | Name | Version |
-|---|---|---|
-| `MarketplacePackId` |  | `latest` |
-
-## Integration Instances
-
-Integration brand instances the installer configures. Credentials and propagation labels are always tenant-specific — only the scaffolding ships in the pack.
-
-| Instance Name | Brand | Category | Enabled |
-|---|---|---|---|
-| `soc-crowdstrike-idp_instance_1` | `Integration Brand Name` | Category | true |
