@@ -156,7 +156,10 @@ correlation_rules:
   crontab: "*/10 * * * *"
   search_window: 20 minutes
   simple_schedule: 10 minutes
-  timezone: null
+  # Must be a real zone, not null. The platform rejects null outright:
+  # POST /correlations/insert -> HTTP 400 "Failed to create correlation rule
+  # due to: Invalid timezone". Matches crowdstrike-falcon, which installs.
+  timezone: UTC
   mitre_defs: {}
   investigation_query_link: dataset = crowdstrike_falcon_event_raw | filter composite_id = $composite_id | fields *
   schema_constants:
@@ -178,6 +181,8 @@ correlation_rules:
     - composite_id
   pre_alter: "| filter product = \"saas-security\"\n| alter vendor_name = \"CrowdStrike\", product_name = \"Falcon SaaS\"\n| filter display_name not in (\"Anonymized IP\")\n| alter alert_name = display_name\n\n| alter originalrawlog      = to_json_string(rawJSON)\n| alter originalalertsource = \"CrowdStrike Falcon SaaS Security\"\n\n| alter mitre_json          = json_extract_array(to_json_string(mitre_attack), \"$\")\n| alter mitre_tech_ids      = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.technique_id\"))\n| alter mitre_tech_names    = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.technique\"))\n| alter mitre_tactic_ids    = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.tactic_id\"))\n| alter mitre_tactic_names  = arraymap(mitre_json, json_extract_scalar(\"@element\", \"$.tactic\"))\n| alter mitre_ids_str       = arraystring(arraydistinct(mitre_tech_ids), \",\")\n| alter mitre_tech_name_str = arraystring(arraydistinct(mitre_tech_names), \",\")\n| alter mitre_tactic_id     = arrayindex(arraydistinct(mitre_tactic_ids), 0)\n| alter mitre_tactic        = arrayindex(arraydistinct(mitre_tactic_names), 0)\n\n| alter tmp_user_names  = json_extract_array(to_json_string(user_names), \"$\")\n| alter tmp_user_arr0   = arrayindex(tmp_user_names, 0)\n| alter tmp_user_quoted = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"(?i)\\buser\\s+\\\"([^\\\"]+)\\\"\"), 0)\n| alter tmp_user_email  = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\"), 0)\n| alter tmp_user_token  = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"(?i)\\buser\\s+([A-Za-z0-9._%+@-]+)\"), 0)\n| alter user_name = coalesce(user_name, tmp_user_arr0, tmp_user_quoted, tmp_user_email, tmp_user_token)\n\n| alter crowdstrike_original_user_name    = user_name\n| alter crowdstrike_original_display_name = display_name\n| alter actor_effective_username = user_name\n\n| alter local_ip = arrayindex(regextract(coalesce(event_summary, description, \"\"), \"\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b\"), 0)\n\n| alter idr_email            = if(user_name contains \"@\", lowercase(user_name), null),\n        idr_upn              = if(user_name contains \"@\", user_name, null),\n        idr_sam_account_name = if(user_name contains \"@\", null, user_name),\n        idr_display_name     = null,\n        idr_domain_name      = null,\n        idr_netbios          = null,\n        idr_sid              = null,\n        idr_on_prem_sid      = null\n\n| alter display_name   = coalesce(idr_display_name, idr_sam_account_name, user_name),\n        user_principal = idr_upn\n| alter email = idr_email\n| alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, actor_effective_username))\n\n| alter description = coalesce(event_summary, description, concat(alert_name, \". See external link for details.\"))\n| alter alert_name = concat(\n    \"[SaaS] \",\n    coalesce(actor_effective_username, user_name, \"Unknown\"),\n    \" - \",\n    coalesce(mitre_tactic, category, \"SaaS Activity\"),\n    \": \",\n    coalesce(display_name, name, \"Detection\")\n  )"
   alert_fields:
+  - issue_field: vendor
+    source: vendor_name
   - issue_field: product
     source: product_name
   - issue_field: userid
