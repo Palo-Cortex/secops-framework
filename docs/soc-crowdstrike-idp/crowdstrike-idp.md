@@ -116,7 +116,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `processmd5` | `md5` |  |  |
 | `alertaction` | `pattern_disposition` |  |  |
 | `detectionid` | `template_instance_id` |  |  |
-| `eventaction` | `idp_policy_rule_action` |  |  |
+| `eventaction` | `cs_idp_policy_rule_action` |  |  |
 | `initiatedby` | `actor_process_image_name` |  |  |
 | `dnsqueryname` | `dns_queries` |  |  |
 | `dst_agent_id` | `dst_agent_id_v` |  |  |
@@ -178,6 +178,23 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 | filter product = "idp"
 
+// --- compatibility shim: fields not guaranteed on every IDP tenant ---
+// Referencing a column that is absent fails XQL validation, which is what
+// returns 101704 on pack install. rawJSON is always present, so read them
+// from there: real value when the event has it, null when it does not.
+| alter
+        cs_target_account_object_sid = json_extract_scalar(to_json_string(rawJSON), "$.target_account_object_sid"),
+        cs_idp_policy_rule_name = json_extract_scalar(to_json_string(rawJSON), "$.idp_policy_rule_name"),
+        cs_idp_policy_rule_action = json_extract_scalar(to_json_string(rawJSON), "$.idp_policy_rule_action"),
+        cs_idp_policy_rule_trigger = json_extract_scalar(to_json_string(rawJSON), "$.idp_policy_rule_trigger"),
+        cs_idp_policy_mfa_provider = json_extract_scalar(to_json_string(rawJSON), "$.idp_policy_mfa_provider"),
+        cs_idp_policy_mfa_factor_type = json_extract_scalar(to_json_string(rawJSON), "$.idp_policy_mfa_factor_type"),
+        cs_honeytoken_user = json_extract_scalar(to_json_string(rawJSON), "$.honeytoken_user"),
+        cs_source_ip_asn_organization = json_extract_scalar(to_json_string(rawJSON), "$.source_ip_asn_organization"),
+        cs_source_ip_isp_domain = json_extract_scalar(to_json_string(rawJSON), "$.source_ip_isp_domain"),
+        cs_score = json_extract_scalar(to_json_string(rawJSON), "$.score"),
+        cs_fine_score = json_extract_scalar(to_json_string(rawJSON), "$.fine_score")
+
 | alter originalrawlog = to_json_string(rawJSON)
 
 | alter severity_int_raw = severity
@@ -222,7 +239,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         src_ip_v6        = source_endpoint_address_ip6,
         src_sensor_id    = source_endpoint_sensor_id,
         dst_account_name = target_account_name,
-        dst_account_sid  = target_account_object_sid,
+        dst_account_sid  = cs_target_account_object_sid,
         dst_host         = target_endpoint_host_name,
         dst_sensor_id    = target_endpoint_sensor_id,
         idp_logon_domain = logon_domain
@@ -274,9 +291,9 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     " -> Target: ", coalesce(dst_account_name, "n/a"),
     " @ ", coalesce(dst_host, "n/a"),
     " | App: ", coalesce(sso_application_identifier, sso_application_uri, "n/a"),
-    " | Policy: ", coalesce(idp_policy_rule_name, "n/a"),
-    " (", coalesce(idp_policy_rule_action, "no action"), ")",
-    " | MFA: ", coalesce(idp_policy_mfa_factor_type, idp_policy_mfa_provider, "n/a")
+    " | Policy: ", coalesce(cs_idp_policy_rule_name, "n/a"),
+    " (", coalesce(cs_idp_policy_rule_action, "no action"), ")",
+    " | MFA: ", coalesce(cs_idp_policy_mfa_factor_type, cs_idp_policy_mfa_provider, "n/a")
   )
 
 | alter alert_name = concat(
@@ -331,7 +348,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         dst_hostname_v                      = dst_host,
         dst_user_v                          = dst_account_name
 | fields
-    device_id, local_ip, user_name, user_principal, email, raw_email, raw_sam, idr_email, idr_upn, idr_display_name, idr_sam_account_name, idr_netbios, idr_sid, idr_on_prem_sid, idr_domain_name, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, actor_effective_username, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_ip_v6, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, sso_application_identifier, sso_application_uri, idp_policy_rule_name, idp_policy_rule_action, idp_policy_rule_trigger, idp_policy_mfa_provider, idp_policy_mfa_factor_type, privileges, added_privileges, honeytoken_user, ldap_search_query_attack, source_ip_asn_organization, source_ip_isp_domain, pattern_disposition, score, fine_score, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
+    device_id, local_ip, user_name, user_principal, email, raw_email, raw_sam, idr_email, idr_upn, idr_display_name, idr_sam_account_name, idr_netbios, idr_sid, idr_on_prem_sid, idr_domain_name, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, actor_effective_username, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_ip_v6, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, sso_application_identifier, sso_application_uri, cs_idp_policy_rule_name, cs_idp_policy_rule_action, cs_idp_policy_rule_trigger, cs_idp_policy_mfa_provider, cs_idp_policy_mfa_factor_type, privileges, added_privileges, cs_honeytoken_user, ldap_search_query_attack, cs_source_ip_asn_organization, cs_source_ip_isp_domain, pattern_disposition, cs_score, cs_fine_score, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
 
 | alter socfw_event_time = _time,
         socfw_insert_time = _insert_time
