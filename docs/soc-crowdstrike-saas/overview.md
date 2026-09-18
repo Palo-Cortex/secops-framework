@@ -31,3 +31,11 @@ Additional custom packs the installer pulls in alongside this pack.
 | Pack | System | Source |
 |---|---|---|
 | `soc-crowdstrike-saas.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-saas-v1.1.4/soc-crowdstrike-saas-v1.1.4.zip) |
+
+## Marketplace Dependencies
+
+Marketplace packs the installer ensures are present on the tenant.
+
+| ID | Name | Version |
+|---|---|---|
+| `CrowdStrikeFalcon` | CrowdStrike Falcon | `latest` |
