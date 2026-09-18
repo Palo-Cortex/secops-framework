@@ -98,3 +98,23 @@ end=$(date +%s)
 elapsed=$((end - start))
 echo ""
 echo "  Upload completed in $((elapsed/60))m $((elapsed%60))s (${elapsed}s)"
+
+# ── Correlation rules — demisto-sdk does NOT deliver these ────────────────────
+# Verified 18 Sep 2026 on demisto-sdk 1.38.14 (container) and 1.39.3 (thor),
+# with and without -z, on soc-crowdstrike-idp and soc-crowdstrike-falcon: the
+# zip it builds has no CorrelationRules/ and declares
+# contentItems.correlationrule: []. The pack installs, the version updates, the
+# upload reports success, and the rule is silently never created — deathstar had
+# zero pack-delivered correlation rules across 184 installed packs.
+#
+# So the upload is not complete until the rules are pushed through the
+# correlations API, which is the only mechanism observed to create one.
+if compgen -G "${PACK_PATH}/CorrelationRules/*.yml" > /dev/null; then
+  echo ""
+  echo "  Installing correlation rules via the correlations API…"
+  if ! python3 "$(dirname "$0")/install_correlation_rules.py" "$PACK_PATH"; then
+    echo "  ✗ Correlation rule install FAILED — the pack is on the tenant but"
+    echo "    its rules are not. Do not treat this upload as successful."
+    exit 1
+  fi
+fi

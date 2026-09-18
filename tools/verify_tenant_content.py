@@ -54,6 +54,21 @@ def api(env, path, payload=None, method="POST"):
         return json.loads(r.read() or b"{}")
 
 
+def public_api(env, path, payload=None):
+    """Sibling of api() for /public_api routes — api() hardcodes an /xsoar prefix."""
+    base = env["DEMISTO_BASE_URL"].rstrip("/")
+    hdr = {"Authorization": env["DEMISTO_API_KEY"],
+           "x-xdr-auth-id": str(env["XSIAM_AUTH_ID"]),
+           "Content-Type": "application/json"}
+    data = json.dumps(payload if payload is not None else {}).encode()
+    req = urllib.request.Request(f"{base}{path}", data=data, headers=hdr, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return json.loads(r.read() or b"{}")
+    except Exception:
+        return {}
+
+
 def main():
     env = creds()
     packs = sys.argv[1:] or sorted(glob.glob(PACK_GLOB))
@@ -77,10 +92,31 @@ def main():
             if name not in on_tenant_lists:
                 missing.append((pack, "list", name))
 
+        # Correlation rules. Previously unchecked, which made this whole script
+        # a guaranteed pass on rules-only vendor packs — it would print
+        # "Checked: 0 item(s)" and a green tick for a pack whose rule was not on
+        # the tenant at all. demisto-sdk does not deliver correlation rules (see
+        # tools/install_correlation_rules.py), so this is exactly the content
+        # type most likely to be missing and it was the one nobody looked at.
+        cr_files = sorted(glob.glob(f"{pack}/CorrelationRules/*.yml"))
+        if cr_files:
+            import yaml
+            body = public_api(env, "/public_api/v1/correlations/get", {"request_data": {}})
+            on_tenant_rules = {r.get("name") for r in (body.get("objects") or [])}
+            for f in cr_files:
+                doc = yaml.safe_load(open(f))
+                if isinstance(doc, list):
+                    doc = doc[0]
+                if not doc or "name" not in doc:
+                    continue
+                checked += 1
+                if doc["name"] not in on_tenant_rules:
+                    missing.append((pack, "corr rule", doc["name"]))
+
     print(f"\n  Tenant : {env['DEMISTO_BASE_URL']}")
     print(f"  Checked: {checked} item(s) across {len(packs)} pack(s)\n")
     if not missing:
-        print("  ✓ Every script and list in these packs is present on the tenant\n")
+        print("  ✓ Every script, list and correlation rule in these packs is present on the tenant\n")
         return 0
 
     print(f"  ✗ {len(missing)} item(s) missing from the tenant:\n")
