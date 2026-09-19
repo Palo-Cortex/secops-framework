@@ -1,0 +1,48 @@
+[MODEL: dataset=abnormal_security_email_protection_raw]
+alter
+    tmp_sender_ip = senderIpAddress,
+    tmp_to_addresses_json_str = toAddresses,
+    tmp_cc_emails_json_str = ccEmails,
+    tmp_attachment_names_json_str = attachmentNames,
+    tmp_summary_insights_json_str = summaryInsights,
+    tmp_remediation_status = remediationStatus,
+    tmp_attack_type = attackType,
+    tmp_attack_strategy = attackStrategy,
+    tmp_subject = subject,
+    tmp_recipient_address = recipientAddress,
+    tmp_from_name = fromName,
+    tmp_threat_id = threatId,
+    tmp_return_path = returnPath,
+    tmp_from_address = fromAddress,
+    tmp_abx_portal_url = abxPortalUrl,
+    tmp_internet_message_id = internetMessageId
+| alter
+    tmp_to_addresses_array = json_extract_scalar_array(tmp_to_addresses_json_str, "$[]"),
+    tmp_cc_emails_array = json_extract_scalar_array(tmp_cc_emails_json_str, "$[]"),
+    tmp_attachment_names_array = json_extract_scalar_array(tmp_attachment_names_json_str, "$[]"),
+    tmp_summary_insights_array = json_extract_scalar_array(tmp_summary_insights_json_str, "$[]")
+| alter
+    xdm.email.subject = tmp_subject,
+    xdm.email.from_name = tmp_from_name,
+    xdm.alert.original_threat_id = tmp_threat_id,
+    xdm.email.return_path = tmp_return_path,
+    xdm.email.from_address = tmp_from_address,
+    xdm.alert.source_url = tmp_abx_portal_url,
+    xdm.email.message_id = tmp_internet_message_id,
+    xdm.source.ipv6 = if(is_ipv6(tmp_sender_ip), tmp_sender_ip, null),
+    xdm.email.recipients = arrayconcat(arraycreate(tmp_recipient_address), arrayfilter(tmp_to_addresses_array, "@element" != "")),
+    xdm.email.cc = arrayfilter(tmp_cc_emails_array, "@element" != ""),
+    xdm.email.attachment.filename = arrayindex(tmp_attachment_names_array, 0),
+    xdm.alert.name = tmp_attack_type,
+    xdm.alert.category = tmp_attack_type,
+    xdm.alert.subcategory = tmp_attack_strategy,
+    xdm.alert.status = if(tmp_remediation_status = "Remediated", "DONE", "UNKNOWN"),
+    xdm.event.outcome = if(tmp_remediation_status = "Remediated", "SUCCESS", "UNKNOWN"),
+    tmp_tags_list = arraycreate(
+        if(tmp_attack_type = "Phishing: Credential", "AUTHENTICATION", ""),
+        if(array_any(tmp_summary_insights_array, "@element" = "Social Engineering Tactics"), "AUTHENTICATION", "")
+    )
+| alter
+    xdm.event.tags = arraydistinct(arrayfilter(tmp_tags_list, "@element" != "")),
+    xdm.event.description = concat(tmp_subject, " - Attack Type: ", tmp_attack_type, " - Strategy: ", tmp_attack_strategy, " - Insights: ", arraystring(tmp_summary_insights_array, ", "))
+;
