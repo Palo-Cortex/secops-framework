@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib3
 import requests
 import yaml
@@ -154,8 +155,30 @@ def check_rule_xql(cfg: TenantConfig, rule_path: Path) -> tuple[list[str], list[
     if not xql:
         return errors, notes
 
+    # alert_fields maps columns straight off the alert the query emits, and the
+    # insert endpoint validates xql_query ONLY -- so a mapping onto a column the
+    # tenant does not have passes this check while the rule editor marks it
+    # "field is invalid" and the pack install fails 101704. Sixteen such
+    # mappings shipped in SocFrameworkProofPointTap.
+    #
+    # Appending the mapped sources as a trailing stage puts them inside the
+    # query, so the platform validates them too and names any it cannot
+    # resolve. This is the only reliable oracle: whether a bare column is
+    # legitimate depends on the tenant's live dataset schema, which no static
+    # check can know -- a repo-wide scan flags 114 such mappings, most of them
+    # in packs that install perfectly well.
+    fields_map = rule.get("alert_fields") or {}
+    sources = sorted({
+        v for v in fields_map.values()
+        if isinstance(v, str) and v and re.fullmatch(r"\w+", v)
+    }) if isinstance(fields_map, dict) else []
+
+    base_xql = xql
+    if sources:
+        base_xql = f"{xql}\n| fields {', '.join(sources)}"
+
     unknown: list[str] = []
-    probe_xql = xql
+    probe_xql = base_xql
 
     for i in range(MAX_FIELD_PROBES):
         probe = build_probe(rule, f"{abs(hash(rule_path.name)) % 100000}_{i}")
@@ -188,8 +211,11 @@ def check_rule_xql(cfg: TenantConfig, rule_path: Path) -> tuple[list[str], list[
         unknown.append(field)
         # Neutralise this field so the next submit reveals the following one.
         # Defining it up front is enough; we are enumerating, not executing.
-        probe_xql = f'{xql.splitlines()[0]}\n| alter {" = null, ".join(unknown)} = null\n' + \
-                    "\n".join(xql.splitlines()[1:])
+        lines = base_xql.splitlines()
+        probe_xql = (
+            lines[0] + "\n| alter " + " = null, ".join(unknown) + " = null\n"
+            + "\n".join(lines[1:])
+        )
 
     if unknown:
         errors.append(
