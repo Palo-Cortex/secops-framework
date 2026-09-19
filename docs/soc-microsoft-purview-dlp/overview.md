@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-microsoft-purview-dlp` |
-| Version | `1.1.2` |
+| Version | `1.1.3` |
 | Category | DLP |
 | Pack Path | `Packs/soc-microsoft-purview-dlp` |
 | Manifest | [`Packs/soc-microsoft-purview-dlp/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-microsoft-purview-dlp/xsoar_config.json) |
@@ -30,4 +30,4 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-microsoft-purview-dlp.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-microsoft-purview-dlp-v1.1.2/soc-microsoft-purview-dlp-v1.1.2.zip) |
+| `soc-microsoft-purview-dlp.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-microsoft-purview-dlp-v1.1.3/soc-microsoft-purview-dlp-v1.1.3.zip) |

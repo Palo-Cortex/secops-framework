@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-nozomi-guardian` |
-| Version | `1.1.2` |
+| Version | `1.1.3` |
 | Category | Network Security |
 | Pack Path | `Packs/soc-nozomi-guardian` |
 | Manifest | [`Packs/soc-nozomi-guardian/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-nozomi-guardian/xsoar_config.json) |
@@ -30,4 +30,4 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-nozomi-guardian.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-nozomi-guardian-v1.1.2/soc-nozomi-guardian-v1.1.2.zip) |
+| `soc-nozomi-guardian.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-nozomi-guardian-v1.1.3/soc-nozomi-guardian-v1.1.3.zip) |
