@@ -22,7 +22,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-microsoft-defender-email.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-microsoft-defender-email-v1.0.0/soc-microsoft-defender-email-v1.0.0.zip) |
+| `SocFrameworkMicrosoftEmail.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkMicrosoftEmail-v1.0.10/SocFrameworkMicrosoftEmail-v1.0.10.zip) |
 
 ## Marketplace Dependencies
 
