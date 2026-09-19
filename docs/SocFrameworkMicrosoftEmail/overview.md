@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkMicrosoftEmail` |
-| Version | `1.0.11` |
+| Version | `1.1.0` |
 | Category | Email Security |
 | Pack Path | `Packs/SocFrameworkMicrosoftEmail` |
 | Manifest | [`Packs/SocFrameworkMicrosoftEmail/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkMicrosoftEmail/xsoar_config.json) |
@@ -22,7 +22,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `SocFrameworkMicrosoftEmail.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkMicrosoftEmail-v1.0.11/SocFrameworkMicrosoftEmail-v1.0.11.zip) |
+| `SocFrameworkMicrosoftEmail.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkMicrosoftEmail-v1.1.0/SocFrameworkMicrosoftEmail-v1.1.0.zip) |
 
 ## Marketplace Dependencies
 
