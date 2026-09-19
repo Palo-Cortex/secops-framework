@@ -124,6 +124,29 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 ```xql
 | filter product = "saas-security"
 | alter vendor_name = "CrowdStrike", product_name = "Falcon SaaS"
+// --- compatibility shim: fields not guaranteed on every SaaS tenant ---
+// Referencing a column that is absent fails XQL validation, which is what
+// returns 101704 on pack install. A tenant that has never ingested
+// product="saas-security" has none of these columns in the dataset schema.
+// rawJSON is always present, so read them from there and alias back to the
+// canonical names: real value when the event has it, null when it does not.
+| alter
+        cs_user_names          = json_extract_array(to_json_string(rawJSON), "$.user_names"),
+        cs_event_summary       = json_extract_scalar(to_json_string(rawJSON), "$.event_summary"),
+        cs_category            = json_extract_scalar(to_json_string(rawJSON), "$.category"),
+        cs_asn                 = json_extract_scalar(to_json_string(rawJSON), "$.asn"),
+        cs_asn_name            = json_extract_scalar(to_json_string(rawJSON), "$.asn_name"),
+        cs_country             = json_extract_scalar(to_json_string(rawJSON), "$.country"),
+        cs_correlation_rule_id = json_extract_scalar(to_json_string(rawJSON), "$.correlation_rule_id")
+| alter
+        user_names          = cs_user_names,
+        event_summary       = cs_event_summary,
+        category            = cs_category,
+        asn                 = cs_asn,
+        asn_name            = cs_asn_name,
+        country             = cs_country,
+        correlation_rule_id = cs_correlation_rule_id
+// --- end compatibility shim ---
 | filter display_name not in ("Anonymized IP")
 | alter alert_name = display_name
 
