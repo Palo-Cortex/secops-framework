@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkZscalerZPA` |
-| Version | `1.0.0` |
+| Version | `1.0.1` |
 | Category | Network Security |
 | Pack Path | `Packs/SocFrameworkZscalerZPA` |
 | Manifest | [`Packs/SocFrameworkZscalerZPA/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkZscalerZPA/xsoar_config.json) |
@@ -24,4 +24,4 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `SocFrameworkZscalerZPA.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkZscalerZPA-v1.0.0/SocFrameworkZscalerZPA-v1.0.0.zip) |
+| `SocFrameworkZscalerZPA.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkZscalerZPA-v1.0.1/SocFrameworkZscalerZPA-v1.0.1.zip) |
