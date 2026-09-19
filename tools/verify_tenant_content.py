@@ -22,6 +22,7 @@ import glob
 import json
 import os
 import sys
+import yaml
 import urllib.request
 
 PACK_GLOB = "Packs/soc*"
@@ -60,7 +61,26 @@ def main():
     packs = [p for p in packs if os.path.isdir(p)]
 
     on_tenant_lists = {L.get("name") for L in api(env, "/lists", method="GET")}
+
+    # Playbooks, correlation rules and modeling rules were never checked here.
+    # That blind spot is why a pack could report its catalog version with none
+    # of its content installed and this tool still printed a tick: it only
+    # looked at Scripts/ and Lists/, so a rules-only or playbook-only pack was
+    # "Checked: 0 item(s)" and passed having verified nothing.
+    #
+    # Observed 19 Sep 2026: soc-optimization-unified reported 3.20.3 on the
+    # tenant with all 24 scripts and lists missing, and 19 packs were reported
+    # as installed on version numbers alone.
+    on_tenant_playbooks = {
+        pb.get("name")
+        for pb in api(env, "/playbook/search", {"page": 0, "size": 5000}).get("playbooks", [])
+    }
+    on_tenant_fields = {
+        f.get("cliName") for f in api(env, "/incidentfields", method="GET") or []
+    }
+
     missing = []
+    unverifiable = []
     checked = 0
 
     for pack in packs:
@@ -77,10 +97,57 @@ def main():
             if name not in on_tenant_lists:
                 missing.append((pack, "list", name))
 
+        # Playbooks are matched on the internal name, not the filename: the
+        # two legitimately differ (underscores vs spaces) and the tenant only
+        # knows the name.
+        for f in sorted(glob.glob(f"{pack}/Playbooks/*.yml")):
+            try:
+                name = (yaml.safe_load(open(f)) or {}).get("name")
+            except Exception:
+                name = None
+            if not name:
+                continue
+            checked += 1
+            if name not in on_tenant_playbooks:
+                missing.append((pack, "playbook", name))
+
+        for f in sorted(glob.glob(f"{pack}/IncidentFields/*.json")):
+            try:
+                cli = (json.load(open(f)) or {}).get("cliName")
+            except Exception:
+                cli = None
+            if not cli:
+                continue
+            checked += 1
+            if cli not in on_tenant_fields:
+                missing.append((pack, "field", cli))
+
+        # Correlation and modeling rules are counted but NOT verified: the
+        # correlations API returns custom (API/UI-created) rules only and
+        # cannot see pack-installed ones, so there is no endpoint to check
+        # them against. Saying so is better than a silent gap.
+        rules = glob.glob(f"{pack}/CorrelationRules/*.yml")
+        models = glob.glob(f"{pack}/ModelingRules/*/*.yml")
+        if rules or models:
+            unverifiable.append((pack, len(rules), len(models)))
+
     print(f"\n  Tenant : {env['DEMISTO_BASE_URL']}")
     print(f"  Checked: {checked} item(s) across {len(packs)} pack(s)\n")
+    if unverifiable:
+        print("  ! Not verifiable via API (correlations/get sees custom rules only) —")
+        print("    confirm these in the tenant UI:")
+        for pack, nr, nm in unverifiable:
+            bits = []
+            if nr:
+                bits.append(f"{nr} correlation rule(s)")
+            if nm:
+                bits.append(f"{nm} modeling rule(s)")
+            print(f"      {os.path.basename(pack):38} {', '.join(bits)}")
+        print()
+
     if not missing:
-        print("  ✓ Every script and list in these packs is present on the tenant\n")
+        print("  ✓ Every script, list, playbook and incident field in these packs")
+        print("    is present on the tenant\n")
         return 0
 
     print(f"  ✗ {len(missing)} item(s) missing from the tenant:\n")
