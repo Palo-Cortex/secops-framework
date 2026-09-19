@@ -236,6 +236,80 @@ correlation_rules:
       // Vendor / product drive SOCProductCategoryMap routing downstream.
       | alter vendor_name = "Proofpoint", product_name = "TAP"
 
+      // --- compatibility shim: fields not guaranteed on every TAP tenant ---
+      // Referencing a column that is absent fails XQL validation, which the pack
+      // bundle installer reports as a bare 101704. A tenant that has not yet
+      // ingested parsed Proofpoint events has none of these columns in the
+      // dataset schema, so the pack cannot install at all. rawJSON is always
+      // present: read them from there and alias back to the canonical names.
+      // Real value when the event has it, null when it does not.
+      | alter
+          pp_threatsInfoMap = json_extract(to_json_string(rawJSON), "$.threatsInfoMap"),
+          pp_threatStatus   = json_extract_scalar(to_json_string(rawJSON), "$.threatStatus"),
+          pp_recipient      = json_extract(to_json_string(rawJSON), "$.recipient"),
+          pp_messageParts   = json_extract(to_json_string(rawJSON), "$.messageParts"),
+          pp_url            = json_extract_scalar(to_json_string(rawJSON), "$.url"),
+          pp_GUID           = json_extract_scalar(to_json_string(rawJSON), "$.GUID"),
+          pp_clickIP        = json_extract_scalar(to_json_string(rawJSON), "$.clickIP"),
+          pp_alert_data     = json_extract(to_json_string(rawJSON), "$._alert_data")
+      | alter
+          threatsInfoMap = pp_threatsInfoMap,
+          threatStatus   = pp_threatStatus,
+          recipient      = pp_recipient,
+          messageParts   = pp_messageParts,
+          url            = pp_url,
+          GUID           = pp_GUID,
+          clickIP        = pp_clickIP
+      // _alert_data is NOT aliased back: the rule reads it with the -> accessor,
+      // which needs a real object. pp_alert_data is a JSON string, so the three
+      // reads below use json_extract_scalar instead. Same values, same nulls.
+      // alert_fields maps these 16 columns straight off the dataset. They are
+      // not read anywhere in the query body, so the correlations insert API --
+      // which validates xql_query only -- reports the query as valid while the
+      // UI marks every one of these mappings "field is invalid" and the pack
+      // install fails 101704.
+      //
+      // Five of them (sender, subject, senderIP, messageID, clickTime) are
+      // declared in this pack's own modeling-rule schema and are STILL invalid:
+      // what is checked is the tenant's live dataset schema, which only gains
+      // columns once parsed events land. Declaring them in the pack is not
+      // enough. Defining them here is.
+      | alter
+          pp_sender         = json_extract_scalar(to_json_string(rawJSON), "$.sender"),
+          pp_subject        = json_extract_scalar(to_json_string(rawJSON), "$.subject"),
+          pp_senderIP       = json_extract_scalar(to_json_string(rawJSON), "$.senderIP"),
+          pp_messageID      = json_extract_scalar(to_json_string(rawJSON), "$.messageID"),
+          pp_clickTime      = json_extract_scalar(to_json_string(rawJSON), "$.clickTime"),
+          pp_xmailer        = json_extract_scalar(to_json_string(rawJSON), "$.xmailer"),
+          pp_campaignId     = json_extract_scalar(to_json_string(rawJSON), "$.campaignId"),
+          pp_phishScore     = json_extract_scalar(to_json_string(rawJSON), "$.phishScore"),
+          pp_spamScore      = json_extract_scalar(to_json_string(rawJSON), "$.spamScore"),
+          pp_malwareScore   = json_extract_scalar(to_json_string(rawJSON), "$.malwareScore"),
+          pp_threatTime     = json_extract_scalar(to_json_string(rawJSON), "$.threatTime"),
+          pp_headerFrom     = json_extract_scalar(to_json_string(rawJSON), "$.headerFrom"),
+          pp_messageSize    = json_extract_scalar(to_json_string(rawJSON), "$.messageSize"),
+          pp_impostorScore  = json_extract_scalar(to_json_string(rawJSON), "$.impostorScore"),
+          pp_headerReplyTo  = json_extract_scalar(to_json_string(rawJSON), "$.headerReplyTo"),
+          pp_replyToAddress = json_extract_scalar(to_json_string(rawJSON), "$.replyToAddress")
+      | alter
+          sender         = pp_sender,
+          subject        = pp_subject,
+          senderIP       = pp_senderIP,
+          messageID      = pp_messageID,
+          clickTime      = pp_clickTime,
+          xmailer        = pp_xmailer,
+          campaignId     = pp_campaignId,
+          phishScore     = pp_phishScore,
+          spamScore      = pp_spamScore,
+          malwareScore   = pp_malwareScore,
+          threatTime     = pp_threatTime,
+          headerFrom     = pp_headerFrom,
+          messageSize    = pp_messageSize,
+          impostorScore  = pp_impostorScore,
+          headerReplyTo  = pp_headerReplyTo,
+          replyToAddress = pp_replyToAddress
+      // --- end compatibility shim ---
+
       // Only delivered mail and permitted clicks are actionable. Blocked events are
       // Proofpoint doing its job and carry no response work.
       | filter type in ("messages delivered", "clicks permitted")
@@ -253,8 +327,8 @@ correlation_rules:
       | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
       | alter
-          alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
-          alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
+          alert_severity    = coalesce(json_extract_scalar(pp_alert_data, "$.severity"), "SEV_030_MEDIUM"),
+          alert_category    = coalesce(json_extract_scalar(pp_alert_data, "$.alert_category"), "Email Security"),
           alert_name = if(
               type = "clicks permitted",
               concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -313,7 +387,7 @@ correlation_rules:
 
       // Link count feeds outbound-compromise scoring in Email_Analysis_V3. The rule
       // fires neutrally; direction filtering happens in Issue Exclusions.
-      | alter linkedCount = to_integer(_alert_data -> linkedCount)
+      | alter linkedCount = to_integer(json_extract_scalar(pp_alert_data, "$.linkedCount"))
 
       // First-element extractions consumed by soc-phishing-investigation-1.0.5
       // playbooks and layouts. bc_threatinfomap uses json_extract, not
