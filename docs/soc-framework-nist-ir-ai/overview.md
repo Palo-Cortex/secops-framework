@@ -25,7 +25,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-framework-nist-ir-ai.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-ai-v1.4.0/soc-framework-nist-ir-ai-v1.4.0.zip) |
+| `soc-framework-nist-ir-ai.zip` |  | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-framework-nist-ir-ai-v1.4.0/soc-framework-nist-ir-ai-v1.4.0.zip) |
 
 ## Jobs
 
