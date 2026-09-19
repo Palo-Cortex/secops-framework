@@ -164,6 +164,59 @@ xql_query: |
   dataset = proofpoint_tap_v2_generic_alert_raw
   | alter vendor_name = "Proofpoint", product_name = "TAP"
 
+  | alter
+      pp_threatsInfoMap = json_extract(to_json_string(rawJSON), "$.threatsInfoMap"),
+      pp_threatStatus   = json_extract_scalar(to_json_string(rawJSON), "$.threatStatus"),
+      pp_recipient      = json_extract(to_json_string(rawJSON), "$.recipient"),
+      pp_messageParts   = json_extract(to_json_string(rawJSON), "$.messageParts"),
+      pp_url            = json_extract_scalar(to_json_string(rawJSON), "$.url"),
+      pp_GUID           = json_extract_scalar(to_json_string(rawJSON), "$.GUID"),
+      pp_clickIP        = json_extract_scalar(to_json_string(rawJSON), "$.clickIP"),
+      pp_alert_data     = json_extract(to_json_string(rawJSON), "$._alert_data")
+  | alter
+      threatsInfoMap = pp_threatsInfoMap,
+      threatStatus   = pp_threatStatus,
+      recipient      = pp_recipient,
+      messageParts   = pp_messageParts,
+      url            = pp_url,
+      GUID           = pp_GUID,
+      clickIP        = pp_clickIP
+
+  | alter
+      pp_sender         = json_extract_scalar(to_json_string(rawJSON), "$.sender"),
+      pp_subject        = json_extract_scalar(to_json_string(rawJSON), "$.subject"),
+      pp_senderIP       = json_extract_scalar(to_json_string(rawJSON), "$.senderIP"),
+      pp_messageID      = json_extract_scalar(to_json_string(rawJSON), "$.messageID"),
+      pp_clickTime      = json_extract_scalar(to_json_string(rawJSON), "$.clickTime"),
+      pp_xmailer        = json_extract_scalar(to_json_string(rawJSON), "$.xmailer"),
+      pp_campaignId     = json_extract_scalar(to_json_string(rawJSON), "$.campaignId"),
+      pp_phishScore     = json_extract_scalar(to_json_string(rawJSON), "$.phishScore"),
+      pp_spamScore      = json_extract_scalar(to_json_string(rawJSON), "$.spamScore"),
+      pp_malwareScore   = json_extract_scalar(to_json_string(rawJSON), "$.malwareScore"),
+      pp_threatTime     = json_extract_scalar(to_json_string(rawJSON), "$.threatTime"),
+      pp_headerFrom     = json_extract_scalar(to_json_string(rawJSON), "$.headerFrom"),
+      pp_messageSize    = json_extract_scalar(to_json_string(rawJSON), "$.messageSize"),
+      pp_impostorScore  = json_extract_scalar(to_json_string(rawJSON), "$.impostorScore"),
+      pp_headerReplyTo  = json_extract_scalar(to_json_string(rawJSON), "$.headerReplyTo"),
+      pp_replyToAddress = json_extract_scalar(to_json_string(rawJSON), "$.replyToAddress")
+  | alter
+      sender         = pp_sender,
+      subject        = pp_subject,
+      senderIP       = pp_senderIP,
+      messageID      = pp_messageID,
+      clickTime      = pp_clickTime,
+      xmailer        = pp_xmailer,
+      campaignId     = pp_campaignId,
+      phishScore     = pp_phishScore,
+      spamScore      = pp_spamScore,
+      malwareScore   = pp_malwareScore,
+      threatTime     = pp_threatTime,
+      headerFrom     = pp_headerFrom,
+      messageSize    = pp_messageSize,
+      impostorScore  = pp_impostorScore,
+      headerReplyTo  = pp_headerReplyTo,
+      replyToAddress = pp_replyToAddress
+
   | filter type in ("messages delivered", "clicks permitted")
 
   | alter threatsInfoMap_str = threatsInfoMap
@@ -176,8 +229,8 @@ xql_query: |
   | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
   | alter
-      alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
-      alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
+      alert_severity    = coalesce(json_extract_scalar(pp_alert_data, "$.severity"), "SEV_030_MEDIUM"),
+      alert_category    = coalesce(json_extract_scalar(pp_alert_data, "$.alert_category"), "Email Security"),
       alert_name = if(
           type = "clicks permitted",
           concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -223,7 +276,7 @@ xql_query: |
 
   | alter cleaned_url = ltrim(replex(coalesce(first_threat_url, url), "^https?://", ""), "www.")
 
-  | alter linkedCount = to_integer(_alert_data -> linkedCount)
+  | alter linkedCount = to_integer(json_extract_scalar(pp_alert_data, "$.linkedCount"))
 
   | alter
       bc_threatid       = json_extract_scalar(threatsInfoMap_str, "$[0].threatID"),
