@@ -392,10 +392,21 @@ def main() -> None:
         if preflight_script.exists():
             results.append(run_step(
                 f"correlation_rule_preflight — {pack.name}",
-                [sys.executable, str(preflight_script), str(pack)],
+                # --tenant validates each changed rule's XQL against the live
+                # dataset schema. A field the tenant does not know fails the pack
+                # install as a bare 101704 with no field name, which every static
+                # check misses (soc-crowdstrike-saas shipped broken this way).
+                # --changed-only keeps it off the tenant unless a rule moved.
+                [sys.executable, str(preflight_script), str(pack),
+                 "--tenant", "--changed-only", args.base],
                 args.ci,
                 remediation=(
                     "Preflight output above names the offending rule(s) and field(s).\n"
+                    "If it reports fields missing from the tenant dataset schema, the\n"
+                    "pack install will fail with 101704. When the tenant simply has no\n"
+                    "data for that product, read those fields from rawJSON and alias\n"
+                    "back to the canonical names — see the compatibility shim in\n"
+                    "schemas/vendors/crowdstrike-saas (7 fields) or crowdstrike-idp (11).\n"
                     "Common fixes per SOC Framework correlation rule schema rules:\n"
                     "  • remove top-level 'rule_id: 0'\n"
                     "  • add 'fromversion: 8.0.0' (unquoted)\n"

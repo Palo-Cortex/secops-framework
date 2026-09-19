@@ -162,10 +162,52 @@ def check_scripts(pack_path: Path) -> list[str]:
     return errors
 
 
+def _changed_rule_files(base: str) -> set | None:
+    """Resolved paths of correlation rule files differing from ``base``.
+
+    Returns None when git cannot answer, so the caller can fall back to probing
+    everything rather than silently probing nothing.
+    """
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            # Diff BASE against the WORKING TREE, not BASE...HEAD. The gate
+            # validates working-tree files, so a rule edited but not yet
+            # committed — the normal local case — must still be probed.
+            ["git", "diff", "--name-only", "--diff-filter=ACMR", base],
+            capture_output=True, text=True, timeout=60,
+        )
+        if out.returncode != 0:
+            return None
+        return {
+            Path(line).resolve()
+            for line in out.stdout.splitlines()
+            if "/CorrelationRules/" in line and line.endswith(".yml")
+        }
+    except Exception:
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="SOC Framework correlation rule preflight validator")
     parser.add_argument("path", help="Pack directory or individual correlation rule YAML")
     parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
+    parser.add_argument(
+        "--tenant",
+        action="store_true",
+        help="Also validate each rule's XQL against the live tenant dataset schema. "
+        "Catches field references that exist in no dataset on this tenant, which "
+        "fail the pack install as a bare 101704. Requires DEMISTO_BASE_URL, "
+        "DEMISTO_API_KEY and XSIAM_AUTH_ID; skipped with a note if absent.",
+    )
+    parser.add_argument(
+        "--changed-only",
+        metavar="BASE",
+        help="With --tenant, only probe rules whose file differs from BASE "
+        "(e.g. origin/main). Rule files are the only thing that can introduce a "
+        "bad field reference, so an unchanged rule needs no tenant round trip.",
+    )
     args = parser.parse_args()
 
     path = Path(args.path)
@@ -217,6 +259,48 @@ def main():
                     print(f"    ⚠ {w}")
             else:
                 print(f"  ✓ {rule_path.name}")
+
+    # ── Tenant XQL validation ────────────────────────────────────────────
+    # Static checks cannot see the dataset schema. This is the check that would
+    # have caught soc-crowdstrike-saas before a pack install ever failed.
+    if args.tenant and rules:
+        probe_rules = sorted(rules)
+
+        if args.changed_only:
+            changed = _changed_rule_files(args.changed_only)
+            if changed is None:
+                print("\n  Tenant XQL check: could not read git diff — probing all rules")
+            else:
+                probe_rules = [r for r in probe_rules if r.resolve() in changed]
+                if not probe_rules:
+                    print("\n  Tenant XQL check: no correlation rule changed — skipped")
+
+        if probe_rules:
+            try:
+                sys.path.insert(0, str(Path(__file__).parent))
+                from xql_tenant_check import TenantConfig, check_rule_xql
+
+                cfg = TenantConfig()
+                if not cfg.available:
+                    # Not a failure: local runs without creds are legitimate, and
+                    # CI supplies them. Silently passing would be worse.
+                    print("\n  Tenant XQL check: SKIPPED (no tenant credentials in env)")
+                else:
+                    print(f"\n  Tenant XQL check — {len(probe_rules)} rule(s) against {cfg.base_url}")
+                    for rule_path in probe_rules:
+                        errs, notes = check_rule_xql(cfg, rule_path)
+                        if errs:
+                            total_errors += len(errs)
+                            for e in errs:
+                                print(f"    \u2717 {e}")
+                            for n in notes:
+                                print(f"      \u2192 {n}")
+                        else:
+                            print(f"    \u2713 {rule_path.name} — XQL valid against tenant schema")
+            except Exception as exc:
+                # An outage in the check must not masquerade as clean content.
+                total_errors += 1
+                print(f"    \u2717 Tenant XQL check failed to run: {exc}")
 
     print()
     if total_errors > 0:
