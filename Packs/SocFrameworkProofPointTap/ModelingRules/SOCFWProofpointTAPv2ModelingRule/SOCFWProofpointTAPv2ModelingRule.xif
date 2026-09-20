@@ -1,0 +1,80 @@
+// SOC Proofpoint TAP v2 Modeling Rule
+//
+// Mappings derived from the XSIAM AI-generated model (UUID b99ae8b8,
+// 2026-09-19), which was produced against real tenant payloads. Three
+// corrections were required before the pack installer would accept it --
+// each confirmed by single-variable upload tests against brumxdr:
+//
+//   1. json_extract_scalar_array() is rejected by the pack install
+//      validator (101704) even though the Data Model Rules editor accepts
+//      it. Replaced with arraymap(json_extract_array(...)).
+//   2. xdm.email.attachment.* is a SCALAR field. Assigning an array fails
+//      with 101704. Wrapped in arraystring(..., ",") per the shipping
+//      marketplace ProofpointTAP rule.
+//   3. xdm.email.from_name does not exist in XDM (zero occurrences across
+//      all shipping content). Dropped.
+//
+// Schema note: messageTime/clickTime must be declared `datetime`, and
+// messageParts/threatsInfoMap `string`, matching the marketplace schema.
+[MODEL: dataset=proofpoint_tap_v2_generic_alert_raw]
+alter
+    tmp_sender_ip_field = senderIP,
+
+    // Recipients / CC arrive as JSON array strings, not scalars.
+    tmp_recipients_from_recipient   = arraymap(json_extract_array(recipient, "$."), trim("@element", "\"")),
+    tmp_recipients_from_toaddresses = arraymap(json_extract_array(toAddresses, "$."), trim("@element", "\"")),
+    tmp_cc_addresses_array          = arraymap(json_extract_array(ccAddresses, "$."), trim("@element", "\"")),
+
+    // headerFrom carries "Display Name <addr@domain>"
+    tmp_header_from_address = arraystring(regextract(headerFrom, "<([^>]+)>"), ""),
+
+    // Attachments live in messageParts
+    tmp_attachment_filename = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.filename")), ","),
+    tmp_attachment_md5      = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.md5")), ","),
+    tmp_attachment_sha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ","),
+
+    // Threat detail lives inside threatsInfoMap, not the top-level columns.
+    tmp_threat_ids_array      = arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.threatID")),
+    tmp_threat_urls_array     = arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.threatUrl")),
+    tmp_threat_statuses_array = arraymap(json_extract_array(threatsInfoMap, "$."), json_extract_scalar("@element", "$.threatStatus"))
+| alter
+    tmp_all_recipients     = arraydistinct(arrayconcat(tmp_recipients_from_recipient, tmp_recipients_from_toaddresses)),
+    tmp_original_threat_id = arrayindex(tmp_threat_ids_array, 0),
+    tmp_source_url         = arrayindex(tmp_threat_urls_array, 0),
+
+    // [DECIDE] AI mapped active -> PENDING; pack 1.6.0 used IN_REVIEW.
+    tmp_alert_status = if(arrayindex(tmp_threat_statuses_array, 0) = "active", "PENDING", null),
+
+    // [DECIDE] AI set null because "malware" is not in the XDM enum; 1.6.0
+    // coerced malware -> OTHER and leaked every other value through.
+    //   dataset = proofpoint_tap_v2_generic_alert_raw | comp count() by classification
+    tmp_alert_category = null
+| alter
+    xdm.event.id           = id,
+    xdm.event.type         = type,
+    // [SOCFW] Only field distinguishing this rule from the marketplace one.
+    xdm.session_context_id = GUID,
+
+    xdm.source.user_agent = userAgent,
+    // [DECIDE] AI uses senderIP; 1.6.0 used clickIP. Consider branching on `type`.
+    xdm.source.ipv4 = if(is_ipv4(tmp_sender_ip_field), tmp_sender_ip_field, null),
+    xdm.source.ipv6 = if(is_ipv6(tmp_sender_ip_field), tmp_sender_ip_field, null),
+    // [SOCFW] Present in 1.6.0, dropped by the AI base. Restored.
+    xdm.target.url = url,
+
+    xdm.alert.category           = tmp_alert_category,
+    xdm.alert.original_threat_id = tmp_original_threat_id,
+    xdm.alert.source_url         = tmp_source_url,
+    xdm.alert.status             = tmp_alert_status,
+
+    xdm.email.recipients          = tmp_all_recipients,
+    xdm.email.cc                  = tmp_cc_addresses_array,
+    xdm.email.subject             = subject,
+    xdm.email.sender              = coalesce(sender, tmp_header_from_address),
+    xdm.email.message_id          = messageID,
+    xdm.email.attachment.filename = tmp_attachment_filename,
+    xdm.email.attachment.md5      = tmp_attachment_md5,
+    xdm.email.attachment.sha256   = tmp_attachment_sha256,
+    // [SOCFW] Absent from the AI base and 1.6.0; marketplace _1_3 maps it.
+    xdm.email.delivery_timestamp  = messageTime
+;
