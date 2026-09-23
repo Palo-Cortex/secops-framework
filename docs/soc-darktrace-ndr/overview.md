@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-darktrace-ndr` |
-| Version | `1.0.0` |
+| Version | `1.1.0` |
 | Category | Network Security |
 | Pack Path | `Packs/soc-darktrace-ndr` |
 | Manifest | [`Packs/soc-darktrace-ndr/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-darktrace-ndr/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-darktrace-ndr.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-darktrace-ndr-v1.0.0/soc-darktrace-ndr-v1.0.0.zip) |
+| `soc-darktrace-ndr.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-darktrace-ndr-v1.1.0/soc-darktrace-ndr-v1.1.0.zip) |
 
 ## Marketplace Dependencies
 
