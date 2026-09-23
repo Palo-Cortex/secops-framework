@@ -1,0 +1,161 @@
+rule_id: 0
+fromversion: 6.10.0
+tags:
+  - SOCFramework
+  - Passthrough
+  - Network
+  - NDR
+  - Darktrace
+action: ALERTS
+alert_category: User Defined
+alert_description: $alert_description
+alert_domain: DOMAIN_SECURITY
+alert_fields:
+  vendor: vendor
+  product: product
+  originalalertid: originalalertid
+  originalalertname: originalalertname
+  originalalertsource: originalalertsource
+  externallink: externallink
+  alert_description: alert_description
+  severity: severity
+  mitretacticid: mitretacticid
+  mitretacticname: mitretacticname
+  mitretechniqueid: mitretechniqueid
+  mitretechniquename: mitretechniquename
+  action_local_ip: action_local_ip
+  action_remote_ip: action_remote_ip
+  agent_hostname: agent_hostname
+  causality_actor_causality_id: causality_actor_causality_id
+  actor_effective_username: actor_effective_username
+  user_principal: user_principal
+  localip: action_local_ip
+  remoteip: action_remote_ip
+  hostname: agent_hostname
+alert_name: $alert_name
+alert_type: null
+crontab: '*/10 * * * *'
+dataset: alerts
+name: SOC Darktrace - Model Breach
+description: >-
+  Reshapes Darktrace model breaches (darktrace_darktrace_raw) into
+  properly-formed XSIAM alerts for the SOC Framework Network category. Maps the
+  monitored entity and the triggered metric's peer to the canonical network
+  pivots, percentscore to the XSIAM severity ladder, and MITRE from the model
+  definition. Grouping pivots: action_local_ip (entity), action_remote_ip
+  (peer), agent_hostname (host-shaped entities only),
+  causality_actor_causality_id (pbid). SCOPE: Critical and Suspicious SCOPE:
+  Darktrace's own Critical band only, non-compliance (~4 breaches / 30 days on a reference tenant, measured as DISTINCT pbid — the collector re-polls, so row counts
+  overstate by several thousand times). Suspicious is excluded: it is
+  Darktrace's "worth a look", and including it put 82 breaches / 30 days on the
+  queue, 67 of which were Antigena autonomous-response records or one chatty
+  recon model. Everything below Critical stays queryable in
+  darktrace_darktrace_raw and is better used as enrichment on a case another
+  source opened. Identity axis is wired for SaaS entities only: a SaaS "device"
+  is an account, and its UPN is recovered from the hostname string into
+  actor_effective_username and user_principal. Measured IN SCOPE on a reference tenant
+  that is 8 of 82 breaches over 30 days — across all breaches including
+  Informational it is 70 of 400, but this rule does not fire on Informational
+  and the in-scope number is the one that matters. Small, and still the only
+  pivot this source shares with the email and identity categories. Host-shaped
+  devices keep a null identity, which is correct: Darktrace observes traffic,
+  not logons.
+drilldown_query_timeframe: ALERT
+execution_mode: SCHEDULED
+global_rule_id: SOC Darktrace - Model Breach
+investigation_query_link: |-
+  dataset = darktrace_darktrace_raw
+  | alter dt_did = json_extract_scalar(to_json_string(device), "$.did")
+  | filter dt_did = "$dt_device_did"
+  | fields _time, pbid, percentscore, model, acknowledged
+is_enabled: true
+lookup_mapping: []
+mapping_strategy: CUSTOM
+mitre_defs: {}
+search_window: 20 minutes
+severity: User Defined
+simple_schedule: 10 minutes
+suppression_duration: 24 hours
+suppression_enabled: true
+suppression_fields:
+- pbid
+timezone: null
+user_defined_category: dt_category
+user_defined_severity: severity
+xql_query: |
+  dataset = darktrace_darktrace_raw
+  | alter vendor_name = "Darktrace", product_name = "Darktrace"
+
+  | alter dt_scope_category   = json_extract_scalar(to_json_string(model), "$.now.category"),
+          dt_scope_compliance = json_extract_scalar(to_json_string(model), "$.now.compliance"),
+          dt_scope_model      = json_extract_scalar(to_json_string(model), "$.now.name")
+  | filter dt_scope_category = "Critical"
+  | filter dt_scope_compliance != "true"
+
+  | alter
+      dt_model_name        = json_extract_scalar(to_json_string(model), "$.now.name"),
+      dt_model_category    = json_extract_scalar(to_json_string(model), "$.now.category"),
+      dt_model_behaviour   = json_extract_scalar(to_json_string(model), "$.now.behaviour"),
+      dt_model_description = json_extract_scalar(to_json_string(model), "$.now.description"),
+      dt_model_priority    = json_extract_scalar(to_json_string(model), "$.now.priority"),
+      dt_mitre_tactic      = json_extract_scalar(to_json_string(model), "$.now.mitre.tactics[0]"),
+      dt_mitre_technique   = json_extract_scalar(to_json_string(model), "$.now.mitre.techniques[0]")
+
+  | alter
+      dt_device_ip       = json_extract_scalar(to_json_string(device), "$.ip"),
+      dt_device_hostname = json_extract_scalar(to_json_string(device), "$.hostname"),
+      dt_device_did      = json_extract_scalar(to_json_string(device), "$.did"),
+      dt_device_type     = json_extract_scalar(to_json_string(device), "$.typelabel"),
+      dt_device_os       = json_extract_scalar(to_json_string(device), "$.os")
+
+  | alter dt_is_saas = if(dt_device_hostname ~= "^SaaS::", "true", "false")
+  | alter dt_hostname = if(dt_is_saas = "true", null, dt_device_hostname)
+
+  | alter dt_saas_upn = if(dt_is_saas = "true",
+          arrayindex(regextract(dt_device_hostname,
+                     "([\w.%+\-']+@[\w.\-]+\.[A-Za-z]{2,})"), 0),
+          null)
+
+  | alter dt_peer_ip = json_extract_scalar(to_json_string(triggeredComponents), "$[0].ip")
+
+  | alter severity = if(
+        dt_scope_category = "Critical"   and to_integer(percentscore) >= 70, "SEV_050_CRITICAL",
+        dt_scope_category = "Critical",                                      "SEV_040_HIGH",
+        dt_scope_category = "Suspicious" and to_integer(percentscore) >= 85, "SEV_030_MEDIUM",
+        dt_scope_category = "Suspicious",                                    "SEV_020_LOW",
+        "SEV_010_INFO")
+
+  | alter dt_category = coalesce(dt_model_category, "Network")
+
+  | alter dt_entity = coalesce(dt_hostname, dt_saas_upn, dt_device_ip,
+                               to_string(dt_device_did), "Unknown")
+  | alter alert_name = concat("[Network] ", dt_entity, " - ",
+                              dt_category, ": ", coalesce(dt_model_name, "Model Breach"))
+
+  | alter alert_description = concat(
+        coalesce(dt_model_description, "Darktrace model breach"),
+        " | Entity: ", dt_entity,
+        " | Peer: ", coalesce(dt_peer_ip, "n/a"),
+        " | Score: ", to_string(percentscore),
+        " | Breach: ", to_string(pbid))
+
+  | alter
+      vendor                       = vendor_name,
+      product                      = product_name,
+      originalalertid              = to_string(pbid),
+      originalalertname            = dt_model_name,
+      originalalertsource          = "Darktrace",
+      externallink                 = breachUrl,
+      action_local_ip              = dt_device_ip,
+      action_remote_ip             = dt_peer_ip,
+      agent_hostname               = dt_hostname,
+      causality_actor_causality_id = to_string(pbid),
+      mitretacticname              = dt_mitre_tactic,
+      mitretechniqueid             = dt_mitre_technique,
+      mitretacticid                = null,
+      mitretechniquename           = dt_mitre_technique
+
+  | alter actor_effective_username = lowercase(dt_saas_upn),
+          user_principal           = dt_saas_upn
+  | fields
+      pbid, time, percentscore, score, acknowledged, breachUrl, dt_model_name, dt_model_category, dt_model_behaviour, dt_model_priority, dt_device_ip, dt_device_hostname, dt_device_did, dt_device_type, dt_device_os, dt_is_saas, dt_saas_upn, dt_peer_ip, dt_entity, dt_category, dt_scope_category, dt_scope_compliance, dt_scope_model, severity, alert_name, alert_description, vendor, product, originalalertid, originalalertname, originalalertsource, externallink, action_local_ip, action_remote_ip, agent_hostname, causality_actor_causality_id, actor_effective_username, user_principal, mitretacticid, mitretacticname, mitretechniqueid, mitretechniquename

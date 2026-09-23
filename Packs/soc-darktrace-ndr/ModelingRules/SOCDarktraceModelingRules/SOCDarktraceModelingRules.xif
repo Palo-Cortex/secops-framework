@@ -1,0 +1,22 @@
+[MODEL: dataset=darktrace_darktrace_raw]
+alter
+xdm.event.id = to_string(pbid),
+xdm.alert.original_alert_id = to_string(pbid),
+xdm.alert.name = json_extract_scalar(to_json_string(model), "$.now.name"),
+xdm.alert.description = json_extract_scalar(to_json_string(model), "$.now.description"),
+xdm.alert.category = json_extract_scalar(to_json_string(model), "$.now.category"),
+xdm.alert.subcategory = json_extract_scalar(to_json_string(model), "$.now.behaviour"),
+xdm.alert.severity = to_string(percentscore),
+xdm.source.ipv4 = json_extract_scalar(to_json_string(device), "$.ip"),
+xdm.source.host.hostname = if(json_extract_scalar(to_json_string(device), "$.hostname") ~= "^SaaS::",
+   null,
+   json_extract_scalar(to_json_string(device), "$.hostname")),
+xdm.source.user.username = if(json_extract_scalar(to_json_string(device), "$.hostname") ~= "^SaaS::",
+   arrayindex(regextract(json_extract_scalar(to_json_string(device), "$.hostname"),
+              "([\w.%+\-']+@[\w.\-]+\.[A-Za-z]{2,})"), 0),
+   null),
+xdm.source.host.device_id = json_extract_scalar(to_json_string(device), "$.did"),
+xdm.source.host.os = json_extract_scalar(to_json_string(device), "$.os"),
+xdm.target.ipv4 = json_extract_scalar(to_json_string(triggeredComponents), "$[0].ip"),
+xdm.observer.product = "Darktrace",
+xdm.observer.vendor = "Darktrace";
