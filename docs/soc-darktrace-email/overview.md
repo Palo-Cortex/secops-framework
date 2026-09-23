@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-darktrace-email` |
-| Version | `1.0.0` |
+| Version | `1.1.0` |
 | Category | Email Security |
 | Pack Path | `Packs/soc-darktrace-email` |
 | Manifest | [`Packs/soc-darktrace-email/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-darktrace-email/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-darktrace-email.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-darktrace-email-v1.0.0/soc-darktrace-email-v1.0.0.zip) |
+| `soc-darktrace-email.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-darktrace-email-v1.1.0/soc-darktrace-email-v1.1.0.zip) |
 
 ## Marketplace Dependencies
 
