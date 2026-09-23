@@ -319,7 +319,12 @@ def write_pack_metadata(
         "name": display,
         "id": pack_name,
         "description": description,
-        "version": "1.0.0",
+        # NO "version" key. CI copies pack_metadata.json to metadata.json, where
+        # the platform parses version as an int64 -- a string there fails the
+        # upload with 400 "cannot unmarshal string ... of type int64", and
+        # validate_pack_catalog.py rejects it in the PR gate. currentVersion is
+        # the field that carries the version; bump_pack_version.py only touches
+        # that one.
         "currentVersion": "1.0.0",
         "author": FRAMEWORK_AUTHOR,
         "support": FRAMEWORK_SUPPORT,
