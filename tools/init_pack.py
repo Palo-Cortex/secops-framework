@@ -164,6 +164,40 @@ DEPENDENCIES = {
 }
 
 # Tags added to every SOC Framework pack (in addition to any passed in)
+# Tokens that are acronyms or product names, not words. Everything else gets
+# title-cased. Anything already uppercase in the directory name (ZPA in
+# SocFrameworkZscalerZPA) is left alone rather than title-cased down to "Zpa".
+DISPLAY_ACRONYMS = {
+    "soc", "ndr", "edr", "xdr", "mdr", "epp", "idp", "dlp", "ir", "ai", "ml",
+    "api", "saas", "iam", "pam", "cie", "siem", "soar", "ueba", "cnapp", "casb",
+    "swg", "ztna", "seg", "id", "ip", "dns", "url", "upn", "sid", "os", "pc",
+    "zpa", "zia", "mde", "mdo", "mfa", "nist", "mitre", "xsiam", "xsoar",
+}
+
+
+def _display_name(pack_name: str) -> str:
+    """Directory name -> the string Marketplace shows.
+
+    soc-darktrace-ndr       -> SOC Darktrace NDR
+    soc-microsoft-entra-id  -> SOC Microsoft Entra ID
+    SocFrameworkZscalerZPA  -> SOC Framework Zscaler ZPA
+    """
+    s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", pack_name)   # camelCase -> spaces
+    s = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", s)          # ZPAThing -> ZPA Thing
+    s = re.sub(r"[-_]+", " ", s)
+    out = []
+    for tok in s.split():
+        if tok.isupper() and len(tok) > 1:
+            out.append(tok)                       # already an acronym; leave it
+        elif tok.lower() in DISPLAY_ACRONYMS:
+            out.append(tok.upper())
+        elif re.fullmatch(r"[vV]\d+", tok):
+            out.append("V" + tok[1:])             # v3 -> V3
+        else:
+            out.append(tok[:1].upper() + tok[1:])
+    return " ".join(out).strip()
+
+
 BASE_TAGS = ["SOC Framework"]
 
 TAGS_BY_TYPE = {
@@ -269,11 +303,15 @@ def write_pack_metadata(
     """Write a SOC Framework-compliant pack_metadata.json."""
 
     # Derive a human-readable display name from the pack dir name.
-    # SocFrameworkZscalerZPA  →  SOC Framework - Zscaler ZPA
-    # soc-framework-nist-ir-v4 →  SOC Framework - NIST IR V4
-    display = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", pack_name)   # camelCase → spaces
-    display = re.sub(r"[-_]+", " ", display)                    # hyphens/underscores → spaces
-    display = display.strip()
+    # SocFrameworkZscalerZPA   →  SOC Framework Zscaler ZPA
+    # soc-darktrace-ndr        →  SOC Darktrace NDR
+    # soc-microsoft-entra-id   →  SOC Microsoft Entra ID
+    #
+    # Marketplace renders this string verbatim, so casing is not cosmetic. The
+    # original implementation split on hyphens and stopped, which is why every
+    # hyphenated pack shipped lowercase ("soc darktrace ndr") while CamelCase
+    # directories looked fine -- the bug hid in half the inputs.
+    display = _display_name(pack_name)
 
     tags = list(dict.fromkeys(BASE_TAGS + TAGS_BY_TYPE.get(pack_type, [])))
 
@@ -281,7 +319,12 @@ def write_pack_metadata(
         "name": display,
         "id": pack_name,
         "description": description,
-        "version": "1.0.0",
+        # NO "version" key. CI copies pack_metadata.json to metadata.json, where
+        # the platform parses version as an int64 -- a string there fails the
+        # upload with 400 "cannot unmarshal string ... of type int64", and
+        # validate_pack_catalog.py rejects it in the PR gate. currentVersion is
+        # the field that carries the version; bump_pack_version.py only touches
+        # that one.
         "currentVersion": "1.0.0",
         "author": FRAMEWORK_AUTHOR,
         "support": FRAMEWORK_SUPPORT,
