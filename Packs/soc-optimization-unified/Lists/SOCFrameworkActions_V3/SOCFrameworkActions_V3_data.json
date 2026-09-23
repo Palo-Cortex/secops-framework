@@ -689,6 +689,15 @@
         "output_map": {
           "UC.Email.DeliveryEvents": "AbnormalSecurity.ThreatDetails.messages"
         }
+      },
+      "DarktraceEmail": {
+        "command": "darktrace-email-get-email",
+        "inline_args": {
+          "uuid": "${SOCFramework.Artifacts.Email.MessageID}"
+        },
+        "output_map": {
+          "UC.Email.DeliveryEvents": "Darktrace.Email"
+        }
       }
     },
     "shadow_mode": false,
@@ -817,13 +826,23 @@
           "UC.Email.Quarantine.status": "AbnormalSecurity.ThreatManageResults.action_id",
           "UC.Email.Quarantine.message": "AbnormalSecurity.ThreatManageResults.status_url"
         }
+      },
+      "DarktraceEmail": {
+        "command": "darktrace-email-hold-email",
+        "inline_args": {
+          "uuid": "${SOCFramework.Artifacts.Email.MessageID}"
+        },
+        "output_map": {
+          "UC.Email.Quarantine.status": "Darktrace.Action.resp"
+        }
       }
     },
     "shadow_mode": true,
     "phase": "containment",
     "entity_scope": "artifact",
     "sequence_rank": 50,
-    "capability": "Email containment \u2014 quarantine message"
+    "capability": "Email containment \u2014 quarantine message",
+    "reversed_by": "soc-release-email"
   },
   "soc-block-sender": {
     "responses": {
@@ -1228,5 +1247,23 @@
     "phase": "communication",
     "entity_scope": "case",
     "capability": "Ticketing \u2014 close incident record"
+  },
+  "soc-release-email": {
+    "responses": {
+      "DarktraceEmail": {
+        "command": "darktrace-email-release-email",
+        "inline_args": {
+          "uuid": "${SOCFramework.Artifacts.Email.MessageID}",
+          "recipient": "${SOCFramework.Artifacts.Email.To}"
+        },
+        "output_map": {
+          "UC.Email.Release.status": "Darktrace.Action.resp"
+        }
+      }
+    },
+    "shadow_mode": true,
+    "phase": "recovery",
+    "entity_scope": "artifact",
+    "capability": "Email recovery \u2014 release held message"
   }
 }
