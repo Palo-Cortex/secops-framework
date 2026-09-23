@@ -10,7 +10,14 @@ overrides. The guards below are in code because they should not be configurable:
 
   starred          A starred issue is always closed by a person. Star is set at
                    alert creation and marks what the SOC has scoped in.
-  touched          Somebody is already working it.
+  assigned         An analyst owns it, so a person closes it. Tested on the
+                   assigned user and deliberately NOT on status: automation moves
+                   an issue off New, so a status test reads every issue whose
+                   lifecycle has started as one a human is working.
+  truncated        The model's reply was cut off. closure_blockers is emitted late
+                   in the schema and is the first thing truncation eats, so an
+                   empty blocker list on a truncated reply means "never got there",
+                   not "nothing blocks this".
   verdict          Never close a true-positive verdict at any confidence.
 
 A decision row is written whichever way it goes, including for issues held back,
@@ -50,16 +57,32 @@ def _assessment(ctx):
     return obj if isinstance(obj, dict) else {}
 
 
+def _is_truncated(a):
+    """True when the assessment object came from a reply that was cut off.
+
+    SOCFWPromoteAssessment writes `truncated`; SOCFWRenderAssessment historically
+    wrote `_truncated`. Read both rather than picking one, so a promoted object
+    from either path trips the guard.
+    """
+    return bool(a.get("truncated") or a.get("_truncated"))
+
+
 def decide(a, incident, policy, category):
     """Return (may_close, reason). Recorded whichever way it goes."""
     if not a:
         return False, "no assessment"
 
+    # A truncated reply is not a shorter answer, it is an unfinished one. Both
+    # _salvage implementations flag it; read either so an older promoted object
+    # still trips the guard.
+    if _is_truncated(a):
+        return False, "assessment reply was truncated — blockers may be missing"
+
     # Guards. Deliberately not in the policy list.
     if str(incident.get("starred") or "").lower() in ("true", "1"):
         return False, "starred — a person closes this"
-    if incident.get("owner") or str(incident.get("status") or "") not in ("", "0", "1"):
-        return False, "already being worked"
+    if incident.get("owner"):
+        return False, "assigned to an analyst"
     if str(a.get("verdict") or "").lower() == "malicious":
         return False, "a true-positive verdict is never auto-closed"
 
@@ -70,8 +93,15 @@ def decide(a, incident, policy, category):
     # case-scope action. Enforced here as well as in the prompt so a model that
     # ignores the instruction still cannot close one. "attempted" and "none" are
     # fine: nothing landed, so nothing is owed.
+    # ...unless the verdict is benign. "It executed" is only a remediation debt
+    # when the thing that executed was bad. A legitimate admin tool that ran is
+    # benign AND exposure "executed", and that is the shape of most real false
+    # positives — an FP is an FP precisely because the activity happened and was
+    # fine. Without this exemption the close path is reachable only for activity
+    # that never ran, which is a small minority of what a SOC actually closes.
     landed = str(a.get("exposure") or "").lower() in ("delivered", "executed")
-    if landed and not a.get("already_contained"):
+    benign = str(a.get("verdict") or "").lower() == "benign"
+    if landed and not benign and not a.get("already_contained"):
         return False, f"{a.get('exposure')} and not contained — a remediation is owed"
 
     # Tuning. A category override loosens or tightens one category without
@@ -116,6 +146,9 @@ def main():
         "closure_confidence": a.get("closure_confidence") or "",
         "closure_reason": a.get("closure_reason") or "",
         "blocker_count": len([b for b in (a.get("closure_blockers") or []) if b]),
+        # Carried so truncation rate is measurable per model and per prompt, and
+        # so a zero blocker_count can be told apart from one that was cut off.
+        "truncated": _is_truncated(a),
         "decided_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
