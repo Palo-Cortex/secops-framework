@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `SocFrameworkProofPointTap` |
-| Version | `1.7.1` |
+| Version | `1.7.2` |
 | Category | Email Security |
 | Pack Path | `Packs/SocFrameworkProofPointTap` |
 | Manifest | [`Packs/SocFrameworkProofPointTap/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/SocFrameworkProofPointTap/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `SocFrameworkProofPointTap.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkProofPointTap-v1.7.1/SocFrameworkProofPointTap-v1.7.1.zip) |
+| `SocFrameworkProofPointTap.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/SocFrameworkProofPointTap-v1.7.2/SocFrameworkProofPointTap-v1.7.2.zip) |
 
 ## Marketplace Dependencies
 
