@@ -1,0 +1,518 @@
+# ============================================================================
+# Darktrace — Email (Antigena Email / Darktrace EMAIL)
+# Vendor pack mapping (one file per data source)
+# ============================================================================
+# Source-of-truth contract for the SOC Framework's pack content generator.
+# Emits:
+#   - CorrelationRules/<n>.yml   (one per correlation_rules entry)
+#
+# No modeling rule, deliberately. Abnormal Security — the closest shipped
+# analogue — ships none either. XSIAM analytics with a custom data model cover
+# network and authentication telemetry; mail metadata has nothing for them to
+# model, so a modeling rule here would add XDM paths no consumer reads.
+#
+# Grounded in a SHAPE-ONLY profile of a reference tenant's darktraceemail_generic_alert_raw
+# (input_tsv/darktraceemail_generic_alert_raw.profile.json) plus aggregate-only
+# XQL against the tenant. No customer values were exported.
+#
+# What Darktrace EMAIL actually emits here
+# ----------------------------------------
+# One row per analysed MESSAGE. Confirmed 1:1 over 30 days — count() and
+# count_distinct(uuid) agree on every bucket — so unlike darktrace_darktrace_raw
+# (NDR), this collector does NOT re-poll and row counts ARE message counts.
+#
+#   uuid   per-message id -> originalalertid, suppression, drilldown, and the
+#                            handle Darktrace's own hold/release acts on.
+#
+# Verdict lives in three tag tiers, each a STRING holding a JSON array (not an
+# XSIAM array — arraystring() is rejected on them; match with `~=`):
+#
+#   tags_critical       Phishing Link, Credential Harvesting, Email Account
+#                       Takeover, VIP Impersonation, Multistage Payload,
+#                       Forged Address, Payment Scare, Fake Account Alert,
+#                       Document Anomalies, Extortion, Solicitation, Spam
+#   tags_warning        Graymail, Cold Call, Wide Distribution, No Association
+#   tags_informational  Freemail, Mailer, Notification, VIP, New Correspondent,
+#                       Active Conversation
+#
+# score is 0..100 and is NOT redundant with the tags: Spam reaches 100 while a
+# single-tag Credential Harvesting also sits at 100. Tags decide WHETHER, score
+# decides HOW SEVERE.
+#
+# KNOWN GAP — no URL artifact. Darktrace EMAIL exposes `links` as a COUNT, not
+# the URLs themselves, and the only free-text field (`summary`) is prose. So the
+# Email<->Endpoint bridge that Abnormal carries via fw_url_domain /
+# dns_query_name is unavailable here and those fields are null by design. The
+# bridge that IS available is the identity axis: actor_effective_username and
+# user_principal on the recipient, and fw_email_sender for campaign grouping.
+# ============================================================================
+vendor: darktrace-email
+product: Darktrace Email
+data_source: darktraceemail_generic_alert_raw
+category: Email
+pack: soc-darktrace-email
+
+raw_schema:
+
+  # ---- Message identity / triage ----
+  uuid:                {type: string,  is_array: false}
+  time:                {type: int,     is_array: false}
+  timestamp:           {type: float,   is_array: false}
+  score:               {type: float,   is_array: false}
+  darktrace_url:       {type: string,  is_array: false}
+
+  # ---- Participants and content ----
+  sender:              {type: string,  is_array: false}
+  recipient:           {type: string,  is_array: false}
+  subject:             {type: string,  is_array: false}
+  summary:             {type: string,  is_array: false}
+  direction:           {type: string,  is_array: false}
+
+  # ---- Verdict tiers. Strings holding JSON arrays — see the header. ----
+  tags:                {type: string,  is_array: false}
+  tags_critical:       {type: string,  is_array: false}
+  tags_warning:        {type: string,  is_array: false}
+  tags_informational:  {type: string,  is_array: false}
+
+  # ---- Disposition ----
+  receipt_status:      {type: string,  is_array: false}
+  action_status:       {type: string,  is_array: false}
+  actions:             {type: string,  is_array: false}
+  read_status:         {type: string,  is_array: false}
+  release_requested:   {type: boolean, is_array: false}
+  attachments:         {type: float,   is_array: false}
+  links:               {type: float,   is_array: false}
+
+correlation_rules:
+
+  - subtype: passthrough
+    fromversion: "6.10.0"
+    global_rule_id: 'SOC Darktrace Email - Threat Detected'
+    name: 'SOC Darktrace Email - Threat Detected'
+    description: >-
+      Darktrace EMAIL threat detection for the SOC Framework Email category.
+      Fires on a critical-tier Darktrace verdict that names an actual threat,
+      scoring 70 or above, excluding outbound. Suppression is per uuid, which is
+      one id per analysed message per recipient, so a campaign to N recipients
+      still produces N alerts and blast radius stays visible. Email-only vendor:
+      host and process fields are null. Cross-rule grouping pivots against other
+      email and identity sources: actor_effective_username (lowercase recipient),
+      user_principal (parallel), and fw_email_sender, which is what collapses one
+      campaign across many mailboxes into a single case. Darktrace EMAIL exposes
+      link COUNTS rather than URLs, so fw_url_domain and dns_query_name are null
+      and the URL-based Email-to-Endpoint bridge is unavailable from this source.
+      SCOPE is measured on a reference tenant over 30 days -- see pre_alter.
+    tags:
+      - SOCFramework
+      - Detection
+      - Email
+      - Darktrace
+      - T1566
+
+    schema_constants:
+      rule_id: 0
+      alert_category: User Defined
+      alert_domain: DOMAIN_SECURITY
+      action: ALERTS
+      execution_mode: SCHEDULED
+      mapping_strategy: CUSTOM
+      user_defined_category: alert_category
+      user_defined_severity: alert_severity
+      is_enabled: true
+      drilldown_query_timeframe: ALERT
+      severity: User Defined
+
+    crontab: "*/10 * * * *"
+    search_window: 20 minutes
+    simple_schedule: 10 minutes
+    alert_name: '$alert_name'
+    alert_description: '$alert_description'
+
+    suppression:
+      enabled: true
+      duration: 24 hours
+      fields: [uuid]
+      notes: |
+        uuid is unique per analysed message per recipient and is a real
+        top-level column, so suppression resolves against the dataset rather
+        than against an alter. A campaign to N recipients yields N distinct
+        uuids, so this suppresses only a re-report of the SAME message and has
+        zero effect on any other recipient's alert. Verified 1:1 over 30 days:
+        count() and count_distinct(uuid) agree on every bucket, so unlike the
+        NDR collector this source does not re-poll.
+
+    # CIE (Cloud Identity Engine) enrichment. Ships with the socfw_identity_map
+    # join OFF (preserved /* */ block). It OVERWRITES the idr_* fields pre_alter
+    # already seeded from the raw recipient -- it never creates them, so the
+    # rule resolves an email-first actor with CIE OFF. Enabling = delete the
+    # wrapper; execution_mode is already SCHEDULED.
+    cie_schedule:
+      crontab: '*/10 * * * *'
+      search_window: 25 hours
+      simple_schedule: 10 minutes
+    cie_overlay: |
+      // Only act on events ingested in the last 15 minutes. The 25h
+      // search_window exists so the socfw_identity_map join can see the daily
+      // snapshot.
+      | filter timestamp_diff(time_frame_end(), _insert_time, "MINUTE") <= 15
+
+      // Resolve the recipient to their directory record. Darktrace gives an
+      // email address; the map gives back DOMAIN\user so actor_effective_username
+      // matches what the endpoint sources emit for the same person. External
+      // senders and guests will not match, which is correct.
+      | alter idu_join_key = recipient_email
+      | join type = left (
+          dataset = socfw_identity_map
+          | filter type = "user"
+          | alter idu_join_key = lowercase(coalesce(upn, email))
+          | dedup idu_join_key by asc netbios_and_sam_account_name
+          | fields idu_join_key,
+                   netbios_and_sam_account_name as idu_netbios,
+                   display_name                 as idu_display_name,
+                   email                        as idu_email,
+                   upn                          as idu_upn,
+                   sid                          as idu_sid,
+                   on_prem_sid                  as idu_on_prem_sid,
+                   domain_name                  as idu_domain_name,
+                   sam_account_name             as idu_sam_account_name,
+                   title                        as idu_title,
+                   department                   as idu_department,
+                   manager_raw                  as idu_manager,
+                   country                      as idu_country,
+                   company_name                 as idu_company,
+                   location                     as idu_location,
+                   account_status               as idu_account_status
+        ) as idu idu_join_key = idu.idu_join_key
+      | alter idr_netbios          = coalesce(idu_netbios, idr_netbios),
+              idr_display_name     = coalesce(idu_display_name, idr_display_name),
+              idr_email            = coalesce(idu_email, idu_upn, idr_email),
+              idr_upn              = coalesce(idu_upn, idr_upn),
+              idr_sid              = coalesce(idu_sid, idr_sid),
+              idr_on_prem_sid      = coalesce(idu_on_prem_sid, idr_on_prem_sid),
+              idr_domain_name      = coalesce(idu_domain_name, idr_domain_name),
+              idr_sam_account_name = coalesce(idu_sam_account_name, idr_sam_account_name),
+              idr_title            = idu_title,
+              idr_department       = idu_department,
+              idr_manager          = idu_manager,
+              idr_country          = idu_country,
+              idr_company          = idu_company,
+              idr_location         = idu_location,
+              idr_account_status   = idu_account_status
+
+      | alter idr_netbios = coalesce(
+              idr_netbios,
+              if(idr_sam_account_name != null and idr_domain_name != null,
+                 concat(idr_domain_name, "\\", idr_sam_account_name), null))
+
+      | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
+      | alter display_name = coalesce(idr_display_name, recipient_first)
+      | alter alert_description = description,
+              user_principal    = coalesce(idr_upn, recipient_first),
+              user_name         = actor_effective_username
+
+    pre_alter: |
+      // Vendor / product drive SOCProductCategoryMap routing downstream.
+      | alter vendor_name = "Darktrace", product_name = "Darktrace Email"
+
+      // ========================================================================
+      // DETECTION SCOPE — measured on a reference tenant, 30 days, DISTINCT uuid
+      //
+      // Three cuts, each earning its place:
+      //
+      //   1. A CRITICAL-TIER TAG must be present.
+      //      tags_warning (Graymail, Cold Call, Wide Distribution) and
+      //      tags_informational (Freemail, Mailer, VIP) are mail-hygiene
+      //      signals, not detections. 96% of messages carry an informational
+      //      tag; they are the corpus, not the threat.
+      //
+      //   2. score >= 70.
+      //      Below that the critical tier is almost entirely Spam (183 msgs in
+      //      the 40-69 band, all Spam).
+      //
+      //   3. The critical tag set must name an ACTUAL THREAT.
+      //      This is the cut that matters. Darktrace files Spam and
+      //      Solicitation in the same critical tier as Credential Harvesting.
+      //      At score >= 70 inbound they are 303 of 348 messages — 87% — and
+      //      an issue per spam message is exactly the noise that makes a SOC
+      //      stop reading the queue.
+      //
+      //      critical + score>=70 + inbound, 30d        msgs   senders  recips
+      //        nuisance-only (Spam, Solicitation)        303      205      80
+      //        threat-tagged                              45       33      29
+      //
+      //      45 msgs / 30d = ~1.5/day, every one a phish, BEC or account
+      //      takeover. 33 senders across 45 messages is why fw_email_sender is
+      //      a grouping pivot: the multi-recipient campaigns are real.
+      //
+      //   4. Outbound excluded. No outbound message carried a critical tag in
+      //      30 days. Outbound detections mean a COMPROMISED INTERNAL ACCOUNT
+      //      and are a different investigation from inbound phishing — when
+      //      this source starts producing them they want their own rule, not
+      //      a wider filter on this one.
+      //
+      // Tag tiers are STRINGS holding JSON array text, not XSIAM arrays.
+      // arraystring() is rejected on them ("Expected array but received
+      // string"); matching is by regex on to_string().
+      // ========================================================================
+      | alter dt_crit = to_string(tags_critical)
+      | filter dt_crit != null and dt_crit != "" and dt_crit != "[]"
+      | filter to_integer(score) >= 70
+      | filter direction != "Outbound"
+      | filter dt_crit ~= "Phishing|Credential|Takeover|Impersonation|Multistage|Payload|Extortion|Payment|Forged|Fake Account|Document Anomalies"
+
+      // ---- Participants. Lowercase is mandatory: grouping is exact-equality,
+      // so casing is a silent pivot-killer. ----
+      | alter recipient_first = recipient
+      | alter recipient_email = lowercase(recipient),
+              sender_email    = lowercase(sender)
+      | alter recipient_local = lowercase(arrayindex(regextract(coalesce(recipient, ""), "([\w.%+-]+)@"), 0))
+      | alter sender_domain   = lowercase(arrayindex(regextract(coalesce(sender, ""), "@([\w.-]+)"), 0))
+
+      // ---- Primary threat tag: the first threat-bearing tag in the critical
+      // set, used for the analyst-facing title and the classification field.
+      // Evaluated in descending severity, not in Darktrace's array order. ----
+      | alter dt_primary_tag = if(
+              dt_crit ~= "Email Account Takeover",  "Email Account Takeover",
+              dt_crit ~= "Credential Harvesting",   "Credential Harvesting",
+              dt_crit ~= "Multistage Payload",      "Multistage Payload",
+              dt_crit ~= "Phishing Link",           "Phishing Link",
+              dt_crit ~= "VIP Impersonation",       "VIP Impersonation",
+              dt_crit ~= "Extortion",               "Extortion",
+              dt_crit ~= "Payment Scare",           "Payment Scare",
+              dt_crit ~= "Fake Account Alert",      "Fake Account Alert",
+              dt_crit ~= "Forged Address",          "Forged Address",
+              dt_crit ~= "Document Anomalies",      "Document Anomalies",
+              "Threat")
+
+      // Full critical tag set, readable: ["Phishing Link","Email Account
+      // Takeover"] -> Phishing Link, Email Account Takeover
+      | alter dt_all_tags = replex(replex(replex(dt_crit, "[\[\]\"]", ""), ",", ", "), "\s+", " ")
+
+      // ---- Severity: score 0..100 onto the XSIAM ladder. Same thresholds as
+      // the Darktrace NDR pack so the two read consistently. The scope filter
+      // is score >= 70, so in practice this yields HIGH and CRITICAL only. ----
+      | alter alert_severity = if(
+              to_integer(score) >= 85, "SEV_050_CRITICAL",
+              to_integer(score) >= 70, "SEV_040_HIGH",
+              to_integer(score) >= 40, "SEV_030_MEDIUM",
+              to_integer(score) >= 20, "SEV_020_LOW",
+              "SEV_010_INFO")
+
+      // ---- Disposition. receipt_status is what happened to the message;
+      // action_status / actions are what Darktrace did about it. ----
+      | alter delivery_action = if(
+              receipt_status = "Delivered", "delivered",
+              receipt_status = "Held",      "blocked",
+              receipt_status = "Junk",      "junked",
+              receipt_status = "Invalid",   "invalid",
+              lowercase(coalesce(receipt_status, "unknown")))
+      | alter threat_status = if(
+              coalesce(actions, "") != "", concat("Darktrace: ", actions),
+              action_status = "True",      "Darktrace action taken",
+              "No action taken")
+      | alter email_direction = lowercase(coalesce(direction, "inbound"))
+
+      // ---- MITRE. Inbound email threat is categorically Initial Access
+      // (TA0001); the sub-technique follows the delivery vector. Darktrace
+      // gives link and attachment COUNTS, which is enough to choose. ----
+      | alter email_technique_id = if(
+              dt_crit ~= "Phishing Link|Credential Harvesting", "T1566.002",
+              to_integer(coalesce(attachments, 0)) > 0,         "T1566.001",
+              to_integer(coalesce(links, 0)) > 0,               "T1566.002",
+              "T1566"),
+              email_technique_name = if(
+              dt_crit ~= "Phishing Link|Credential Harvesting", "Phishing: Spearphishing Link",
+              to_integer(coalesce(attachments, 0)) > 0,         "Phishing: Spearphishing Attachment",
+              to_integer(coalesce(links, 0)) > 0,               "Phishing: Spearphishing Link",
+              "Phishing")
+
+      | alter alert_category = "Email Security"
+
+      // ---- Analyst-facing title: [Email] <recipient> - Initial Access: <tag> ----
+      | alter alert_name = concat("[Email] ", coalesce(recipient, "Unknown"),
+                                  " - Initial Access: ", dt_primary_tag,
+                                  " Email Detected")
+      | alter alert_type = concat("Darktrace Email - ", dt_primary_tag)
+
+      | alter description = concat(
+            "Darktrace EMAIL detection: ", dt_all_tags,
+            " | Recipient: ", coalesce(recipient, "Unknown"),
+            " | Sender: ", coalesce(sender, "Unknown"),
+            " | Subject: ", coalesce(subject, ""),
+            " | Score: ", to_string(score),
+            " | Direction: ", coalesce(direction, ""),
+            " | Disposition: ", delivery_action,
+            " | ", threat_status,
+            " | Links: ", to_string(coalesce(links, 0)),
+            " | Attachments: ", to_string(coalesce(attachments, 0)),
+            " -- MsgId: ", coalesce(uuid, ""))
+
+      // ---- Identity from the recipient alone (email-first). The CIE block
+      // above overwrites these from socfw_identity_map when enabled; with it
+      // commented the rule still resolves an email-first actor. ----
+      | alter idr_email            = recipient_email,
+              idr_upn              = null,
+              idr_netbios          = null,
+              idr_display_name     = null,
+              idr_sid              = null,
+              idr_on_prem_sid      = null,
+              idr_domain_name      = null,
+              idr_sam_account_name = recipient_local
+
+      | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
+      | alter display_name = coalesce(idr_display_name, recipient_first)
+
+      // ---- The canonical core columns. Email-only: host/process null.
+      // agent_device_domain stays null -- it is the AD machine domain, not the
+      // sender's mail domain, which rides its own vendor field instead. ----
+      | alter
+              vendor                               = vendor_name,
+              product                              = product_name,
+              originalalertid                      = uuid,
+              originalalertname                    = alert_name,
+              originalalertsource                  = "Darktrace Email",
+              externallink                         = darktrace_url,
+              alert_description                    = description,
+              severity                             = alert_severity,
+              mitretacticid                        = "TA0001",
+              mitretacticname                      = "Initial Access",
+              mitretechniqueid                     = email_technique_id,
+              mitretechniquename                   = email_technique_name,
+              agent_hostname                       = null,
+              agent_id                             = null,
+              agent_device_domain                  = null,
+              actor_process_image_name             = null,
+              actor_process_image_path             = null,
+              actor_process_image_sha256           = null,
+              actor_process_command_line           = null,
+              actor_process_os_pid                 = null,
+              causality_actor_process_image_name   = null,
+              causality_actor_process_image_path   = null,
+              causality_actor_process_image_sha256 = null,
+              action_file_name                     = null,
+              action_file_path                     = null,
+              action_file_sha256                   = null,
+              action_local_ip                      = null,
+              action_remote_ip                     = null
+
+      // Darktrace EMAIL exposes link and attachment COUNTS, never the URLs or
+      // filenames. The URL-domain bridge to endpoint DNS/C2 artifacts that
+      // Abnormal and Proofpoint carry is therefore unavailable from this
+      // source. Null rather than absent, so the field reads as "checked,
+      // nothing found" rather than "not yet populated".
+      | alter dns_name = null, domain = null, cleaned_url = null
+
+      // causality_actor_causality_id is the per-message uuid, NOT the XSOAR
+      // collector's event id. The collector id changes on re-ingest and would
+      // split one message across cases.
+      | alter causality_actor_causality_id = uuid
+
+      // user_principal carries the recipient as a parallel grouping pivot.
+      | alter user_principal = coalesce(idr_upn, recipient_first)
+      | alter user_name      = actor_effective_username
+
+    alert_fields:
+
+      # === CANONICAL CORE - identical across every vendor pack ===
+      - {issue_field: vendor, source: vendor, bucket: computed}
+      - {issue_field: product, source: product, bucket: computed}
+      - {issue_field: originalalertid, source: originalalertid, bucket: computed}
+      - {issue_field: originalalertname, source: originalalertname, bucket: computed}
+      - {issue_field: originalalertsource, source: originalalertsource, bucket: computed}
+      - {issue_field: externallink, source: externallink, bucket: computed}
+      - {issue_field: alert_description, source: alert_description, bucket: computed}
+      - {issue_field: severity, source: severity, bucket: computed}
+      - {issue_field: socfwidentityuserdisplayname, source: idr_display_name, bucket: cie}
+      - {issue_field: mitretacticid, source: mitretacticid, bucket: computed}
+      - {issue_field: mitretacticname, source: mitretacticname, bucket: computed}
+      - {issue_field: mitretechniqueid, source: mitretechniqueid, bucket: computed}
+      - {issue_field: mitretechniquename, source: mitretechniquename, bucket: computed}
+      - {issue_field: agent_hostname, source: agent_hostname, bucket: computed}
+      - {issue_field: agent_id, source: agent_id, bucket: computed}
+      - {issue_field: agent_device_domain, source: agent_device_domain, bucket: computed}
+      - {issue_field: actor_effective_username, source: actor_effective_username, bucket: computed}
+      - {issue_field: actor_process_image_name, source: actor_process_image_name, bucket: computed}
+      - {issue_field: actor_process_image_path, source: actor_process_image_path, bucket: computed}
+      - {issue_field: actor_process_image_sha256, source: actor_process_image_sha256, bucket: computed}
+      - {issue_field: actor_process_command_line, source: actor_process_command_line, bucket: computed}
+      - {issue_field: actor_process_os_pid, source: actor_process_os_pid, bucket: computed}
+      - {issue_field: causality_actor_process_image_name, source: causality_actor_process_image_name, bucket: computed}
+      - {issue_field: causality_actor_process_image_path, source: causality_actor_process_image_path, bucket: computed}
+      - {issue_field: causality_actor_process_image_sha256, source: causality_actor_process_image_sha256, bucket: computed}
+      - {issue_field: action_file_name, source: action_file_name, bucket: computed}
+      - {issue_field: action_file_path, source: action_file_path, bucket: computed}
+      - {issue_field: action_file_sha256, source: action_file_sha256, bucket: computed}
+      - {issue_field: action_local_ip, source: action_local_ip, bucket: computed}
+      - {issue_field: action_remote_ip, source: action_remote_ip, bucket: computed}
+
+      # === VENDOR-SPECIFIC TAIL ===
+      # Cross-rule grouping pivot (parallel to actor_effective_username).
+      - {issue_field: user_principal, source: user_principal, bucket: computed}
+      - {issue_field: causality_actor_causality_id, source: causality_actor_causality_id, bucket: computed}
+
+      # URL bridge unavailable from this source -- links are a count, not URLs.
+      - {issue_field: dns_query_name, source: dns_name, bucket: computed}
+      - {issue_field: fw_url_domain, source: domain, bucket: computed}
+
+      # XSIAM email-class issue fields
+      - {issue_field: emailmessageid, source: uuid, bucket: raw, notes: 'Darktrace message uuid, not an RFC 5322 Message-ID. It is the handle Darktrace hold / release acts on, so it is the actionable id for containment through Darktrace itself. A purge through M365 needs the internet message id, which this source does not expose.'}
+      - {issue_field: emailsource, source: sender, bucket: raw}
+      - {issue_field: fw_email_recipient, source: recipient, bucket: raw}
+      - {issue_field: fw_email_sender, source: sender, bucket: raw}
+      - {issue_field: fw_email_subject, source: subject, bucket: raw}
+
+      # SOC Framework email fields - read by Foundation_-_Normalize_Email_V3
+      - {issue_field: socfwemaildeliveryaction, source: delivery_action, bucket: computed}
+      - {issue_field: socfwemaildirection, source: email_direction, bucket: computed}
+      - {issue_field: socfwemailthreattype, source: dt_all_tags, bucket: computed}
+      - {issue_field: socfwemailthreatstatus, source: threat_status, bucket: computed}
+      - {issue_field: socfwemailthreatid, source: uuid, bucket: raw}
+      - {issue_field: socfwemailclassification, source: dt_primary_tag, bucket: computed}
+
+      # Darktrace-specific raw surfacing
+      - {issue_field: darktraceemailscore, source: score, bucket: raw}
+      - {issue_field: darktraceemailtags, source: dt_all_tags, bucket: computed}
+      - {issue_field: darktraceemailreceiptstatus, source: receipt_status, bucket: raw}
+      - {issue_field: darktraceemailactions, source: actions, bucket: raw}
+      - {issue_field: darktraceemailsenderdomain, source: sender_domain, bucket: computed}
+      - {issue_field: darktraceemaillinkcount, source: links, bucket: raw}
+      - {issue_field: darktraceemailattachmentcount, source: attachments, bucket: raw}
+      - {issue_field: darktraceemailsummary, source: summary, bucket: raw}
+
+      # === cliName CONVERGENCE - additive aliases (issue.* surface) ===
+      - {issue_field: hostname, source: agent_hostname, bucket: computed}
+      - {issue_field: domain, source: agent_device_domain, bucket: computed}
+      - {issue_field: username, source: actor_effective_username, bucket: computed}
+      - {issue_field: filename, source: action_file_name, bucket: computed}
+      - {issue_field: filesha256, source: action_file_sha256, bucket: computed}
+      - {issue_field: localip, source: action_local_ip, bucket: computed}
+      - {issue_field: remoteip, source: action_remote_ip, bucket: computed}
+      - {issue_field: emailrecipient, source: recipient, bucket: raw}
+      - {issue_field: emailsender, source: sender, bucket: raw}
+      - {issue_field: emailsubject, source: subject, bucket: raw}
+      - {issue_field: dnsqueryname, source: dns_name, bucket: computed}
+
+    mitre_defs: {}
+
+    investigation_query_link: |-
+      // Every Darktrace EMAIL message involving this sender or this recipient,
+      // at any score -- the campaign view behind a single alert.
+      dataset = darktraceemail_generic_alert_raw
+      | filter lowercase(sender) = "$darktraceemailsenderdomain"
+            or lowercase(recipient) = "$actor_effective_username"
+            or uuid = "$originalalertid"
+      | fields _time, uuid, sender, recipient, subject, score,
+               tags_critical, tags_warning, direction, receipt_status, actions
+
+    # Coverage commitment - Email artifact fields this rule populates.
+    contributes:
+      - Email.Sender
+      - Email.Recipients
+      - Email.Subject
+      - Email.MessageID
+      - Email.Threat.Type
+      - Email.Threat.Status
+      - Email.Threat.ID
+      - Email.Threat.Classification
+      - Email.DeliveryAction
+      - Email.Direction
