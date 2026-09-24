@@ -1,0 +1,64 @@
+commonfields:
+  id: SetCompromisedUserContainmentActionStatus
+  version: -1
+name: SetCompromisedUserContainmentActionStatus
+script: "import traceback\nfrom datetime import datetime, timezone\nfrom typing import Any\n\n\nALLOWED_STATUSES = {\n   \
+  \ \"Success\",\n    \"Failed\",\n    \"Partial\",\n    \"Skipped\",\n    \"Blocked\",\n    \"Submitted\",\n    \"Unknown\"\
+  ,\n}\n\n\ndef parse_args(args: dict[str, Any]) -> tuple[str, str, str]:\n    action = str(args.get(\"action\", \"\")).strip()\n\
+  \    status = str(args.get(\"status\", \"\")).strip()\n    detail = str(args.get(\"detail\", \"\")).strip()\n\n    if not\
+  \ action:\n        raise DemistoException(\"Missing required argument: action\")\n\n    if not status:\n        raise DemistoException(\"\
+  Missing required argument: status\")\n\n    if status not in ALLOWED_STATUSES:\n        raise DemistoException(\n      \
+  \      f\"Invalid status '{status}'. Allowed values: {', '.join(sorted(ALLOWED_STATUSES))}\"\n        )\n\n    return action,\
+  \ status, detail\n\n\ndef main():\n    try:\n        action, status, detail = parse_args(demisto.args())\n        timestamp\
+  \ = datetime.now(timezone.utc).isoformat()\n\n        outputs = {\n            \"CompromisedUserContainment\": {\n     \
+  \           \"Actions\": {\n                    action: {\n                        \"status\": status,\n               \
+  \         \"detail\": detail,\n                        \"timestamp\": timestamp,\n                    }\n              \
+  \  }\n            }\n        }\n\n        readable = tableToMarkdown(\n            \"Containment Action Status Updated\"\
+  ,\n            [{\n                \"Action\": action,\n                \"Status\": status,\n                \"Detail\"\
+  : detail,\n                \"Timestamp\": timestamp,\n            }],\n        )\n\n        return_results(CommandResults(\n\
+  \            readable_output=readable,\n            outputs=outputs,\n            outputs_prefix=\"\",\n            outputs_key_field=None,\n\
+  \        ))\n\n    except Exception as ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"Failed\
+  \ to set containment action status. Error: {ex}\")\n\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n\
+  \    main()\n"
+type: python
+tags:
+- compromised-user-containment
+- Utility
+comment: Sets a normalized compromised-user containment action status, detail, and timestamp in context.
+enabled: true
+args:
+- supportedModules: []
+  name: action
+  required: true
+  description: Name of the containment action to update.
+- supportedModules: []
+  name: status
+  required: true
+  auto: PREDEFINED
+  predefined:
+  - Success
+  - Failed
+  - Partial
+  - Skipped
+  - Blocked
+  - Submitted
+  - Unknown
+  description: Normalized containment action status.
+- supportedModules: []
+  name: detail
+  description: Optional supporting detail for the action status.
+outputs:
+- contextPath: CompromisedUserContainment.Actions.<action>.status
+  description: Normalized containment action status.
+  type: string
+- contextPath: CompromisedUserContainment.Actions.<action>.detail
+  description: Optional detail for the containment action status.
+  type: string
+- contextPath: CompromisedUserContainment.Actions.<action>.timestamp
+  description: UTC timestamp when the status was set.
+  type: date
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.13.84405
+runas: DBotWeakRole
