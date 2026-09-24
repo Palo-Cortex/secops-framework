@@ -11,11 +11,11 @@
                     "id": "row-1200",
                     "data": [
                         {
-                            "key": "xql_1790000000001",
+                            "key": "xql_1790000000010",
                             "data": {
-                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_commands, count() as total_commands\n| alter error_rate_pct = round(multiply(divide(failed_commands, total_commands), 100))\n| view graph type = single subtype = standard header = \"Command Error Rate (%)\" yaxis = error_rate_pct",
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_last_24h\n| view graph type = single subtype = standard header = \"Failures in the Last 24h\" yaxis = failed_last_24h",
                                 "time_frame": {
-                                    "relativeTime": 2592000000
+                                    "relativeTime": 86400000
                                 },
                                 "viewOptions": {
                                     "type": "single",
@@ -31,7 +31,42 @@
                                             "command": {
                                                 "op": "=",
                                                 "name": "header",
-                                                "value": "\"Command Error Rate (%)\""
+                                                "value": "\"Failures in the Last 24h\""
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "failed_last_24h"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "key": "xql_1790000000001",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_commands, count() as total_commands\n| alter error_rate_pct = round(multiply(divide(failed_commands, total_commands), 100))\n| view graph type = single subtype = standard header = \"Command Error Rate (%) (7d)\" yaxis = error_rate_pct",
+                                "time_frame": {
+                                    "relativeTime": 604800000
+                                },
+                                "viewOptions": {
+                                    "type": "single",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "standard"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "header",
+                                                "value": "\"Command Error Rate (%) (7d)\""
                                             }
                                         },
                                         {
@@ -48,9 +83,9 @@
                         {
                             "key": "xql_1790000000002",
                             "data": {
-                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_commands\n| view graph type = single subtype = standard header = \"Failed Commands\" yaxis = failed_commands",
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_commands\n| view graph type = single subtype = standard header = \"Failed Commands (7d)\" yaxis = failed_commands",
                                 "time_frame": {
-                                    "relativeTime": 2592000000
+                                    "relativeTime": 604800000
                                 },
                                 "viewOptions": {
                                     "type": "single",
@@ -66,7 +101,7 @@
                                             "command": {
                                                 "op": "=",
                                                 "name": "header",
-                                                "value": "\"Failed Commands\""
+                                                "value": "\"Failed Commands (7d)\""
                                             }
                                         },
                                         {
@@ -83,9 +118,9 @@
                         {
                             "key": "xql_1790000000003",
                             "data": {
-                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter m = to_integer(action_time_minutes)\n| filter m != null\n| comp sum(m) as minutes_lost\n| view graph type = single subtype = standard header = \"Minutes Credited to Failed Commands\" yaxis = minutes_lost",
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter m = to_integer(action_time_minutes)\n| filter m != null\n| comp sum(m) as minutes_lost\n| view graph type = single subtype = standard header = \"Minutes Credited to Failed Commands (7d)\" yaxis = minutes_lost",
                                 "time_frame": {
-                                    "relativeTime": 2592000000
+                                    "relativeTime": 604800000
                                 },
                                 "viewOptions": {
                                     "type": "single",
@@ -101,7 +136,7 @@
                                             "command": {
                                                 "op": "=",
                                                 "name": "header",
-                                                "value": "\"Minutes Credited to Failed Commands\""
+                                                "value": "\"Minutes Credited to Failed Commands (7d)\""
                                             }
                                         },
                                         {
@@ -372,13 +407,13 @@
     "widgets_data": [
         {
             "widget_key": "xql_1790000000001",
-            "title": "Command Error Rate (%)",
+            "title": "Command Error Rate (%) (7d)",
             "creation_time": 1776770375262,
             "description": "Share of Universal Command executions flagged has_error over the window. The headline framework-health number.",
             "data": {
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_commands, count() as total_commands\n| alter error_rate_pct = round(multiply(divide(failed_commands, total_commands), 100))\n| view graph type = single subtype = standard header = \"Command Error Rate (%)\" yaxis = error_rate_pct",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_commands, count() as total_commands\n| alter error_rate_pct = round(multiply(divide(failed_commands, total_commands), 100))\n| view graph type = single subtype = standard header = \"Command Error Rate (%) (7d)\" yaxis = error_rate_pct",
                 "time_frame": {
-                    "relativeTime": 2592000000
+                    "relativeTime": 604800000
                 },
                 "viewOptions": {
                     "type": "single",
@@ -394,7 +429,7 @@
                             "command": {
                                 "op": "=",
                                 "name": "header",
-                                "value": "\"Command Error Rate (%)\""
+                                "value": "\"Command Error Rate (%) (7d)\""
                             }
                         },
                         {
@@ -420,13 +455,13 @@
         },
         {
             "widget_key": "xql_1790000000002",
-            "title": "Failed Commands",
+            "title": "Failed Commands (7d)",
             "creation_time": 1776770375262,
             "description": "Count of command executions with has_error = true. Read beside the error rate; a low rate on high volume still matters.",
             "data": {
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_commands\n| view graph type = single subtype = standard header = \"Failed Commands\" yaxis = failed_commands",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_commands\n| view graph type = single subtype = standard header = \"Failed Commands (7d)\" yaxis = failed_commands",
                 "time_frame": {
-                    "relativeTime": 2592000000
+                    "relativeTime": 604800000
                 },
                 "viewOptions": {
                     "type": "single",
@@ -442,7 +477,7 @@
                             "command": {
                                 "op": "=",
                                 "name": "header",
-                                "value": "\"Failed Commands\""
+                                "value": "\"Failed Commands (7d)\""
                             }
                         },
                         {
@@ -468,13 +503,13 @@
         },
         {
             "widget_key": "xql_1790000000003",
-            "title": "Minutes Credited to Failed Commands",
+            "title": "Minutes Credited to Failed Commands (7d)",
             "creation_time": 1776770375262,
             "description": "Time the value dashboards would attribute to commands that never ran. Compare against hours returned.",
             "data": {
-                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter m = to_integer(action_time_minutes)\n| filter m != null\n| comp sum(m) as minutes_lost\n| view graph type = single subtype = standard header = \"Minutes Credited to Failed Commands\" yaxis = minutes_lost",
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter m = to_integer(action_time_minutes)\n| filter m != null\n| comp sum(m) as minutes_lost\n| view graph type = single subtype = standard header = \"Minutes Credited to Failed Commands (7d)\" yaxis = minutes_lost",
                 "time_frame": {
-                    "relativeTime": 2592000000
+                    "relativeTime": 604800000
                 },
                 "viewOptions": {
                     "type": "single",
@@ -490,7 +525,7 @@
                             "command": {
                                 "op": "=",
                                 "name": "header",
-                                "value": "\"Minutes Credited to Failed Commands\""
+                                "value": "\"Minutes Credited to Failed Commands (7d)\""
                             }
                         },
                         {
@@ -806,6 +841,54 @@
                                 "op": "=",
                                 "name": "yaxis",
                                 "value": "calls"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000010",
+            "title": "Failures in the Last 24h",
+            "creation_time": 1776770375262,
+            "description": "Live signal. The rate and count beside it are 7-day figures; this one answers 'is it broken now'. A high 7-day rate with zero here means it already resolved.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_last_24h\n| view graph type = single subtype = standard header = \"Failures in the Last 24h\" yaxis = failed_last_24h",
+                "time_frame": {
+                    "relativeTime": 86400000
+                },
+                "viewOptions": {
+                    "type": "single",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "standard"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "header",
+                                "value": "\"Failures in the Last 24h\""
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "failed_last_24h"
                             }
                         }
                     ]
