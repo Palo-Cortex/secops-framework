@@ -1,0 +1,827 @@
+{
+    "id": "47f504dbe3f04186bc06c190456f6927",
+    "name": "SOCFW Framework Health - Command Errors",
+    "dashboards_data": [
+        {
+            "name": "SOCFW Framework Health - Command Errors",
+            "description": "Is the framework wired correctly on this tenant? Command errors first.",
+            "status": "ENABLED",
+            "layout": [
+                {
+                    "id": "row-1200",
+                    "data": [
+                        {
+                            "key": "xql_1790000000001",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_commands, count() as total_commands\n| alter error_rate_pct = round(multiply(divide(failed_commands, total_commands), 100))\n| view graph type = single subtype = standard header = \"Command Error Rate (%)\" yaxis = error_rate_pct",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "single",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "standard"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "header",
+                                                "value": "\"Command Error Rate (%)\""
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "error_rate_pct"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "key": "xql_1790000000002",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_commands\n| view graph type = single subtype = standard header = \"Failed Commands\" yaxis = failed_commands",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "single",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "standard"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "header",
+                                                "value": "\"Failed Commands\""
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "failed_commands"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "key": "xql_1790000000003",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter m = to_integer(action_time_minutes)\n| filter m != null\n| comp sum(m) as minutes_lost\n| view graph type = single subtype = standard header = \"Minutes Credited to Failed Commands\" yaxis = minutes_lost",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "single",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "standard"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "header",
+                                                "value": "\"Minutes Credited to Failed Commands\""
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "minutes_lost"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "row-1201",
+                    "data": [
+                        {
+                            "key": "xql_1790000000004",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter failing_command = concat(universal_command, \"  ->  \", vendor_command)\n| comp count() as failed_calls by failing_command\n| sort desc failed_calls\n| limit 20\n| view graph type = column subtype = grouped layout = horizontal xaxis = failing_command yaxis = failed_calls",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "column",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "grouped"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "layout",
+                                                "value": "horizontal"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "xaxis",
+                                                "value": "failing_command"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "failed_calls"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "key": "xql_1790000000005",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_calls by action_status\n| sort desc failed_calls\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = action_status yaxis = failed_calls",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "pie",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "show_callouts",
+                                                "value": "`true`"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "show_callouts_names",
+                                                "value": "`true`"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "xaxis",
+                                                "value": "action_status"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "failed_calls"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "key": "xql_1790000000009",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| comp count() as calls, count_distinct(incident_id) as cases by action_status\n| sort desc calls\n| view graph type = column subtype = grouped layout = horizontal header = \"Command Outcomes by Status\" xaxis = action_status yaxis = calls",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "column",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "grouped"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "layout",
+                                                "value": "horizontal"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "header",
+                                                "value": "\"Command Outcomes by Status\""
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "xaxis",
+                                                "value": "action_status"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "calls"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "row-1202",
+                    "data": [
+                        {
+                            "key": "xql_1790000000007",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter day = format_timestamp(\"%Y-%m-%d\", _time)\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_calls, count() as total_calls by day\n| sort asc day\n| view graph type = column subtype = grouped layout = vertical xaxis = day yaxis = failed_calls,total_calls",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "column",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "grouped"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "layout",
+                                                "value": "vertical"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "xaxis",
+                                                "value": "day"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "failed_calls,total_calls"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "key": "xql_1790000000008",
+                            "data": {
+                                "phrase": "dataset = playbook_tasks\n| filter is_command = true and task_status = \"Error\"\n| comp count() as errored_tasks by script_name, task_name\n| sort desc errored_tasks\n| limit 15\n| view graph type = column subtype = grouped layout = horizontal xaxis = script_name yaxis = errored_tasks",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "column",
+                                    "commands": [
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "subtype",
+                                                "value": "grouped"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "layout",
+                                                "value": "horizontal"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "xaxis",
+                                                "value": "script_name"
+                                            }
+                                        },
+                                        {
+                                            "command": {
+                                                "op": "=",
+                                                "name": "yaxis",
+                                                "value": "errored_tasks"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "row-1203",
+                    "data": [
+                        {
+                            "key": "xql_1790000000006",
+                            "data": {
+                                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_calls, count() as total_calls, count_distinct(incident_id) as cases by universal_command, vendor, vendor_command\n| filter failed_calls > 0\n| alter error_rate_pct = round(multiply(divide(failed_calls, total_calls), 100))\n| fields universal_command, vendor, vendor_command, failed_calls, total_calls, error_rate_pct, cases\n| sort desc failed_calls\n| limit 50",
+                                "time_frame": {
+                                    "relativeTime": 2592000000
+                                },
+                                "viewOptions": {
+                                    "type": "table",
+                                    "commands": []
+                                }
+                            }
+                        }
+                    ]
+                }
+            ],
+            "global_id": "47f504dbe3f04186bc06c190456f6927",
+            "metadata": {
+                "params": []
+            }
+        }
+    ],
+    "widgets_data": [
+        {
+            "widget_key": "xql_1790000000001",
+            "title": "Command Error Rate (%)",
+            "creation_time": 1776770375262,
+            "description": "Share of Universal Command executions flagged has_error over the window. The headline framework-health number.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_commands, count() as total_commands\n| alter error_rate_pct = round(multiply(divide(failed_commands, total_commands), 100))\n| view graph type = single subtype = standard header = \"Command Error Rate (%)\" yaxis = error_rate_pct",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "single",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "standard"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "header",
+                                "value": "\"Command Error Rate (%)\""
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "error_rate_pct"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000002",
+            "title": "Failed Commands",
+            "creation_time": 1776770375262,
+            "description": "Count of command executions with has_error = true. Read beside the error rate; a low rate on high volume still matters.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_commands\n| view graph type = single subtype = standard header = \"Failed Commands\" yaxis = failed_commands",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "single",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "standard"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "header",
+                                "value": "\"Failed Commands\""
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "failed_commands"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000003",
+            "title": "Minutes Credited to Failed Commands",
+            "creation_time": 1776770375262,
+            "description": "Time the value dashboards would attribute to commands that never ran. Compare against hours returned.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter m = to_integer(action_time_minutes)\n| filter m != null\n| comp sum(m) as minutes_lost\n| view graph type = single subtype = standard header = \"Minutes Credited to Failed Commands\" yaxis = minutes_lost",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "single",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "standard"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "header",
+                                "value": "\"Minutes Credited to Failed Commands\""
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "minutes_lost"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000004",
+            "title": "Failing Commands: Universal -> Vendor",
+            "creation_time": 1776770375609,
+            "description": "Every failing command as the pair that matters: the framework verb and the vendor command it dispatched.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| alter failing_command = concat(universal_command, \"  ->  \", vendor_command)\n| comp count() as failed_calls by failing_command\n| sort desc failed_calls\n| limit 20\n| view graph type = column subtype = grouped layout = horizontal xaxis = failing_command yaxis = failed_calls",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "column",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "grouped"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "layout",
+                                "value": "horizontal"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "xaxis",
+                                "value": "failing_command"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "failed_calls"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000005",
+            "title": "Failure Reason",
+            "creation_time": 1776770375609,
+            "description": "Why commands failed. integration_unavailable means the integration is absent or disabled, not that the command errored.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\" and has_error = true\n| comp count() as failed_calls by action_status\n| sort desc failed_calls\n| view graph type = pie show_callouts = `true` show_callouts_names = `true` xaxis = action_status yaxis = failed_calls",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "pie",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "show_callouts",
+                                "value": "`true`"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "show_callouts_names",
+                                "value": "`true`"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "xaxis",
+                                "value": "action_status"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "failed_calls"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000007",
+            "title": "Command Failures by Day",
+            "creation_time": 1776770375609,
+            "description": "Trend. A single bad day dominates a 30-day average, so read the rate here before quoting it.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter day = format_timestamp(\"%Y-%m-%d\", _time)\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_calls, count() as total_calls by day\n| sort asc day\n| view graph type = column subtype = grouped layout = vertical xaxis = day yaxis = failed_calls,total_calls",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "column",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "grouped"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "layout",
+                                "value": "vertical"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "xaxis",
+                                "value": "day"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "failed_calls,total_calls"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000008",
+            "title": "Framework Write Failures",
+            "creation_time": 1776770375609,
+            "description": "Command tasks the framework itself failed to run, by script. socfw-post-to-dataset failing means the execution dataset is missing rows, so every metric built on it understates.",
+            "data": {
+                "phrase": "dataset = playbook_tasks\n| filter is_command = true and task_status = \"Error\"\n| comp count() as errored_tasks by script_name, task_name\n| sort desc errored_tasks\n| limit 15\n| view graph type = column subtype = grouped layout = horizontal xaxis = script_name yaxis = errored_tasks",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "column",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "grouped"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "layout",
+                                "value": "horizontal"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "xaxis",
+                                "value": "script_name"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "errored_tasks"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "playbook_tasks"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000006",
+            "title": "Failing Commands - Detail",
+            "creation_time": 1776770375609,
+            "description": "Drilldown. Universal command, product, vendor command, failed vs total calls and the error rate for that pair.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| alter failed = if(has_error = true, 1, 0)\n| comp sum(failed) as failed_calls, count() as total_calls, count_distinct(incident_id) as cases by universal_command, vendor, vendor_command\n| filter failed_calls > 0\n| alter error_rate_pct = round(multiply(divide(failed_calls, total_calls), 100))\n| fields universal_command, vendor, vendor_command, failed_calls, total_calls, error_rate_pct, cases\n| sort desc failed_calls\n| limit 50",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "table",
+                    "commands": []
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        },
+        {
+            "widget_key": "xql_1790000000009",
+            "title": "Command Outcomes by Status",
+            "creation_time": 1776770375609,
+            "description": "Every command outcome, not just failures. success vs integration_unavailable vs simulated - simulated means shadow mode caught it, which is a working framework, not a fault.",
+            "data": {
+                "phrase": "dataset = xsiam_socfw_ir_execution_raw\n| filter event_type = \"command\"\n| comp count() as calls, count_distinct(incident_id) as cases by action_status\n| sort desc calls\n| view graph type = column subtype = grouped layout = horizontal header = \"Command Outcomes by Status\" xaxis = action_status yaxis = calls",
+                "time_frame": {
+                    "relativeTime": 2592000000
+                },
+                "viewOptions": {
+                    "type": "column",
+                    "commands": [
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "subtype",
+                                "value": "grouped"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "layout",
+                                "value": "horizontal"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "header",
+                                "value": "\"Command Outcomes by Status\""
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "xaxis",
+                                "value": "action_status"
+                            }
+                        },
+                        {
+                            "command": {
+                                "op": "=",
+                                "name": "yaxis",
+                                "value": "calls"
+                            }
+                        }
+                    ]
+                }
+            },
+            "support_time_range": true,
+            "additional_info": {
+                "query_tables": [
+                    "xsiam_socfw_ir_execution_raw"
+                ],
+                "query_uses_library": false
+            },
+            "creator_mail": "N/A",
+            "is_public": true,
+            "is_predefined": false
+        }
+    ],
+    "fromVersion": "8.4.0"
+}
