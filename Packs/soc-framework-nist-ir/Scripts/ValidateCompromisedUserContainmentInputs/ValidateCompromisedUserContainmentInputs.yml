@@ -1,0 +1,65 @@
+commonfields:
+  id: ValidateCompromisedUserContainmentInputs
+  version: -1
+name: ValidateCompromisedUserContainmentInputs
+script: "import traceback\nfrom typing import Any\n\n\nOUTPUT_PREFIX = \"CompromisedUser.InputValidation\"\n\n\ndef normalize_string(value:\
+  \ Any) -> str:\n    \"\"\"Return a trimmed string value, or an empty string when unset.\"\"\"\n    if value is None:\n \
+  \       return \"\"\n    return str(value).strip()\n\n\ndef parse_args(args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\
+  \"Validate and normalize script arguments.\"\"\"\n    user_identifier = normalize_string(args.get(\"user_identifier\"))\n\
+  \    reason = normalize_string(args.get(\"reason\"))\n    strict_mode = argToBoolean(args.get(\"strict_mode\", True))\n\n\
+  \    missing_fields = []\n    if not user_identifier:\n        missing_fields.append(\"user_identifier\")\n    if not reason:\n\
+  \        missing_fields.append(\"reason\")\n\n    if strict_mode and missing_fields:\n        missing = \", \".join(missing_fields)\n\
+  \        return_error(f\"Missing required input(s): {missing}. Provide these values before continuing containment.\")\n\n\
+  \    return {\n        \"UserIdentifier\": user_identifier,\n        \"Reason\": reason,\n        \"StrictMode\": strict_mode,\n\
+  \        \"Valid\": len(missing_fields) == 0,\n        \"MissingFields\": missing_fields,\n    }\n\n\ndef main():\n    try:\n\
+  \        result = parse_args(demisto.args())\n\n        readable_output = \"Compromised user containment inputs validated\
+  \ successfully.\"\n        if not result.get(\"Valid\"):\n            readable_output = (\n                \"Compromised\
+  \ user containment input validation completed with missing fields: \"\n                f\"{', '.join(result.get('MissingFields',\
+  \ []))}\"\n            )\n\n        return_results(\n            CommandResults(\n                outputs_prefix=OUTPUT_PREFIX,\n\
+  \                outputs=result,\n                readable_output=readable_output,\n            )\n        )\n\n    except\
+  \ Exception as ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"Failed to validate compromised\
+  \ user containment inputs. Error: {ex}\")\n\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()\n"
+type: python
+tags:
+- compromised-user
+- containment
+- input-validation
+comment: Validates required analyst inputs before a manual compromised user account containment playbook continues.
+enabled: true
+args:
+- description: Compromised user email, UPN, SAMAccountName, username, or distinguished name.
+  name: user_identifier
+  required: true
+  supportedModules: []
+  type: String
+- description: Reason for containment or brief summary of why the account is believed compromised.
+  name: reason
+  required: true
+  supportedModules: []
+  type: String
+- defaultValue: 'true'
+  description: When true, fails if required values are missing or blank.
+  name: strict_mode
+  supportedModules: []
+  type: Boolean
+outputs:
+- contextPath: CompromisedUser.InputValidation.UserIdentifier
+  description: Trimmed compromised user identifier.
+  type: string
+- contextPath: CompromisedUser.InputValidation.Reason
+  description: Trimmed containment reason.
+  type: string
+- contextPath: CompromisedUser.InputValidation.StrictMode
+  description: Whether strict validation mode was enabled.
+  type: boolean
+- contextPath: CompromisedUser.InputValidation.Valid
+  description: Whether all required inputs were provided.
+  type: boolean
+- contextPath: CompromisedUser.InputValidation.MissingFields
+  description: Required fields that were missing or blank.
+  type: string
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.12.8.1983910
+runas: DBotWeakRole
