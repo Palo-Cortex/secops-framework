@@ -304,7 +304,7 @@ correlation_rules:
     duration: 1 hours
     fields:
     - composite_id
-  pre_alter: "| alter vendor_name = \"CrowdStrike\", product_name = \"Falcon\"\n\n| filter product = \"epp\"\n\n| alter originalrawlog = to_json_string(rawJSON)\n\n| alter severity_int_raw = severity\n\n| alter\n        tactic                 = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic           = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic_id        = tactic_id,\n        mitre_technique        = technique,\n        mitre_technique_id     = technique_id\n\n| alter mitre_ids_str = if(\n    technique_id != null and technique != null,\n    concat(technique_id, \" - \", technique),\n    coalesce(technique_id, technique)\n  )\n\n| alter\n        hostname                     = device->hostname,\n        domain                       = device->machine_domain,\n        local_ip                     = device->local_ip,\n        external_ip                  = device->external_ip,\n        mac_address                  = device->mac_address,\n        device_id                    = device->device_id,\n        device_ou                    = device->ou[],\n        parent_process_name          = parent_details->filename,\n        parent_process_cmd           = parent_details->cmdline,\n        parent_process_path          = parent_details->filepath,\n        parent_process_sha256        = parent_details->sha256,\n        parent_local_process_id      = parent_details->local_process_id,\n        grandparent_process_name     = grandparent_details->filename,\n        grandparent_process_cmd      = grandparent_details->cmdline,\n        grandparent_process_path     = grandparent_details->filepath,\n        grandparent_process_sha256   = grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\n| alter device_ou_arr = arraymap(device_ou, replace(\"@element\", \"\\\"\", \"\"))\n\n| alter cgo_name = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_name,\n                      coalesce(parent_process_name, filename)),\n        cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_path,\n                      coalesce(parent_process_path, filepath)),\n        cgo_cmd  = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_cmd,\n                      coalesce(parent_process_cmd, cmdline))\n\n| alter dns_queries = dns_requests\n| alter remote_ips  = network_accesses\n\n| alter alert_name = concat(\n    \"[Endpoint] \",\n    coalesce(user_name, hostname, \"Unknown\"),\n    \" - \",\n    coalesce(tactic, \"Detection\"),\n    \": \",\n    coalesce(technique, name)\n  )\n\n| alter alert_description = concat(\n    coalesce(description, name),\n    \" | Host: \",  coalesce(hostname, \"Unknown\"),\n    \" | User: \",  coalesce(user_name, \"Unknown\"),\n    \" | Severity: \", coalesce(severity_name, \"Unknown\")\n  )\n\n| alter\n        vendor                              = vendor_name,\n        product                             = product_name,\n        originalalertid                     = composite_id,\n        originalalertname                   = alert_name,\n        originalalertsource                 = \"CrowdStrike Falcon\",\n        externallink                        = falcon_host_link,\n        alert_description                   = alert_description,\n        severity                            = severity_name,\n        mitretacticid                       = mitre_tactic_id,\n        mitretacticname                     = mitre_tactic,\n        mitretechniqueid                    = mitre_technique_id,\n        mitretechniquename                  = mitre_technique,\n        agent_hostname                      = hostname,\n        agent_id                            = agent_id,\n        agent_device_domain                 = domain,\n        actor_effective_username            = user_name,\n        actor_process_image_name            = filename,\n        actor_process_image_path            = filepath,\n        actor_process_image_sha256          = sha256,\n        actor_process_command_line          = cmdline,\n        actor_process_os_pid                = local_process_id,\n        causality_actor_process_image_name  = cgo_name,\n        causality_actor_process_image_path  = cgo_path,\n        causality_actor_process_image_sha256 = grandparent_process_sha256,\n        action_file_name                    = filename,\n        action_file_path                    = filepath,\n        action_file_sha256                  = sha256,\n        action_local_ip                     = local_ip,\n        action_remote_ip                    = remote_ips\n| fields\n    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *"
+  pre_alter: "| alter vendor_name = \"CrowdStrike\", product_name = \"Falcon\"\n\n| filter product = \"epp\"\n\n| alter originalrawlog = to_json_string(rawJSON)\n\n| alter severity_int_raw = severity\n\n| alter\n        tactic                 = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic           = if(tactic = \"Malware\", \"Execution\", tactic),\n        mitre_tactic_id        = tactic_id,\n        mitre_technique        = technique,\n        mitre_technique_id     = technique_id\n\n| alter mitre_ids_str = if(\n    technique_id != null and technique != null,\n    concat(technique_id, \" - \", technique),\n    coalesce(technique_id, technique)\n  )\n\n| alter\n        hostname                     = device->hostname,\n        domain                       = device->machine_domain,\n        local_ip                     = device->local_ip,\n        external_ip                  = device->external_ip,\n        mac_address                  = device->mac_address,\n        device_id                    = device->device_id,\n        device_os_version            = device->os_version,\n        device_platform_name         = device->platform_name,\n        device_status                = device->status,\n        device_fqdn                  = if(device->machine_domain != null, concat(device->hostname, \".\", device->machine_domain), device->hostname),\n        device_ou                    = device->ou[],\n        parent_process_name          = parent_details->filename,\n        parent_process_cmd           = parent_details->cmdline,\n        parent_process_path          = parent_details->filepath,\n        parent_process_sha256        = parent_details->sha256,\n        parent_local_process_id      = parent_details->local_process_id,\n        grandparent_process_name     = grandparent_details->filename,\n        grandparent_process_cmd      = grandparent_details->cmdline,\n        grandparent_process_path     = grandparent_details->filepath,\n        grandparent_process_sha256   = grandparent_details->sha256,\n        grandparent_local_process_id = grandparent_details->local_process_id\n\n| alter device_ou_arr = arraymap(device_ou, replace(\"@element\", \"\\\"\", \"\"))\n\n| alter cgo_name = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_name,\n                      coalesce(parent_process_name, filename)),\n        cgo_path = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_path,\n                      coalesce(parent_process_path, filepath)),\n        cgo_cmd  = if(lowercase(grandparent_process_name) not in (\"wininit.exe\", \"userinit.exe\"),\n                      grandparent_process_cmd,\n                      coalesce(parent_process_cmd, cmdline))\n\n//| alter dns_queries = dns_requests\n//| alter remote_ips  = network_accesses\n\n| alter alert_name = concat(\n    \"[Endpoint] \",\n    coalesce(user_name, hostname, \"Unknown\"),\n    \" - \",\n    coalesce(tactic, \"Detection\"),\n    \": \",\n    coalesce(technique, name)\n  )\n\n| alter alert_description = concat(\n    coalesce(description, name),\n    \" | Host: \",  coalesce(hostname, \"Unknown\"),\n    \" | User: \",  coalesce(user_name, \"Unknown\"),\n    \" | Severity: \", coalesce(severity_name, \"Unknown\")\n  )\n\n| alter\n        vendor                              = vendor_name,\n        product                             = product_name,\n        originalalertid                     = composite_id,\n        originalalertname                   = alert_name,\n        originalalertsource                 = \"CrowdStrike Falcon\",\n        externallink                        = falcon_host_link,\n        alert_description                   = alert_description,\n        severity                            = severity_name,\n        mitretacticid                       = mitre_tactic_id,\n        mitretacticname                     = mitre_tactic,\n        mitretechniqueid                    = mitre_technique_id,\n        mitretechniquename                  = mitre_technique,\n        agent_hostname                      = hostname,\n        agent_id                            = agent_id,\n        agent_device_domain                 = domain,\n        actor_effective_username            = user_name,\n        actor_process_image_name            = filename,\n        actor_process_image_path            = filepath,\n        actor_process_image_sha256          = sha256,\n        actor_process_command_line          = cmdline,\n        actor_process_os_pid                = local_process_id,\n        causality_actor_process_image_name  = cgo_name,\n        causality_actor_process_image_path  = cgo_path,\n        causality_actor_process_image_sha256 = grandparent_process_sha256,\n        action_file_name                    = filename,\n        action_file_path                    = filepath,\n        action_file_sha256                  = sha256,\n        action_local_ip                     = local_ip\n        //action_remote_ip                    = remote_ips\n| fields\n    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, files_written, originalrawlog, *"
   alert_fields:
   - issue_field: mac
     source: mac_address
@@ -334,8 +334,6 @@ correlation_rules:
     source: action_file_path
   - issue_field: hostname
     source: agent_hostname
-  - issue_field: remoteip
-    source: action_remote_ip
   - issue_field: scenario
     source: scenario
   - issue_field: severity
@@ -364,10 +362,6 @@ correlation_rules:
     source: ioc_source
   - issue_field: initiatedby
     source: actor_process_image_name
-  - issue_field: dns_requests
-    source: dns_requests
-  - issue_field: dnsqueryname
-    source: dns_queries
   - issue_field: externallink
     source: externallink
   - issue_field: initiatorcmd
@@ -384,8 +378,6 @@ correlation_rules:
     source: mitretacticid
   - issue_field: agent_hostname
     source: agent_hostname
-  - issue_field: dns_query_name
-    source: dns_queries
   - issue_field: hostmacaddress
     source: mac_address
   - issue_field: originalrawlog
@@ -408,14 +400,10 @@ correlation_rules:
     source: action_file_name
   - issue_field: action_file_path
     source: action_file_path
-  - issue_field: action_remote_ip
-    source: action_remote_ip
   - issue_field: externalseverity
     source: severity_int_raw
   - issue_field: mitretechniqueid
     source: mitretechniqueid
-  - issue_field: network_accesses
-    source: network_accesses
   - issue_field: parentprocesscmd
     source: parent_process_cmd
   - issue_field: parentprocessids
@@ -460,8 +448,6 @@ correlation_rules:
     source: ioc_value
   - issue_field: grandparentprocessid
     source: grandparent_local_process_id
-  - issue_field: postnatdestinationip
-    source: remote_ips
   - issue_field: grandparentprocesscmd
     source: grandparent_process_cmd
   - issue_field: grandparentprocessname
@@ -496,6 +482,22 @@ correlation_rules:
     source: cgo_cmd
   - issue_field: causality_actor_process_image_sha256
     source: causality_actor_process_image_sha256
+  - issue_field: hostos
+    source: device_platform_name
+  - issue_field: agentossubtype
+    source: device_os_version
+  - issue_field: hostfqdn
+    source: device_fqdn
+  - issue_field: hostip
+    source: local_ip
+  - issue_field: initiatormd5
+    source: md5
+  - issue_field: osparentid
+    source: parent_local_process_id
+  - issue_field: endpointisolationstatus
+    source: device_status
+  - issue_field: categoryname
+    source: objective
   contributes:
   - Endpoint.User
   - Endpoint.Host
