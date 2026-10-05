@@ -392,22 +392,27 @@ def _build_correlation_yml(doc: dict, cr: dict) -> str:
     sc = cr["schema_constants"]
 
     # CIE enrichment is schema-driven. `cie_enabled: true` emits the overlay
-    # live instead of as a dormant /* */ block, and takes the rule's schedule
-    # from `cie_schedule` -- the join reaches 25h back into socfw_identity_map,
-    # so the base search_window is too narrow for it. Defaults to false, so
-    # every contract that does not opt in emits exactly as before.
+    # live instead of as a dormant /* */ block, and ships the rule SCHEDULED
+    # because the join cannot run on a REAL_TIME rule.
+    #
+    # It deliberately does NOT rewrite crontab / search_window /
+    # simple_schedule. Those stay exactly as the contract declares them, so the
+    # rule installs on its own settings and an operator can override them on the
+    # tenant. An earlier version took them from `cie_schedule` (25 hours) on the
+    # strength of the block's own header comment. A production Proofpoint TAP
+    # rule running CIE live disproves that: it uses search_window 20 minutes.
+    # The 25h bound belongs to the socfw_identity_map subquery inside the join,
+    # not to the outer rule, and the overlay's 15-minute recency gate is what
+    # keeps each cycle from re-emitting. Widening the outer window changes
+    # alerting for no benefit.
+    #
+    # Defaults to false, so a contract that does not opt in emits as before.
     cie_on = bool(cr.get("cie_enabled"))
     cie_sched = cr.get("cie_schedule") or {}
-    if cie_on:
-        execution_mode = "SCHEDULED"
-        crontab = cie_sched.get("crontab", cr.get("crontab"))
-        search_window = cie_sched.get("search_window", cr.get("search_window"))
-        simple_schedule = cie_sched.get("simple_schedule", cr.get("simple_schedule"))
-    else:
-        execution_mode = sc["execution_mode"]
-        crontab = cr.get("crontab")
-        search_window = cr.get("search_window")
-        simple_schedule = cr.get("simple_schedule")
+    execution_mode = "SCHEDULED" if cie_on else sc["execution_mode"]
+    crontab = cr.get("crontab")
+    search_window = cr.get("search_window")
+    simple_schedule = cr.get("simple_schedule")
     lines: list[str] = []
 
     # Note: pack_prep strips id:/ruleid: from correlation rules as "rogue" keys.
@@ -544,10 +549,13 @@ def _emit_cie_overlay(overlay, schedule=None, enabled=False, execution_mode=None
             "// ============== CIE ENRICHMENT (ENABLED) ==============================",
             "// Enabled by `cie_enabled: true` in the vendor contract. Do not comment",
             "// this out here -- set cie_enabled: false and re-emit instead.",
-            f"// Schedule comes from cie_schedule: {crontab} / {window} / {label}.",
+            "// The rule ships SCHEDULED because the join cannot run REAL_TIME, but",
+            "// keeps the schedule the contract declares -- override on the tenant if",
+            "// needed. The 25h bound applies to the socfw_identity_map subquery",
+            "// inside the join, not to this rule's search_window.",
             "// The join coalesces socfw_identity_map values OVER the inline idr_*",
             "// fields; the alert-field mappings do not change. The leading recency",
-            "// filter is what keeps a 25h search window from re-alerting every run.",
+            "// filter is what keeps each cycle from re-emitting the same alerts.",
             "// Requires SOC IdentityResolve and a populated socfw_identity_map whose",
             "// join keys actually cover this vendor's identities.",
             "// ----------------------------------------------------------------------",
