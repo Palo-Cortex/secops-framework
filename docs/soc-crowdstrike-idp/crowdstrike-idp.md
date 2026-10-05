@@ -105,7 +105,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `agent_id` | `agent_id` |  |  |
 | `filehash` | `sha256` |  |  |
 | `hostname` | `agent_hostname` |  |  |
-| `remoteip` | `action_remote_ip` |  |  |
 | `scenario` | `scenario` |  |  |
 | `severity` | `severity_name` |  |  |
 | `sourceid` | `aggregate_id` |  |  |
@@ -118,7 +117,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `detectionid` | `template_instance_id` |  |  |
 | `eventaction` | `cs_idp_policy_rule_action` |  |  |
 | `initiatedby` | `actor_process_image_name` |  |  |
-| `dnsqueryname` | `dns_queries` |  |  |
 | `dst_agent_id` | `dst_agent_id_v` |  |  |
 | `dst_hostname` | `dst_hostname_v` |  |  |
 | `dst_username` | `dst_user_v` |  |  |
@@ -128,7 +126,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `initiatorpath` | `actor_process_image_path` |  |  |
 | `mitretacticid` | `tactic_id` |  |  |
 | `agent_hostname` | `agent_hostname` |  |  |
-| `dns_query_name` | `dns_queries` |  |  |
 | `locationregion` | `location_country_code` |  |  |
 | `originalrawlog` | `originalrawlog` |  |  |
 | `samaccountname` | `src_account_name` |  |  |
@@ -140,7 +137,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `originalalertid` | `composite_id` |  |  |
 | `action_file_name` | `filename` |  |  |
 | `action_file_path` | `filepath` |  |  |
-| `action_remote_ip` | `action_remote_ip` |  |  |
 | `destinationemail` | `dst_account_name` |  |  |
 | `externalseverity` | `severity` |  |  |
 | `mitretechniqueid` | `technique_id` |  |  |
@@ -282,8 +278,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
                       grandparent_process_cmd,
                       coalesce(parent_process_cmd, cmdline))
 
-| alter dns_queries = dns_requests
-| alter remote_ips  = coalesce(dst_ip, network_accesses)
+//| alter dns_queries = dns_requests
+//| alter remote_ips  = coalesce(dst_ip, network_accesses)
 
 | alter idp_context = concat(
     "Source: ", coalesce(src_account_name, "Unknown"),
@@ -342,13 +338,13 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_file_sha256                  = sha256,
         action_local_ip                     = local_ip,
         action_local_ip_v6                  = src_ip_v6,
-        action_remote_ip                    = remote_ips,
+        //action_remote_ip                    = remote_ips,
         causality_id                        = aggregate_id,
         dst_agent_id_v                      = dst_sensor_id,
         dst_hostname_v                      = dst_host,
         dst_user_v                          = dst_account_name
 | fields
-    device_id, local_ip, user_name, user_principal, email, raw_email, raw_sam, idr_email, idr_upn, idr_display_name, idr_sam_account_name, idr_netbios, idr_sid, idr_on_prem_sid, idr_domain_name, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, actor_effective_username, network_accesses, dns_requests, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_ip_v6, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, sso_application_identifier, sso_application_uri, cs_idp_policy_rule_name, cs_idp_policy_rule_action, cs_idp_policy_rule_trigger, cs_idp_policy_mfa_provider, cs_idp_policy_mfa_factor_type, privileges, added_privileges, cs_honeytoken_user, ldap_search_query_attack, cs_source_ip_asn_organization, cs_source_ip_isp_domain, pattern_disposition, cs_score, cs_fine_score, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
+    device_id, local_ip, user_name, user_principal, email, raw_email, raw_sam, idr_email, idr_upn, idr_display_name, idr_sam_account_name, idr_netbios, idr_sid, idr_on_prem_sid, idr_domain_name, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, actor_effective_username, files_written, originalrawlog, src_account_name, src_account_upn, src_account_sid, src_host, src_ip, src_ip_v6, src_sensor_id, dst_account_name, dst_account_sid, dst_host, dst_ip, dst_sensor_id, idp_logon_domain, idp_context, sso_application_identifier, sso_application_uri, cs_idp_policy_rule_name, cs_idp_policy_rule_action, cs_idp_policy_rule_trigger, cs_idp_policy_mfa_provider, cs_idp_policy_mfa_factor_type, privileges, added_privileges, cs_honeytoken_user, ldap_search_query_attack, cs_source_ip_asn_organization, cs_source_ip_isp_domain, pattern_disposition, cs_score, cs_fine_score, causality_id, dst_agent_id_v, dst_hostname_v, dst_user_v, *
 
 | alter socfw_event_time = _time,
         socfw_insert_time = _insert_time
