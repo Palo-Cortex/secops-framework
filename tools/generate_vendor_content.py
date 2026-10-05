@@ -177,6 +177,21 @@ def validate_mapping(doc: dict) -> list[str]:
                         f"produced by the CIE overlay."
                     )
 
+        if cr.get("cie_enabled"):
+            if not (cr.get("cie_join") or cr.get("cie_overlay")):
+                errors.append(
+                    f"{prefix}: cie_enabled is true but the rule declares "
+                    f"neither cie_join nor cie_overlay, so there is no "
+                    f"enrichment to enable."
+                )
+            if not cr.get("cie_schedule"):
+                errors.append(
+                    f"{prefix}: cie_enabled is true but cie_schedule is "
+                    f"missing. The overlay joins socfw_identity_map 25h back, "
+                    f"so the rule needs the CIE schedule rather than the base "
+                    f"search_window."
+                )
+
     return errors
 
 
@@ -375,6 +390,24 @@ def emit_correlation_rules(doc: dict, pack_root: Path) -> list[Path]:
 def _build_correlation_yml(doc: dict, cr: dict) -> str:
     """Targeted string assembly. yaml.dump is BANNED here."""
     sc = cr["schema_constants"]
+
+    # CIE enrichment is schema-driven. `cie_enabled: true` emits the overlay
+    # live instead of as a dormant /* */ block, and takes the rule's schedule
+    # from `cie_schedule` -- the join reaches 25h back into socfw_identity_map,
+    # so the base search_window is too narrow for it. Defaults to false, so
+    # every contract that does not opt in emits exactly as before.
+    cie_on = bool(cr.get("cie_enabled"))
+    cie_sched = cr.get("cie_schedule") or {}
+    if cie_on:
+        execution_mode = "SCHEDULED"
+        crontab = cie_sched.get("crontab", cr.get("crontab"))
+        search_window = cie_sched.get("search_window", cr.get("search_window"))
+        simple_schedule = cie_sched.get("simple_schedule", cr.get("simple_schedule"))
+    else:
+        execution_mode = sc["execution_mode"]
+        crontab = cr.get("crontab")
+        search_window = cr.get("search_window")
+        simple_schedule = cr.get("simple_schedule")
     lines: list[str] = []
 
     # Note: pack_prep strips id:/ruleid: from correlation rules as "rogue" keys.
@@ -398,7 +431,7 @@ def _build_correlation_yml(doc: dict, cr: dict) -> str:
 
     lines.append(f'alert_name: {cr["alert_name"]}')
     lines.append(f'alert_type: {_yaml_scalar(cr.get("alert_type"))}')
-    lines.append(f'crontab: {_yaml_scalar(cr.get("crontab"))}')
+    lines.append(f'crontab: {_yaml_scalar(crontab)}')
     lines.append(f'dataset: {cr.get("dataset", "alerts")}')
     lines.append(f'name: {cr["name"]}')
     lines.append("description: >-")
@@ -406,7 +439,7 @@ def _build_correlation_yml(doc: dict, cr: dict) -> str:
         lines.append(f'  {desc_line}')
 
     lines.append(f'drilldown_query_timeframe: {sc.get("drilldown_query_timeframe", "ALERT")}')
-    lines.append(f'execution_mode: {sc["execution_mode"]}')
+    lines.append(f'execution_mode: {execution_mode}')
     lines.append(f'global_rule_id: {cr["global_rule_id"]}')
 
     iql = cr.get("investigation_query_link", "")
@@ -431,9 +464,9 @@ def _build_correlation_yml(doc: dict, cr: dict) -> str:
             for t in techs:
                 lines.append(f'  - {t}')
 
-    lines.append(f'search_window: {_yaml_scalar(cr.get("search_window"))}')
+    lines.append(f'search_window: {_yaml_scalar(search_window)}')
     lines.append(f'severity: {sc.get("severity", "User Defined")}')
-    lines.append(f'simple_schedule: {_yaml_scalar(cr.get("simple_schedule"))}')
+    lines.append(f'simple_schedule: {_yaml_scalar(simple_schedule)}')
 
     sup = cr.get("suppression", {})
     if sup.get("enabled"):
@@ -465,14 +498,14 @@ def _build_correlation_yml(doc: dict, cr: dict) -> str:
             lines.append("")
         _emit_lines(_emit_identity_seed())
         if cr.get("cie_join"):
-            _emit_lines(_emit_cie_overlay(_build_cie_overlay_xql(cr["cie_join"]), cr.get("cie_schedule")))
+            _emit_lines(_emit_cie_overlay(_build_cie_overlay_xql(cr["cie_join"]), cie_sched, cie_on, execution_mode))
         elif cr.get("cie_overlay"):
-            _emit_lines(_emit_cie_overlay(cr["cie_overlay"], cr.get("cie_schedule")))
+            _emit_lines(_emit_cie_overlay(cr["cie_overlay"], cie_sched, cie_on, execution_mode))
         _emit_lines(_emit_identity_finalization())
     elif cr.get("cie_join"):
-        _emit_lines(_emit_cie_overlay(_build_cie_overlay_xql(cr["cie_join"]), cr.get("cie_schedule")))
+        _emit_lines(_emit_cie_overlay(_build_cie_overlay_xql(cr["cie_join"]), cie_sched, cie_on, execution_mode))
     elif cr.get("cie_overlay"):
-        _emit_lines(_emit_cie_overlay(cr["cie_overlay"], cr.get("cie_schedule")))
+        _emit_lines(_emit_cie_overlay(cr["cie_overlay"], cie_sched, cie_on, execution_mode))
     if cr.get("final_projection"):
         lines.append("  | fields")
         proj = ", ".join(
@@ -483,18 +516,48 @@ def _build_correlation_yml(doc: dict, cr: dict) -> str:
     return "\n".join(lines)
 
 
-def _emit_cie_overlay(overlay, schedule=None):
-    """Emit optional CIE (Cloud Identity Engine) enrichment as a PRESERVED
-    block comment. The XQL lines are wrapped in a single /* */ so enabling is
-    two edits (delete the /* and */), not un-commenting every line -- and the
-    editor treats it as a real block comment, so it won't lint the dormant
-    join. `schedule` is an optional dict {crontab, search_window,
-    simple_schedule}. The overlay coalesces socfw_identity_map values OVER the
-    inline idr_* fields, so the alert-field mappings are unaffected either way."""
+def _emit_cie_overlay(overlay, schedule=None, enabled=False, execution_mode=None):
+    """Emit optional CIE (Cloud Identity Engine) enrichment.
+
+    Driven by `cie_enabled` in the contract -- never by hand-editing the
+    emitted rule, which the next emit would silently revert.
+
+    enabled=False (default): the XQL is wrapped in a single /* */ so it is
+    dormant but reviewable, and the editor treats it as a real block comment
+    rather than linting a dead join.
+
+    enabled=True: the same XQL is emitted live. The caller is responsible for
+    having already applied `cie_schedule` to the rule, because the join reaches
+    25h back into socfw_identity_map and the base search_window is too narrow.
+
+    Either way the overlay coalesces socfw_identity_map values OVER the inline
+    idr_* fields, so the alert-field mappings are unaffected."""
     sch = schedule or {}
     crontab = sch.get("crontab", "*/10 * * * *")
     window = sch.get("search_window", "25 hours")
     label = sch.get("simple_schedule", "10 minutes")
+    body = list(overlay.splitlines())
+
+    if enabled:
+        header = [
+            "",
+            "// ============== CIE ENRICHMENT (ENABLED) ==============================",
+            "// Enabled by `cie_enabled: true` in the vendor contract. Do not comment",
+            "// this out here -- set cie_enabled: false and re-emit instead.",
+            f"// Schedule comes from cie_schedule: {crontab} / {window} / {label}.",
+            "// The join coalesces socfw_identity_map values OVER the inline idr_*",
+            "// fields; the alert-field mappings do not change. The leading recency",
+            "// filter is what keeps a 25h search window from re-alerting every run.",
+            "// Requires SOC IdentityResolve and a populated socfw_identity_map whose",
+            "// join keys actually cover this vendor's identities.",
+            "// ----------------------------------------------------------------------",
+        ]
+        footer = ["// ===================== END CIE ENRICHMENT ============================="]
+        return "\n".join(header + body + footer)
+
+    # Disabled header is kept byte-for-byte as it shipped, so adding the
+    # cie_enabled knob does not churn the emitted rule of all 11 contracts
+    # that declare an overlay. Rewording it is a separate, repo-wide change.
     header = [
         "",
         "// ============== CIE ENRICHMENT (optional, OFF by default) ==============",
@@ -510,7 +573,6 @@ def _emit_cie_overlay(overlay, schedule=None):
         "// ----------------------------------------------------------------------",
         "/*",
     ]
-    body = list(overlay.splitlines())
     footer = ["*/", "// ===================== END CIE ENRICHMENT ============================="]
     return "\n".join(header + body + footer)
 
