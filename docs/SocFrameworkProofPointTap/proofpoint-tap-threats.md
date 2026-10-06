@@ -192,33 +192,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `socfwemailcampaignid` | `campaignId` | `raw` |  |
 | `socfwemailclickip` | `clickIP` | `raw` |  |
 | `socfwemailclicktime` | `clickTime` | `raw` |  |
-| `proofpointtapcampaignid` | `campaignId` | `raw` |  |
-| `proofpointtapclickip` | `clickIP` | `raw` |  |
-| `proofpointtapclicktime` | `clickTime` | `raw` |  |
-| `proofpointtapguid` | `GUID` | `raw` |  |
-| `proofpointtapheadersfrom` | `headerFrom` | `raw` |  |
-| `proofpointtapheadersreplyto` | `headerReplyTo` | `raw` |  |
-| `proofpointtapid` | `id` | `raw` |  |
-| `proofpointtapimposterscore` | `impostorScore` | `raw` |  |
-| `proofpointtapmalwarescore` | `malwareScore` | `raw` |  |
-| `proofpointtapmessageid` | `messageID` | `raw` |  |
-| `proofpointtapmessageparts` | `messageParts` | `raw` |  |
-| `proofpointtapmessagesize` | `messageSize` | `raw` |  |
-| `proofpointtapphishingscore` | `phishScore` | `raw` |  |
-| `proofpointtapreplytoaddress` | `replyToAddress` | `raw` |  |
-| `proofpointtapsenderip` | `senderIP` | `raw` |  |
-| `proofpointtapsmtpsender` | `sender` | `raw` |  |
-| `proofpointtapspamscore` | `spamScore` | `raw` |  |
-| `proofpointtapsubject` | `subject` | `raw` |  |
-| `proofpointtapthreatstatus` | `threatStatus` | `raw` |  |
-| `proofpointtapthreattime` | `threatTime` | `raw` |  |
-| `proofpointtaptype` | `type` | `raw` |  |
-| `proofpointtapxmailer` | `xmailer` | `raw` |  |
-| `proofpointtapthreatid` | `bc_threatid` | `computed` |  |
-| `proofpointtapclassification` | `bc_classification` | `computed` |  |
-| `proofpointtapsuspiciousurl` | `bc_threaturl` | `computed` |  |
-| `proofpointtapthreaturl` | `bc_threaturl` | `computed` |  |
-| `proofpointtapthreatinfomap` | `bc_threatinfomap` | `computed` |  |
 | `agentid` | `agent_id` | `computed` |  |
 | `hostname` | `agent_hostname` | `computed` |  |
 | `domain` | `agent_device_domain` | `computed` |  |
@@ -263,8 +236,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
 | alter
-    alert_severity    = coalesce(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.severity"), "SEV_030_MEDIUM"),
-    alert_category    = coalesce(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.alert_category"), "Email Security"),
+    alert_severity    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.severity"), "SEV_030_MEDIUM"),
+    alert_category    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.alert_category"), "Email Security"),
     alert_name = if(
         type = "clicks permitted",
         concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -323,7 +296,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 // Link count feeds outbound-compromise scoring in Email_Analysis_V3. The rule
 // fires neutrally; direction filtering happens in Issue Exclusions.
-| alter linkedCount = to_integer(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.linkedCount"))
+| alter linkedCount = to_integer(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.linkedCount"))
 
 // First-element extractions consumed by soc-phishing-investigation-1.0.5
 // playbooks and layouts. bc_threatinfomap uses json_extract, not

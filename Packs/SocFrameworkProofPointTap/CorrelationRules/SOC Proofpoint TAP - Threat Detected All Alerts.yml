@@ -66,33 +66,6 @@ alert_fields:
   socfwemailcampaignid: campaignId
   socfwemailclickip: clickIP
   socfwemailclicktime: clickTime
-  proofpointtapcampaignid: campaignId
-  proofpointtapclickip: clickIP
-  proofpointtapclicktime: clickTime
-  proofpointtapguid: GUID
-  proofpointtapheadersfrom: headerFrom
-  proofpointtapheadersreplyto: headerReplyTo
-  proofpointtapid: id
-  proofpointtapimposterscore: impostorScore
-  proofpointtapmalwarescore: malwareScore
-  proofpointtapmessageid: messageID
-  proofpointtapmessageparts: messageParts
-  proofpointtapmessagesize: messageSize
-  proofpointtapphishingscore: phishScore
-  proofpointtapreplytoaddress: replyToAddress
-  proofpointtapsenderip: senderIP
-  proofpointtapsmtpsender: sender
-  proofpointtapspamscore: spamScore
-  proofpointtapsubject: subject
-  proofpointtapthreatstatus: threatStatus
-  proofpointtapthreattime: threatTime
-  proofpointtaptype: type
-  proofpointtapxmailer: xmailer
-  proofpointtapthreatid: bc_threatid
-  proofpointtapclassification: bc_classification
-  proofpointtapsuspiciousurl: bc_threaturl
-  proofpointtapthreaturl: bc_threaturl
-  proofpointtapthreatinfomap: bc_threatinfomap
   agentid: agent_id
   hostname: agent_hostname
   domain: agent_device_domain
@@ -157,7 +130,7 @@ suppression_enabled: true
 suppression_fields:
 - GUID
 - type
-timezone: null
+timezone: UTC
 user_defined_category: alert_category
 user_defined_severity: alert_severity
 xql_query: |
@@ -176,8 +149,8 @@ xql_query: |
   | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
   | alter
-      alert_severity    = coalesce(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.severity"), "SEV_030_MEDIUM"),
-      alert_category    = coalesce(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.alert_category"), "Email Security"),
+      alert_severity    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.severity"), "SEV_030_MEDIUM"),
+      alert_category    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.alert_category"), "Email Security"),
       alert_name = if(
           type = "clicks permitted",
           concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -223,7 +196,7 @@ xql_query: |
 
   | alter cleaned_url = ltrim(replex(coalesce(first_threat_url, url), "^https?://", ""), "www.")
 
-  | alter linkedCount = to_integer(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.linkedCount"))
+  | alter linkedCount = to_integer(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.linkedCount"))
 
   | alter
       bc_threatid       = json_extract_scalar(threatsInfoMap_str, "$[0].threatID"),
@@ -287,19 +260,18 @@ xql_query: |
   | alter tmp_severity = if(proofpointfilename in ("*.jpeg", "*.jpg",
   "*.png", "*.html", "text.txt"), "SEV_030_LOW", alert_severity)
 
-  // ============== CIE ENRICHMENT (ENABLED) ==============================
-  // Enabled by `cie_enabled: true` in the vendor contract. Do not comment
-  // this out here -- set cie_enabled: false and re-emit instead.
-  // The rule ships SCHEDULED because the join cannot run REAL_TIME, but
-  // keeps the schedule the contract declares -- override on the tenant if
-  // needed. The 25h bound applies to the socfw_identity_map subquery
-  // inside the join, not to this rule's search_window.
-  // The join coalesces socfw_identity_map values OVER the inline idr_*
-  // fields; the alert-field mappings do not change. The leading recency
-  // filter is what keeps each cycle from re-emitting the same alerts.
-  // Requires SOC IdentityResolve and a populated socfw_identity_map whose
-  // join keys actually cover this vendor's identities.
+  // ============== CIE ENRICHMENT (optional, OFF by default) ==============
+  // Cloud Identity Engine enrichment is disabled. To enable it:
+  //   1. Set this rule to a schedule (it ships REAL_TIME):
+  //        execution mode = SCHEDULED
+  //        crontab        = */10 * * * *
+  //        search window  = 25 hours
+  //        schedule label = 10 minutes
+  //   2. Delete the /* and */ lines that wrap the block below.
+  // The join coalesces socfw_identity_map values OVER the inline idr_* fields;
+  // the alert-field mappings do not change. Requires SOC IdentityResolve.
   // ----------------------------------------------------------------------
+  /*
   // Only act on events ingested in the last 15 minutes. The 25h search_window
   // exists so the socfw_identity_map join can see the daily snapshot; without
   // this gate every cycle re-scans 25h of email and re-emits alerts.
@@ -348,4 +320,5 @@ xql_query: |
   | alter alert_description = description,
           user_principal    = coalesce(idr_upn, recipient_first),
           user_name         = actor_effective_username
+  */
   // ===================== END CIE ENRICHMENT =============================
