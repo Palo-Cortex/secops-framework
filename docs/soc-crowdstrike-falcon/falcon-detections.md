@@ -194,7 +194,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `initiatorcmd` | `actor_process_command_line` |  |  |
 | `initiatorpid` | `actor_process_os_pid` |  |  |
 | `employeeemail` | `idr_email` |  |  |
-| `files_written` | `files_written` |  |  |
+| `files_written` | `files_written_names` |  |  |
 | `initiatorpath` | `actor_process_image_path` |  |  |
 | `mitretacticid` | `mitretacticid` |  |  |
 | `agent_hostname` | `agent_hostname` |  |  |
@@ -326,6 +326,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter dnsa = json_extract_array(to_json_string(dns_requests), "$")
 | alter dns_queries = arraymap(dnsa, json_extract_scalar(to_json_string("@element"), "$.domain_name"))
 | alter na = json_extract_array(to_json_string(network_accesses), "$")
+| alter fwa = json_extract_array(to_json_string(files_written), "$")
+| alter files_written_names = arraymap(fwa, json_extract_scalar(to_json_string("@element"), "$.filename"))
 | alter remote_ips = arraymap(na, json_extract_scalar(to_json_string("@element"), "$.remote_address"))
 
 | alter alert_name = concat(
