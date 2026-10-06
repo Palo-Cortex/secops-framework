@@ -1,0 +1,18 @@
+# Turla Carbon — CrowdStrike Falcon + ProofPoint TAP, against deathstar.
+#
+# deathstar counterpart of h8_full_chain.yml. Exercises cross-source grouping:
+# the spearphish arrives via ProofPoint, the dropper executes on a CrowdStrike
+# endpoint, and both should land in one case on shared artifacts.
+#
+# 5m rather than h8's 30m: these sources span two days and the correlation
+# rules filter on _time, so a wider window strands the earliest events.
+scenario: Turla Carbon — CrowdStrike + ProofPoint (deathstar)
+compress_window: 5m
+
+sources:
+  - name: ProofPoint TAP
+    file: input_tsv/ProofPoint-MITRE-Turla-Carbon-in-XSIAM.tsv
+    env: .env-deathstar-proofpoint
+  - name: CrowdStrike
+    file: input_tsv/CrowdStrike-MITRE-Turla-Carbon-in-XSIAM.tsv
+    env: .env-deathstar-crowdstrike

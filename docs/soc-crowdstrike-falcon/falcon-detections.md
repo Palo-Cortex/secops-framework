@@ -258,6 +258,11 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `osparentid` | `parent_local_process_id` |  |  |
 | `endpointisolationstatus` | `device_status` |  |  |
 | `categoryname` | `objective` |  |  |
+| `dns_query_name` | `dns_queries` |  |  |
+| `dnsqueryname` | `dns_queries` |  |  |
+| `action_remote_ip` | `action_remote_ip` |  |  |
+| `remoteip` | `action_remote_ip` |  |  |
+| `postnatdestinationip` | `remote_ips` |  |  |
 
 #### Pre-Alter XQL
 
@@ -318,8 +323,10 @@ Issue-field assignments emitted by the correlation rule. The Description column 
                       grandparent_process_cmd,
                       coalesce(parent_process_cmd, cmdline))
 
-//| alter dns_queries = dns_requests
-//| alter remote_ips  = network_accesses
+| alter dnsa = json_extract_array(to_json_string(dns_requests), "$")
+| alter dns_queries = arraymap(dnsa, json_extract_scalar(to_json_string("@element"), "$.domain_name"))
+| alter na = json_extract_array(to_json_string(network_accesses), "$")
+| alter remote_ips = arraymap(na, json_extract_scalar(to_json_string("@element"), "$.remote_address"))
 
 | alter alert_name = concat(
     "[Endpoint] ",
@@ -365,8 +372,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_file_name                    = filename,
         action_file_path                    = filepath,
         action_file_sha256                  = sha256,
-        action_local_ip                     = local_ip
-        //action_remote_ip                    = remote_ips
+        action_local_ip                     = local_ip,
+        action_remote_ip                    = remote_ips
 | fields
-    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, files_written, originalrawlog, *
+    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *
 ```
