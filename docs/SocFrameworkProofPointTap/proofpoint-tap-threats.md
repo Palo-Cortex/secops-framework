@@ -103,7 +103,7 @@ Unified Proofpoint TAP alert rule covering messages delivered and clicks permitt
 | alert_category | `User Defined` |
 | alert_domain | `DOMAIN_SECURITY` |
 | action | `ALERTS` |
-| execution_mode | `SCHEDULED` |
+| execution_mode | `REAL_TIME` |
 | mapping_strategy | `CUSTOM` |
 | user_defined_category | `alert_category` |
 | user_defined_severity | `alert_severity` |
