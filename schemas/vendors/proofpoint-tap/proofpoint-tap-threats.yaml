@@ -275,7 +275,13 @@ correlation_rules:
           classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
           threat_types       = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatType")), ", "),
           threat_statuses    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatStatus")), ", "),
-          threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+          threat_urls_tim    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+
+      // Click events (clicks permitted / clicks blocked) carry no threatsInfoMap at
+      // all -- the clicked URL rides the top-level `url` column instead. Without this
+      // fallback a click produces no URL artifact, so the one event that proves the
+      // user actually engaged contributes nothing to grouping.
+      | alter threat_urls = coalesce(if(threat_urls_tim != "", threat_urls_tim, null), url)
 
       // Attachment hashes and names across all message parts.
       | alter
@@ -292,17 +298,23 @@ correlation_rules:
               null
           )
 
+      // One URL for every downstream derivation. threatsInfoMap on message events,
+      // the top-level url on click events.
+      | alter effective_threat_url = coalesce(first_threat_url, url)
+
       // Feeds fw_url_domain and dns_query_name, which XSIAM turns into grouping
       // artifacts. Both take the same value so a single alert cannot contribute two
-      // competing domains. Null on attachment-only threats.
-      | alter url_domain = extract_url_registered_domain(first_threat_url)
+      // competing domains. Null on attachment-only threats. Clicks resolve through
+      // effective_threat_url, so a permitted click now groups on the same registered
+      // domain as the message that delivered it -- and as the endpoint that fetched
+      // it, via fw_url_domain / dns_query_name.
+      | alter url_domain = extract_url_registered_domain(effective_threat_url)
       | alter domain     = url_domain,
               dns_name   = url_domain
 
       // URL in the form proxies and firewalls log it, for cross-product correlation
-      // (Zscaler ZPA, NGFW). Click events have no threatsInfoMap and fall back to
-      // the top-level url.
-      | alter cleaned_url = ltrim(replex(coalesce(first_threat_url, url), "^https?://", ""), "www.")
+      // (Zscaler ZPA, NGFW).
+      | alter cleaned_url = ltrim(replex(effective_threat_url, "^https?://", ""), "www.")
 
       // Link count feeds outbound-compromise scoring in Email_Analysis_V3. The rule
       // fires neutrally; direction filtering happens in Issue Exclusions.

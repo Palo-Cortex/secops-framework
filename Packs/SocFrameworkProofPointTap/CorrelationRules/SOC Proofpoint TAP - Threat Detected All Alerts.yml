@@ -176,7 +176,9 @@ xql_query: |
       classification_all = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.classification")), ", "),
       threat_types       = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatType")), ", "),
       threat_statuses    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatStatus")), ", "),
-      threat_urls        = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+      threat_urls_tim    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
+
+  | alter threat_urls = coalesce(if(threat_urls_tim != "", threat_urls_tim, null), url)
 
   | alter
       proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
@@ -190,11 +192,13 @@ xql_query: |
           null
       )
 
-  | alter url_domain = extract_url_registered_domain(first_threat_url)
+  | alter effective_threat_url = coalesce(first_threat_url, url)
+
+  | alter url_domain = extract_url_registered_domain(effective_threat_url)
   | alter domain     = url_domain,
           dns_name   = url_domain
 
-  | alter cleaned_url = ltrim(replex(coalesce(first_threat_url, url), "^https?://", ""), "www.")
+  | alter cleaned_url = ltrim(replex(effective_threat_url, "^https?://", ""), "www.")
 
   | alter linkedCount = to_integer(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.linkedCount"))
 
