@@ -35,19 +35,18 @@ Fields available in the raw ingest dataset.
 | `type` | `string` |  | confirmed |  |
 | `threatStatus` | `string` |  | confirmed |  |
 | `url` | `string` |  | confirmed |  |
-| `campaignId` | `string` |  | inferred_from_correlation |  |
-| `phishScore` | `int` |  | inferred_from_correlation |  |
-| `malwareScore` | `int` |  | inferred_from_correlation |  |
-| `spamScore` | `int` |  | inferred_from_correlation |  |
-| `impostorScore` | `int` |  | inferred_from_correlation |  |
-| `threatTime` | `datetime` |  | inferred_from_correlation |  |
-| `headerFrom` | `string` |  | inferred_from_correlation |  |
-| `headerReplyTo` | `string` |  | inferred_from_correlation |  |
-| `replyToAddress` | `string` |  | inferred_from_correlation |  |
-| `messageSize` | `int` |  | inferred_from_correlation |  |
-| `xmailer` | `string` |  | inferred_from_correlation |  |
-| `id` | `string` |  | inferred_from_correlation |  |
-| `_alert_data` | `json` |  | inferred_from_correlation | severity, alert_category, linkedCount |
+| `campaignId` | `string` |  | confirmed |  |
+| `phishScore` | `int` |  | confirmed |  |
+| `malwareScore` | `int` |  | confirmed |  |
+| `spamScore` | `int` |  | confirmed |  |
+| `impostorScore` | `int` |  | confirmed |  |
+| `threatTime` | `datetime` |  | confirmed |  |
+| `headerFrom` | `string` |  | confirmed |  |
+| `headerReplyTo` | `string` |  | confirmed |  |
+| `replyToAddress` | `string` |  | confirmed |  |
+| `messageSize` | `int` |  | confirmed |  |
+| `xmailer` | `string` |  | confirmed |  |
+| `id` | `string` |  | confirmed |  |
 
 ## Modeling Rule — ProofpointTAP Modeling Rule
 
@@ -264,8 +263,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
 | alter
-    alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
-    alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
+    alert_severity    = coalesce(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.severity"), "SEV_030_MEDIUM"),
+    alert_category    = coalesce(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.alert_category"), "Email Security"),
     alert_name = if(
         type = "clicks permitted",
         concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -324,7 +323,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 // Link count feeds outbound-compromise scoring in Email_Analysis_V3. The rule
 // fires neutrally; direction filtering happens in Issue Exclusions.
-| alter linkedCount = to_integer(_alert_data -> linkedCount)
+| alter linkedCount = to_integer(json_extract_scalar(to_json_string(rawJSON), "$._alert_data.linkedCount"))
 
 // First-element extractions consumed by soc-phishing-investigation-1.0.5
 // playbooks and layouts. bc_threatinfomap uses json_extract, not
