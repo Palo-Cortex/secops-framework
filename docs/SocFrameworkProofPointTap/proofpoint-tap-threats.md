@@ -294,11 +294,19 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 // Feeds fw_url_domain and dns_query_name, which XSIAM turns into grouping
 // artifacts. Both take the same value so a single alert cannot contribute two
-// competing domains. Null on attachment-only threats. Clicks resolve through
-// effective_threat_url, so a permitted click now groups on the same registered
-// domain as the message that delivered it -- and as the endpoint that fetched
-// it, via fw_url_domain / dns_query_name.
-| alter url_domain = extract_url_registered_domain(effective_threat_url)
+// competing domains. Null on attachment-only threats.
+//
+// HOST, not registered domain. extract_url_registered_domain resolves against
+// the public suffix list, so it returns null for any internal or non-public TLD
+// -- every .local URL emitted a null domain, which is why fw_url_domain and
+// dns_query_name were empty on all TAP alerts in the Turla replay.
+//
+// The FQDN is also the correct grouping value regardless of that bug.
+// dns_query_name is matched by exact equality, and CrowdStrike emits the name as
+// queried (dns_requests[].domain_name, e.g. anto-int.com). Emitting a registered
+// domain here would mean TAP says evil.com while the endpoint says cdn.evil.com
+// and the two never pivot.
+| alter url_domain = extract_url_host(effective_threat_url)
 | alter domain     = url_domain,
         dns_name   = url_domain
 
@@ -353,9 +361,9 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // dashboards all read this surface.
 //
 // TAP is email-only, so host/process fields are null. agent_device_domain is
-// null on purpose: it is the AD machine domain, and mapping the URL registered
-// domain there false-grouped a threat URL domain against an AD domain. The URL
-// registered domain rides fw_url_domain instead.
+// null on purpose: it is the AD machine domain, and mapping the URL domain there
+// false-grouped a threat URL domain against an AD domain. The URL host rides
+// fw_url_domain instead.
 //
 // MITRE is hardcoded: both event types are phishing.
 | alter
