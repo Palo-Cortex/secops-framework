@@ -66,33 +66,6 @@ alert_fields:
   socfwemailcampaignid: campaignId
   socfwemailclickip: clickIP
   socfwemailclicktime: clickTime
-  proofpointtapcampaignid: campaignId
-  proofpointtapclickip: clickIP
-  proofpointtapclicktime: clickTime
-  proofpointtapguid: GUID
-  proofpointtapheadersfrom: headerFrom
-  proofpointtapheadersreplyto: headerReplyTo
-  proofpointtapid: id
-  proofpointtapimposterscore: impostorScore
-  proofpointtapmalwarescore: malwareScore
-  proofpointtapmessageid: messageID
-  proofpointtapmessageparts: messageParts
-  proofpointtapmessagesize: messageSize
-  proofpointtapphishingscore: phishScore
-  proofpointtapreplytoaddress: replyToAddress
-  proofpointtapsenderip: senderIP
-  proofpointtapsmtpsender: sender
-  proofpointtapspamscore: spamScore
-  proofpointtapsubject: subject
-  proofpointtapthreatstatus: threatStatus
-  proofpointtapthreattime: threatTime
-  proofpointtaptype: type
-  proofpointtapxmailer: xmailer
-  proofpointtapthreatid: bc_threatid
-  proofpointtapclassification: bc_classification
-  proofpointtapsuspiciousurl: bc_threaturl
-  proofpointtapthreaturl: bc_threaturl
-  proofpointtapthreatinfomap: bc_threatinfomap
   agentid: agent_id
   hostname: agent_hostname
   domain: agent_device_domain
@@ -157,7 +130,7 @@ suppression_enabled: true
 suppression_fields:
 - GUID
 - type
-timezone: null
+timezone: UTC
 user_defined_category: alert_category
 user_defined_severity: alert_severity
 xql_query: |
@@ -176,8 +149,8 @@ xql_query: |
   | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
   | alter
-      alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
-      alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
+      alert_severity    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.severity"), "SEV_030_MEDIUM"),
+      alert_category    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.alert_category"), "Email Security"),
       alert_name = if(
           type = "clicks permitted",
           concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -223,7 +196,7 @@ xql_query: |
 
   | alter cleaned_url = ltrim(replex(coalesce(first_threat_url, url), "^https?://", ""), "www.")
 
-  | alter linkedCount = to_integer(_alert_data -> linkedCount)
+  | alter linkedCount = to_integer(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.linkedCount"))
 
   | alter
       bc_threatid       = json_extract_scalar(threatsInfoMap_str, "$[0].threatID"),

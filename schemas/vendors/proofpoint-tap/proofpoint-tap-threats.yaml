@@ -47,19 +47,18 @@ raw_schema:
   # pipeline), so they don't block load — they resolve to null until real data
   # arrives. Left inferred because their dataset reality/type is unconfirmed;
   # declaring a wrong type here could itself be rejected once live data lands.
-  campaignId:     {type: string,   is_array: false, status: inferred_from_correlation}
-  phishScore:     {type: int,      is_array: false, status: inferred_from_correlation}
-  malwareScore:   {type: int,      is_array: false, status: inferred_from_correlation}
-  spamScore:      {type: int,      is_array: false, status: inferred_from_correlation}
-  impostorScore:  {type: int,      is_array: false, status: inferred_from_correlation}
-  threatTime:     {type: datetime, is_array: false, status: inferred_from_correlation}
-  headerFrom:     {type: string,   is_array: false, status: inferred_from_correlation}
-  headerReplyTo:  {type: string,   is_array: false, status: inferred_from_correlation}
-  replyToAddress: {type: string,   is_array: false, status: inferred_from_correlation}
-  messageSize:    {type: int,      is_array: false, status: inferred_from_correlation}
-  xmailer:        {type: string,   is_array: false, status: inferred_from_correlation}
-  id:             {type: string,   is_array: false, status: inferred_from_correlation}
-  _alert_data:    {type: json,     is_array: false, status: inferred_from_correlation, json_subfields: [severity, alert_category, linkedCount]}
+  campaignId:     {type: string,   is_array: false, status: confirmed}
+  phishScore:     {type: int,      is_array: false, status: confirmed}
+  malwareScore:   {type: int,      is_array: false, status: confirmed}
+  spamScore:      {type: int,      is_array: false, status: confirmed}
+  impostorScore:  {type: int,      is_array: false, status: confirmed}
+  threatTime:     {type: datetime, is_array: false, status: confirmed}
+  headerFrom:     {type: string,   is_array: false, status: confirmed}
+  headerReplyTo:  {type: string,   is_array: false, status: confirmed}
+  replyToAddress: {type: string,   is_array: false, status: confirmed}
+  messageSize:    {type: int,      is_array: false, status: confirmed}
+  xmailer:        {type: string,   is_array: false, status: confirmed}
+  id:             {type: string,   is_array: false, status: confirmed}
 
 modeling_rule:
   fromversion: "6.10.0"
@@ -146,6 +145,7 @@ correlation_rules:
     crontab: "*/10 * * * *"
     search_window: 20 minutes
     simple_schedule: 10 minutes
+    timezone: UTC
     alert_name: '$alert_name'
     alert_description: '$alert_description'
 
@@ -246,8 +246,8 @@ correlation_rules:
       | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
       | alter
-          alert_severity    = coalesce(_alert_data -> severity, "SEV_030_MEDIUM"),
-          alert_category    = coalesce(_alert_data -> alert_category, "Email Security"),
+          alert_severity    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.severity"), "SEV_030_MEDIUM"),
+          alert_category    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.alert_category"), "Email Security"),
           alert_name = if(
               type = "clicks permitted",
               concat("[Email] ", coalesce(recipient_first, "Unknown"), " - Initial Access: Malicious Link Clicked"),
@@ -306,7 +306,7 @@ correlation_rules:
 
       // Link count feeds outbound-compromise scoring in Email_Analysis_V3. The rule
       // fires neutrally; direction filtering happens in Issue Exclusions.
-      | alter linkedCount = to_integer(_alert_data -> linkedCount)
+      | alter linkedCount = to_integer(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.linkedCount"))
 
       // First-element extractions consumed by soc-phishing-investigation-1.0.5
       // playbooks and layouts. bc_threatinfomap uses json_extract, not
@@ -471,35 +471,8 @@ correlation_rules:
 
       # Legacy proofpointtap* fields — soc-phishing-investigation-1.0.5 playbooks/layouts
       # Remove when old phishing pack is decommissioned from all tenants.
-      - {issue_field: proofpointtapcampaignid, source: campaignId, bucket: raw}
-      - {issue_field: proofpointtapclickip, source: clickIP, bucket: raw}
-      - {issue_field: proofpointtapclicktime, source: clickTime, bucket: raw}
-      - {issue_field: proofpointtapguid, source: GUID, bucket: raw}
-      - {issue_field: proofpointtapheadersfrom, source: headerFrom, bucket: raw}
-      - {issue_field: proofpointtapheadersreplyto, source: headerReplyTo, bucket: raw}
-      - {issue_field: proofpointtapid, source: id, bucket: raw}
-      - {issue_field: proofpointtapimposterscore, source: impostorScore, bucket: raw}
-      - {issue_field: proofpointtapmalwarescore, source: malwareScore, bucket: raw}
-      - {issue_field: proofpointtapmessageid, source: messageID, bucket: raw}
-      - {issue_field: proofpointtapmessageparts, source: messageParts, bucket: raw}
-      - {issue_field: proofpointtapmessagesize, source: messageSize, bucket: raw}
-      - {issue_field: proofpointtapphishingscore, source: phishScore, bucket: raw}
-      - {issue_field: proofpointtapreplytoaddress, source: replyToAddress, bucket: raw}
-      - {issue_field: proofpointtapsenderip, source: senderIP, bucket: raw}
-      - {issue_field: proofpointtapsmtpsender, source: sender, bucket: raw}
-      - {issue_field: proofpointtapspamscore, source: spamScore, bucket: raw}
-      - {issue_field: proofpointtapsubject, source: subject, bucket: raw}
-      - {issue_field: proofpointtapthreatstatus, source: threatStatus, bucket: raw}
-      - {issue_field: proofpointtapthreattime, source: threatTime, bucket: raw}
-      - {issue_field: proofpointtaptype, source: type, bucket: raw}
-      - {issue_field: proofpointtapxmailer, source: xmailer, bucket: raw}
 
       # Legacy fields sourced from bc_* XQL alters (first-element extractions)
-      - {issue_field: proofpointtapthreatid, source: bc_threatid, bucket: computed}
-      - {issue_field: proofpointtapclassification, source: bc_classification, bucket: computed}
-      - {issue_field: proofpointtapsuspiciousurl, source: bc_threaturl, bucket: computed}
-      - {issue_field: proofpointtapthreaturl, source: bc_threaturl, bucket: computed}
-      - {issue_field: proofpointtapthreatinfomap, source: bc_threatinfomap, bucket: computed}
 
       # mitre_defs populated for analyst reporting. TAP doesn't ship MITRE
       # per-alert, so per-alert routing isn't possible — coverage block is the

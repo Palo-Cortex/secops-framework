@@ -1,0 +1,29 @@
+# ProofPoint-only replay against deathstar.
+#
+# Purpose: deathstar's proofpoint_tap_v2_generic_alert_raw has no GUID or
+# threatsInfoMap columns, because 149 of its 150 rows are CrowdStrike-shaped
+# payloads that were posted through the "Proofpoint TAP" collector between
+# 2026-09-14 and 2026-09-18. Dataset schemas are additive, so seeding genuine
+# ProofPoint events adds the missing columns and makes both the correlation
+# rule and its drill-down (filter GUID = "$originalalertid") resolvable.
+#
+# Uses the schema-accurate ProofPoint fixture: $.threat present, and click rows
+# with an empty threatsInfoMap alongside a populated url, which is what the
+# vendor actually sends. The scenarios/*.yml ProofPoint fixtures have $.threat
+# and $.threatUrl inverted and must not be used here.
+#
+# 5m rather than 10m: the TAP rule has search_window 20 minutes and filters on
+# _time, so a wider compression can strand the earliest event outside the
+# window and produce no alert with nothing visibly wrong.
+#
+# NOTE: .env-deathstar-proofpoint currently shares its API_KEY with
+# .env-deathstar-crowdstrike. Collectors route by key, so confirm after running
+# that the rows landed in proofpoint_tap_v2_generic_alert_raw and NOT in
+# crowdstrike_falcon_event_raw.
+scenario: PP DS-tag check (deathstar)
+compress_window: 5m
+
+sources:
+  - name: ProofPoint TAP
+    file: input_tsv/ProofPoint-MITRE-Turla-Carbon-in-XSIAM.tsv
+    env: .env-deathstar-proofpoint
