@@ -373,10 +373,13 @@ correlation_rules:
   alert_name: SOC CrowdStrike Falcon - $alert_name
   alert_description: '''$alert_description | User: $actor_effective_username | Display Name: $display_name | Email: $idr_email | UPN: $idr_upn | Domain: $idr_domain_name | SAM: $idr_sam_account_name | SID: $idr_sid | On-Prem SID: $idr_on_prem_sid | NetBIOS: $idr_netbios'''
   alert_type: null
-  crontab: "*/10 * * * *"
-  search_window: 20 minutes
-  simple_schedule: 10 minutes
-  timezone: UTC
+  # REAL_TIME, so the four schedule fields are explicit nulls -- the
+  # deserializer requires them present. The schedule to apply when CIE is
+  # switched on lives in cie_schedule below.
+  crontab: null
+  search_window: null
+  simple_schedule: null
+  timezone: null
   mitre_defs: {}
   investigation_query_link: 'dataset = xdr_data
 
@@ -388,7 +391,7 @@ correlation_rules:
     action: ALERTS
     alert_category: User Defined
     alert_domain: DOMAIN_SECURITY
-    execution_mode: SCHEDULED
+    execution_mode: REAL_TIME
     is_enabled: true
     mapping_strategy: CUSTOM
     severity: User Defined
