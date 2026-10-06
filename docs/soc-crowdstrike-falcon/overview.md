@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-crowdstrike-falcon` |
-| Version | `2.2.5` |
+| Version | `2.2.6` |
 | Category | Endpoint |
 | Pack Path | `Packs/soc-crowdstrike-falcon` |
 | Manifest | [`Packs/soc-crowdstrike-falcon/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-crowdstrike-falcon/xsoar_config.json) |
@@ -30,7 +30,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-crowdstrike-falcon.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-falcon-v2.2.5/soc-crowdstrike-falcon-v2.2.5.zip) |
+| `soc-crowdstrike-falcon.zip` | `no` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-crowdstrike-falcon-v2.2.6/soc-crowdstrike-falcon-v2.2.6.zip) |
 
 ## Marketplace Dependencies
 
