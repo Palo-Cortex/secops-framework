@@ -9,12 +9,17 @@ RAISE ONLY. The framework never lowers a case's severity. A case already at or
 above the target is left untouched and the decision is still recorded, so the
 no-op is visible rather than silent.
 
-Severity rather than the star, because the star is not writable. `starred` is a
-BOOLEAN in the case schema and reads fine, but incidents/update_incident does not
-list it among allowed keys and case/update rejects it with "Invalid update
-fields". user_severity is writable and drives the effective severity - verified on
-a tenant, where setting critical on a high case made the effective severity
-critical, and an empty string cleared it.
+Two signals, both case-level. The star goes through the XSOAR CLI layer
+(setParentIncidentFields), which writes what the XDR public APIs refuse: `starred`
+is absent from incidents/update_incident's allowed keys and rejected by the Cases
+API case/update with "Invalid update fields". Severity goes through user_severity
+on the Cases API, which is writable and drives the effective severity. Both
+verified on a tenant.
+
+The star is idempotent on the case's real starred state, not a flag - every issue
+in a case runs this, so a 16-issue case would otherwise dispatch sixteen stars.
+The framework never un-stars: a star is the backstop that stops auto-triage
+closing a case.
 
 Elevation is case-level. An issue cannot be elevated this way, so where the issue
 has no case yet this reports a gap rather than acting.
@@ -31,7 +36,8 @@ import demistomock as demisto
 from CommonServerPython import *
 
 POLICY_LIST = "SOCFrameworkPhasePolicy_V3"
-ACTION = "soc-raise-case-severity"
+ACTION_SEVERITY = "soc-raise-case-severity"
+ACTION_STAR = "soc-star-case"
 
 # The platform's effective severity enum. user_severity accepts the four above
 # info, so info is readable as a current value but never a target.
@@ -153,8 +159,8 @@ def resolve_case_id(args, ctx, incident):
     return None, "no case id on the issue"
 
 
-def read_case_severity(case_id):
-    """Effective severity for the case, or None when it cannot be read."""
+def read_case(case_id):
+    """(severity, starred) for the case, or (None, None) when it cannot be read."""
     body = json.dumps({"request_data": {"filters": [
         {"field": "case_id", "operator": "in", "value": [int(case_id)]}]}})
     try:
@@ -165,17 +171,16 @@ def read_case_severity(case_id):
         rows = (demisto.get(res, "response.reply.DATA")
                 or demisto.get(res, "reply.DATA") or [])
         if rows:
-            return rows[0].get("severity")
+            return rows[0].get("severity"), rows[0].get("starred")
     except Exception as e:  # noqa: BLE001
-        demisto.debug(f"SOCFWElevateCase: cannot read case {case_id} severity: {e}")
-    return None
+        demisto.debug(f"SOCFWElevateCase: cannot read case {case_id}: {e}")
+    return None, None
 
 
 def _row(**kw):
     row = {
         "event_type": "elevate_decision",
         "phase": "triage",
-        "action": ACTION,
         "action_actor": "framework",
         "decided_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -235,7 +240,7 @@ def main():
             f"Elevation is case-level; this issue is not attached to a case yet.{trail}")))
         return
 
-    current = read_case_severity(case_id)
+    current, already_starred = read_case(case_id)
     if current is None:
         _row(incident_id=issue_id, case_id=case_id, status="unavailable", capability=why,
              decision_reason="case severity unreadable — refusing to act blind")
@@ -244,30 +249,59 @@ def main():
             f"without knowing the current value risks lowering it.{trail}")))
         return
 
+    # Star first and separately: it is the cheap, reversible-by-a-human signal, and
+    # it should land even when the severity is already high enough to need no change.
+    # Idempotent on the case's actual starred state rather than a flag, because every
+    # issue in a case runs this and a 16-issue case would otherwise dispatch 16 times.
+    star_done, star_note = False, "star_case disabled in policy"
+    if policy.get("star_case"):
+        if already_starred:
+            star_note = "already starred"
+        else:
+            demisto.executeCommand("SOCCommandWrapper", {
+                "action": ACTION_STAR,
+                "Phase": "triage",
+                "Action_Actor": "framework",
+            })
+            star_done, star_note = True, "star requested"
+
+    if not policy.get("raise_severity", True):
+        _row(incident_id=issue_id, case_id=case_id, status="star_only", capability=why,
+             action=ACTION_STAR,
+             decision_reason=star_note, verdict=assessment.get("verdict"))
+        return_results(CommandResults(readable_output=(
+            f"⭐ **Case {case_id}: {star_note}** — {why}.  "
+            f"Severity raising is off in policy.{trail}")))
+        return
+
     go, reason = decide(current, target, bool(policy.get("raise_only", True)))
     _row(incident_id=issue_id, case_id=case_id, parent_xdr_incident=case_id,
-         status="requested" if go else "no_change", decision_reason=reason, capability=why,
+         action=ACTION_SEVERITY if go else ACTION_STAR,
+         status="requested" if go else "no_change",
+         decision_reason=f"{reason}; {star_note}", capability=why,
          severity=target, verdict=assessment.get("verdict"),
          escalate_recommended=assessment.get("escalate_recommended"),
          already_contained=assessment.get("already_contained"))
 
     if not go:
+        icon = "⭐" if star_done else "⚪"
         return_results(CommandResults(readable_output=(
-            f"⚪ **No change to case {case_id}** — {reason}.  ({why}){trail}")))
+            f"{icon} **Case {case_id}: {star_note}**, severity unchanged — {reason}.  "
+            f"({why}){trail}")))
         return
 
     demisto.setContext("SOCFramework.Elevate.case_id", case_id)
     demisto.setContext("SOCFramework.Elevate.target", target)
 
     demisto.executeCommand("SOCCommandWrapper", {
-        "action": ACTION,
+        "action": ACTION_SEVERITY,
         "Phase": "triage",
         "Action_Actor": "framework",
     })
     return_results(CommandResults(readable_output=(
-        f"🔴 **Raising case {case_id} severity {reason}** — {why}.  "
+        f"🔴 **Case {case_id}: {star_note}, severity {reason}** — {why}.  "
         f"(case id from {source})  Whether it applies depends on shadow mode for "
-        f"{ACTION}.{trail}")))
+        f"{ACTION_SEVERITY}.{trail}")))
 
 
 if __name__ in ("__main__", "__builtin__", "builtins"):
