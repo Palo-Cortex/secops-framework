@@ -151,11 +151,22 @@ def resolve_case_id(args, ctx, incident):
     for value, where in (
         (args.get("case_id"), "case_id argument"),
         (demisto.get(ctx, "SOCFramework.Case.id"), "SOCFramework.Case.id"),
-        (incident.get("parent_xdr_incident"), "parent_xdr_incident"),
+        # The issue object names this parentXDRIncident (camelCase). The snake_case
+        # spelling is the execution-dataset COLUMN name, not a field on the issue -
+        # reading that was why a matching issue reported "no case id" on a tenant.
+        (incident.get("parentXDRIncident"), "incident.parentXDRIncident"),
+        (incident.get("parent_xdr_incident"), "incident.parent_xdr_incident"),
         ((incident.get("CustomFields") or {}).get("parentxdrincident"), "CustomFields.parentxdrincident"),
     ):
         if value not in ABSENT:
-            return str(value), where
+            # The issue carries it prefixed ("INCIDENT-49101"); the Cases API wants the
+            # bare numeric id. Strip rather than assume either shape.
+            cid = str(value).strip()
+            if cid.upper().startswith("INCIDENT-"):
+                cid = cid.split("-", 1)[1].strip()
+            if not cid.isdigit():
+                return None, f"case id {value!r} is not a numeric id"
+            return cid, where
     return None, "no case id on the issue"
 
 
@@ -168,8 +179,17 @@ def read_case(case_id):
                                      {"uri": "/public_api/v1/case/search", "body": body})
         if isinstance(res, list):
             res = res[0] if res else {}
-        rows = (demisto.get(res, "response.reply.DATA")
-                or demisto.get(res, "reply.DATA") or [])
+        # executeCommand returns a war-room ENTRY; the command's own payload sits under
+        # Contents. Reading the entry's top level found nothing on a tenant and the
+        # severity silently went unread, which then suppressed the raise. Try the entry
+        # body first, then the bare shapes, so either wrapping works.
+        rows = []
+        for base_obj in (demisto.get(res, "Contents") or {}, res):
+            rows = (demisto.get(base_obj, "response.reply.DATA")
+                    or demisto.get(base_obj, "reply.DATA")
+                    or demisto.get(base_obj, "DATA") or [])
+            if rows:
+                break
         if rows:
             return rows[0].get("severity"), rows[0].get("starred")
     except Exception as e:  # noqa: BLE001

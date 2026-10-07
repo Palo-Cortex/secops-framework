@@ -124,9 +124,24 @@ def test_case_id_prefers_explicit_argument():
 
 
 def test_case_id_from_incident_parent():
-    cid, src = resolve_case_id({}, {}, {"parent_xdr_incident": 50183})
-    assert cid == "50183"
-    assert src == "parent_xdr_incident"
+    cid, src = resolve_case_id({}, {}, {"parentXDRIncident": "INCIDENT-49101"})
+    assert cid == "49101"
+    assert src == "incident.parentXDRIncident"
+
+
+def test_case_id_strips_the_incident_prefix():
+    """The issue carries INCIDENT-49101; the Cases API wants 49101."""
+    assert resolve_case_id({}, {}, {"parentXDRIncident": "INCIDENT-49101"})[0] == "49101"
+
+
+def test_case_id_accepts_a_bare_numeric_id():
+    assert resolve_case_id({}, {}, {"parentXDRIncident": 50183})[0] == "50183"
+
+
+def test_non_numeric_case_id_is_refused():
+    cid, src = resolve_case_id({}, {}, {"parentXDRIncident": "INCIDENT-abc"})
+    assert cid is None
+    assert "not a numeric id" in src
 
 
 def test_case_id_from_context():
