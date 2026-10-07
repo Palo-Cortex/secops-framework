@@ -57,24 +57,24 @@
         "match": "any",
         "rules": [
           {
-            "name": "malicious_verdict",
+            "name": "malicious_high_confidence",
             "field": "verdict",
             "op": "in",
             "values": [
               "malicious"
             ],
+            "requires": [
+              {
+                "field": "confidence",
+                "op": "gte",
+                "value": "high"
+              }
+            ],
             "target_severity": "critical",
-            "reason": "Assessment returned a malicious verdict"
-          },
-          {
-            "name": "analyst_needed",
-            "field": "escalate_recommended",
-            "op": "eq",
-            "value": true,
-            "reason": "Assessment asked for an analyst"
+            "reason": "Assessment returned a malicious verdict at high confidence"
           }
         ],
-        "note": "Any matching rule elevates the case; the highest target_severity among matching rules wins, falling back to target_severity above. RAISE ONLY - the framework never lowers a case's severity, so a case already at or above the target is left alone and the decision is still recorded. Fields are read from the promoted assessment; an absent field never matches. Operators: eq, in, gte. Severity is used rather than the star because `starred` is read-only on the platform: it is a BOOLEAN in the case schema and is rejected by both incidents/update_incident (not in allowed keys) and case/update (400 Invalid update fields). user_severity is writable and drives the effective severity, verified on a tenant."
+        "note": "Any matching rule elevates the case; conditions inside a rule are AND'd via `requires`. Deliberately conservative - a star cannot be undone by the framework and a starred case is exempt from auto-close, so the bar is a malicious verdict at high confidence. escalate_recommended was removed as a star condition: the prompt itself warns it must not merely restate the verdict, and on a Turla Carbon replay it was true on 53 of 60 assessed issues against 48 malicious - so it only ever loosened the bar, adding one case that had no malicious issue at all. Measured on that replay, malicious-at-high-confidence starred exactly the five cases carrying real attack activity and left the unrelated AIRS and AWS findings alone. RAISE ONLY on severity - the framework never lowers one. An absent field never matches. Operators: eq, in, gte."
       }
     }
   },

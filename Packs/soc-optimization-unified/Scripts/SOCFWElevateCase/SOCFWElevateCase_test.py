@@ -214,3 +214,44 @@ def test_invalid_target_is_dropped_not_sent():
 
 def test_no_valid_target_anywhere():
     assert pick_target([{"target_severity": "nope"}], {}) is None
+
+
+# ── requires: AND within a rule (conservative starring) ──────────────────────
+
+MAL_HIGH = {
+    "name": "malicious_high_confidence",
+    "field": "verdict", "op": "in", "values": ["malicious"],
+    "requires": [{"field": "confidence", "op": "gte", "value": "high"}],
+    "reason": "Assessment returned a malicious verdict at high confidence",
+}
+
+
+def test_malicious_at_high_confidence_matches():
+    assert evaluate(MAL_HIGH, {"verdict": "malicious", "confidence": "high"})[0] is True
+
+
+def test_malicious_at_medium_confidence_does_not_match():
+    """The whole point of requires: a lower-confidence malicious must not star."""
+    matched, detail = evaluate(MAL_HIGH, {"verdict": "malicious", "confidence": "medium"})
+    assert matched is False
+    assert "requires" in detail
+
+
+def test_benign_at_high_confidence_does_not_match():
+    assert evaluate(MAL_HIGH, {"verdict": "benign", "confidence": "high"})[0] is False
+
+
+def test_requires_with_an_absent_field_does_not_match():
+    """A missing confidence is not an implicit pass."""
+    matched, detail = evaluate(MAL_HIGH, {"verdict": "malicious"})
+    assert matched is False
+
+
+def test_all_requires_must_hold():
+    rule = dict(MAL_HIGH, requires=[
+        {"field": "confidence", "op": "gte", "value": "high"},
+        {"field": "already_contained", "op": "eq", "value": False},
+    ])
+    ok = {"verdict": "malicious", "confidence": "high", "already_contained": False}
+    assert evaluate(rule, ok)[0] is True
+    assert evaluate(rule, dict(ok, already_contained=True))[0] is False

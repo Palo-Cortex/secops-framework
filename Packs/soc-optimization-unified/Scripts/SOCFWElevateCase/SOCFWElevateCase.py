@@ -83,7 +83,28 @@ def _norm(v):
 
 
 def evaluate(rule, assessment):
-    """(matched, detail). A rule that cannot be evaluated never matches."""
+    """(matched, detail). A rule that cannot be evaluated never matches.
+
+    A rule may carry `requires`: extra conditions that must ALL hold for it to
+    match. Rules are OR'd with each other, conditions within a rule are AND'd, so
+    "malicious AND high confidence" is expressible without a condition language.
+    Starring is deliberately conservative: every extra condition can only ever
+    narrow what gets starred.
+    """
+    matched, detail = _match_one(rule, assessment)
+    if not matched:
+        return matched, detail
+    for extra in (rule.get("requires") or []):
+        ok, why = _match_one(extra, assessment)
+        if not ok:
+            name = rule.get("name") or "unnamed"
+            return False, f"{name}: {detail.split(': ',1)[-1]} but requires {why.split(': ',1)[-1]}"
+        detail += f" + {why.split(': ',1)[-1]}"
+    return True, detail
+
+
+def _match_one(rule, assessment):
+    """One field/op/value condition against the assessment."""
     name = rule.get("name") or "unnamed"
     field = rule.get("field")
     if not field:
