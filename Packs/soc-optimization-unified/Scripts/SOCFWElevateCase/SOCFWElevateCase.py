@@ -1,0 +1,274 @@
+"""Raise a case's severity when the assessment says a human is needed.
+
+The conditions are data, not code. phases.triage.elevate in
+SOCFrameworkPhasePolicy_V3 carries a rule list; any match elevates the case, and
+the matched rule's own reason is what gets recorded and shown. Adding a condition
+on exposure, confidence or already_contained is a list edit.
+
+RAISE ONLY. The framework never lowers a case's severity. A case already at or
+above the target is left untouched and the decision is still recorded, so the
+no-op is visible rather than silent.
+
+Severity rather than the star, because the star is not writable. `starred` is a
+BOOLEAN in the case schema and reads fine, but incidents/update_incident does not
+list it among allowed keys and case/update rejects it with "Invalid update
+fields". user_severity is writable and drives the effective severity - verified on
+a tenant, where setting critical on a high case made the effective severity
+critical, and an empty string cleared it.
+
+Elevation is case-level. An issue cannot be elevated this way, so where the issue
+has no case yet this reports a gap rather than acting.
+
+The dispatch goes through SOCCommandWrapper like every other action, so shadow
+mode, the execution row and the environment-tier checks apply without being
+reimplemented here. Whether this run really changes anything is the wrapper's
+decision, not this script's.
+"""
+import json
+from datetime import datetime, timezone
+
+import demistomock as demisto
+from CommonServerPython import *
+
+POLICY_LIST = "SOCFrameworkPhasePolicy_V3"
+ACTION = "soc-raise-case-severity"
+
+# The platform's effective severity enum. user_severity accepts the four above
+# info, so info is readable as a current value but never a target.
+SEVERITY_RANK = {"info": 1, "informational": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}
+SETTABLE = ("low", "medium", "high", "critical")
+
+RANKS = {
+    "confidence": {"low": 1, "medium": 2, "high": 3},
+    "closure_confidence": {"low": 1, "medium": 2, "high": 3},
+    "severity": SEVERITY_RANK,
+}
+
+ABSENT = (None, "", [], {})
+
+
+def _policy():
+    """phases.triage.elevate, or {} when the list cannot be read."""
+    try:
+        res = demisto.executeCommand("getList", {"listName": POLICY_LIST})
+        if not isError(res):
+            raw = res[0].get("Contents")
+            doc = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            return ((doc.get("phases") or {}).get("triage") or {}).get("elevate") or {}
+    except Exception as e:  # noqa: BLE001
+        demisto.debug(f"SOCFWElevateCase: {POLICY_LIST} unreadable, not elevating: {e}")
+    return {}
+
+
+def _assessment(ctx, source_key):
+    obj = demisto.get(ctx, source_key)
+    if isinstance(obj, list):
+        obj = obj[0] if obj else None
+    if isinstance(obj, str):
+        try:
+            obj = json.loads(obj)
+        except (ValueError, TypeError):
+            obj = None
+    return obj if isinstance(obj, dict) else {}
+
+
+def _norm(v):
+    return v.strip().lower() if isinstance(v, str) else v
+
+
+def evaluate(rule, assessment):
+    """(matched, detail). A rule that cannot be evaluated never matches."""
+    name = rule.get("name") or "unnamed"
+    field = rule.get("field")
+    if not field:
+        return False, f"{name}: rule names no field"
+    if field not in assessment or assessment.get(field) in ABSENT:
+        return False, f"{name}: {field} absent from the assessment"
+
+    actual = _norm(assessment.get(field))
+    op = (rule.get("op") or "eq").lower()
+
+    if op == "eq":
+        expected = _norm(rule.get("value"))
+        if isinstance(expected, bool) or isinstance(actual, bool):
+            return (bool(actual) is bool(expected)), f"{name}: {field}={actual!r}"
+        return (actual == expected), f"{name}: {field}={actual!r}"
+
+    if op == "in":
+        allowed = [_norm(v) for v in (rule.get("values") or [])]
+        if not allowed:
+            return False, f"{name}: rule lists no values"
+        return (actual in allowed), f"{name}: {field}={actual!r}"
+
+    if op == "gte":
+        ranks = RANKS.get(field)
+        if not ranks:
+            return False, f"{name}: gte unsupported on {field} (no ordered enum)"
+        want, got = ranks.get(_norm(rule.get("value")), 0), ranks.get(actual, 0)
+        if not want:
+            return False, f"{name}: {rule.get('value')!r} not a known {field}"
+        return (got >= want), f"{name}: {field}={actual!r}"
+
+    return False, f"{name}: unknown operator {op!r}"
+
+
+def pick_target(matched, policy):
+    """Highest target among matching rules, falling back to the block default.
+
+    A target the platform will not accept is dropped rather than sent, so a typo
+    in the list cannot turn into a failed dispatch.
+    """
+    candidates = [r.get("target_severity") for r in matched]
+    candidates.append(policy.get("target_severity"))
+    valid = [_norm(c) for c in candidates if _norm(c) in SETTABLE]
+    if not valid:
+        return None
+    return max(valid, key=lambda s: SEVERITY_RANK[s])
+
+
+def decide(current, target, raise_only=True):
+    """(should_dispatch, reason). Raise only: never lower, never sideways."""
+    if target not in SETTABLE:
+        return False, f"{target!r} is not a settable severity"
+    cur_rank = SEVERITY_RANK.get(_norm(current), 0)
+    tgt_rank = SEVERITY_RANK[target]
+    if not cur_rank:
+        # Unknown current severity. Raising blind could lower it, so refuse.
+        return False, f"current severity {current!r} unrecognised — refusing to guess"
+    if raise_only and tgt_rank <= cur_rank:
+        return False, f"already {current} (target {target}) — raise-only, leaving it"
+    return True, f"{current} -> {target}"
+
+
+def resolve_case_id(args, ctx, incident):
+    """The case this issue belongs to, or None. Never a guess."""
+    for value, where in (
+        (args.get("case_id"), "case_id argument"),
+        (demisto.get(ctx, "SOCFramework.Case.id"), "SOCFramework.Case.id"),
+        (incident.get("parent_xdr_incident"), "parent_xdr_incident"),
+        ((incident.get("CustomFields") or {}).get("parentxdrincident"), "CustomFields.parentxdrincident"),
+    ):
+        if value not in ABSENT:
+            return str(value), where
+    return None, "no case id on the issue"
+
+
+def read_case_severity(case_id):
+    """Effective severity for the case, or None when it cannot be read."""
+    body = json.dumps({"request_data": {"filters": [
+        {"field": "case_id", "operator": "in", "value": [int(case_id)]}]}})
+    try:
+        res = demisto.executeCommand("core-api-post",
+                                     {"uri": "/public_api/v1/case/search", "body": body})
+        if isinstance(res, list):
+            res = res[0] if res else {}
+        rows = (demisto.get(res, "response.reply.DATA")
+                or demisto.get(res, "reply.DATA") or [])
+        if rows:
+            return rows[0].get("severity")
+    except Exception as e:  # noqa: BLE001
+        demisto.debug(f"SOCFWElevateCase: cannot read case {case_id} severity: {e}")
+    return None
+
+
+def _row(**kw):
+    row = {
+        "event_type": "elevate_decision",
+        "phase": "triage",
+        "action": ACTION,
+        "action_actor": "framework",
+        "decided_at": datetime.now(timezone.utc).isoformat(),
+    }
+    row.update({k: v for k, v in kw.items() if v not in ABSENT})
+    try:
+        demisto.executeCommand("socfw-post-to-dataset",
+                               {"using": "socfw_ir_execution_writer", "JSON": json.dumps(row, default=str)})
+    except Exception as e:  # noqa: BLE001 - telemetry must never fail the phase
+        demisto.debug(f"SOCFWElevateCase: elevate_decision row not written: {e}")
+
+
+def main():
+    args = demisto.args() or {}
+    ctx = demisto.context()
+    incident = demisto.incident() or {}
+    source_key = args.get("source_key") or "Assessment.AI"
+
+    policy = _policy()
+    assessment = _assessment(ctx, source_key)
+    issue_id = str(incident.get("id") or "")
+
+    def stop(status, reason, icon="⚪", extra=""):
+        _row(incident_id=issue_id, status=status, decision_reason=reason,
+             verdict=assessment.get("verdict"))
+        return_results(CommandResults(readable_output=f"{icon} **Not elevating** — {reason}.{extra}"))
+
+    if not policy.get("enabled"):
+        return stop("disabled", f"phases.triage.elevate.enabled is not true in {POLICY_LIST}")
+    if not assessment:
+        return stop("unavailable", f"no assessment at `{source_key}`")
+    rules = policy.get("rules") or []
+    if not rules:
+        return stop("unavailable", "no rules configured under phases.triage.elevate.rules")
+
+    matched, details = [], []
+    for rule in rules:
+        hit, detail = evaluate(rule, assessment)
+        details.append(("match" if hit else "no") + f" — {detail}")
+        if hit:
+            matched.append(rule)
+    trail = "\n" + "\n".join(f"- {d}" for d in details)
+
+    if not matched:
+        return stop("no_match", "no rule matched", extra=trail)
+
+    why = matched[0].get("reason") or matched[0].get("name") or "policy rule matched"
+    target = pick_target(matched, policy)
+    if not target:
+        return stop("unavailable", "no valid target_severity on the matching rules or the block", extra=trail)
+
+    case_id, source = resolve_case_id(args, ctx, incident)
+    if not case_id:
+        _row(incident_id=issue_id, status="unavailable", capability=why,
+             decision_reason=f"elevation warranted but {source}", verdict=assessment.get("verdict"))
+        return_results(CommandResults(readable_output=(
+            f"🟡 **Elevation warranted but not applied** — {why}, however {source}. "
+            f"Elevation is case-level; this issue is not attached to a case yet.{trail}")))
+        return
+
+    current = read_case_severity(case_id)
+    if current is None:
+        _row(incident_id=issue_id, case_id=case_id, status="unavailable", capability=why,
+             decision_reason="case severity unreadable — refusing to act blind")
+        return_results(CommandResults(readable_output=(
+            f"🟡 **Not elevating** — could not read case {case_id} severity, and raising "
+            f"without knowing the current value risks lowering it.{trail}")))
+        return
+
+    go, reason = decide(current, target, bool(policy.get("raise_only", True)))
+    _row(incident_id=issue_id, case_id=case_id, parent_xdr_incident=case_id,
+         status="requested" if go else "no_change", decision_reason=reason, capability=why,
+         severity=target, verdict=assessment.get("verdict"),
+         escalate_recommended=assessment.get("escalate_recommended"),
+         already_contained=assessment.get("already_contained"))
+
+    if not go:
+        return_results(CommandResults(readable_output=(
+            f"⚪ **No change to case {case_id}** — {reason}.  ({why}){trail}")))
+        return
+
+    demisto.setContext("SOCFramework.Elevate.case_id", case_id)
+    demisto.setContext("SOCFramework.Elevate.target", target)
+
+    demisto.executeCommand("SOCCommandWrapper", {
+        "action": ACTION,
+        "Phase": "triage",
+        "Action_Actor": "framework",
+    })
+    return_results(CommandResults(readable_output=(
+        f"🔴 **Raising case {case_id} severity {reason}** — {why}.  "
+        f"(case id from {source})  Whether it applies depends on shadow mode for "
+        f"{ACTION}.{trail}")))
+
+
+if __name__ in ("__main__", "__builtin__", "builtins"):
+    main()

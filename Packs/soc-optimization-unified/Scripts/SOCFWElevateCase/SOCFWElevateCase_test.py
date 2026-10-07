@@ -43,7 +43,7 @@ if "CommonServerPython" not in sys.modules:
 
 sys.path.insert(0, __import__("os").path.dirname(__file__))
 
-from SOCFWStarCase import evaluate, resolve_case_id  # noqa: E402
+from SOCFWElevateCase import decide, evaluate, pick_target, resolve_case_id  # noqa: E402
 
 MALICIOUS = {"name": "malicious_verdict", "field": "verdict", "op": "in",
              "values": ["malicious"], "reason": "Assessment returned a malicious verdict"}
@@ -138,3 +138,64 @@ def test_case_id_absent_is_reported_not_guessed():
     cid, src = resolve_case_id({}, {}, {"id": "ISSUE-1"})
     assert cid is None
     assert "no case id" in src
+
+
+# ── raise-only behaviour ──────────────────────────────────────────────────────
+
+def test_raises_when_target_is_higher():
+    go, why = decide("high", "critical")
+    assert go is True
+    assert why == "high -> critical"
+
+
+def test_never_lowers():
+    """The whole point: a critical case is not dropped to high."""
+    go, why = decide("critical", "high")
+    assert go is False
+    assert "raise-only" in why
+
+
+def test_no_change_when_equal():
+    go, why = decide("high", "high")
+    assert go is False
+    assert "already high" in why
+
+
+def test_refuses_on_unrecognised_current_severity():
+    """Raising blind could lower it, so refuse rather than guess."""
+    go, why = decide("wibble", "high")
+    assert go is False
+    assert "unrecognised" in why
+
+
+def test_info_current_can_be_raised():
+    assert decide("info", "low")[0] is True
+
+
+def test_rejects_unsettable_target():
+    go, why = decide("low", "info")
+    assert go is False
+    assert "not a settable severity" in why
+
+
+def test_raise_only_off_allows_lowering():
+    assert decide("critical", "high", raise_only=False)[0] is True
+
+
+# ── target selection ─────────────────────────────────────────────────────────
+
+def test_highest_matching_target_wins():
+    matched = [{"target_severity": "high"}, {"target_severity": "critical"}]
+    assert pick_target(matched, {"target_severity": "low"}) == "critical"
+
+
+def test_falls_back_to_block_default():
+    assert pick_target([{"name": "no target"}], {"target_severity": "high"}) == "high"
+
+
+def test_invalid_target_is_dropped_not_sent():
+    assert pick_target([{"target_severity": "extremely-bad"}], {"target_severity": "medium"}) == "medium"
+
+
+def test_no_valid_target_anywhere():
+    assert pick_target([{"target_severity": "nope"}], {}) is None

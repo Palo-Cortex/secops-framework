@@ -1,0 +1,35 @@
+commonfields:
+  id: SOCFWElevateCase
+  version: -1
+name: SOCFWElevateCase
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.8.1983910
+comment: Raises a case's severity when the assessment warrants an analyst. The
+  conditions are rules in phases.triage.elevate of SOCFrameworkPhasePolicy_V3, so adding
+  or changing one is a list edit rather than a release. Raise only - never lowers a
+  severity, and refuses to act when the current severity cannot be read. Records the
+  decision either way, including no-change and the case where elevation was warranted
+  but the issue had no case yet. Severity rather than the star because `starred` is
+  read-only on both the incidents and cases APIs.
+tags:
+- socfw
+enabled: true
+scripttarget: 0
+runonce: false
+runas: DBotWeakRole
+fromversion: 6.10.0
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+system: false
+args:
+- name: source_key
+  description: Context key holding the promoted assessment object. Defaults to Assessment.AI.
+  defaultValue: Assessment.AI
+- name: case_id
+  description: Case id to star. Normally resolved from the issue; set this only to override.

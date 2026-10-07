@@ -17,26 +17,26 @@
     "entity_scope": "case",
     "capability": "Triage \u2014 close issue"
   },
-  "soc-star-case": {
+  "soc-raise-case-severity": {
     "responses": {
       "Core REST API": {
         "command": "core-api-post",
         "inline_args": {
-          "uri": "/public_api/v1/incidents/update_incident",
-          "body": "{\"request_data\": {\"incident_id\": \"${SOCFramework.Star.case_id}\", \"update_data\": {\"${SOCFramework.Star.field}\": true}}}"
+          "uri": "/public_api/v1/case/update/${SOCFramework.Elevate.case_id}",
+          "body": "{\"request_data\": {\"update_data\": {\"user_severity\": \"${SOCFramework.Elevate.target}\"}}}"
         }
       }
     },
     "shadow_mode": true,
-    "phase": "triage",
-    "entity_scope": "case",
-    "capability": "Triage \u2014 star case for analyst attention",
-    "note": "Shadowable like every other state-changing action, and ships shadowed. A star cannot be undone by the framework - it is also the backstop that stops auto-triage closing a case (SOCAutoTriageScoreFilter refuses to close anything it cannot confirm is unstarred), so an over-starred case is permanently exempt from auto-close. Shadow first to measure how many cases the rules actually select, then flip. The shadow rows are also the PoV artefact: they show what would have been starred and why. analyst is live because a human pressing the button has already decided. Starring is case-level only: an issue cannot be starred without manual UI starring-policy config, so SOCFWStarCase reports a gap rather than starring when the issue has no case yet.",
     "shadow_mode_by_actor": {
       "analyst": false,
       "ai": true,
       "framework": true
-    }
+    },
+    "phase": "triage",
+    "entity_scope": "case",
+    "capability": "Triage \u2014 raise case severity for analyst attention",
+    "note": "Raise only. SOCFWElevateCase refuses to dispatch when the case is already at or above the target, so this action never lowers a severity. user_severity is the writable override and drives the effective severity (verified: high -> critical, and an empty string clears it). `starred` is NOT usable here - read-only on both the incidents and cases APIs. Ships shadowed; analyst is live because a human has already decided."
   },
   "soc-isolate-endpoint": {
     "responses": {
