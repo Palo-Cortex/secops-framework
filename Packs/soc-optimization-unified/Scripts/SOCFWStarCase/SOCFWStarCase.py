@@ -10,10 +10,17 @@ the backstop that stops auto-triage closing a case (SOCAutoTriageScoreFilter
 refuses to close anything it cannot positively confirm is unstarred), so
 un-starring would quietly remove a safety net somebody is relying on.
 
-The dispatch goes through SOCCommandWrapper like every other action, so the
-execution row, the vendor ladder and the environment-tier checks apply without
-being reimplemented here. soc-star-case is deliberately not shadowed - the star
-is what makes a human open a case whose containment was only simulated.
+Starring is case-level only. An issue cannot be starred without manual UI
+starring-policy config, so where the issue has no case yet this reports a gap
+and records it rather than starring anything.
+
+The dispatch goes through SOCCommandWrapper like every other action, so shadow
+mode, the execution row and the environment-tier checks apply without being
+reimplemented here. soc-star-case ships shadowed: a star cannot be undone by the
+framework, and a starred case is permanently exempt from auto-close, so the
+shadow rows are how a tenant measures what the rules actually select before
+turning it on. Whether this run really stars anything is the wrapper's decision,
+not this script's.
 """
 import json
 from datetime import datetime, timezone
@@ -206,7 +213,7 @@ def main():
     demisto.setContext("SOCFramework.Star.field", star_field)
 
     _row(incident_id=issue_id, case_id=case_id, parent_xdr_incident=case_id,
-         status="starring", decision_reason=why, verdict=assessment.get("verdict"),
+         status="requested", decision_reason=why, verdict=assessment.get("verdict"),
          escalate_recommended=assessment.get("escalate_recommended"),
          already_contained=assessment.get("already_contained"), capability=why)
 
@@ -217,8 +224,9 @@ def main():
     })
 
     return_results(CommandResults(readable_output=(
-        f"⭐ **Starring case {case_id}** — {why}.  "
-        f"(case id from {source}; field `{star_field}`)\n{trail}")))
+        f"⭐ **Star requested for case {case_id}** — {why}.  "
+        f"(case id from {source}; field `{star_field}`)  "
+        f"Whether it actually stars depends on shadow mode for {ACTION}.\n{trail}")))
 
 
 if __name__ in ("__main__", "__builtin__", "builtins"):
