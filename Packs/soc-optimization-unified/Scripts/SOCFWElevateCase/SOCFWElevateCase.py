@@ -241,13 +241,6 @@ def main():
         return
 
     current, already_starred = read_case(case_id)
-    if current is None:
-        _row(incident_id=issue_id, case_id=case_id, status="unavailable", capability=why,
-             decision_reason="case severity unreadable — refusing to act blind")
-        return_results(CommandResults(readable_output=(
-            f"🟡 **Not elevating** — could not read case {case_id} severity, and raising "
-            f"without knowing the current value risks lowering it.{trail}")))
-        return
 
     # Star first and separately: it is the cheap, reversible-by-a-human signal, and
     # it should land even when the severity is already high enough to need no change.
@@ -264,6 +257,17 @@ def main():
                 "Action_Actor": "framework",
             })
             star_done, star_note = True, "star requested"
+
+    if current is None:
+        # Starring needs no prior value; raising does, and raising blind could lower
+        # it. So an unreadable severity stops the raise and nothing else.
+        _row(incident_id=issue_id, case_id=case_id, status="star_only", capability=why,
+             action=ACTION_STAR,
+             decision_reason=f"{star_note}; severity unreadable — not raising blind")
+        return_results(CommandResults(readable_output=(
+            f"⭐ **Case {case_id}: {star_note}** — {why}.  Severity left alone: could "
+            f"not read the current value, and raising blind risks lowering it.{trail}")))
+        return
 
     if not policy.get("raise_severity", True):
         _row(incident_id=issue_id, case_id=case_id, status="star_only", capability=why,
