@@ -433,7 +433,8 @@ def normalize_action_actor(raw_actor, shadow_mode):
     if shadow_mode and actor in ("", "analyst"):
         return "shadow"
 
-    if actor in ("automation", "analyst", "shadow", "system", "layout"):
+    if actor in ("automation", "analyst", "shadow", "system", "layout",
+                 "issue_emergency", "case_lifecycle", "ai", "framework"):
         return actor
 
     return "analyst"
@@ -838,6 +839,28 @@ def main():
                     f"SOCCommandWrapper: multi-vendor routing — action={action} "
                     f"class={action_class} vendor={vendor}"
                 )
+
+    # Step 2b: platform actions are not vendor actions.
+    #
+    # Starring a case, raising its severity and closing an issue are done by the
+    # platform itself, so they carry a single "Builtin" implementation and no
+    # source vendor can satisfy them. Routing them by vendor skipped them on every
+    # alert: soc-star-case was skipped as "no implementation for source vendor
+    # 'CrowdStrike Falcon'", and soc-close-issue has the same shape.
+    #
+    # This is narrow on purpose. It applies ONLY when Builtin is the action's one
+    # and only implementation, so there is no vendor ambiguity to resolve wrongly -
+    # which is what the "never fall back to first available vendor" rule below
+    # exists to prevent. An action with Builtin plus vendor branches still routes
+    # by vendor.
+    if not vendor_data and set(responses.keys()) == {"Builtin"}:
+        vendor_data = responses.get("Builtin")
+        if vendor_data:
+            vendor = "Builtin"
+            demisto.debug(
+                f"SOCCommandWrapper: platform action — action={action} "
+                f"dispatched as Builtin, independent of source vendor"
+            )
 
     # Step 3: fall back to legacy SOCFramework.Product.response
     if not vendor_data:
