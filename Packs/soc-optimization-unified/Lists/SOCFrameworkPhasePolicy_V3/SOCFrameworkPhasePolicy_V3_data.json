@@ -44,6 +44,34 @@
         "identity": "recommend_only"
       },
       "note": "reverse_only_live_actions keeps recovery off entries the ledger recorded as shadow, which never happened and so cannot be undone."
+    },
+    "triage": {
+      "enabled": true,
+      "star": {
+        "enabled": true,
+        "never_unstar": true,
+        "star_field": "starred",
+        "match": "any",
+        "rules": [
+          {
+            "name": "malicious_verdict",
+            "field": "verdict",
+            "op": "in",
+            "values": [
+              "malicious"
+            ],
+            "reason": "Assessment returned a malicious verdict"
+          },
+          {
+            "name": "analyst_needed",
+            "field": "escalate_recommended",
+            "op": "eq",
+            "value": true,
+            "reason": "Assessment asked for an analyst"
+          }
+        ],
+        "note": "Any matching rule stars the case; the matched rule's reason is recorded and shown. Fields are read from the promoted assessment namespace. A field that is absent never counts as a match. Operators: eq, in, gte. star_field is the incidents API update_data field and must be confirmed on a tenant before relying on it."
+      }
     }
   },
   "ticketing": {
