@@ -313,7 +313,10 @@ def main():
             f"not read the current value, and raising blind risks lowering it.{trail}")))
         return
 
-    if not policy.get("raise_severity", True):
+    # Defaults FALSE. The severity action is not shipped yet - its placeholders do
+    # not resolve from context written in the same run - so an absent key must not
+    # dispatch an action that is not there.
+    if not policy.get("raise_severity", False):
         _row(incident_id=issue_id, case_id=case_id, status="star_only", capability=why,
              action=ACTION_STAR,
              decision_reason=star_note, verdict=assessment.get("verdict"))

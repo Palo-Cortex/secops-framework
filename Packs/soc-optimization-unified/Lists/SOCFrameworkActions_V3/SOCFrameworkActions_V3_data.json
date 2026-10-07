@@ -37,27 +37,6 @@
     "capability": "Triage \u2014 star case for analyst attention",
     "note": "Starring is case-level and goes through the XSOAR CLI layer, not the XDR public API: `starred` is read-only on both incidents/update_incident (absent from allowed keys) and the Cases API case/update (400 Invalid update fields), but setParentIncidentFields writes it. Verified on a tenant - starred went false -> true -> false. No case id argument: setParentIncidentFields resolves the parent from the calling investigation, so this must be dispatched from an issue that belongs to the case. The framework never un-stars. A star is the backstop that stops auto-triage closing a case, so removing one silently withdraws a safety net. Ships shadowed; analyst is live because a human has already decided."
   },
-  "soc-raise-case-severity": {
-    "responses": {
-      "Core REST API": {
-        "command": "core-api-post",
-        "inline_args": {
-          "uri": "/public_api/v1/case/update/${SOCFramework.Elevate.case_id}",
-          "body": "{\"request_data\": {\"update_data\": {\"user_severity\": \"${SOCFramework.Elevate.target}\"}}}"
-        }
-      }
-    },
-    "shadow_mode": true,
-    "shadow_mode_by_actor": {
-      "analyst": false,
-      "ai": true,
-      "framework": true
-    },
-    "phase": "triage",
-    "entity_scope": "case",
-    "capability": "Triage \u2014 raise case severity for analyst attention",
-    "note": "Raise only. SOCFWElevateCase refuses to dispatch when the case is already at or above the target, so this action never lowers a severity. user_severity is the writable override and drives the effective severity (verified: high -> critical, and an empty string clears it). `starred` is NOT usable here - read-only on both the incidents and cases APIs. Ships shadowed; analyst is live because a human has already decided."
-  },
   "soc-isolate-endpoint": {
     "responses": {
       "Cortex Core - IR": {
