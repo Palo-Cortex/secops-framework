@@ -536,3 +536,169 @@ def test_main_invalid_action_list_json_raises_error():
 
     with pytest.raises(RuntimeError, match="Invalid JSON in action list"):
         script.main()
+
+
+def test_is_ctx_template_recognises_context_references():
+    script, _ = load_script()
+
+    # ${...} wrapped
+    assert script._is_ctx_template("${SOCFramework.Artifacts.Identity.User.UPN}")
+    assert script._is_ctx_template("${incident.id}")
+
+    # bare recognised prefixes, matching _resolve_ctx_string
+    assert script._is_ctx_template("SOCFramework.Artifacts.Endpoint.Hostname")
+    assert script._is_ctx_template("incident.id")
+    assert script._is_ctx_template("alert.name")
+    assert script._is_ctx_template("issue.id")
+    assert script._is_ctx_template("parentIncidentFields.starred")
+
+    # whitespace tolerated, same as the resolver
+    assert script._is_ctx_template("  ${incident.id}  ")
+
+
+def test_is_ctx_template_rejects_static_literals():
+    script, _ = load_script()
+
+    # the literal that kept the Graph dispatch alive
+    assert not script._is_ctx_template(
+        "displayName,userPrincipalName,mail,jobTitle"
+    )
+    assert not script._is_ctx_template("true")
+    assert not script._is_ctx_template("RESOLVED_FALSE_POSITIVE")
+    assert not script._is_ctx_template("")
+
+    # non-strings are never templates
+    assert not script._is_ctx_template(None)
+    assert not script._is_ctx_template(True)
+    assert not script._is_ctx_template(42)
+    assert not script._is_ctx_template({"a": 1})
+
+
+def _wrapper_harness(demisto, action, vendor, inline_args):
+    """Shared setup: route `action` to `vendor` via the legacy
+    SOCFramework.Product.response path, with the given inline_args template.
+
+    getList must be a router -- the wrapper reads SOCActionClassMap_V3 and the
+    schema lists through the same command, and returning the actions payload
+    for all of them breaks routing.
+    """
+    def get_list_response(args):
+        name = args["listName"]
+        if name == "SOCFrameworkActions_V3":
+            return [{"Contents": json.dumps({
+                action: {"responses": {vendor: {
+                    "command": inline_args["__command__"],
+                    "inline_args": inline_args["args"],
+                }}}
+            })}]
+        return [{"Contents": ""}]
+
+    demisto._command_responses = {
+        "getList": get_list_response,
+        "getIssues": [{"Contents": {"data": [{"id": "100", "name": "Test"}]}}],
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+        inline_args["__command__"]: [{"Type": 1, "Contents": "ok"}],
+    }
+
+
+def test_static_arg_does_not_keep_dispatch_alive_when_identifier_empty():
+    """Regression: soc-enrich-user / Microsoft Graph User.
+
+    user       = ${...Identity.User.UPN}   -> resolves empty
+    properties = displayName,...           -> static, always non-empty
+
+    Before the fix the static `properties` satisfied the emptiness guard, the
+    empty `user` was dropped before dispatch, and msgraph-user-get fired with
+    no identifier. Graph rejected the malformed path with
+    "Unexpected segment DynamicPathSegment. Expected property/$value".
+    """
+    script, demisto = load_script()
+
+    demisto._args = {
+        "action": "soc-enrich-user",
+        "list_name": "SOCFrameworkActions_V3",
+        "output_key": "WrapperResults",
+        "shadow_mode": "false",
+        "Action_Actor": "analyst",
+    }
+    demisto._context = {
+        "SOCFramework": {
+            "Product": {"response": "Microsoft Graph User"},
+            "Artifacts": {"Identity": {"User": {}}},  # no UPN
+        }
+    }
+    _wrapper_harness(demisto, "soc-enrich-user", "Microsoft Graph User", {
+        "__command__": "msgraph-user-get",
+        "args": {
+            "user": "${SOCFramework.Artifacts.Identity.User.UPN}",
+            "properties": "displayName,mail",
+        },
+    })
+
+    script.main()
+
+    assert "msgraph-user-get" not in [c[0] for c in demisto._commands], (
+        "must not dispatch when the only context-derived argument is empty"
+    )
+    results = " ".join(str(r) for r in demisto._results)
+    assert "skipped" in results and "no non-empty artifact" in results
+
+
+def test_dispatch_proceeds_when_identifier_present():
+    """Control: a resolved identifier must still dispatch."""
+    script, demisto = load_script()
+
+    demisto._args = {
+        "action": "soc-enrich-user",
+        "list_name": "SOCFrameworkActions_V3",
+        "output_key": "WrapperResults",
+        "shadow_mode": "false",
+        "Action_Actor": "analyst",
+    }
+    demisto._context = {
+        "SOCFramework": {
+            "Product": {"response": "Microsoft Graph User"},
+            "Artifacts": {"Identity": {"User": {"UPN": "someone@example.com"}}},
+        }
+    }
+    _wrapper_harness(demisto, "soc-enrich-user", "Microsoft Graph User", {
+        "__command__": "msgraph-user-get",
+        "args": {
+            "user": "${SOCFramework.Artifacts.Identity.User.UPN}",
+            "properties": "displayName,mail",
+        },
+    })
+
+    script.main()
+
+    dispatched = [c for c in demisto._commands if c[0] == "msgraph-user-get"]
+    assert len(dispatched) == 1
+    assert dispatched[0][1]["user"] == "someone@example.com"
+
+
+def test_action_with_only_static_args_still_dispatches():
+    """soc-star-case carries starred=true and no context reference at all.
+
+    An action with zero context-derived args must never be skipped -- there is
+    no artifact that could be missing.
+    """
+    script, demisto = load_script()
+
+    demisto._args = {
+        "action": "soc-star-case",
+        "list_name": "SOCFrameworkActions_V3",
+        "output_key": "WrapperResults",
+        "shadow_mode": "false",
+        "Action_Actor": "analyst",
+    }
+    demisto._context = {"SOCFramework": {"Product": {"response": "Builtin"}}}
+    _wrapper_harness(demisto, "soc-star-case", "Builtin", {
+        "__command__": "setParentIncidentFields",
+        "args": {"starred": "true"},
+    })
+
+    script.main()
+
+    dispatched = [c for c in demisto._commands
+                  if c[0] == "setParentIncidentFields"]
+    assert len(dispatched) == 1, "static-only action must not be skipped"
