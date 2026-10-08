@@ -97,6 +97,32 @@ def _resolve_ctx_string(s, ctx):
     return s
 
 
+def _is_ctx_template(raw):
+    """
+    True when an inline_args template is a CONTEXT REFERENCE rather than a
+    static literal — i.e. it is the kind of arg that carries evidence from the
+    alert, and whose absence means there is nothing to act on.
+
+    Must mirror the recognised forms in _resolve_ctx_string exactly, or the
+    emptiness guard will disagree with what actually got resolved.
+    """
+    if not isinstance(raw, str):
+        return False
+
+    s = raw.strip()
+
+    if CTX_REF_RE.match(s):
+        return True
+
+    return s.startswith((
+        "SOCFramework.",
+        "incident.",
+        "alert.",
+        "issue.",
+        "parentIncidentFields.",
+    ))
+
+
 def _resolve_ctx_path(ctx, path):
     """
     Resolve a dotted context path, traversing intermediate lists.
@@ -927,18 +953,37 @@ def main():
     _inline_args_template = vendor_data.get("inline_args", {})
     inline_args = _resolve_templates(_inline_args_template, ctx)
 
-    # Guard: the action declares argument templates but they ALL resolved empty
-    # (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash} when this alert
-    # carries no file hash). Firing a command with a missing required arg fails and
-    # hangs the lifecycle, so skip cleanly with a recorded reason -- mirroring the
-    # Upon-Trigger enrichment, which only fires when the artifact is non-empty.
-    if _inline_args_template and not any(
-        v not in (None, "", [], {}, "null", "None") for v in inline_args.values()
-    ):
+    # Guard: the action declares argument templates but every CONTEXT-DERIVED
+    # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
+    # when this alert carries no file hash). Firing a command with a missing required
+    # arg fails and hangs the lifecycle, so skip cleanly with a recorded reason --
+    # mirroring the Upon-Trigger enrichment, which only fires when the artifact is
+    # non-empty.
+    #
+    # Only context references count toward "is there anything to act on". A static
+    # literal carries no evidence, and letting it vote here keeps the dispatch alive
+    # after the identifying arg has already been dropped below. Observed on
+    # soc-enrich-user/Microsoft Graph User, where properties=displayName,... is static
+    # and user=${...Identity.User.UPN} resolved empty: the call fired with only
+    # properties, and Graph rejected the malformed path with
+    # "Unexpected segment DynamicPathSegment. Expected property/$value".
+    _ctx_arg_keys = [
+        k for k, raw in _inline_args_template.items() if _is_ctx_template(raw)
+    ]
+    _empty_ctx_args = [
+        k for k in _ctx_arg_keys
+        if inline_args.get(k) in (None, "", [], {}, "null", "None")
+    ]
+
+    if _ctx_arg_keys and len(_empty_ctx_args) == len(_ctx_arg_keys):
         skip_record = {
             "action": action, "vendor": vendor, "command": command,
             "args": inline_args, "shadow_mode": shadow_mode, "success": False,
-            "skipped": True, "skip_reason": "no non-empty artifact for command args",
+            "skipped": True,
+            "skip_reason": (
+                "no non-empty artifact for command args: "
+                + ", ".join(sorted(_empty_ctx_args))
+            ),
             "tags": tags or [], "run_id": get_or_create_run_id(ctx),
             "timestamp": utc_now(),
         }
@@ -946,8 +991,9 @@ def main():
             append_context(output_key, skip_record)
         warroom_log(
             f"SOC Framework - {action}: skipped (no artifact to act on)",
-            {"reason": "all resolved command args empty", "action": action,
-             "vendor": vendor, "command": command},
+            {"reason": "all context-derived command args resolved empty",
+             "empty_args": ", ".join(sorted(_empty_ctx_args)),
+             "action": action, "vendor": vendor, "command": command},
             tags,
         )
         return_results(f"{action} skipped - no non-empty artifact for {command}")
