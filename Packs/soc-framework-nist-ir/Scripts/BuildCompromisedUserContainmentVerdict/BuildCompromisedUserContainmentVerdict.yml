@@ -1,0 +1,102 @@
+commonfields:
+  id: BuildCompromisedUserContainmentVerdict
+  version: -1
+name: BuildCompromisedUserContainmentVerdict
+script: "import json\nimport traceback\nfrom typing import Any\n\n\nOUTPUT_PREFIX = \"CompromisedUserContainment.Verdict\"\
+  \n\nSUCCESS_VALUES = {\"success\", \"succeeded\", \"successful\", \"contained\", \"completed\", \"done\", \"true\"}\nFAILED_VALUES\
+  \ = {\"failed\", \"failure\", \"error\", \"critical_failed\", \"false\"}\nSKIPPED_VALUES = {\"skipped\", \"not_found\",\
+  \ \"no_account\", \"not_applicable\", \"n/a\", \"none\"}\nUNKNOWN_VALUES = {\"unknown\", \"missing\", \"pending\", \"\"\
+  }\n\n\ndef parse_json_arg(value: Any) -> Any:\n    if value in (None, \"\", \"null\"):\n        return {}\n    if isinstance(value,\
+  \ (dict, list)):\n        return value\n    if isinstance(value, str):\n        try:\n            return json.loads(value)\n\
+  \        except Exception:\n            return {\"status\": value}\n    return {\"status\": str(value)}\n\n\ndef normalize_status(value:\
+  \ Any) -> str:\n    if isinstance(value, bool):\n        return \"success\" if value else \"failed\"\n    text = str(value\
+  \ or \"\").strip().lower().replace(\" \", \"_\")\n    if text in SUCCESS_VALUES:\n        return \"success\"\n    if text\
+  \ in FAILED_VALUES:\n        return \"failed\"\n    if text in SKIPPED_VALUES:\n        return \"skipped\"\n    if text\
+  \ in UNKNOWN_VALUES:\n        return \"unknown\"\n    return \"unknown\"\n\n\ndef extract_status(obj: Any) -> str:\n   \
+  \ if not isinstance(obj, dict):\n        return normalize_status(obj)\n\n    for key in (\"status\", \"containment_status\"\
+  , \"result\", \"state\"):\n        if key in obj:\n            return normalize_status(obj.get(key))\n\n    for key in (\"\
+  success\", \"succeeded\", \"contained\"):\n        if key in obj:\n            return normalize_status(obj.get(key))\n\n\
+  \    if obj.get(\"skipped\") is True or obj.get(\"account_found\") is False or obj.get(\"exists\") is False:\n        return\
+  \ \"skipped\"\n\n    return \"unknown\"\n\n\ndef action_name(default_name: str, obj: Any) -> str:\n    if isinstance(obj,\
+  \ dict):\n        return str(obj.get(\"action\") or obj.get(\"name\") or obj.get(\"platform\") or default_name)\n    return\
+  \ default_name\n\n\ndef is_critical(obj: Any) -> bool:\n    if not isinstance(obj, dict):\n        return True\n    return\
+  \ bool(obj.get(\"critical\", True))\n\n\ndef collect_action(default_name: str, obj: Any) -> dict[str, Any]:\n    return\
+  \ {\n        \"name\": action_name(default_name, obj),\n        \"status\": extract_status(obj),\n        \"critical\":\
+  \ is_critical(obj),\n    }\n\n\ndef collect_actions(default_name: str, obj: Any) -> list[dict[str, Any]]:\n    if isinstance(obj,\
+  \ list):\n        return [collect_action(default_name, item) for item in obj]\n    if isinstance(obj, dict):\n        for\
+  \ key in (\"actions\", \"results\", \"statuses\"):\n            if isinstance(obj.get(key), list):\n                return\
+  \ [collect_action(default_name, item) for item in obj[key]]\n    return [collect_action(default_name, obj)]\n\n\ndef build_verdict(ad_obj:\
+  \ Any, entra_obj: Any, action_obj: Any) -> dict[str, Any]:\n    identity_actions = [\n        collect_action(\"Active Directory\
+  \ containment\", ad_obj),\n        collect_action(\"Entra ID containment\", entra_obj),\n    ]\n\n    action_statuses =\
+  \ collect_actions(\"Containment action\", action_obj) if action_obj else []\n    all_actions = identity_actions + action_statuses\n\
+  \n    successful_actions = [a[\"name\"] for a in all_actions if a[\"status\"] == \"success\"]\n    failed_actions = [a[\"\
+  name\"] for a in all_actions if a[\"status\"] == \"failed\"]\n    skipped_actions = [a[\"name\"] for a in all_actions if\
+  \ a[\"status\"] == \"skipped\"]\n    unknown_actions = [a[\"name\"] for a in all_actions if a[\"status\"] == \"unknown\"\
+  ]\n\n    ad_status = identity_actions[0][\"status\"]\n    entra_status = identity_actions[1][\"status\"]\n\n    identity_success\
+  \ = ad_status == \"success\" or entra_status == \"success\"\n    critical_failure = any(a[\"status\"] == \"failed\" and\
+  \ a.get(\"critical\", True) for a in all_actions)\n\n    no_matching_account = (\n        ad_status == \"skipped\"\n   \
+  \     and entra_status == \"skipped\"\n        and not failed_actions\n        and not successful_actions\n    )\n\n   \
+  \ if no_matching_account:\n        status = \"skipped\"\n        containment_success = False\n    elif identity_success\
+  \ and critical_failure:\n        status = \"partial_success\"\n        containment_success = False\n    elif identity_success:\n\
+  \        status = \"success\"\n        containment_success = True\n    elif ad_status in (\"failed\", \"unknown\") and entra_status\
+  \ in (\"failed\", \"unknown\"):\n        status = \"failed\"\n        containment_success = False\n    else:\n        status\
+  \ = \"failed\"\n        containment_success = False\n\n    residual_items = []\n    if failed_actions:\n        residual_items.append(\"\
+  Failed actions: \" + \", \".join(failed_actions))\n    if skipped_actions:\n        residual_items.append(\"Skipped actions:\
+  \ \" + \", \".join(skipped_actions))\n    if unknown_actions:\n        residual_items.append(\"Unknown actions: \" + \"\
+  , \".join(unknown_actions))\n\n    residual_risk = (\n        \"; \".join(residual_items)\n        if residual_items\n \
+  \       else \"No residual containment risk identified from supplied action statuses.\"\n    )\n\n    return {\n       \
+  \ \"containment_success\": containment_success,\n        \"status\": status,\n        \"residual_risk\": residual_risk,\n\
+  \        \"failed_actions\": failed_actions,\n        \"successful_actions\": successful_actions,\n        \"skipped_actions\"\
+  : skipped_actions,\n    }\n\n\ndef main():\n    try:\n        args = demisto.args()\n\n        ad_obj = parse_json_arg(args.get(\"\
+  ad_status_json\"))\n        entra_obj = parse_json_arg(args.get(\"entra_status_json\"))\n        action_obj = parse_json_arg(args.get(\"\
+  action_status_json\"))\n\n        verdict = build_verdict(ad_obj, entra_obj, action_obj)\n\n        readable = tableToMarkdown(\n\
+  \            \"Compromised User Containment Verdict\",\n            [{\n                \"Status\": verdict[\"status\"],\n\
+  \                \"Containment Success\": verdict[\"containment_success\"],\n                \"Successful Actions\": \"\
+  , \".join(verdict[\"successful_actions\"]) or \"None\",\n                \"Failed Actions\": \", \".join(verdict[\"failed_actions\"\
+  ]) or \"None\",\n                \"Skipped Actions\": \", \".join(verdict[\"skipped_actions\"]) or \"None\",\n         \
+  \       \"Residual Risk\": verdict[\"residual_risk\"],\n            }],\n        )\n\n        return_results(CommandResults(\n\
+  \            readable_output=readable,\n            outputs_prefix=OUTPUT_PREFIX,\n            outputs=verdict,\n      \
+  \  ))\n\n    except Exception as ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"Failed to build\
+  \ compromised user containment verdict. Error: {ex}\")\n\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"\
+  ):\n    main()"
+type: python
+tags: []
+comment: Combines AD, Entra ID, session, MFA, password, and note/action statuses into one final compromised user containment
+  verdict.
+enabled: true
+args:
+- supportedModules: []
+  name: ad_status_json
+  description: Optional JSON or string containing Active Directory containment status.
+- supportedModules: []
+  name: entra_status_json
+  description: Optional JSON or string containing Entra ID containment status.
+- supportedModules: []
+  name: action_status_json
+  description: Optional JSON or string/list containing additional containment action statuses such as sessions, MFA, password
+    reset, or analyst notes.
+outputs:
+- contextPath: CompromisedUserContainment.Verdict.containment_success
+  description: True only when at least one identity platform was contained successfully and no critical containment action
+    failed.
+  type: boolean
+- contextPath: CompromisedUserContainment.Verdict.status
+  description: Final containment verdict status. Possible values include success, partial_success, failed, or skipped.
+  type: string
+- contextPath: CompromisedUserContainment.Verdict.residual_risk
+  description: Residual risk statement built from failed, skipped, or unknown actions.
+  type: string
+- contextPath: CompromisedUserContainment.Verdict.failed_actions
+  description: List of failed containment actions.
+  type: unknown
+- contextPath: CompromisedUserContainment.Verdict.successful_actions
+  description: List of successful containment actions.
+  type: unknown
+- contextPath: CompromisedUserContainment.Verdict.skipped_actions
+  description: List of skipped containment actions.
+  type: unknown
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.13.84405
+runas: DBotWeakRole
