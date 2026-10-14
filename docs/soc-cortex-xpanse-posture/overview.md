@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-cortex-xpanse-posture` |
-| Version | `1.0.0` |
+| Version | `1.0.1` |
 | Category | Posture |
 | Pack Path | `Packs/soc-cortex-xpanse-posture` |
 | Manifest | [`Packs/soc-cortex-xpanse-posture/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-cortex-xpanse-posture/xsoar_config.json) |
@@ -24,7 +24,7 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-cortex-xpanse-posture.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-cortex-xpanse-posture-v1.0.0/soc-cortex-xpanse-posture-v1.0.0.zip) |
+| `soc-cortex-xpanse-posture.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-cortex-xpanse-posture-v1.0.1/soc-cortex-xpanse-posture-v1.0.1.zip) |
 
 ## Marketplace Dependencies
 

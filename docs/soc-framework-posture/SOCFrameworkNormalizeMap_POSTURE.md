@@ -17,4 +17,6 @@ Maps issue.<field> -> SOCFramework.<target> per product category for the Cloud P
 | `posture_misconfig` | complete |  |  |
 | `posture_compliance` | complete |  |  |
 | `posture_drift` | complete |  |  |
+| `posture_attack_surface` | complete |  |  |
+| `posture_vulnerability` | complete |  |  |
 | `generic` | complete |  |  |
