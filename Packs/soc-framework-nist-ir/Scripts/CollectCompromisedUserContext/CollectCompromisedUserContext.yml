@@ -1,0 +1,83 @@
+commonfields:
+  id: CollectCompromisedUserContext
+  version: -1
+name: CollectCompromisedUserContext
+script: "import traceback\nfrom typing import Any\n\n\nSCRIPT_NAME = \"CollectCompromisedUserContext\"\n\nCMD_ENTRA_GET_GROUPS\
+  \ = \"msgraph-user-get-groups\"\nCMD_ENTRA_GET_MANAGER = \"msgraph-user-get-manager\"\nCMD_ENTRA_GET_DIRECT_REPORTS = \"\
+  msgraph-direct-reports\"\nCMD_ENTRA_GET_DEVICES = \"msgraph-user-owned-devices-list\"\n\n\ndef arg_to_str(value: Any) ->\
+  \ str:\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\n\ndef parse_args(args: dict) -> tuple[str,\
+  \ str]:\n    entra_user_id = arg_to_str(args.get(\"entra_user_id\"))\n    ad_sam_account_name = arg_to_str(args.get(\"ad_sam_account_name\"\
+  ))\n\n    if not entra_user_id and not ad_sam_account_name:\n        raise DemistoException(\"Either entra_user_id or ad_sam_account_name\
+  \ must be provided.\")\n\n    return entra_user_id, ad_sam_account_name\n\n\ndef extract_contents(result: list) -> Any:\n\
+  \    if not result:\n        return []\n\n    contents = result[0].get(\"Contents\")\n    if contents is None:\n       \
+  \ contents = result[0].get(\"EntryContext\")\n    if contents is None:\n        contents = result\n\n    return contents\n\
+  \n\ndef run_graph_command(command: str, command_args: dict, label: str, errors: list) -> Any:\n    try:\n        result\
+  \ = demisto.executeCommand(command, command_args)\n\n        if is_error(result):\n            errors.append({\n       \
+  \         \"Source\": label,\n                \"Command\": command,\n                \"Error\": get_error(result)\n    \
+  \        })\n            return []\n\n        return extract_contents(result)\n\n    except Exception as ex:\n        errors.append({\n\
+  \            \"Source\": label,\n            \"Command\": command,\n            \"Error\": str(ex)\n        })\n       \
+  \ return []\n\n\ndef collect_entra_context(entra_user_id: str, errors: list) -> dict:\n    command_args = {\n        \"\
+  user_id\": entra_user_id\n    }\n\n    return {\n        \"Groups\": run_graph_command(\n            CMD_ENTRA_GET_GROUPS,\n\
+  \            command_args,\n            \"Entra Groups\",\n            errors\n        ),\n        \"Manager\": run_graph_command(\n\
+  \            CMD_ENTRA_GET_MANAGER,\n            command_args,\n            \"Entra Manager\",\n            errors\n   \
+  \     ),\n        \"DirectReports\": run_graph_command(\n            CMD_ENTRA_GET_DIRECT_REPORTS,\n            command_args,\n\
+  \            \"Entra Direct Reports\",\n            errors\n        ),\n        \"Devices\": run_graph_command(\n      \
+  \      CMD_ENTRA_GET_DEVICES,\n            command_args,\n            \"Entra Owned Devices\",\n            errors\n   \
+  \     )\n    }\n\n\ndef build_readable_output(context: dict) -> str:\n    entra = context.get(\"Entra\", {})\n\n    lines\
+  \ = [\n        \"### Compromised User Context Collection\",\n        \"\",\n        f\"- Entra groups collected: {len(entra.get('Groups')\
+  \ or []) if isinstance(entra.get('Groups'), list) else 'Yes'}\",\n        f\"- Manager collected: {'Yes' if entra.get('Manager')\
+  \ else 'No'}\",\n        f\"- Direct reports collected: {len(entra.get('DirectReports') or []) if isinstance(entra.get('DirectReports'),\
+  \ list) else 'Yes'}\",\n        f\"- Devices collected: {len(entra.get('Devices') or []) if isinstance(entra.get('Devices'),\
+  \ list) else 'Yes'}\",\n        f\"- AD SAMAccountName preserved: {'Yes' if context.get('AD', {}).get('SAMAccountName')\
+  \ else 'No'}\",\n        f\"- Enrichment errors: {len(context.get('EnrichmentErrors') or [])}\"\n    ]\n\n    if context.get(\"\
+  EnrichmentErrors\"):\n        lines.extend([\n            \"\",\n            tableToMarkdown(\n                \"Enrichment\
+  \ Errors\",\n                context.get(\"EnrichmentErrors\"),\n                headers=[\"Source\", \"Command\", \"Error\"\
+  ]\n            )\n        ])\n\n    return \"\\n\".join(lines)\n\n\ndef main():\n    try:\n        entra_user_id, ad_sam_account_name\
+  \ = parse_args(demisto.args())\n\n        errors = []\n\n        context = {\n            \"Entra\": {\n               \
+  \ \"Groups\": [],\n                \"Manager\": {},\n                \"DirectReports\": [],\n                \"Devices\"\
+  : []\n            },\n            \"AD\": {\n                \"SAMAccountName\": ad_sam_account_name\n            },\n \
+  \           \"EnrichmentErrors\": errors\n        }\n\n        if entra_user_id:\n            context[\"Entra\"] = collect_entra_context(entra_user_id,\
+  \ errors)\n\n        readable_output = build_readable_output(context)\n\n        return_results(CommandResults(\n      \
+  \      readable_output=readable_output,\n            outputs_prefix=\"CompromisedUserContext\",\n            outputs=context\n\
+  \        ))\n\n    except Exception as ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"{SCRIPT_NAME}\
+  \ failed. Error: {str(ex)}\")\n\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()"
+type: python
+tags:
+- compromised-user
+- enrichment
+comment: Collects Entra and AD enrichment context for a confirmed compromised user before containment.
+enabled: true
+args:
+- supportedModules: []
+  name: entra_user_id
+  description: Optional Entra ID / Azure AD user ID. If provided, the automation attempts to collect groups, manager, direct
+    reports, and owned or registered devices.
+  type: String
+- supportedModules: []
+  name: ad_sam_account_name
+  description: Optional Active Directory SAMAccountName. If provided, it is preserved in the output context.
+  type: String
+outputs:
+- contextPath: CompromisedUserContext.Entra.Groups
+  description: Entra groups collected for the compromised user.
+  type: unknown
+- contextPath: CompromisedUserContext.Entra.Manager
+  description: Manager collected from Entra for the compromised user.
+  type: unknown
+- contextPath: CompromisedUserContext.Entra.DirectReports
+  description: Direct reports collected from Entra for the compromised user.
+  type: unknown
+- contextPath: CompromisedUserContext.Entra.Devices
+  description: Owned or registered devices collected from Entra for the compromised user.
+  type: unknown
+- contextPath: CompromisedUserContext.AD.SAMAccountName
+  description: Active Directory SAMAccountName for the compromised user.
+  type: string
+- contextPath: CompromisedUserContext.EnrichmentErrors
+  description: Non-fatal enrichment errors encountered while collecting user context.
+  type: unknown
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.13.89009
+runas: DBotWeakRole
