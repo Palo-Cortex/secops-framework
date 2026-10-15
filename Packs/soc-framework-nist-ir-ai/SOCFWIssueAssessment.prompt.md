@@ -46,6 +46,11 @@ enriched by the time this prompt sees it.
 | risk_score | SOCFramework.Investigation.RiskScore |
 | linked_count | SOCFramework.Investigation.LinkedCount |
 | alert_name | alert.name |
+| alert_description | issue.details |
+
+`alert_description` carries the correlation rule's description. On the production tenant
+`issue.description` is empty and `issue.details` holds it (verified 15 Oct against a live
+issue); `alert.name` resolves fine there, so the name binding was never the gap.
 
 `intel` is written by `SOCFWCollectIntel` (task `9005`) immediately before the prompt runs.
 Foundation enrichment leaves reputation verdicts in standard context roots — `DBotScore`,
@@ -147,6 +152,7 @@ an internal address as external threat infrastructure.
 <evidence>
 ISSUE
   alert_name: ${alert_name}
+  alert_description: ${alert_description}
   product_category: ${product_category}
   product_key: ${product_key}
   risk_score: ${risk_score}
@@ -199,6 +205,13 @@ Reason in this order, using only what is populated:
 
 5. INTEL — What the reputation verdicts say about the indicators involved, with
    sources and reliability, and where they disagree.
+
+READING THE DETECTION ITSELF
+
+A correlation-generated detection's name and description state the condition it
+observed. Treat that stated condition as having occurred — the detection firing
+is itself the evidence. Never propose re-verifying the triggering condition as
+the next check; the next check is what the detection does NOT tell you.
 
 CHOOSING THE VERDICT
 
