@@ -36,6 +36,39 @@ VERDICT_FIELDS = (
 )
 
 
+# Set when a reply only parsed after repairing invalid escapes, so the war-room
+# note can say so. Query-side nothing changes: the row still reads "promoted".
+_ESCAPES_REPAIRED = False
+
+_VALID_ESCAPE = re.compile(r'\\u[0-9a-fA-F]{4}|\\["\\/bfnrt]')
+
+
+def _repair(text):
+    """Escape backslashes that do not begin a valid JSON escape.
+
+    Models quote Windows paths and URLs verbatim — "C:\\Users\\x", "\\\\share" —
+    and a lone backslash before the wrong character is invalid JSON that
+    strict=False does not forgive. Double only the offending backslashes; valid
+    escapes (\\n, \\", \\u0041, \\\\) pass through untouched, and the function
+    only runs after a strict parse has already failed, so well-formed replies
+    are never rewritten.
+    """
+    out, i, n = [], 0, len(text)
+    while i < n:
+        if text[i] == "\\":
+            m = _VALID_ESCAPE.match(text, i)
+            if m:
+                out.append(m.group())
+                i = m.end()
+            else:
+                out.append("\\\\")
+                i += 1
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
 def _salvage(text):
     """Recover the decision from a reply cut off by the output token limit.
 
@@ -82,6 +115,16 @@ def _load(raw):
             # Models emit them; the verdict is still readable.
             return json.loads(text, strict=False)
         except (ValueError, TypeError):
+            repaired = _repair(text)
+            if repaired != text:
+                try:
+                    obj = json.loads(repaired, strict=False)
+                except (ValueError, TypeError):
+                    obj = _salvage(repaired)
+                if obj is not None:
+                    global _ESCAPES_REPAIRED
+                    _ESCAPES_REPAIRED = True
+                    return obj
             obj = _salvage(text)
             if obj is None:
                 raise
@@ -160,6 +203,8 @@ def main():
     _emit_reasoning_row("promoted", obj, source_key, phase)
     fields = sum(1 for f in VERDICT_FIELDS if obj.get(f) not in (None, "", [], {}))
     note = "  Reply was truncated; this is the part that survived." if obj.get("truncated") else ""
+    if _ESCAPES_REPAIRED:
+        note += "  Unescaped backslashes in the reply were repaired before parsing."
     return_results(CommandResults(readable_output=(
         f"Promoted **{obj.get('verdict') or 'no verdict'}** "
         f"/ {obj.get('confidence') or 'unknown'} confidence into `{target}.*` "
