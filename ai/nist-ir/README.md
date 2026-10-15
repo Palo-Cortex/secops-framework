@@ -13,6 +13,7 @@ pack:
 secops-framework/
   Packs/            content that ships through the Package Manager
   ai/nist-ir/       aiTask playbooks, uploaded by hand
+  ai/nist-ir/ReleaseNotes/   change log for this hand-deployed content — one dated file per change
   schemas/
   tools/
 ```
