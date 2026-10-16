@@ -162,6 +162,42 @@ def _resolve_ctx_path(ctx, path):
     return node
 
 
+def _resolve_ctx_path_list(ctx, path):
+    """Resolve a dotted context path keeping the WHOLE leaf list.
+
+    _resolve_ctx_path deliberately returns the first non-empty scalar so that
+    single-valued args stay scalars. Target expansion needs the opposite: when
+    an issue carries four domains, all four are the work. Same traversal,
+    different leaf rule — a list comes back filtered of empties, a scalar
+    comes back as itself.
+    """
+    node = ctx
+
+    for segment in str(path).split("."):
+        if isinstance(node, list):
+            collected = []
+            for item in node:
+                if isinstance(item, dict) and segment in item:
+                    v = item[segment]
+                    if isinstance(v, list):
+                        collected.extend(v)
+                    else:
+                        collected.append(v)
+            node = collected
+        elif isinstance(node, dict):
+            node = node.get(segment)
+        else:
+            return None
+
+        if node in (None, "", [], {}):
+            return None
+
+    if isinstance(node, list):
+        return [v for v in node if v not in (None, "", [], {})]
+
+    return node
+
+
 def _resolve_templates(obj, ctx):
     if isinstance(obj, dict):
         return {k: _resolve_templates(v, ctx) for k, v in obj.items()}
@@ -754,6 +790,488 @@ def post_dataset_payload(payload, tags=None):
         )
 
 
+
+def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, terminal):
+    """Dispatch one (vendor, target) pair: shadow or execute, record, dataset row.
+
+    Behavior for the terminal case (single vendor, single target — every action
+    before dispatch modes existed) is the original main() body unchanged: the
+    same war-room entries, the same records, return_error on command failure
+    and a bare raise on unexpected exceptions. Non-terminal calls record the
+    failure and report it in the dispatch summary instead, so one vendor or
+    target cannot kill the rest of the fan-out.
+
+    Returns {"vendor", "target", "outcome", "reason"} with outcome one of
+    simulated | success | failed | skipped_no_artifact | integration_unavailable.
+    """
+    action = shared["action"]
+    args = shared["args"]
+    ctx = shared["ctx"]
+    tags = shared["tags"]
+    raw_tags = shared["raw_tags"]
+    output_key = shared["output_key"]
+    using = shared["using"]
+    shadow_mode = shared["shadow_mode"]
+    run_id = shared["run_id"]
+    timestamp = shared["timestamp"]
+    schema_entries = shared["schema_entries"]
+    issue = shared["issue"]
+    action_time_minutes = shared["action_time_minutes"]
+    action_time_category = shared["action_time_category"]
+
+    resolved_payload = {
+        "run_id": run_id,
+        "action": action,
+        "vendor": vendor,
+        "command": command,
+        "args": inline_args,
+        "shadow_mode": shadow_mode,
+        "raw_tags": raw_tags,
+        "raw_tags_type": str(type(raw_tags)),
+        "tags": tags
+    }
+    if target is not None:
+        resolved_payload["target"] = target
+
+    warroom_log(
+        "SOC Framework - Universal Command Resolved",
+        resolved_payload,
+        tags
+    )
+
+    if shadow_mode:
+        record = {
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "args": inline_args,
+            "shadow_mode": True,
+            "success": False,
+            "tags": tags,
+            "timestamp": timestamp
+        }
+        if target is not None:
+            record["target"] = target
+
+        if output_key:
+            append_context(output_key, record)
+
+        base_payload = resolve_schema_payload(schema_entries, ctx)
+
+        wrapper_values = {
+            "timestamp": timestamp,
+            "event_type": "command",
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "action_status": "simulated",
+            "action_actor": normalize_action_actor(args.get("Action_Actor"), True),
+            "execution_mode": "shadow",
+            "shadow_mode_state": "collected",
+            # Carried on the row so a dashboard or an export can say what to
+            # change, not just that something was suppressed.
+            "shadow_disable_hint": (
+                f"set shadow_mode false on {action} in SOCFrameworkActions_V3, "
+                f"or shadow_mode_by_actor for one caller"),
+            "has_error": False,
+            "error_type": "",
+            "error_message": "",
+            "action_time_minutes": action_time_minutes,
+            "action_time_category": action_time_category
+        }
+        if target is not None:
+            wrapper_values["action_target"] = target
+
+        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+        post_dataset_payload(dataset_payload, tags)
+
+        # Write sentinel UC.* keys so downstream conditions work in shadow mode
+        output_map = vendor_data.get("output_map", {})
+        fresh_ctx = demisto.context()
+        apply_output_map(output_map, fresh_ctx, shadow_mode=True)
+
+        warroom_log(
+            "SOC Framework - SHADOW MODE (Command Not Executed)",
+            record,
+            tags,
+            footer=shadow_footer(action, args.get("Action_Actor"))
+        )
+
+        if terminal:
+            return_results("Shadow Mode: command not executed")
+        return {"vendor": vendor, "target": target, "outcome": "simulated"}
+
+    try:
+        warroom_log(
+            "SOC Framework - Executing Command",
+            {
+                "command": command,
+                "args": inline_args,
+                "using": using
+            },
+            tags
+        )
+
+        # Drop args that failed context resolution — sending empty values
+        # to vendor APIs causes 4xx errors (e.g. Proofpoint TAP 400 when
+        # threatId/campaignId are present-but-empty).
+        execute_args = {
+            k: v for k, v in inline_args.items()
+            if v not in (None, "", [], {})
+        }
+        if using:
+            execute_args["using"] = using
+
+        # Ask the module registry before dispatching. An unavailable brand is
+        # shaped as the error the post-dispatch handler already recognizes, so
+        # the outcome, the record and the dataset row are identical to a real
+        # error 23 — the only difference is that nothing was called.
+        if not brand_available(vendor):
+            result = [{
+                "Type": entryTypes["error"],
+                "ContentsFormat": formats["text"],
+                "Contents": (f"Unsupported Command: {command} — no active instance "
+                             f"of brand '{vendor}' on this tenant."),
+            }]
+        else:
+            result = demisto.executeCommand(command, execute_args)
+
+        failed, error_msg = integration_failed(result)
+
+        if failed:
+            # Check for error 23 — integration not installed or not enabled in this tenant.
+            # Soft-fail so the playbook can continue in degraded mode rather than halting
+            # the entire lifecycle. Shadow mode never reaches this path (vendor command is
+            # suppressed), so this check is execute-only by construction.
+            integration_unavailable = (
+                    "Unsupported Command" in (error_msg or "")
+                    or "(23)" in (error_msg or "")
+            )
+
+            record = {
+                "run_id": run_id,
+                "action": action,
+                "vendor": vendor,
+                "command": command,
+                "args": inline_args,
+                "shadow_mode": False,
+                "success": False,
+                "error": error_msg,
+                "tags": tags,
+                "timestamp": timestamp
+            }
+            if target is not None:
+                record["target"] = target
+
+            if output_key:
+                append_context(output_key, record)
+
+            base_payload = resolve_schema_payload(schema_entries, ctx)
+
+            wrapper_values = {
+                "timestamp": timestamp,
+                "event_type": "command",
+                "run_id": run_id,
+                "action": action,
+                "vendor": vendor,
+                "command": command,
+                "action_status": "integration_unavailable" if integration_unavailable else "failed",
+                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
+                "execution_mode": "production",
+                "shadow_mode_state": "not_applicable",
+                "has_error": True,
+                "error_type": "integration_unavailable" if integration_unavailable else "command_execution",
+                "error_message": error_msg,
+                "action_time_minutes": action_time_minutes,
+                "action_time_category": action_time_category
+            }
+            if target is not None:
+                wrapper_values["action_target"] = target
+
+            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+            post_dataset_payload(dataset_payload, tags)
+
+            warroom_log(
+                "SOC Framework - Command Failure",
+                record,
+                tags
+            )
+
+            if integration_unavailable:
+                # Null out UC.* output keys so downstream conditions evaluate cleanly
+                # (missing key → default/blocked path) rather than raising errors
+                output_map = vendor_data.get("output_map", {})
+                for dest_key in (output_map or {}).keys():
+                    demisto.setContext(dest_key, None)
+
+                return_warning(
+                    f"[SOCCommandWrapper] Integration not available for action '{action}'. "
+                    f"Command: {command}. "
+                    f"Install and configure the required integration to enable this action."
+                )
+                return_results(CommandResults(
+                    readable_output=(
+                        f"⚠️ Integration unavailable: `{command}`\n\n"
+                        f"Action `{action}` requires an integration that is not installed or enabled. "
+                        f"Playbook continues in degraded mode."
+                    ),
+                    outputs_prefix="UC",
+                    outputs={"action": action, "status": "integration_unavailable", "command": command}
+                ))
+                return {"vendor": vendor, "target": target,
+                        "outcome": "integration_unavailable", "reason": error_msg}
+
+            if terminal:
+                return_error(error_msg)
+            return {"vendor": vendor, "target": target,
+                    "outcome": "failed", "reason": error_msg}
+
+        record = {
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "args": inline_args,
+            "shadow_mode": False,
+            "success": True,
+            "tags": tags,
+            "timestamp": timestamp
+        }
+        if target is not None:
+            record["target"] = target
+
+        if output_key:
+            append_context(output_key, record)
+
+        base_payload = resolve_schema_payload(schema_entries, ctx)
+
+        wrapper_values = {
+            "timestamp": timestamp,
+            "event_type": "command",
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "action_status": "success",
+            "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
+            "execution_mode": "production",
+            "shadow_mode_state": "not_applicable",
+            "has_error": False,
+            "error_type": "",
+            "error_message": "",
+            "action_time_minutes": action_time_minutes,
+            "action_time_category": action_time_category
+        }
+        if target is not None:
+            wrapper_values["action_target"] = target
+
+        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+        post_dataset_payload(dataset_payload, tags)
+
+        # Map vendor output to canonical UC.* context keys
+        output_map = vendor_data.get("output_map", {})
+        fresh_ctx = demisto.context()
+        entry_context = _extract_entry_context(result)
+        apply_output_map(output_map, fresh_ctx, shadow_mode=False, entry_context=entry_context)
+
+        warroom_log(
+            "SOC Framework - Command Success",
+            record,
+            tags
+        )
+
+        return_results(result)
+        return {"vendor": vendor, "target": target, "outcome": "success"}
+
+    except Exception as e:
+        record = {
+            "run_id": run_id,
+            "action": action,
+            "vendor": vendor,
+            "command": command,
+            "args": inline_args,
+            "shadow_mode": False,
+            "success": False,
+            "error": str(e),
+            "tags": tags,
+            "timestamp": timestamp
+        }
+        if target is not None:
+            record["target"] = target
+
+        if output_key:
+            append_context(output_key, record)
+
+        try:
+            base_payload = resolve_schema_payload(schema_entries, ctx)
+
+            wrapper_values = {
+                "timestamp": timestamp,
+                "event_type": "command",
+                "run_id": run_id,
+                "action": action,
+                "vendor": vendor,
+                "command": command,
+                "action_status": "failed",
+                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
+                "execution_mode": "production",
+                "shadow_mode_state": "not_applicable",
+                "has_error": True,
+                "error_type": "command_execution",
+                "error_message": str(e),
+                "action_time_minutes": action_time_minutes,
+                "action_time_category": action_time_category
+            }
+            if target is not None:
+                wrapper_values["action_target"] = target
+
+            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
+            post_dataset_payload(dataset_payload, tags)
+        except Exception as enrich_e:
+            warroom_log(
+                "SOC Framework - Dataset Enrichment Error",
+                {"error": str(enrich_e)},
+                tags
+            )
+
+        warroom_log(
+            "SOC Framework - Command Execution Error",
+            record,
+            tags
+        )
+
+        if terminal:
+            raise
+        return {"vendor": vendor, "target": target, "outcome": "failed", "reason": str(e)}
+
+
+def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
+    """Resolve one vendor branch's args and dispatch it once per target.
+
+    target_arg names the inline arg that carries the thing being acted on;
+    when its context reference resolves to a list, each usable element gets
+    its own dispatch. Scalars behave exactly as before.
+    """
+    action = shared["action"]
+    ctx = shared["ctx"]
+    tags = shared["tags"]
+    shadow_mode = shared["shadow_mode"]
+    output_key = shared["output_key"]
+
+    command = vendor_data.get("command")
+    _inline_args_template = vendor_data.get("inline_args", {})
+    inline_args = _resolve_templates(_inline_args_template, ctx)
+
+    # Guard: the action declares argument templates but every CONTEXT-DERIVED
+    # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
+    # when this alert carries no file hash). Firing a command with a missing required
+    # arg fails and hangs the lifecycle, so skip cleanly with a recorded reason --
+    # mirroring the Upon-Trigger enrichment, which only fires when the artifact is
+    # non-empty.
+    #
+    # Only context references count toward "is there anything to act on". A static
+    # literal carries no evidence, and letting it vote here keeps the dispatch alive
+    # after the identifying arg has already been dropped below. Observed on
+    # soc-enrich-user/Microsoft Graph User, where properties=displayName,... is static
+    # and user=${...Identity.User.UPN} resolved empty: the call fired with only
+    # properties, and Graph rejected the malformed path with
+    # "Unexpected segment DynamicPathSegment. Expected property/$value".
+    _ctx_arg_keys = [
+        k for k, raw in _inline_args_template.items() if _is_ctx_template(raw)
+    ]
+    _empty_ctx_args = [
+        k for k in _ctx_arg_keys
+        if inline_args.get(k) in (None, "", [], {}, "null", "None")
+    ]
+
+    if _ctx_arg_keys and len(_empty_ctx_args) == len(_ctx_arg_keys):
+        skip_record = {
+            "action": action, "vendor": vendor, "command": command,
+            "args": inline_args, "shadow_mode": shadow_mode, "success": False,
+            "skipped": True,
+            "skip_reason": (
+                "no non-empty artifact for command args: "
+                + ", ".join(sorted(_empty_ctx_args))
+            ),
+            "tags": tags or [], "run_id": shared["run_id"],
+            "timestamp": shared["timestamp"],
+        }
+        if output_key:
+            append_context(output_key, skip_record)
+        warroom_log(
+            f"SOC Framework - {action}: skipped (no artifact to act on)",
+            {"reason": "all context-derived command args resolved empty",
+             "empty_args": ", ".join(sorted(_empty_ctx_args)),
+             "action": action, "vendor": vendor, "command": command},
+            tags,
+        )
+        return_results(f"{action} skipped - no non-empty artifact for {command}")
+        return [{"vendor": vendor, "target": None,
+                 "outcome": "skipped_no_artifact",
+                 "reason": "all context-derived command args resolved empty"}]
+
+    # Resolve the target arg's RAW context value. Template resolution above
+    # deliberately collapses a leaf list to its first non-empty scalar (the
+    # right rule for ordinary args) — which is exactly how multi-value issues
+    # lost all but one target. The target arg alone gets the list-preserving
+    # walk.
+    target_values = None
+    if target_arg:
+        raw_tmpl = _inline_args_template.get(target_arg)
+        if _is_ctx_template(raw_tmpl):
+            s = str(raw_tmpl).strip()
+            m = CTX_REF_RE.match(s)
+            target_values = _resolve_ctx_path_list(ctx, m.group(1) if m else s)
+        elif isinstance(inline_args.get(target_arg), list):
+            target_values = inline_args.get(target_arg)
+
+    targets = [None]
+    if target_arg and isinstance(target_values, list):
+        usable, seen = [], set()
+        for t in target_values:
+            key = str(t)
+            if t in (None, "") or key in seen:
+                continue
+            seen.add(key)
+            usable.append(t)
+        if not usable:
+            skip_record = {
+                "action": action, "vendor": vendor, "command": command,
+                "args": inline_args, "shadow_mode": shadow_mode, "success": False,
+                "skipped": True,
+                "skip_reason": f"target list {target_arg} resolved to no usable values",
+                "tags": tags or [], "run_id": shared["run_id"],
+                "timestamp": shared["timestamp"],
+            }
+            if output_key:
+                append_context(output_key, skip_record)
+            warroom_log(
+                f"SOC Framework - {action}: skipped (no usable targets)",
+                {"reason": f"target list {target_arg} resolved to no usable values",
+                 "action": action, "vendor": vendor, "command": command},
+                tags,
+            )
+            return_results(f"{action} skipped - no usable targets for {command}")
+            return [{"vendor": vendor, "target": None,
+                     "outcome": "skipped_no_artifact",
+                     "reason": f"target list {target_arg} resolved to no usable values"}]
+        targets = usable
+
+    results = []
+    for t in targets:
+        call_args = dict(inline_args)
+        if t is not None:
+            call_args[target_arg] = t
+        terminal = single_vendor and len(targets) == 1
+        results.append(
+            _dispatch_one(shared, vendor, vendor_data, command, call_args, t, terminal)
+        )
+    return results
+
+
+
 def main():
     args = demisto.args()
     ctx = demisto.context()
@@ -816,188 +1334,187 @@ def main():
 
     responses = action_entry.get("responses", {})
 
-    # ── Multi-vendor response routing ─────────────────────────────────────────
-    # Resolution order:
-    # 1. Look up the action's class (endpoint/identity/email/indicator/network)
-    #    from SOCActionClassMap_V3.
-    # 2. Look up responses.{class} in the alert's SOCProductCategoryMap entry.
-    #    This is the correct integration for this action type on this source.
-    # 3. Fall back to SOCFramework.Product.response (legacy single-vendor field).
-    # 4. Fall back to first available vendor in the action's responses dict.
-    #
-    # This allows a CrowdStrike Endpoint alert to use CrowdStrike for endpoint
-    # actions but Active Directory for identity actions — configured in one place
-    # (SOCProductCategoryMap_V3) without touching playbooks.
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Dispatch mode ────────────────────────────────────────────────────────
+    # dispatch on the action entry decides fan-out. Absent means "routed":
+    # exactly one vendor, resolved by the routing ladder below — the original
+    # behavior, unchanged. "all_applicable" dispatches every vendor branch the
+    # action declares, each checked and recorded on its own; the routing ladder
+    # is skipped because the answer is all of them. The field lives on registry
+    # rows authored with the framework; it is not an operator setting.
+    dispatch_mode = str(action_entry.get("dispatch") or "routed").strip().lower()
+    if dispatch_mode not in ("routed", "all_applicable"):
+        demisto.debug(
+            f"SOCCommandWrapper: unknown dispatch {dispatch_mode!r} on {action} - treating as routed"
+        )
+        dispatch_mode = "routed"
 
     vendor = None
     vendor_data = None
 
-    # Step 1: get action class from SOCActionClassMap_V3
-    action_class_map = demisto.executeCommand(
-        "getList", {"listName": "SOCActionClassMap_V3"}
-    )
-    action_class = None
-    if action_class_map and isinstance(action_class_map, list):
-        acm_raw = action_class_map[0].get("Contents", "")
-        if acm_raw and acm_raw != "Item not found":
-            import json as _json
-            try:
-                acm = _json.loads(acm_raw)
-                action_class = acm.get(action)
-            except Exception:
-                pass
+    if dispatch_mode == "routed":
+        # ── Multi-vendor response routing ─────────────────────────────────────────
+        # Resolution order:
+        # 1. Look up the action's class (endpoint/identity/email/indicator/network)
+        #    from SOCActionClassMap_V3.
+        # 2. Look up responses.{class} in the alert's SOCProductCategoryMap entry.
+        #    This is the correct integration for this action type on this source.
+        # 3. Fall back to SOCFramework.Product.response (legacy single-vendor field).
+        # 4. Fall back to first available vendor in the action's responses dict.
+        #
+        # This allows a CrowdStrike Endpoint alert to use CrowdStrike for endpoint
+        # actions but Active Directory for identity actions — configured in one place
+        # (SOCProductCategoryMap_V3) without touching playbooks.
+        # ─────────────────────────────────────────────────────────────────────────
 
-    # Step 2: look up responses.{action_class} from the category map entry
-    if action_class:
-        category_responses = demisto.get(ctx, "SOCFramework.Product.responses") or {}
-        if isinstance(category_responses, str):
-            try:
-                category_responses = _json.loads(category_responses)
-            except Exception:
-                category_responses = {}
-        class_vendor = category_responses.get(action_class)
-        if class_vendor:
-            vendor_data = responses.get(class_vendor)
+        vendor = None
+        vendor_data = None
+
+        # Step 1: get action class from SOCActionClassMap_V3
+        action_class_map = demisto.executeCommand(
+            "getList", {"listName": "SOCActionClassMap_V3"}
+        )
+        action_class = None
+        if action_class_map and isinstance(action_class_map, list):
+            acm_raw = action_class_map[0].get("Contents", "")
+            if acm_raw and acm_raw != "Item not found":
+                import json as _json
+                try:
+                    acm = _json.loads(acm_raw)
+                    action_class = acm.get(action)
+                except Exception:
+                    pass
+
+        # Step 2: look up responses.{action_class} from the category map entry
+        if action_class:
+            category_responses = demisto.get(ctx, "SOCFramework.Product.responses") or {}
+            if isinstance(category_responses, str):
+                try:
+                    category_responses = _json.loads(category_responses)
+                except Exception:
+                    category_responses = {}
+            class_vendor = category_responses.get(action_class)
+            if class_vendor:
+                vendor_data = responses.get(class_vendor)
+                if vendor_data:
+                    vendor = class_vendor
+                    demisto.debug(
+                        f"SOCCommandWrapper: multi-vendor routing — action={action} "
+                        f"class={action_class} vendor={vendor}"
+                    )
+
+        # Step 2b: platform actions are not vendor actions.
+        #
+        # Starring a case, raising its severity and closing an issue are done by the
+        # platform itself, so they carry a single "Builtin" implementation and no
+        # source vendor can satisfy them. Routing them by vendor skipped them on every
+        # alert: soc-star-case was skipped as "no implementation for source vendor
+        # 'CrowdStrike Falcon'", and soc-close-issue has the same shape.
+        #
+        # This is narrow on purpose. It applies ONLY when Builtin is the action's one
+        # and only implementation, so there is no vendor ambiguity to resolve wrongly -
+        # which is what the "never fall back to first available vendor" rule below
+        # exists to prevent. An action with Builtin plus vendor branches still routes
+        # by vendor.
+        if not vendor_data and set(responses.keys()) == {"Builtin"}:
+            vendor_data = responses.get("Builtin")
             if vendor_data:
-                vendor = class_vendor
+                vendor = "Builtin"
                 demisto.debug(
-                    f"SOCCommandWrapper: multi-vendor routing — action={action} "
-                    f"class={action_class} vendor={vendor}"
+                    f"SOCCommandWrapper: platform action — action={action} "
+                    f"dispatched as Builtin, independent of source vendor"
                 )
 
-    # Step 2b: platform actions are not vendor actions.
-    #
-    # Starring a case, raising its severity and closing an issue are done by the
-    # platform itself, so they carry a single "Builtin" implementation and no
-    # source vendor can satisfy them. Routing them by vendor skipped them on every
-    # alert: soc-star-case was skipped as "no implementation for source vendor
-    # 'CrowdStrike Falcon'", and soc-close-issue has the same shape.
-    #
-    # This is narrow on purpose. It applies ONLY when Builtin is the action's one
-    # and only implementation, so there is no vendor ambiguity to resolve wrongly -
-    # which is what the "never fall back to first available vendor" rule below
-    # exists to prevent. An action with Builtin plus vendor branches still routes
-    # by vendor.
-    if not vendor_data and set(responses.keys()) == {"Builtin"}:
-        vendor_data = responses.get("Builtin")
-        if vendor_data:
-            vendor = "Builtin"
+        # Step 3: fall back to legacy SOCFramework.Product.response
+        if not vendor_data:
+            vendor = demisto.get(ctx, "SOCFramework.Product.response")
+            vendor_data = responses.get(vendor) if vendor else None
+            if vendor_data:
+                demisto.debug(
+                    f"SOCCommandWrapper: legacy response routing — vendor={vendor}"
+                )
+
+        # Step 4: no matching vendor — skip cleanly with a recorded reason.
+        # Do NOT fall back to "first available vendor": that silently dispatches a
+        # non-matching vendor's command (e.g. core-quarantine-files against a
+        # CrowdStrike host because soc-quarantine-files lacks a CrowdStrike branch).
+        # Instead, write a skipped execution record so SOCSummarizePhase and the
+        # case audit trail show the action was attempted but had no vendor
+        # implementation for the alert's source.
+        if not vendor_data:
+            legacy_vendor = demisto.get(ctx, "SOCFramework.Product.response")
+            available = sorted(responses.keys())
+            skip_reason = (
+                f"no implementation for source vendor {legacy_vendor!r} in "
+                f"{action}.responses; available: {available}"
+            )
             demisto.debug(
-                f"SOCCommandWrapper: platform action — action={action} "
-                f"dispatched as Builtin, independent of source vendor"
+                f"SOCCommandWrapper: skipping {action} — {skip_reason} "
+                f"(action_class={action_class})"
             )
 
-    # Step 3: fall back to legacy SOCFramework.Product.response
-    if not vendor_data:
-        vendor = demisto.get(ctx, "SOCFramework.Product.response")
-        vendor_data = responses.get(vendor) if vendor else None
-        if vendor_data:
-            demisto.debug(
-                f"SOCCommandWrapper: legacy response routing — vendor={vendor}"
-            )
-
-    # Step 4: no matching vendor — skip cleanly with a recorded reason.
-    # Do NOT fall back to "first available vendor": that silently dispatches a
-    # non-matching vendor's command (e.g. core-quarantine-files against a
-    # CrowdStrike host because soc-quarantine-files lacks a CrowdStrike branch).
-    # Instead, write a skipped execution record so SOCSummarizePhase and the
-    # case audit trail show the action was attempted but had no vendor
-    # implementation for the alert's source.
-    if not vendor_data:
-        legacy_vendor = demisto.get(ctx, "SOCFramework.Product.response")
-        available = sorted(responses.keys())
-        skip_reason = (
-            f"no implementation for source vendor {legacy_vendor!r} in "
-            f"{action}.responses; available: {available}"
-        )
-        demisto.debug(
-            f"SOCCommandWrapper: skipping {action} — {skip_reason} "
-            f"(action_class={action_class})"
-        )
-
-        skip_record = {
-            "action": action,
-            "vendor": legacy_vendor or "(unresolved)",
-            "command": None,
-            "args": {},
-            "shadow_mode": shadow_mode,
-            "success": False,
-            "skipped": True,
-            "skip_reason": skip_reason,
-            "tags": tags or [],
-            "run_id": get_or_create_run_id(ctx),
-            "timestamp": utc_now(),
-        }
-        if output_key:
-            append_context(output_key, skip_record)
-
-        warroom_log(
-            f"SOC Framework — {action}: skipped (no vendor implementation)",
-            {
-                "reason": "no implementation for source vendor",
-                "source_vendor": legacy_vendor or "(unresolved)",
-                "action_class": action_class,
+            skip_record = {
                 "action": action,
-                "available_vendors": available,
-            },
-            tags,
-        )
-        return_results(
-            f"{action} skipped — no implementation for source vendor "
-            f"{legacy_vendor or '(unresolved)'} in this action's responses"
-        )
-        return
+                "vendor": legacy_vendor or "(unresolved)",
+                "command": None,
+                "args": {},
+                "shadow_mode": shadow_mode,
+                "success": False,
+                "skipped": True,
+                "skip_reason": skip_reason,
+                "tags": tags or [],
+                "run_id": get_or_create_run_id(ctx),
+                "timestamp": utc_now(),
+            }
+            if output_key:
+                append_context(output_key, skip_record)
 
-    command = vendor_data.get("command")
-    _inline_args_template = vendor_data.get("inline_args", {})
-    inline_args = _resolve_templates(_inline_args_template, ctx)
+            warroom_log(
+                f"SOC Framework — {action}: skipped (no vendor implementation)",
+                {
+                    "reason": "no implementation for source vendor",
+                    "source_vendor": legacy_vendor or "(unresolved)",
+                    "action_class": action_class,
+                    "action": action,
+                    "available_vendors": available,
+                },
+                tags,
+            )
+            return_results(
+                f"{action} skipped — no implementation for source vendor "
+                f"{legacy_vendor or '(unresolved)'} in this action's responses"
+            )
+            return
 
-    # Guard: the action declares argument templates but every CONTEXT-DERIVED
-    # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
-    # when this alert carries no file hash). Firing a command with a missing required
-    # arg fails and hangs the lifecycle, so skip cleanly with a recorded reason --
-    # mirroring the Upon-Trigger enrichment, which only fires when the artifact is
-    # non-empty.
-    #
-    # Only context references count toward "is there anything to act on". A static
-    # literal carries no evidence, and letting it vote here keeps the dispatch alive
-    # after the identifying arg has already been dropped below. Observed on
-    # soc-enrich-user/Microsoft Graph User, where properties=displayName,... is static
-    # and user=${...Identity.User.UPN} resolved empty: the call fired with only
-    # properties, and Graph rejected the malformed path with
-    # "Unexpected segment DynamicPathSegment. Expected property/$value".
-    _ctx_arg_keys = [
-        k for k, raw in _inline_args_template.items() if _is_ctx_template(raw)
-    ]
-    _empty_ctx_args = [
-        k for k in _ctx_arg_keys
-        if inline_args.get(k) in (None, "", [], {}, "null", "None")
-    ]
+    plan = []
+    if dispatch_mode == "all_applicable":
+        plan = [(v, responses[v]) for v in sorted(responses)
+                if isinstance(responses.get(v), dict)]
+        if not plan:
+            skip_reason = f"{action} declares dispatch all_applicable but no response branches"
+            demisto.debug(f"SOCCommandWrapper: skipping {action} - {skip_reason}")
+            skip_record = {
+                "action": action, "vendor": "(none)", "command": None, "args": {},
+                "shadow_mode": shadow_mode, "success": False, "skipped": True,
+                "skip_reason": skip_reason, "tags": tags or [],
+                "run_id": get_or_create_run_id(ctx), "timestamp": utc_now(),
+            }
+            if output_key:
+                append_context(output_key, skip_record)
+            warroom_log(
+                f"SOC Framework - {action}: skipped (no response branches)",
+                {"reason": skip_reason, "action": action},
+                tags,
+            )
+            return_results(f"{action} skipped - no response branches declared")
+            return
+    else:
+        plan = [(vendor, vendor_data)]
 
-    if _ctx_arg_keys and len(_empty_ctx_args) == len(_ctx_arg_keys):
-        skip_record = {
-            "action": action, "vendor": vendor, "command": command,
-            "args": inline_args, "shadow_mode": shadow_mode, "success": False,
-            "skipped": True,
-            "skip_reason": (
-                "no non-empty artifact for command args: "
-                + ", ".join(sorted(_empty_ctx_args))
-            ),
-            "tags": tags or [], "run_id": get_or_create_run_id(ctx),
-            "timestamp": utc_now(),
-        }
-        if output_key:
-            append_context(output_key, skip_record)
-        warroom_log(
-            f"SOC Framework - {action}: skipped (no artifact to act on)",
-            {"reason": "all context-derived command args resolved empty",
-             "empty_args": ", ".join(sorted(_empty_ctx_args)),
-             "action": action, "vendor": vendor, "command": command},
-            tags,
-        )
-        return_results(f"{action} skipped - no non-empty artifact for {command}")
-        return
+    # target_arg names the one inline arg that carries the thing being acted
+    # on. When its context reference resolves to a list, the wrapper
+    # dispatches once per element - one approval upstream still covers the
+    # whole run.
+    target_arg = action_entry.get("target_arg")
 
     timestamp = utc_now()
     run_id = get_or_create_run_id(ctx)
@@ -1008,305 +1525,57 @@ def main():
 
     issue = get_issue_data()
 
-    warroom_log(
-        "SOC Framework - Universal Command Resolved",
-        {
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": shadow_mode,
-            "raw_tags": raw_tags,
-            "raw_tags_type": str(type(raw_tags)),
-            "tags": tags
-        },
-        tags
-    )
+    shared = {
+        "action": action, "args": args, "ctx": ctx, "using": using,
+        "output_key": output_key, "tags": tags, "raw_tags": raw_tags,
+        "shadow_mode": shadow_mode, "run_id": run_id, "timestamp": timestamp,
+        "schema_entries": schema_entries, "issue": issue,
+        "action_time_minutes": action_time_minutes,
+        "action_time_category": action_time_category,
+    }
 
-    if shadow_mode:
-        record = {
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": True,
-            "success": False,
-            "tags": tags,
-            "timestamp": timestamp
-        }
-
-        if output_key:
-            append_context(output_key, record)
-
-        base_payload = resolve_schema_payload(schema_entries, ctx)
-
-        wrapper_values = {
-            "timestamp": timestamp,
-            "event_type": "command",
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "action_status": "simulated",
-            "action_actor": normalize_action_actor(args.get("Action_Actor"), True),
-            "execution_mode": "shadow",
-            "shadow_mode_state": "collected",
-            # Carried on the row so a dashboard or an export can say what to
-            # change, not just that something was suppressed.
-            "shadow_disable_hint": (
-                f"set shadow_mode false on {action} in SOCFrameworkActions_V3, "
-                f"or shadow_mode_by_actor for one caller"),
-            "has_error": False,
-            "error_type": "",
-            "error_message": "",
-            "action_time_minutes": action_time_minutes,
-            "action_time_category": action_time_category
-        }
-
-        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-        post_dataset_payload(dataset_payload, tags)
-
-        # Write sentinel UC.* keys so downstream conditions work in shadow mode
-        output_map = vendor_data.get("output_map", {})
-        fresh_ctx = demisto.context()
-        apply_output_map(output_map, fresh_ctx, shadow_mode=True)
-
-        warroom_log(
-            "SOC Framework - SHADOW MODE (Command Not Executed)",
-            record,
-            tags,
-            footer=shadow_footer(action, args.get("Action_Actor"))
+    single_vendor = len(plan) == 1
+    outcomes = []
+    for pair_vendor, pair_data in plan:
+        outcomes.extend(
+            _dispatch_vendor(shared, pair_vendor, pair_data, target_arg, single_vendor)
         )
 
-        return_results("Shadow Mode: command not executed")
-        return
-
-    try:
+    # One summary entry whenever the run fanned out - per-pair entries above
+    # carry the detail; this is the at-a-glance line. Legacy single dispatch
+    # emits nothing extra, so existing actions read exactly as before.
+    if len(outcomes) > 1:
+        counts = {}
+        for o in outcomes:
+            counts[o["outcome"]] = counts.get(o["outcome"], 0) + 1
         warroom_log(
-            "SOC Framework - Executing Command",
+            f"SOC Framework - {action}: dispatch summary",
             {
-                "command": command,
-                "args": inline_args,
-                "using": using
+                "dispatch": dispatch_mode,
+                "vendors": sorted({str(o["vendor"]) for o in outcomes}),
+                "results": counts,
+                "detail": [
+                    {k: o.get(k) for k in ("vendor", "target", "outcome", "reason")
+                     if o.get(k) is not None}
+                    for o in outcomes
+                ],
             },
-            tags
+            tags,
         )
-
-        # Drop args that failed context resolution — sending empty values
-        # to vendor APIs causes 4xx errors (e.g. Proofpoint TAP 400 when
-        # threatId/campaignId are present-but-empty).
-        execute_args = {
-            k: v for k, v in inline_args.items()
-            if v not in (None, "", [], {})
-        }
-        if using:
-            execute_args["using"] = using
-
-        # Ask the module registry before dispatching. An unavailable brand is
-        # shaped as the error the post-dispatch handler already recognizes, so
-        # the outcome, the record and the dataset row are identical to a real
-        # error 23 — the only difference is that nothing was called.
-        if not brand_available(vendor):
-            result = [{
-                "Type": entryTypes["error"],
-                "ContentsFormat": formats["text"],
-                "Contents": (f"Unsupported Command: {command} — no active instance "
-                             f"of brand '{vendor}' on this tenant."),
-            }]
-        else:
-            result = demisto.executeCommand(command, execute_args)
-
-        failed, error_msg = integration_failed(result)
-
-        if failed:
-            # Check for error 23 — integration not installed or not enabled in this tenant.
-            # Soft-fail so the playbook can continue in degraded mode rather than halting
-            # the entire lifecycle. Shadow mode never reaches this path (vendor command is
-            # suppressed), so this check is execute-only by construction.
-            integration_unavailable = (
-                    "Unsupported Command" in (error_msg or "")
-                    or "(23)" in (error_msg or "")
-            )
-
-            record = {
-                "run_id": run_id,
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "args": inline_args,
-                "shadow_mode": False,
-                "success": False,
-                "error": error_msg,
-                "tags": tags,
-                "timestamp": timestamp
-            }
-
-            if output_key:
-                append_context(output_key, record)
-
-            base_payload = resolve_schema_payload(schema_entries, ctx)
-
-            wrapper_values = {
-                "timestamp": timestamp,
-                "event_type": "command",
-                "run_id": run_id,
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "action_status": "integration_unavailable" if integration_unavailable else "failed",
-                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
-                "execution_mode": "production",
-                "shadow_mode_state": "not_applicable",
-                "has_error": True,
-                "error_type": "integration_unavailable" if integration_unavailable else "command_execution",
-                "error_message": error_msg,
-                "action_time_minutes": action_time_minutes,
-                "action_time_category": action_time_category
-            }
-
-            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-            post_dataset_payload(dataset_payload, tags)
-
-            warroom_log(
-                "SOC Framework - Command Failure",
-                record,
-                tags
-            )
-
-            if integration_unavailable:
-                # Null out UC.* output keys so downstream conditions evaluate cleanly
-                # (missing key → default/blocked path) rather than raising errors
-                output_map = vendor_data.get("output_map", {})
-                for dest_key in (output_map or {}).keys():
-                    demisto.setContext(dest_key, None)
-
-                return_warning(
-                    f"[SOCCommandWrapper] Integration not available for action '{action}'. "
-                    f"Command: {command}. "
-                    f"Install and configure the required integration to enable this action."
+        hard_failures = [o for o in outcomes if o["outcome"] == "failed"]
+        if hard_failures and len(hard_failures) == len(outcomes):
+            return_error(
+                f"{action}: every dispatch failed - "
+                + "; ".join(
+                    f"{o['vendor']}: {o.get('reason', 'error')}" for o in hard_failures
                 )
-                return_results(CommandResults(
-                    readable_output=(
-                        f"⚠️ Integration unavailable: `{command}`\n\n"
-                        f"Action `{action}` requires an integration that is not installed or enabled. "
-                        f"Playbook continues in degraded mode."
-                    ),
-                    outputs_prefix="UC",
-                    outputs={"action": action, "status": "integration_unavailable", "command": command}
-                ))
-                return
-
-            return_error(error_msg)
-
-        record = {
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": False,
-            "success": True,
-            "tags": tags,
-            "timestamp": timestamp
-        }
-
-        if output_key:
-            append_context(output_key, record)
-
-        base_payload = resolve_schema_payload(schema_entries, ctx)
-
-        wrapper_values = {
-            "timestamp": timestamp,
-            "event_type": "command",
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "action_status": "success",
-            "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
-            "execution_mode": "production",
-            "shadow_mode_state": "not_applicable",
-            "has_error": False,
-            "error_type": "",
-            "error_message": "",
-            "action_time_minutes": action_time_minutes,
-            "action_time_category": action_time_category
-        }
-
-        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-        post_dataset_payload(dataset_payload, tags)
-
-        # Map vendor output to canonical UC.* context keys
-        output_map = vendor_data.get("output_map", {})
-        fresh_ctx = demisto.context()
-        entry_context = _extract_entry_context(result)
-        apply_output_map(output_map, fresh_ctx, shadow_mode=False, entry_context=entry_context)
-
-        warroom_log(
-            "SOC Framework - Command Success",
-            record,
-            tags
-        )
-
-        return_results(result)
-
-    except Exception as e:
-        record = {
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": False,
-            "success": False,
-            "error": str(e),
-            "tags": tags,
-            "timestamp": timestamp
-        }
-
-        if output_key:
-            append_context(output_key, record)
-
-        try:
-            base_payload = resolve_schema_payload(schema_entries, ctx)
-
-            wrapper_values = {
-                "timestamp": timestamp,
-                "event_type": "command",
-                "run_id": run_id,
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "action_status": "failed",
-                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
-                "execution_mode": "production",
-                "shadow_mode_state": "not_applicable",
-                "has_error": True,
-                "error_type": "command_execution",
-                "error_message": str(e),
-                "action_time_minutes": action_time_minutes,
-                "action_time_category": action_time_category
-            }
-
-            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-            post_dataset_payload(dataset_payload, tags)
-        except Exception as enrich_e:
-            warroom_log(
-                "SOC Framework - Dataset Enrichment Error",
-                {"error": str(enrich_e)},
-                tags
             )
-
-        warroom_log(
-            "SOC Framework - Command Execution Error",
-            record,
-            tags
+        return_results(
+            f"{action}: "
+            + ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))
         )
-
-        raise
 
 
 if __name__ in ("__builtin__", "builtins", "__main__"):
     main()
+
