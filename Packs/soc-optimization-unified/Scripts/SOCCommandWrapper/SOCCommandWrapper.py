@@ -405,6 +405,28 @@ def get_or_create_run_id(ctx):
     return run_id
 
 
+TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
+
+
+def load_tenant_config():
+    """The customer's vendor values: {vendor: {arg: value}}.
+
+    Created on the tenant, never shipped in a pack, so an upgrade cannot
+    overwrite it. Missing or unreadable means nothing is configured, and any
+    action that needs a value skips with a reason naming it.
+    """
+    try:
+        res = demisto.executeCommand("getList", {"listName": TENANT_CONFIG_LIST})
+        raw = res[0].get("Contents") if res and isinstance(res, list) else None
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper: {TENANT_CONFIG_LIST} unreadable ({e})")
+        return {}
+    if not raw or raw == "Item not found":
+        return {}
+    cfg = _try_json_loads(raw) if isinstance(raw, str) else raw
+    return cfg if isinstance(cfg, dict) else {}
+
+
 def brand_available(brand):
     """Whether the vendor's brand is registered and has an active instance.
 
@@ -1168,6 +1190,16 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     _inline_args_template = vendor_data.get("inline_args", {})
     inline_args = _resolve_templates(_inline_args_template, ctx)
 
+    # Customer-specific values (a block-list ID, a proxy category) come from
+    # SOCFrameworkTenantConfig_V3, keyed by vendor then arg name. They fill
+    # only args the registry ships as empty literals - never an arg bound to
+    # evidence on the issue - so the registry stays upgradeable and the
+    # customer's values survive every pack install.
+    for k, v in (shared.get("tenant_config", {}).get(vendor) or {}).items():
+        if (k in _inline_args_template and _inline_args_template.get(k) in (None, "")
+                and not _is_ctx_template(_inline_args_template.get(k))):
+            inline_args[k] = v
+
     # Guard: the action declares argument templates but every CONTEXT-DERIVED
     # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
     # when this alert carries no file hash). Firing a command with a missing required
@@ -1218,7 +1250,7 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
 
     # Guard: a response branch may name args that are tenant facts rather than
     # evidence - a block-list ID, a proxy category. Shipped empty, they are set
-    # per tenant on this action's row. Until they are, the branch skips and says
+    # per customer in the tenant config list. Until they are, the branch skips and says
     # which value is missing, in shadow as well, because a simulation without
     # them would show a call that could never succeed.
     _missing_cfg = [
@@ -1228,7 +1260,7 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     if _missing_cfg:
         reason = (
             "not configured: set " + ", ".join(_missing_cfg)
-            + f" on {action}.responses.{vendor} in SOCFrameworkActions_V3"
+            + f" for {vendor} in {TENANT_CONFIG_LIST}"
         )
         skip_record = {
             "action": action, "vendor": vendor, "command": command,
@@ -1569,6 +1601,10 @@ def main():
         "schema_entries": schema_entries, "issue": issue,
         "action_time_minutes": action_time_minutes,
         "action_time_category": action_time_category,
+        # Read only for actions that declare customer values, so every other
+        # action makes exactly the list reads it made before.
+        "tenant_config": (load_tenant_config()
+                          if any((d or {}).get("required_args") for _, d in plan) else {}),
     }
 
     single_vendor = len(plan) == 1
