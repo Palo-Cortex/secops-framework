@@ -707,6 +707,10 @@ def enrich_payload(payload, ctx, issue, wrapper_values, args):
     payload["has_error"] = wrapper_values["has_error"]
     payload["error_type"] = wrapper_values["error_type"]
     payload["error_message"] = wrapper_values["error_message"]
+    # Present only when the run fanned out over a list of targets, so each
+    # row says which domain, host or user it acted on.
+    if wrapper_values.get("action_target") is not None:
+        payload["action_target"] = wrapper_values["action_target"]
 
     set_if_missing(payload, "lifecycle", args.get("LifeCycle"))
     set_if_missing(payload, "lifecycle", demisto.get(ctx, "SOCFramework.lifecycle"))
@@ -1212,6 +1216,39 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
                  "outcome": "skipped_no_artifact",
                  "reason": "all context-derived command args resolved empty"}]
 
+    # Guard: a response branch may name args that are tenant facts rather than
+    # evidence - a block-list ID, a proxy category. Shipped empty, they are set
+    # per tenant on this action's row. Until they are, the branch skips and says
+    # which value is missing, in shadow as well, because a simulation without
+    # them would show a call that could never succeed.
+    _missing_cfg = [
+        k for k in (vendor_data.get("required_args") or [])
+        if inline_args.get(k) in (None, "", [], {}, "null", "None")
+    ]
+    if _missing_cfg:
+        reason = (
+            "not configured: set " + ", ".join(_missing_cfg)
+            + f" on {action}.responses.{vendor} in SOCFrameworkActions_V3"
+        )
+        skip_record = {
+            "action": action, "vendor": vendor, "command": command,
+            "args": inline_args, "shadow_mode": shadow_mode, "success": False,
+            "skipped": True, "skip_reason": reason,
+            "tags": tags or [], "run_id": shared["run_id"],
+            "timestamp": shared["timestamp"],
+        }
+        if output_key:
+            append_context(output_key, skip_record)
+        warroom_log(
+            f"SOC Framework - {action}: skipped (vendor not configured)",
+            {"reason": reason, "action": action, "vendor": vendor, "command": command},
+            tags,
+        )
+        if single_vendor:
+            return_results(f"{action} skipped - {reason}")
+        return [{"vendor": vendor, "target": None,
+                 "outcome": "skipped_not_configured", "reason": reason}]
+
     # Resolve the target arg's RAW context value. Template resolution above
     # deliberately collapses a leaf list to its first non-empty scalar (the
     # right rule for ordinary args) — which is exactly how multi-value issues
@@ -1537,8 +1574,11 @@ def main():
     single_vendor = len(plan) == 1
     outcomes = []
     for pair_vendor, pair_data in plan:
+        # Vendors name the same target differently (ioc_domain vs url), so a
+        # response branch may carry its own target_arg; the action's is the default.
+        pair_target_arg = (pair_data or {}).get("target_arg") or target_arg
         outcomes.extend(
-            _dispatch_vendor(shared, pair_vendor, pair_data, target_arg, single_vendor)
+            _dispatch_vendor(shared, pair_vendor, pair_data, pair_target_arg, single_vendor)
         )
 
     # One summary entry whenever the run fanned out - per-pair entries above
