@@ -1370,5 +1370,45 @@
     "phase": "recovery",
     "entity_scope": "artifact",
     "capability": "Email recovery \u2014 release held message"
+  },
+  "soc-block-domain": {
+    "responses": {
+      "ThreatStopv2": {
+        "command": "threatstopv2-update-domain-list",
+        "target_arg": "ioc_domain",
+        "required_args": [
+          "list_id"
+        ],
+        "inline_args": {
+          "action": "add",
+          "ioc_domain": "${SOCFramework.Artifacts.Network.DNS.Query}",
+          "list_id": "",
+          "comments": "Blocked by SOC Framework containment"
+        }
+      },
+      "Zscaler": {
+        "command": "zscaler-category-add-url",
+        "target_arg": "url",
+        "required_args": [
+          "category-id"
+        ],
+        "inline_args": {
+          "url": "${SOCFramework.Artifacts.Network.DNS.Query}",
+          "category-id": "",
+          "using": ""
+        }
+      }
+    },
+    "shadow_mode": true,
+    "phase": "containment",
+    "entity_scope": "artifact",
+    "sequence_rank": 21,
+    "capability": "Network containment \u2014 block domain at DNS and web proxy",
+    "dispatch": "all_applicable",
+    "shadow_mode_by_actor": {
+      "analyst": true,
+      "issue_emergency": true,
+      "case_lifecycle": true
+    }
   }
 }

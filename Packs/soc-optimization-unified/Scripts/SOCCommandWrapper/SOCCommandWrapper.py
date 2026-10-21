@@ -405,6 +405,28 @@ def get_or_create_run_id(ctx):
     return run_id
 
 
+TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
+
+
+def load_tenant_config():
+    """The customer's vendor values: {vendor: {arg: value}}.
+
+    Created on the tenant, never shipped in a pack, so an upgrade cannot
+    overwrite it. Missing or unreadable means nothing is configured, and any
+    action that needs a value skips with a reason naming it.
+    """
+    try:
+        res = demisto.executeCommand("getList", {"listName": TENANT_CONFIG_LIST})
+        raw = res[0].get("Contents") if res and isinstance(res, list) else None
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper: {TENANT_CONFIG_LIST} unreadable ({e})")
+        return {}
+    if not raw or raw == "Item not found":
+        return {}
+    cfg = _try_json_loads(raw) if isinstance(raw, str) else raw
+    return cfg if isinstance(cfg, dict) else {}
+
+
 def brand_available(brand):
     """Whether the vendor's brand is registered and has an active instance.
 
@@ -707,6 +729,10 @@ def enrich_payload(payload, ctx, issue, wrapper_values, args):
     payload["has_error"] = wrapper_values["has_error"]
     payload["error_type"] = wrapper_values["error_type"]
     payload["error_message"] = wrapper_values["error_message"]
+    # Present only when the run fanned out over a list of targets, so each
+    # row says which domain, host or user it acted on.
+    if wrapper_values.get("action_target") is not None:
+        payload["action_target"] = wrapper_values["action_target"]
 
     set_if_missing(payload, "lifecycle", args.get("LifeCycle"))
     set_if_missing(payload, "lifecycle", demisto.get(ctx, "SOCFramework.lifecycle"))
@@ -1164,6 +1190,16 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     _inline_args_template = vendor_data.get("inline_args", {})
     inline_args = _resolve_templates(_inline_args_template, ctx)
 
+    # Customer-specific values (a block-list ID, a proxy category) come from
+    # SOCFrameworkTenantConfig_V3, keyed by vendor then arg name. They fill
+    # only args the registry ships as empty literals - never an arg bound to
+    # evidence on the issue - so the registry stays upgradeable and the
+    # customer's values survive every pack install.
+    for k, v in (shared.get("tenant_config", {}).get(vendor) or {}).items():
+        if (k in _inline_args_template and _inline_args_template.get(k) in (None, "")
+                and not _is_ctx_template(_inline_args_template.get(k))):
+            inline_args[k] = v
+
     # Guard: the action declares argument templates but every CONTEXT-DERIVED
     # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
     # when this alert carries no file hash). Firing a command with a missing required
@@ -1211,6 +1247,39 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
         return [{"vendor": vendor, "target": None,
                  "outcome": "skipped_no_artifact",
                  "reason": "all context-derived command args resolved empty"}]
+
+    # Guard: a response branch may name args that are tenant facts rather than
+    # evidence - a block-list ID, a proxy category. Shipped empty, they are set
+    # per customer in the tenant config list. Until they are, the branch skips and says
+    # which value is missing, in shadow as well, because a simulation without
+    # them would show a call that could never succeed.
+    _missing_cfg = [
+        k for k in (vendor_data.get("required_args") or [])
+        if inline_args.get(k) in (None, "", [], {}, "null", "None")
+    ]
+    if _missing_cfg:
+        reason = (
+            "not configured: set " + ", ".join(_missing_cfg)
+            + f" for {vendor} in {TENANT_CONFIG_LIST}"
+        )
+        skip_record = {
+            "action": action, "vendor": vendor, "command": command,
+            "args": inline_args, "shadow_mode": shadow_mode, "success": False,
+            "skipped": True, "skip_reason": reason,
+            "tags": tags or [], "run_id": shared["run_id"],
+            "timestamp": shared["timestamp"],
+        }
+        if output_key:
+            append_context(output_key, skip_record)
+        warroom_log(
+            f"SOC Framework - {action}: skipped (vendor not configured)",
+            {"reason": reason, "action": action, "vendor": vendor, "command": command},
+            tags,
+        )
+        if single_vendor:
+            return_results(f"{action} skipped - {reason}")
+        return [{"vendor": vendor, "target": None,
+                 "outcome": "skipped_not_configured", "reason": reason}]
 
     # Resolve the target arg's RAW context value. Template resolution above
     # deliberately collapses a leaf list to its first non-empty scalar (the
@@ -1532,13 +1601,20 @@ def main():
         "schema_entries": schema_entries, "issue": issue,
         "action_time_minutes": action_time_minutes,
         "action_time_category": action_time_category,
+        # Read only for actions that declare customer values, so every other
+        # action makes exactly the list reads it made before.
+        "tenant_config": (load_tenant_config()
+                          if any((d or {}).get("required_args") for _, d in plan) else {}),
     }
 
     single_vendor = len(plan) == 1
     outcomes = []
     for pair_vendor, pair_data in plan:
+        # Vendors name the same target differently (ioc_domain vs url), so a
+        # response branch may carry its own target_arg; the action's is the default.
+        pair_target_arg = (pair_data or {}).get("target_arg") or target_arg
         outcomes.extend(
-            _dispatch_vendor(shared, pair_vendor, pair_data, target_arg, single_vendor)
+            _dispatch_vendor(shared, pair_vendor, pair_data, pair_target_arg, single_vendor)
         )
 
     # One summary entry whenever the run fanned out - per-pair entries above
