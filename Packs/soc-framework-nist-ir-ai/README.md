@@ -14,7 +14,7 @@ Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the
 
 | Item | What it is |
 | --- | --- |
-| `EP_IR_NIST (800-61) AI` | Entry point. Builds the contract at Upon Trigger, then runs the issue assessment aiTask. **Not in this pack** — see [ai/nist-ir](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) |
+| `EP_IR_NIST - AI` | Entry point. Builds the contract at Upon Trigger, then runs the issue assessment aiTask. **Not in this pack** — see [ai/nist-ir](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) |
 | `JOB - SOC Case Analysis` | The JOB playbook. Selects cases, collapses them, builds payloads |
 | `SOC Case Analysis Phase` | Sub-playbook, once per case. **Not in this pack** — see [ai/nist-ir](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) |
 | `SOCFWCollectIntel` | Gathers the reputation context roots into one key for the issue prompt |
@@ -29,11 +29,11 @@ Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the
 | [SOCFWIssueAssessment prompt](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/SOCFWIssueAssessment.prompt.md) | Issue-scope AI Prompt — configuration and full body. Not installed by the pack |
 | [SOCFWCaseAnalysis prompt](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/SOCFWCaseAnalysis.prompt.md) | Case-scope AI Prompt — configuration and full body. Not installed by the pack |
 
-**Two playbooks are not in this pack.** `EP_IR_NIST (800-61) AI` and `SOC Case Analysis Phase` carry `aiTask` tasks, and an `aiTask` holds an `aiTaskId` bound to an AI Prompt on one specific tenant. A pack shipping them cannot install cleanly anywhere else, so they live at [`ai/nist-ir/`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) — still in this repo, as a peer of `Packs/` — and are uploaded through the UI. That README covers uploading them, rebinding each `aiTask`, and the automation rule that triggers the lifecycle.
+**Two playbooks are not in this pack.** `EP_IR_NIST - AI` and `SOC Case Analysis Phase` carry `aiTask` tasks, and an `aiTask` holds an `aiTaskId` bound to an AI Prompt on one specific tenant. A pack shipping them cannot install cleanly anywhere else, so they live at [`ai/nist-ir/`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) — still in this repo, as a peer of `Packs/` — and are uploaded through the UI. That README covers uploading them, rebinding each `aiTask`, and the automation rule that triggers the lifecycle.
 
 `JOB - SOC Case Analysis` has no `aiTask` and does ship here — but it calls `SOC Case Analysis Phase`, so the JOB cannot resolve its sub-playbook until that upload is done.
 
-**Installing this pack changes nothing on its own.** The content side-loads alongside `soc-framework-nist-ir`; the existing `EP_IR_NIST (800-61)_V3` keeps its inline lifecycle and keeps running. Nothing switches over until the automation trigger is pointed at `EP_IR_NIST (800-61) AI`, and pointing it back is the rollback.
+**Installing this pack changes nothing on its own.** The content side-loads alongside `soc-framework-nist-ir`; the existing `EP_IR_NIST (800-61)_V3` keeps its inline lifecycle and keeps running. Nothing switches over until the automation trigger is pointed at `EP_IR_NIST - AI`, and pointing it back is the rollback.
 
 The supporting scripts come from `soc-framework-nist-ir`: `SOCFWCaseSelect`, `SOCFWBuildCasePayload`, `SOCFWFetchShapeContracts`, `SOCFWCaseIterationSetup`, `SOCFWCaseVerdictReport`.
 
@@ -66,7 +66,7 @@ Seven inputs, each bound through `SetIfEmpty` with default `no content`:
 
 `no content` has to arrive as a value the model can read rather than as a missing variable — a sparse category leaves most of the contract empty, and the prompt distinguishes "asked and got nothing" from "never asked". Do not raise the token ceiling below 2500: at 1200 a real endpoint contract truncated mid-reply.
 
-**3. Bind it.** Open `EP_IR_NIST (800-61) AI`, task `9002` — *SOCFWIssueAssessment* — and point its `aiTaskId` at the prompt created in step 2.
+**3. Bind it.** Open `EP_IR_NIST - AI`, task `9002` — *SOCFWIssueAssessment* — and point its `aiTaskId` at the prompt created in step 2.
 
 **Prompt ids are tenant-local.** The id shipped in the pack belongs to the tenant the content was authored on and will not resolve anywhere else, so this binding is required on every tenant and after every pack upgrade.
 
@@ -101,7 +101,7 @@ Create this before binding in step 5.
 
 A pack upgrade replaces this playbook with the shipped placeholder, so re-check the binding after any upgrade and re-bind if needed. Nothing else is lost: the JOB, the entry point and all thresholds upgrade normally.
 
-**6. Check the layout rule.** The pack ships `SOCFramework NIST IR AI`, which serves `SOCFramework NIST IR AI Layout` to any issue whose `playbookId` is `EP_IR_NIST (800-61) AI`. Issues on the deterministic entry point keep the standard NIST IR layout, so the rule is self-scoping and reverts with the trigger.
+**6. Check the layout rule.** The pack ships `SOCFramework NIST IR AI`, which serves `SOCFramework NIST IR AI Layout` to any issue whose `playbookId` is `EP_IR_NIST - AI`. Issues on the deterministic entry point keep the standard NIST IR layout, so the rule is self-scoping and reverts with the trigger.
 
 The AI layout has two tabs rather than three:
 
@@ -124,7 +124,7 @@ If the Assessment section does not appear, this is the first thing to check — 
 
 **7. Configure.** Add or check the `Case Analysis JOB` block in `SOCOptimizationConfig_V3` — see Settings below.
 
-**8. Point the automation trigger** at `EP_IR_NIST (800-61) AI` when ready to move to case scope. Until this step, the pack is installed and inert. Point it back at `EP_IR_NIST (800-61)_V3` to roll back.
+**8. Point the automation trigger** at `EP_IR_NIST - AI` when ready to move to case scope. Until this step, the pack is installed and inert. Point it back at `EP_IR_NIST (800-61)_V3` to roll back.
 
 **9. Create the scheduled Job** in the Jobs UI:
 
@@ -139,7 +139,7 @@ Keep the interval well clear of run duration. Runs take minutes on a busy tenant
 
 ## How the issue assessment runs
 
-`EP_IR_NIST (800-61) AI` chains: **Foundation - Upon Trigger V3 → Collect Intel → SOCFWIssueAssessment → Render Assessment → Promote Assessment Output → Done.**
+`EP_IR_NIST - AI` chains: **Foundation - Upon Trigger V3 → Collect Intel → SOCFWIssueAssessment → Render Assessment → Promote Assessment Output → Done.**
 
 **Why intel is collected separately.** Foundation's enrichment runs the reputation commands, but their verdicts land in standard context roots — `DBotScore`, `IP`, `Domain`, `File`, `URL` and friends — not inside `SOCFramework.Artifacts`. A prompt variable binds one path, so `SOCFWCollectIntel` gathers them into `Assessment.Intel` first. The root list comes from `SOCOptimizationConfig_V3` → `CaseIntelRoots`, shared with the case JOB, so adding Recorded Future or GTI there reaches both paths. Unit 42 Intelligence and VirusTotal are reputation providers and arrive through those roots with no extra binding.
 
@@ -279,4 +279,4 @@ Case analysis, per case:
 
 **Another tenant.** Prompt ids are tenant-local. Install the pack, create both prompts there, then bind both aiTasks — steps 2 through 5 are per tenant.
 
-**After a pack upgrade.** The JOB updates normally. `SOC Case Analysis Phase` reverts to the shipped placeholder, so re-check task 10 and re-bind. `EP_IR_NIST (800-61) AI` reverts task `9002` to the placeholder prompt id, so re-check that binding too. The symptoms are a JOB run that completes with no verdict on any case, and issues reaching Done with nothing at `Assessment.AI`.
+**After a pack upgrade.** The JOB updates normally. `SOC Case Analysis Phase` reverts to the shipped placeholder, so re-check task 10 and re-bind. `EP_IR_NIST - AI` reverts task `9002` to the placeholder prompt id, so re-check that binding too. The symptoms are a JOB run that completes with no verdict on any case, and issues reaching Done with nothing at `Assessment.AI`.
