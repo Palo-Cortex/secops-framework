@@ -77,7 +77,7 @@ each `aiTask` needs pointing at the prompt created in step 2.
 
 Open each playbook, select the `aiTask` task, and choose the matching prompt:
 
-- `EP_IR_NIST (800-61) AI` — task **9002** → `SOCFWIssueAssessment`
+- `EP_IR_NIST - AI` — task **9002** → `SOCFWIssueAssessment`
 - `SOC Case Analysis Phase` — task **10** → `SOCFWCaseAnalysis`
 
 Save. The task shows the prompt name once bound.
@@ -97,7 +97,7 @@ IF  (domain = Security AND severity in (High, Critical))
     OR (domain = Security
         AND detection method in (ANALYTICS_BIOC, MAGNIFIER, IOC)
         AND name != "Spam Bot Traffic")
-THEN EP_IR_NIST (800-61) AI
+THEN EP_IR_NIST - AI
 ```
 
 Why each branch:
@@ -133,7 +133,7 @@ dataset = issues | filter xdm.issue.domain = "SECURITY"
 
 - Both playbooks open without a missing-component warning
 - `JOB - SOC Case Analysis` resolves `SOC Case Analysis Phase` as its sub-playbook
-- Run `EP_IR_NIST (800-61) AI` on one issue and confirm `SOCFramework.Analysis.AI`
+- Run `EP_IR_NIST - AI` on one issue and confirm `SOCFramework.Analysis.AI`
   is populated
 - Confirm no earlier automation rule is consuming the issues this rule targets
 
