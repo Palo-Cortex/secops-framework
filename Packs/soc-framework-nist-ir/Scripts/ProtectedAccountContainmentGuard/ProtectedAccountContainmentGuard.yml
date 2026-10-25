@@ -1,0 +1,97 @@
+commonfields:
+  id: ProtectedAccountContainmentGuard
+  version: -1
+name: ProtectedAccountContainmentGuard
+script: "import json\nimport re\nimport traceback\nfrom typing import Any\n\n\nDEFAULT_PROTECTED_KEYWORDS = [\n    \"admin\"\
+  ,\n    \"domain admins\",\n    \"enterprise admins\",\n    \"global administrator\",\n    \"privileged\",\n    \"break glass\"\
+  ,\n    \"service account\",\n    \"svc\",\n]\n\n\ndef arg_to_bool(value: Any, default: bool = False) -> bool:\n    if value\
+  \ is None or value == \"\":\n        return default\n    if isinstance(value, bool):\n        return value\n    return str(value).strip().lower()\
+  \ in (\"true\", \"yes\", \"y\", \"1\")\n\n\ndef normalize_to_list(value: Any) -> list[str]:\n    if value is None or value\
+  \ == \"\":\n        return []\n\n    if isinstance(value, list):\n        return [str(item).strip() for item in value if\
+  \ str(item).strip()]\n\n    if isinstance(value, dict):\n        return [json.dumps(value, sort_keys=True)]\n\n    if isinstance(value,\
+  \ str):\n        raw = value.strip()\n        if not raw:\n            return []\n\n        try:\n            parsed = json.loads(raw)\n\
+  \            if isinstance(parsed, list):\n                return [str(item).strip() for item in parsed if str(item).strip()]\n\
+  \            if isinstance(parsed, dict):\n                values = []\n                for key in (\"name\", \"displayName\"\
+  , \"group\", \"groups\"):\n                    if key in parsed:\n                        values.extend(normalize_to_list(parsed.get(key)))\n\
+  \                return values or [json.dumps(parsed, sort_keys=True)]\n            return [str(parsed).strip()]\n     \
+  \   except Exception:\n            pass\n\n        parts = re.split(r\"[\\n,;|]+\", raw)\n        return [part.strip() for\
+  \ part in parts if part.strip()]\n\n    return [str(value).strip()]\n\n\ndef normalize_keywords(value: Any) -> list[str]:\n\
+  \    provided = normalize_to_list(value)\n    keywords = provided if provided else DEFAULT_PROTECTED_KEYWORDS\n    return\
+  \ sorted({keyword.lower().strip() for keyword in keywords if keyword.strip()})\n\n\ndef detect_service_account_patterns(user_identifier:\
+  \ str) -> list[str]:\n    checks = {\n        \"username starts with svc_\": r\"(^|[\\\\/@])svc_\",\n        \"username\
+  \ starts with svc-\": r\"(^|[\\\\/@])svc-\",\n        \"username contains service\": r\"service\",\n        \"username contains\
+  \ breakglass\": r\"break\\s*glass|breakglass\",\n    }\n\n    matches = []\n    lowered = user_identifier.lower()\n    for\
+  \ reason, pattern in checks.items():\n        if re.search(pattern, lowered):\n            matches.append(reason)\n    return\
+  \ matches\n\n\ndef find_keyword_matches(groups: list[str], keywords: list[str]) -> list[str]:\n    matched = []\n    for\
+  \ group in groups:\n        group_lower = group.lower()\n        if any(keyword in group_lower for keyword in keywords):\n\
+  \            matched.append(group)\n    return sorted(set(matched))\n\n\ndef parse_args(args: dict[str, Any]) -> dict[str,\
+  \ Any]:\n    user_identifier = str(args.get(\"user_identifier\", \"\")).strip()\n    if not user_identifier:\n        raise\
+  \ ValueError(\"user_identifier is required.\")\n\n    return {\n        \"user_identifier\": user_identifier,\n        \"\
+  ad_groups\": normalize_to_list(args.get(\"ad_groups\")),\n        \"entra_groups\": normalize_to_list(args.get(\"entra_groups\"\
+  )),\n        \"protected_keywords\": normalize_keywords(args.get(\"protected_keywords\")),\n        \"require_approval_for_vip\"\
+  : arg_to_bool(args.get(\"require_approval_for_vip\"), True),\n    }\n\n\ndef main():\n    try:\n        args = parse_args(demisto.args())\n\
+  \n        all_groups = args[\"ad_groups\"] + args[\"entra_groups\"]\n        matched_groups = find_keyword_matches(all_groups,\
+  \ args[\"protected_keywords\"])\n        reasons = []\n\n        if matched_groups:\n            reasons.append(\"User is\
+  \ a member of one or more groups matching protected keywords.\")\n\n        service_patterns = detect_service_account_patterns(args[\"\
+  user_identifier\"])\n        reasons.extend(service_patterns)\n\n        is_protected = bool(matched_groups or service_patterns)\n\
+  \n        if is_protected and args[\"require_approval_for_vip\"]:\n            recommended_action = \"require_manual_approval_before_containment\"\
+  \n        elif is_protected:\n            recommended_action = \"treat_as_protected_account\"\n        else:\n         \
+  \   recommended_action = \"automated_containment_allowed_by_this_check\"\n\n        outputs = {\n            \"user_identifier\"\
+  : args[\"user_identifier\"],\n            \"is_protected_account\": is_protected,\n            \"reasons\": reasons,\n \
+  \           \"matched_groups\": matched_groups,\n            \"recommended_action\": recommended_action,\n        }\n\n\
+  \        readable = tableToMarkdown(\n            \"Protected Account Containment Guard\",\n            [{\n           \
+  \     \"User\": args[\"user_identifier\"],\n                \"Protected\": is_protected,\n                \"Matched Groups\"\
+  : \", \".join(matched_groups) if matched_groups else \"None\",\n                \"Reasons\": \"; \".join(reasons) if reasons\
+  \ else \"No protected indicators found\",\n                \"Recommended Action\": recommended_action,\n            }],\n\
+  \        )\n\n        return_results(CommandResults(\n            readable_output=readable,\n            outputs_prefix=\"\
+  ProtectedAccountGuard\",\n            outputs=outputs,\n            raw_response=outputs,\n        ))\n\n    except Exception\
+  \ as ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"Failed to evaluate protected account status.\
+  \ Error: {ex}\")\n\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()"
+type: python
+tags:
+- condition
+- containment
+comment: Determines whether a user should be treated as privileged or protected before automated containment. This automation
+  never executes containment actions.
+enabled: true
+args:
+- supportedModules: []
+  name: user_identifier
+  required: true
+  description: Username, UPN, SAM account name, or other user identifier to evaluate.
+- supportedModules: []
+  name: ad_groups
+  description: AD group membership data. Accepts JSON array, list, comma/newline/semicolon-separated string, or plain string.
+- supportedModules: []
+  name: entra_groups
+  description: Entra ID group membership data. Accepts JSON array, list, comma/newline/semicolon-separated string, or plain
+    string.
+- supportedModules: []
+  name: protected_keywords
+  description: Keywords used to identify protected groups. Defaults include admin, domain admins, enterprise admins, global
+    administrator, privileged, break glass, service account, and svc.
+- supportedModules: []
+  name: require_approval_for_vip
+  description: When true, protected accounts return a recommendation to require manual approval before containment.
+  defaultValue: 'true'
+outputs:
+- contextPath: ProtectedAccountGuard.user_identifier
+  description: User identifier evaluated by the automation.
+  type: string
+- contextPath: ProtectedAccountGuard.is_protected_account
+  description: Whether the user matched protected or privileged indicators.
+  type: boolean
+- contextPath: ProtectedAccountGuard.reasons
+  description: Reasons the user was treated as protected.
+  type: unknown
+- contextPath: ProtectedAccountGuard.matched_groups
+  description: AD or Entra groups that matched protected keywords.
+  type: unknown
+- contextPath: ProtectedAccountGuard.recommended_action
+  description: Recommended containment decision for downstream playbook logic.
+  type: string
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.13.89009
+runas: DBotWeakRole

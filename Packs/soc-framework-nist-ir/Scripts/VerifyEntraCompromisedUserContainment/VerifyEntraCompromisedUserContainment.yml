@@ -1,0 +1,110 @@
+commonfields:
+  id: VerifyEntraCompromisedUserContainment
+  version: -1
+name: VerifyEntraCompromisedUserContainment
+script: "import traceback\nfrom typing import Any, Optional\n\n\nOUTPUT_PREFIX = \"CompromisedUserContainment.Entra\"\n\n\n\
+  def parse_args(args: dict[str, Any]) -> dict[str, Any]:\n    user_id = args.get(\"user_id\")\n    upn = args.get(\"user_principal_name\"\
+  )\n\n    if not user_id:\n        raise DemistoException(\"The required argument 'user_id' was not provided.\")\n\n    return\
+  \ {\n        \"user_id\": str(user_id).strip(),\n        \"user_principal_name\": str(upn).strip() if upn else None,\n \
+  \   }\n\n\ndef execute_command(command: str, args: dict[str, Any]) -> list[dict[str, Any]]:\n    res = demisto.executeCommand(command,\
+  \ args)\n    if is_error(res):\n        raise DemistoException(f\"{command} failed: {get_error(res)}\")\n    return res\n\
+  \n\ndef try_get_entra_user(user_id: str, upn: Optional[str]) -> dict[str, Any]:\n    \"\"\"\n    Tries common Microsoft\
+  \ Graph / Entra command names.\n    Adjust USER_LOOKUP_COMMANDS if your tenant uses a different integration command.\n \
+  \   \"\"\"\n    USER_LOOKUP_COMMANDS = [\n        (\"msgraph-user-get\", {\"user\": user_id}),\n        (\"msgraph-user-get\"\
+  , {\"user_id\": user_id}),\n        (\"msgraph-user-get\", {\"id\": user_id}),\n        (\"azure-ad-get-user\", {\"user_id\"\
+  : user_id}),\n        (\"azure-ad-get-user\", {\"user\": user_id}),\n    ]\n\n    if upn:\n        USER_LOOKUP_COMMANDS.extend([\n\
+  \            (\"msgraph-user-get\", {\"user\": upn}),\n            (\"azure-ad-get-user\", {\"user\": upn}),\n        ])\n\
+  \n    last_error = None\n\n    for command, command_args in USER_LOOKUP_COMMANDS:\n        try:\n            res = execute_command(command,\
+  \ command_args)\n            for entry in res:\n                contents = entry.get(\"Contents\")\n                if isinstance(contents,\
+  \ dict):\n                    return contents\n                if isinstance(contents, list) and contents and isinstance(contents[0],\
+  \ dict):\n                    return contents[0]\n        except Exception as ex:\n            last_error = str(ex)\n\n\
+  \    raise DemistoException(f\"Unable to re-query Microsoft Entra user. Last error: {last_error}\")\n\n\ndef get_context_value(path:\
+  \ str) -> Any:\n    try:\n        return demisto.get(demisto.context(), path)\n    except Exception:\n        return None\n\
+  \n\ndef normalize_bool(value: Any) -> Optional[bool]:\n    if isinstance(value, bool):\n        return value\n    if isinstance(value,\
+  \ str):\n        lowered = value.lower().strip()\n        if lowered in (\"true\", \"yes\", \"success\", \"succeeded\",\
+  \ \"disabled\"):\n            return True\n        if lowered in (\"false\", \"no\", \"failed\", \"enabled\"):\n       \
+  \     return False\n    return None\n\n\ndef determine_session_revocation_status() -> str:\n    possible_paths = [\n   \
+  \     \"CompromisedUserContainment.Entra.sessions_revoked\",\n        \"CompromisedUserContainment.Entra.session_revocation_status\"\
+  ,\n        \"ClearUserSessions.Result\",\n        \"MicrosoftGraphUser.SessionRevocation.Status\",\n        \"Entra.SessionRevocation.Status\"\
+  ,\n    ]\n\n    for path in possible_paths:\n        value = get_context_value(path)\n        if value:\n            text\
+  \ = str(value).lower()\n            if any(x in text for x in (\"success\", \"succeeded\", \"true\", \"revoked\")):\n  \
+  \              return \"Success\"\n            if any(x in text for x in (\"submitted\", \"pending\", \"accepted\")):\n\
+  \                return \"Submitted\"\n            if \"fail\" in text or \"error\" in text:\n                return \"\
+  Failed\"\n\n    return \"Submitted\"\n\n\ndef determine_mfa_reset_status() -> str:\n    possible_paths = [\n        \"CompromisedUserContainment.Entra.mfa_reset_status\"\
+  ,\n        \"ResetEntraAuthenticationMethods.Status\",\n        \"ResetEntraAuthenticationMethods.Result\",\n        \"\
+  MicrosoftGraphUser.AuthenticationMethods.ResetStatus\",\n        \"Entra.AuthenticationMethods.ResetStatus\",\n    ]\n\n\
+  \    for path in possible_paths:\n        value = get_context_value(path)\n        if value:\n            text = str(value).lower()\n\
+  \            if any(x in text for x in (\"success\", \"succeeded\", \"removed\", \"reset\")):\n                return \"\
+  Success\"\n            if any(x in text for x in (\"submitted\", \"pending\", \"accepted\")):\n                return \"\
+  Submitted\"\n            if any(x in text for x in (\"partial\", \"some\")):\n                return \"Partial\"\n     \
+  \       if \"fail\" in text or \"error\" in text:\n                return \"Failed\"\n\n    return \"Unknown\"\n\n\ndef\
+  \ calculate_status(signin_disabled: bool, sessions_revoked: str, mfa_reset_status: str) -> str:\n    if not signin_disabled:\n\
+  \        return \"Failed\"\n\n    statuses = [sessions_revoked, mfa_reset_status]\n\n    if \"Failed\" in statuses:\n  \
+  \      return \"Partial\"\n\n    if sessions_revoked == \"Submitted\" or mfa_reset_status == \"Submitted\":\n        return\
+  \ \"Submitted\"\n\n    if mfa_reset_status == \"Unknown\":\n        return \"Partial\"\n\n    if sessions_revoked == \"\
+  Success\" and mfa_reset_status == \"Success\":\n        return \"Success\"\n\n    return \"Unknown\"\n\n\ndef build_readable_output(output:\
+  \ dict[str, Any]) -> str:\n    return tableToMarkdown(\n        \"Microsoft Entra Containment Verification\",\n        {\n\
+  \            \"Status\": output.get(\"status\"),\n            \"Account Enabled\": output.get(\"account_enabled\"),\n  \
+  \          \"Sign-in Disabled\": output.get(\"signin_disabled\"),\n            \"Sessions Revoked\": output.get(\"sessions_revoked\"\
+  ),\n            \"MFA Reset Status\": output.get(\"mfa_reset_status\"),\n            \"Details\": output.get(\"details\"\
+  ),\n        },\n        removeNull=True,\n    )\n\n\ndef main():\n    try:\n        args = parse_args(demisto.args())\n\n\
+  \        user = try_get_entra_user(\n            user_id=args[\"user_id\"],\n            upn=args.get(\"user_principal_name\"\
+  ),\n        )\n\n        account_enabled = user.get(\"accountEnabled\")\n        if account_enabled is None:\n         \
+  \   account_enabled = user.get(\"account_enabled\")\n\n        normalized_account_enabled = normalize_bool(account_enabled)\n\
+  \        signin_disabled = normalized_account_enabled is False\n\n        sessions_revoked = determine_session_revocation_status()\n\
+  \        mfa_reset_status = determine_mfa_reset_status()\n\n        status = calculate_status(\n            signin_disabled=signin_disabled,\n\
+  \            sessions_revoked=sessions_revoked,\n            mfa_reset_status=mfa_reset_status,\n        )\n\n        details\
+  \ = []\n        if signin_disabled:\n            details.append(\"Microsoft Entra user accountEnabled is false.\")\n   \
+  \     else:\n            details.append(\"Microsoft Entra user accountEnabled is not confirmed false.\")\n\n        if sessions_revoked\
+  \ == \"Submitted\":\n            details.append(\"Session revocation is treated as Submitted because revocation may be asynchronous\
+  \ or only submission evidence exists.\")\n        elif sessions_revoked == \"Success\":\n            details.append(\"Session\
+  \ revocation success evidence was found in context.\")\n        else:\n            details.append(f\"Session revocation\
+  \ status: {sessions_revoked}.\")\n\n        if mfa_reset_status == \"Unknown\":\n            details.append(\"No ResetEntraAuthenticationMethods\
+  \ context was found; MFA/authentication-method reset could not be verified.\")\n        else:\n            details.append(f\"\
+  Authentication methods reset status: {mfa_reset_status}.\")\n\n        output = {\n            \"status\": status,\n   \
+  \         \"account_enabled\": normalized_account_enabled,\n            \"signin_disabled\": signin_disabled,\n        \
+  \    \"sessions_revoked\": sessions_revoked,\n            \"mfa_reset_status\": mfa_reset_status,\n            \"details\"\
+  : \" \".join(details),\n        }\n\n        return_results(CommandResults(\n            outputs_prefix=OUTPUT_PREFIX,\n\
+  \            outputs=output,\n            readable_output=build_readable_output(output),\n        ))\n\n    except Exception\
+  \ as ex:\n        demisto.error(traceback.format_exc())\n        return_error(f\"Failed to verify Microsoft Entra containment.\
+  \ Error: {ex}\")\n\n\nif __name__ in (\"__main__\", \"__builtin__\", \"builtins\"):\n    main()\n"
+type: python
+tags:
+- compromised-user-containment
+- entra
+- verification
+comment: Verifies Microsoft Entra containment for a compromised user after sign-in disablement, session revocation, and authentication
+  method reset.
+enabled: true
+args:
+- supportedModules: []
+  name: user_id
+  required: true
+  description: Microsoft Entra user object ID or identifier used to re-query the user.
+- supportedModules: []
+  name: user_principal_name
+  description: Optional user principal name used as a fallback lookup identifier.
+outputs:
+- contextPath: CompromisedUserContainment.Entra.status
+  description: Overall verification result. One of Success, Partial, Failed, Submitted, or Unknown.
+  type: string
+- contextPath: CompromisedUserContainment.Entra.account_enabled
+  description: Current accountEnabled value from Microsoft Entra.
+  type: boolean
+- contextPath: CompromisedUserContainment.Entra.signin_disabled
+  description: Whether accountEnabled is confirmed false.
+  type: boolean
+- contextPath: CompromisedUserContainment.Entra.sessions_revoked
+  description: Session revocation verification state.
+  type: string
+- contextPath: CompromisedUserContainment.Entra.mfa_reset_status
+  description: Authentication method reset verification state.
+  type: string
+- contextPath: CompromisedUserContainment.Entra.details
+  description: Human-readable verification details.
+  type: string
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.13.89009
+runas: DBotWeakRole
