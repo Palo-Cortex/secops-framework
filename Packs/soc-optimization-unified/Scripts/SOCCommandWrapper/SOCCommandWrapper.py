@@ -405,26 +405,44 @@ def get_or_create_run_id(ctx):
     return run_id
 
 
-TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
+TENANT_CONFIG_LIST = "SOCFWTenantConfig"
+# The name the list shipped under with soc-block-domain. Read only when the new
+# list does not exist, for one release, then this fallback is removed.
+LEGACY_TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
+
+
+def _read_tenant_config_list(name):
+    """None when the list does not exist; {} when it exists but is unusable."""
+    try:
+        res = demisto.executeCommand("getList", {"listName": name})
+        raw = res[0].get("Contents") if res and isinstance(res, list) else None
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper: {name} unreadable ({e})")
+        return None
+    if not raw or raw == "Item not found":
+        return None
+    cfg = _try_json_loads(raw) if isinstance(raw, str) else raw
+    if not isinstance(cfg, dict):
+        demisto.debug(f"SOCCommandWrapper: {name} is not a JSON object; ignoring it")
+        return {}
+    return cfg
 
 
 def load_tenant_config():
-    """The customer's vendor values: {vendor: {arg: value}}.
+    """The customer's values, from the tenant-only config list.
 
     Created on the tenant, never shipped in a pack, so an upgrade cannot
     overwrite it. Missing or unreadable means nothing is configured, and any
     action that needs a value skips with a reason naming it.
+
+    The legacy name is read only when the new list does not exist. A new list
+    that exists but is malformed does not fall back: stale values from the old
+    list would be worse than a skip that names the missing value.
     """
-    try:
-        res = demisto.executeCommand("getList", {"listName": TENANT_CONFIG_LIST})
-        raw = res[0].get("Contents") if res and isinstance(res, list) else None
-    except Exception as e:
-        demisto.debug(f"SOCCommandWrapper: {TENANT_CONFIG_LIST} unreadable ({e})")
-        return {}
-    if not raw or raw == "Item not found":
-        return {}
-    cfg = _try_json_loads(raw) if isinstance(raw, str) else raw
-    return cfg if isinstance(cfg, dict) else {}
+    cfg = _read_tenant_config_list(TENANT_CONFIG_LIST)
+    if cfg is None:
+        cfg = _read_tenant_config_list(LEGACY_TENANT_CONFIG_LIST)
+    return cfg or {}
 
 
 def brand_available(brand):
@@ -1191,7 +1209,7 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     inline_args = _resolve_templates(_inline_args_template, ctx)
 
     # Customer-specific values (a block-list ID, a proxy category) come from
-    # SOCFrameworkTenantConfig_V3, keyed by vendor then arg name. They fill
+    # the tenant config list, keyed by vendor then arg name. They fill
     # only args the registry ships as empty literals - never an arg bound to
     # evidence on the issue - so the registry stays upgradeable and the
     # customer's values survive every pack install.
@@ -1260,7 +1278,7 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     if _missing_cfg:
         reason = (
             "not configured: set " + ", ".join(_missing_cfg)
-            + f" for {vendor} in {TENANT_CONFIG_LIST}"
+            + f" for {vendor} in {LEGACY_TENANT_CONFIG_LIST}"
         )
         skip_record = {
             "action": action, "vendor": vendor, "command": command,
