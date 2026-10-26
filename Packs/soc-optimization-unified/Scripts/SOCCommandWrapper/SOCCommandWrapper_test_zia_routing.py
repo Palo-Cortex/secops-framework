@@ -98,7 +98,7 @@ def test_zia_ip_block_without_category_skips_and_names_it():
     demisto = _run(shadow=False, tenant=None)
     assert _calls(demisto, "zscaler-category-add-ip") == []
     text = json.dumps([str(r) for r in demisto._results])
-    assert "category-id" in text and "SOCFrameworkTenantConfig_V3" in text
+    assert "category-id" in text and "SOCFWTenantConfig" in text
 
 
 def test_zia_ip_block_shadow_names_zscaler_without_calling_it():

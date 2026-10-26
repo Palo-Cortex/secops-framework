@@ -1278,7 +1278,7 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     if _missing_cfg:
         reason = (
             "not configured: set " + ", ".join(_missing_cfg)
-            + f" for {vendor} in {LEGACY_TENANT_CONFIG_LIST}"
+            + f" for {vendor} in {TENANT_CONFIG_LIST}"
         )
         skip_record = {
             "action": action, "vendor": vendor, "command": command,
