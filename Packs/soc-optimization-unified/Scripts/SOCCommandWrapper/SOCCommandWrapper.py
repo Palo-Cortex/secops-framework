@@ -36,30 +36,27 @@ def warroom_log(title, payload, tags=None, footer=""):
         demisto.debug(f"warroom_log failed: {str(e)}")
 
 
+def shadow_go_live_command(action, actor):
+    """The SOCFWConfig command that makes this action real for this actor."""
+    who = str(actor or "").strip().lower() or "<actor>"
+    return (f"!SOCFWConfig command=shadow action={action} actor={who} "
+            "value=off apply=yes")
+
+
 def shadow_footer(action, actor):
     """How to make this specific action real, printed where it is noticed.
 
-    Names the action and the caller, because the two are now separable: an
-    analyst clicking a layout button and the containment JOB are different
-    callers and can be flipped independently.
+    Names the action and the actor, because they are separable: an analyst
+    clicking a layout button and the containment JOB are different actors and
+    can be taken off shadow independently.
     """
-    caller = str(actor or "").strip().lower() or "this caller"
     return (
         "\n**This was a simulation.** No vendor command ran.\n\n"
-        f"To make `{action}` real, edit it in the `SOCFrameworkActions_V3` list:\n\n"
-        "```json\n"
-        f"\"{action}\": {{\n"
-        "  \"shadow_mode\": false\n"
-        "}\n"
+        f"To make `{action}` real for this actor, run:\n\n"
+        "```\n"
+        f"{shadow_go_live_command(action, actor)}\n"
         "```\n\n"
-        f"To make it real for {caller} only, and keep every other caller "
-        "simulated:\n\n"
-        "```json\n"
-        f"\"{action}\": {{\n"
-        "  \"shadow_mode\": true,\n"
-        f"  \"shadow_mode_by_actor\": {{ \"{caller}\": false }}\n"
-        "}\n"
-        "```\n\n"
+        "Run it without `apply=yes` first to see the change.\n\n"
         "_Actions stay simulated until someone changes this deliberately._"
     )
 
@@ -956,9 +953,7 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
             "shadow_mode_state": "collected",
             # Carried on the row so a dashboard or an export can say what to
             # change, not just that something was suppressed.
-            "shadow_disable_hint": (
-                f"set shadow_mode false on {action} in SOCFrameworkActions_V3, "
-                f"or shadow_mode_by_actor for one caller"),
+            "shadow_disable_hint": shadow_go_live_command(action, args.get("Action_Actor")),
             "has_error": False,
             "error_type": "",
             "error_message": "",
