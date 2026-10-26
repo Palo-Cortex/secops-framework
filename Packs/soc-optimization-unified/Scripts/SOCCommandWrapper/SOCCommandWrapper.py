@@ -489,8 +489,44 @@ def brand_available(brand):
     return any(m.get("state") == "active" for m in registered)
 
 
-def resolve_shadow_mode(action_entry, raw_actor):
+def _as_bool(value):
+    """True/False for a bool or a "true"/"false" string; None for anything else."""
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ("true", "false"):
+        return text == "true"
+    return None
+
+
+def tenant_shadow_override(tenant_config, action, raw_actor):
+    """The customer's shadow setting for this action and actor, or None.
+
+    Lives in the tenant config as {"shadow": {action: {actor: bool}}}, written
+    by SOCFWConfig. One entry per action per actor, never a catch-all, so the
+    answer for any pair is either named here or comes from the shipped row.
+    A value that is not a boolean is ignored rather than guessed.
+    """
+    actor = str(raw_actor or "").strip().lower()
+    if not actor or not isinstance(tenant_config, dict):
+        return None
+    section = tenant_config.get("shadow")
+    per_action = section.get(action) if isinstance(section, dict) else None
+    if not isinstance(per_action, dict) or actor not in per_action:
+        return None
+    value = _as_bool(per_action[actor])
+    if value is None:
+        demisto.debug(
+            f"SOCCommandWrapper: ignoring non-boolean shadow override "
+            f"{action}/{actor}={per_action[actor]!r}")
+    return value
+
+
+def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
     """Whether this dispatch is simulated, for this caller.
+
+    A tenant override for this action and actor (tenant_shadow_override)
+    decides first. Without one, the shipped action row decides as below.
 
     shadow_mode is the action-level default and stays the only required field.
     Where an action also carries shadow_mode_by_actor, the caller decides:
@@ -506,6 +542,10 @@ def resolve_shadow_mode(action_entry, raw_actor):
     Resolved on the raw actor, because normalize_action_actor rewrites "analyst"
     to "shadow" once shadowing is decided and would erase the distinction.
     """
+    if tenant_override is not None:
+        demisto.debug(f"resolve_shadow_mode: tenant override shadow={tenant_override}")
+        return tenant_override
+
     default = action_entry.get("shadow_mode", False)
     if not isinstance(default, bool):
         default = str(default).lower() == "true"
@@ -1416,8 +1456,12 @@ def main():
         f"action_category={action_time_category}"
     )
 
-    # Read shadow_mode from the action entry — single source of truth
-    shadow_mode = resolve_shadow_mode(action_entry, args.get("Action_Actor"))
+    # Shadow: the tenant config's setting for this action and actor if it names
+    # one, otherwise the shipped action entry.
+    tenant_config = load_tenant_config()
+    shadow_mode = resolve_shadow_mode(
+        action_entry, args.get("Action_Actor"),
+        tenant_shadow_override(tenant_config, action, args.get("Action_Actor")))
 
     responses = action_entry.get("responses", {})
 
@@ -1619,10 +1663,7 @@ def main():
         "schema_entries": schema_entries, "issue": issue,
         "action_time_minutes": action_time_minutes,
         "action_time_category": action_time_category,
-        # Read only for actions that declare customer values, so every other
-        # action makes exactly the list reads it made before.
-        "tenant_config": (load_tenant_config()
-                          if any((d or {}).get("required_args") for _, d in plan) else {}),
+        "tenant_config": tenant_config,
     }
 
     single_vendor = len(plan) == 1
