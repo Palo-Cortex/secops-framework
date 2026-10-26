@@ -412,11 +412,13 @@ def _read_tenant_config_list(name):
     """None when the list does not exist; {} when it exists but is unusable."""
     try:
         res = demisto.executeCommand("getList", {"listName": name})
-        raw = res[0].get("Contents") if res and isinstance(res, list) else None
+        entry = res[0] if res and isinstance(res, list) and isinstance(res[0], dict) else {}
     except Exception as e:
         demisto.debug(f"SOCCommandWrapper: {name} unreadable ({e})")
         return None
-    if not raw or raw == "Item not found":
+    raw = entry.get("Contents")
+    # A missing list comes back as an error entry: " - Item not found (8) on list [<name>] (2609)".
+    if not raw or entry.get("Type") == 4 or "Item not found" in str(raw):
         return None
     cfg = _try_json_loads(raw) if isinstance(raw, str) else raw
     if not isinstance(cfg, dict):

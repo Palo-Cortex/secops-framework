@@ -33,7 +33,8 @@ def _lists(**by_name):
         if name in by_name:
             value = by_name[name]
             return [{"Contents": value if isinstance(value, str) else json.dumps(value)}]
-        return [{"Contents": "Item not found"}]
+        # What getList returns inside a script for a missing list (deathstar, 26 Oct 2026).
+        return [{"Type": 4, "Contents": f" - Item not found (8) on list [{name}] (2609)"}]
     return _get
 
 

@@ -36,7 +36,10 @@ class Tenant:
         self.commands.append((command, args))
         name = args.get("listName")
         if command == "getList":
-            return [{"Type": 1, "Contents": self.lists.get(name, "Item not found")}]
+            if name not in self.lists:
+                # What getList returns inside a script for a missing list (deathstar, 26 Oct 2026).
+                return [{"Type": 4, "Contents": f" - Item not found (8) on list [{name}] (2609)"}]
+            return [{"Type": 1, "Contents": self.lists[name]}]
         if command == "setList":
             if name not in self.lists:
                 return [{"Type": 4, "Contents": "Item not found"}]

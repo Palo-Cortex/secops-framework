@@ -47,9 +47,13 @@ class ConfigError(Exception):
 def _read_list(name):
     """(exists, parsed). parsed is None when the content is not a JSON object."""
     res = demisto.executeCommand("getList", {"listName": name})
-    raw = res[0].get("Contents") if res and isinstance(res, list) else None
-    if not raw or raw == "Item not found":
+    entry = res[0] if res and isinstance(res, list) and isinstance(res[0], dict) else {}
+    raw = entry.get("Contents")
+    # A missing list comes back as an error entry: " - Item not found (8) on list [<name>] (2609)".
+    if not raw or "Item not found" in str(raw):
         return False, None
+    if entry.get("Type") == 4:
+        raise ConfigError(f"could not read {name}: {raw}")
     if isinstance(raw, dict):
         return True, raw
     try:
