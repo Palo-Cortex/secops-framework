@@ -125,7 +125,7 @@ def test_no_tenant_config_list_skips_with_the_value_to_set():
     recs = d.get(d._context, "UCTest.Executions")
     reasons = {r["vendor"]: r["skip_reason"] for r in recs}
     assert len(recs) == 2 and all(r["skipped"] for r in recs)
-    assert "list_id" in reasons["ThreatStopv2"] and "SOCFrameworkTenantConfig_V3" in reasons["ThreatStopv2"]
+    assert "list_id" in reasons["ThreatStopv2"] and "SOCFWTenantConfig" in reasons["ThreatStopv2"]
     assert "category-id" in reasons["Zscaler"]
 
 

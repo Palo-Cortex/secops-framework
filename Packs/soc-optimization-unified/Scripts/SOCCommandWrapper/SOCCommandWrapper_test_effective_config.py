@@ -48,7 +48,7 @@ SOURCES = {k: v for k, v in _list("SOCProductCategoryMap_V3").items()
 CLASS_MAP = _list("SOCActionClassMap_V3")
 
 TEMPLATE = re.compile(r"\$\{([^}]+)\}")
-TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
+TENANT_CONFIG_LIST = "SOCFWTenantConfig"
 
 
 def _callers():
