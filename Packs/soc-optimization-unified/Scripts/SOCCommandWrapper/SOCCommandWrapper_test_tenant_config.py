@@ -183,3 +183,11 @@ def test_star_case_runs_for_ai_with_override_in_new_list():
 
 def test_star_case_override_read_from_legacy_list_when_new_missing():
     assert "setParentIncidentFields" in _star("framework", **{OLD: STAR_LIVE})
+
+
+def test_shadow_hint_names_the_socfwconfig_command():
+    script, _ = load_script()
+    cmd = "!SOCFWConfig command=shadow action=soc-star-case actor=ai value=off apply=yes"
+    assert script.shadow_go_live_command("soc-star-case", "AI") == cmd
+    assert cmd in script.shadow_footer("soc-star-case", "ai")
+    assert "actor=<actor>" in script.shadow_go_live_command("soc-star-case", "")
