@@ -93,9 +93,11 @@ TENANT_CONFIGS = {"none": None, "full": _full_tenant_config()}
 RECORD_FIELDS = ("vendor", "command", "args", "target", "skipped", "skip_reason")
 
 
-def _shadow_table():
+def _shadow_table(overlay=None):
     script, _ = load_script()
-    return {name: {caller: script.resolve_shadow_mode(row, caller) for caller in _callers()}
+    return {name: {caller: script.resolve_shadow_mode(
+                row, caller, script.tenant_shadow_override(overlay, name, caller))
+                for caller in _callers()}
             for name, row in sorted(ACTIONS.items())}
 
 
@@ -144,21 +146,33 @@ def _route(action, source_key, tenant):
     return {"dispatches": out, "error": error} if error else {"dispatches": out}
 
 
-def _routing_tables():
+def _with_overlay(tenant, overlay):
+    if not overlay:
+        return tenant
+    merged = copy.deepcopy(tenant) if tenant else {}
+    merged.update(copy.deepcopy(overlay))
+    return merged
+
+
+def _routing_tables(overlay=None):
+    none_cfg = _with_overlay(TENANT_CONFIGS["none"], overlay)
+    full_cfg = _with_overlay(TENANT_CONFIGS["full"], overlay)
     plain, configured = {}, {}
     for action in sorted(ACTIONS):
         for source_key in sorted(SOURCES):
             key = "{} | {}".format(action, source_key)
-            plain[key] = _route(action, source_key, TENANT_CONFIGS["none"])
-            with_cfg = _route(action, source_key, TENANT_CONFIGS["full"])
+            plain[key] = _route(action, source_key, none_cfg)
+            with_cfg = _route(action, source_key, full_cfg)
             if with_cfg != plain[key]:
                 configured[key] = with_cfg
     return plain, configured
 
 
-def build_snapshot():
-    plain, configured = _routing_tables()
-    return {"shadow": _shadow_table(), "routing": plain, "routing_configured": configured}
+def build_snapshot(overlay=None):
+    """overlay: extra tenant config merged into every run, e.g. a shadow override."""
+    plain, configured = _routing_tables(overlay)
+    return {"shadow": _shadow_table(overlay), "routing": plain,
+            "routing_configured": configured}
 
 
 def _dump(snapshot):
@@ -210,3 +224,23 @@ def test_snapshot_covers_every_action_source_and_caller():
     assert set(snap["routing_configured"]) <= set(snap["routing"])
     for row in snap["shadow"].values():
         assert set(row) == set(_callers())
+
+
+# A customer taking starring off shadow for the assessment and the framework,
+# the way SOCFWConfig writes it.
+STAR_LIVE_FOR_AI_AND_FRAMEWORK = {"shadow": {"soc-star-case": {"ai": False, "framework": False}}}
+
+
+def test_tenant_shadow_override_moves_only_the_rows_it_names():
+    expected = _load_snapshot()
+    flipped = build_snapshot(STAR_LIVE_FOR_AI_AND_FRAMEWORK)
+    moved = []
+    for section in SECTIONS:
+        for key in sorted(set(expected[section]) | set(flipped[section])):
+            a, b = expected[section].get(key), flipped[section].get(key)
+            if section == "shadow":
+                moved += [(section, key, c, a[c], b[c]) for c in sorted(a) if a[c] != b[c]]
+            elif a != b:
+                moved.append((section, key))
+    assert moved == [("shadow", "soc-star-case", "ai", True, False),
+                     ("shadow", "soc-star-case", "framework", True, False)]

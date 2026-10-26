@@ -104,3 +104,82 @@ def test_customer_value_from_new_list_reaches_the_dispatch():
     rec = _zia_block(**{NEW: {"Zscaler": {"category-id": "cat-new"}}})
     assert not rec.get("skipped"), rec.get("skip_reason")
     assert rec["args"]["category-id"] == "cat-new"
+
+
+# ── Shadow overrides from the tenant config ───────────────────────────────────
+# {"shadow": {action: {actor: bool}}}, written by SOCFWConfig. A named pair
+# decides; anything not named falls through to the shipped action row.
+
+STAR = ACTIONS["soc-star-case"]  # shadow true; analyst false, ai true, framework true
+STAR_LIVE = {"shadow": {"soc-star-case": {"ai": False, "framework": False}}}
+
+
+def _shadow(tenant, actor, action="soc-star-case"):
+    script, _ = load_script()
+    return script.resolve_shadow_mode(
+        ACTIONS[action], actor, script.tenant_shadow_override(tenant, action, actor))
+
+
+def test_override_takes_named_actor_off_shadow():
+    assert _shadow(None, "ai") is True
+    assert _shadow(STAR_LIVE, "ai") is False
+    assert _shadow(STAR_LIVE, "framework") is False
+
+
+def test_override_leaves_other_actors_on_the_shipped_row():
+    assert _shadow(STAR_LIVE, "analyst") is False      # shipped by_actor
+    assert _shadow(STAR_LIVE, "automation") is True    # shipped default
+    assert _shadow(STAR_LIVE, "") is True
+
+
+def test_override_can_put_an_actor_back_on_shadow():
+    assert _shadow({"shadow": {"soc-star-case": {"analyst": True}}}, "analyst") is True
+
+
+def test_override_is_per_action():
+    assert _shadow(STAR_LIVE, "ai", action="soc-close-issue") is True
+
+
+def test_string_booleans_accepted_other_values_ignored():
+    assert _shadow({"shadow": {"soc-star-case": {"ai": "false"}}}, "ai") is False
+    assert _shadow({"shadow": {"soc-star-case": {"ai": "off"}}}, "ai") is True
+    assert _shadow({"shadow": "nonsense"}, "ai") is True
+
+
+def test_actor_match_ignores_case_and_spaces():
+    assert _shadow(STAR_LIVE, " AI ") is False
+
+
+def _star(actor, **lists):
+    script, demisto = load_script()
+    demisto._args = {"action": "soc-star-case", "list_name": "SOCFrameworkActions_V3",
+                     "output_key": "UCTest.Executions", "Action_Actor": actor}
+    demisto._context = {"SOCFramework": {"RunID": "run-1", "Product": {}}}
+    getlist = _lists(**lists)
+
+    def _get(args):
+        name = (args or {}).get("listName")
+        if name == "SOCFrameworkActions_V3":
+            return [{"Contents": json.dumps({"soc-star-case": STAR})}]
+        return getlist(args)
+
+    demisto._command_responses = {
+        "getList": _get,
+        "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
+        "setParentIncidentFields": [{"Type": 1, "Contents": "ok"}],
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+    }
+    script.main()
+    return [c for c, _ in demisto._commands]
+
+
+def test_star_case_is_simulated_for_ai_without_override():
+    assert "setParentIncidentFields" not in _star("ai")
+
+
+def test_star_case_runs_for_ai_with_override_in_new_list():
+    assert "setParentIncidentFields" in _star("ai", **{NEW: STAR_LIVE})
+
+
+def test_star_case_override_read_from_legacy_list_when_new_missing():
+    assert "setParentIncidentFields" in _star("framework", **{OLD: STAR_LIVE})
