@@ -183,18 +183,28 @@ def _diff(old, new, limit=40):
     return "\n".join(lines[:limit]) + ("\n... {} more".format(more) if more > 0 else "")
 
 
+SECTIONS = ("shadow", "routing", "routing_configured")
+
+
+def _load_snapshot():
+    """The snapshot's own sections only. check_contribution's normalizer adds
+    id/name/fromVersion to JSON under a pack, which are not configuration."""
+    raw = json.load(open(SNAPSHOT))
+    return {k: raw[k] for k in SECTIONS if k in raw}
+
+
 def test_effective_configuration_matches_snapshot():
     current = build_snapshot()
     if os.environ.get("SOCFW_UPDATE_SNAPSHOT") or not os.path.exists(SNAPSHOT):
         os.makedirs(os.path.dirname(SNAPSHOT), exist_ok=True)
         with open(SNAPSHOT, "w") as f:
             f.write(_dump(current))
-    expected = json.load(open(SNAPSHOT))
+    expected = _load_snapshot()
     assert current == expected, "effective configuration changed:\n" + _diff(expected, current)
 
 
 def test_snapshot_covers_every_action_source_and_caller():
-    snap = json.load(open(SNAPSHOT)) if os.path.exists(SNAPSHOT) else build_snapshot()
+    snap = _load_snapshot() if os.path.exists(SNAPSHOT) else build_snapshot()
     assert set(snap["shadow"]) == set(ACTIONS)
     assert len(snap["routing"]) == len(ACTIONS) * len(SOURCES)
     assert set(snap["routing_configured"]) <= set(snap["routing"])
