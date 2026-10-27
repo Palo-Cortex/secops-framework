@@ -31,6 +31,8 @@ class Tenant:
         self.lists = {"SOCFrameworkActions_V3": json.dumps(ACTIONS)}
         self.lists.update({k: v if isinstance(v, str) else json.dumps(v) for k, v in lists.items()})
         self.commands = []
+        self.rows = []
+        self.dataset_down = False
 
     def execute(self, command, args):
         self.commands.append((command, args))
@@ -45,6 +47,10 @@ class Tenant:
                 return [{"Type": 4, "Contents": "Item not found"}]
             self.lists[name] = args["listData"]
             return [{"Type": 1, "Contents": "Done"}]
+        if command == "socfw-post-to-dataset":
+            self.rows.append(json.loads(args["JSON"]))
+            return [{"Type": 4, "Contents": "writer down"}] if self.dataset_down else \
+                [{"Type": 1, "Contents": "ok"}]
         if command == "createList":
             if name in self.lists:
                 return [{"Type": 4, "Contents": "already exists"}]
@@ -266,3 +272,35 @@ def test_status_and_wrapper_agree_on_framework_alias():
             theirs = wrapper.resolve_shadow_mode(
                 row, "framework", wrapper.tenant_shadow_override(cfg, name, "framework"))
             assert mine == theirs, (cfg, name)
+
+
+# ── execution dataset record ──────────────────────────────────────────────────
+
+def test_apply_records_one_row_per_changed_actor_outside_any_incident():
+    t = Tenant(**{NEW: {"shadow": {"soc-star-case": {"ai": False}}}})
+    r = run(t, command="shadow", action="soc-star-case", actor="ai,automation",
+            value="off", apply="yes")
+    assert r.outputs["recorded"] is True
+    assert t.rows == [{"event_type": "config_change", "timestamp": t.rows[0]["timestamp"],
+                       "universal_command": "soc-star-case", "action_actor": "automation",
+                       "shadow_mode_state": "live", "action_status": "set off",
+                       "action_taken": "shadow -> live"}]
+    # The value dashboards group by incident and select by phase; neither may be set.
+    assert all("incident_id" not in row and "phase" not in row for row in t.rows)
+
+
+def test_dry_run_and_no_op_record_nothing():
+    t = Tenant()
+    run(t, command="shadow", action="soc-star-case", actor="ai", value="off")
+    t2 = Tenant(**{NEW: {"shadow": {"soc-star-case": {"ai": False}}}})
+    run(t2, command="shadow", action="soc-star-case", actor="ai", value="off", apply="yes")
+    assert t.rows == [] and t2.rows == []
+
+
+def test_failed_record_does_not_fail_the_change():
+    t = Tenant()
+    t.dataset_down = True
+    r = run(t, command="shadow", action="soc-star-case", actor="ai", value="off", apply="yes")
+    assert r.outputs["applied"] is True and r.outputs["recorded"] is False
+    assert t.config() == {"shadow": {"soc-star-case": {"ai": False}}}
+    assert "record in the execution dataset was not" in r.readable_output
