@@ -403,9 +403,6 @@ def get_or_create_run_id(ctx):
 
 
 TENANT_CONFIG_LIST = "SOCFWTenantConfig"
-# The name the list shipped under with soc-block-domain. Read only when the new
-# list does not exist, for one release, then this fallback is removed.
-LEGACY_TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
 
 
 def _read_tenant_config_list(name):
@@ -433,15 +430,8 @@ def load_tenant_config():
     Created on the tenant, never shipped in a pack, so an upgrade cannot
     overwrite it. Missing or unreadable means nothing is configured, and any
     action that needs a value skips with a reason naming it.
-
-    The legacy name is read only when the new list does not exist. A new list
-    that exists but is malformed does not fall back: stale values from the old
-    list would be worse than a skip that names the missing value.
     """
-    cfg = _read_tenant_config_list(TENANT_CONFIG_LIST)
-    if cfg is None:
-        cfg = _read_tenant_config_list(LEGACY_TENANT_CONFIG_LIST)
-    return cfg or {}
+    return _read_tenant_config_list(TENANT_CONFIG_LIST) or {}
 
 
 def brand_available(brand):

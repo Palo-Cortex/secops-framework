@@ -4,7 +4,7 @@ SOCCommandWrapper_test_block_domain.py
 soc-block-domain against the registry row as it ships in
 Lists/SOCFrameworkActions_V3, not a hand-copied fixture, so a change to the
 row is tested here. Covers per-vendor target args (ThreatStop ioc_domain,
-Zscaler url), customer values from SOCFrameworkTenantConfig_V3, the
+Zscaler url), customer values from SOCFWTenantConfig, the
 not-configured skip, shadow, and the
 action_target column on the dataset row.
 
@@ -50,7 +50,7 @@ def _run(action_map, domains, tenant=None, actor="analyst"):
         name = (args or {}).get("listName")
         if name == "SOCFrameworkActions_V3":
             return [{"Contents": json.dumps(action_map)}]
-        if name == "SOCFrameworkTenantConfig_V3" and tenant is not None:
+        if name == "SOCFWTenantConfig" and tenant is not None:
             return [{"Contents": json.dumps(tenant)}]
         return [{"Contents": "Item not found"}]
 

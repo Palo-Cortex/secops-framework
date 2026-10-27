@@ -1,9 +1,7 @@
 """
 SOCCommandWrapper_test_tenant_config.py
 
-Which tenant config list the wrapper reads. SOCFWTenantConfig is the name; the
-list shipped as SOCFrameworkTenantConfig_V3 and is read only when the new list
-does not exist, for one release.
+Reading the tenant config list, SOCFWTenantConfig, and the shadow overrides in it.
 
 Run: pytest Scripts/SOCCommandWrapper/SOCCommandWrapper_test_tenant_config.py -v
 """
@@ -23,7 +21,7 @@ CLASS_MAP = json.load(open(os.path.join(
     _LISTS, "SOCActionClassMap_V3", "SOCActionClassMap_V3_data.json")))
 
 NEW = "SOCFWTenantConfig"
-OLD = "SOCFrameworkTenantConfig_V3"
+OLD = "SOCFrameworkTenantConfig_V3"  # removed name; must never be read
 
 
 def _lists(**by_name):
@@ -48,19 +46,12 @@ def test_reads_new_name():
     assert _load(**{NEW: {"Zscaler": {"category-id": "new"}}}) == {"Zscaler": {"category-id": "new"}}
 
 
-def test_falls_back_to_legacy_name_when_new_list_missing():
-    assert _load(**{OLD: {"Zscaler": {"category-id": "old"}}}) == {"Zscaler": {"category-id": "old"}}
+def test_old_list_name_is_never_read():
+    assert _load(**{OLD: {"Zscaler": {"category-id": "old"}}}) == {}
 
 
-def test_new_list_wins_over_legacy():
-    cfg = _load(**{NEW: {"Zscaler": {"category-id": "new"}},
-                   OLD: {"Zscaler": {"category-id": "old"}}})
-    assert cfg == {"Zscaler": {"category-id": "new"}}
-
-
-def test_malformed_new_list_does_not_fall_back():
-    # Stale values from the old list would be worse than a skip naming the value.
-    assert _load(**{NEW: "not json", OLD: {"Zscaler": {"category-id": "old"}}}) == {}
+def test_malformed_list_means_nothing_configured():
+    assert _load(**{NEW: "not json"}) == {}
 
 
 def test_neither_list_means_nothing_configured():
@@ -182,8 +173,8 @@ def test_star_case_runs_for_ai_with_override_in_new_list():
     assert "setParentIncidentFields" in _star("ai", **{NEW: STAR_LIVE})
 
 
-def test_star_case_override_read_from_legacy_list_when_new_missing():
-    assert "setParentIncidentFields" in _star("framework", **{OLD: STAR_LIVE})
+def test_star_case_old_playbook_passing_framework_follows_automation():
+    assert "setParentIncidentFields" in _star("framework", **{NEW: STAR_LIVE})
 
 
 def test_shadow_hint_names_the_socfwconfig_command():
