@@ -30,7 +30,11 @@ LEGACY_TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
 
 # The actors the framework passes to the wrapper. Status always shows these;
 # any other actor named in the tenant config is shown as well.
-ACTORS = ("analyst", "ai", "framework", "automation", "issue_emergency")
+ACTORS = ("analyst", "ai", "automation", "issue_emergency")
+
+# Old actor names the wrapper still reads, and what they mean now. Kept in step
+# with LEGACY_ACTOR_ALIASES in SOCCommandWrapper.
+LEGACY_ACTOR_ALIASES = {"framework": "automation"}
 
 # Actions in these phases only read. They run live and are never shadowed.
 READ_ONLY_PHASES = ("enrichment", "investigation")
@@ -124,16 +128,26 @@ def is_read_only(row):
     return str(row.get("phase") or "").lower() in READ_ONLY_PHASES
 
 
+def _shadow_actor(actor, named):
+    alias = LEGACY_ACTOR_ALIASES.get(actor)
+    return alias if alias and actor not in named else actor
+
+
 def tenant_value(cfg, action, actor):
     section = cfg.get("shadow") if isinstance(cfg, dict) else None
     per_action = section.get(action) if isinstance(section, dict) else None
-    if not isinstance(per_action, dict) or actor not in per_action:
+    if not isinstance(per_action, dict):
+        return None
+    actor = _shadow_actor(actor, per_action)
+    if actor not in per_action:
         return None
     return _as_bool(per_action[actor])
 
 
 def shipped_value(row, actor):
     by_actor = row.get("shadow_mode_by_actor")
+    if isinstance(by_actor, dict):
+        actor = _shadow_actor(actor, by_actor)
     if isinstance(by_actor, dict) and actor in by_actor:
         value = _as_bool(by_actor[actor])
         if value is not None:
@@ -226,6 +240,9 @@ def shadow(args):
         raise ConfigError("value must be on, off or default")
     if not actors:
         raise ConfigError("actor is required: one or more of " + ", ".join(ACTORS))
+    renamed = [f"{a} is now {LEGACY_ACTOR_ALIASES[a]}" for a in actors if a in LEGACY_ACTOR_ALIASES]
+    if renamed:
+        raise ConfigError("; ".join(renamed) + " - use that name instead")
     valid_actors = set(ACTORS)
     for r in actions.values():
         valid_actors |= {str(a).lower() for a in (r.get("shadow_mode_by_actor") or {})}
