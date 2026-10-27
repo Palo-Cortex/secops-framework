@@ -11,6 +11,8 @@ Commands
            what SOCFrameworkActions_V3 says. Dry run unless apply=yes.
   set      Set one customer value (a block-list id, a proxy category, an
            instance), or remove it with value=default. Dry run unless apply=yes.
+  job      Give a framework JOB a real owner and turn its schedule on or off.
+           The job's own schedule is the only on/off. Dry run unless apply=yes.
 
 Every command returns the same data twice: a War Room table for people and
 SOCFWConfig.* context for the PoV harness. contract_version changes when a key
@@ -30,7 +32,7 @@ TENANT_CONFIG_LIST = "SOCFWTenantConfig"
 
 # The actors the framework passes to the wrapper. Status always shows these;
 # any other actor named in the tenant config is shown as well.
-ACTORS = ("analyst", "ai", "automation", "issue_emergency")
+ACTORS = ("analyst", "ai", "automation")
 
 # Old actor names the wrapper still reads, and what they mean now. Kept in step
 # with LEGACY_ACTOR_ALIASES in SOCCommandWrapper.
@@ -45,6 +47,12 @@ DATASET_COMMAND = "socfw-post-to-dataset"
 DATASET_INSTANCE = "socfw_ir_execution_writer"
 
 # Where each status cell came from.
+# JOBs the framework ships. The pack installs them off, owned by a placeholder,
+# because the owner must be a user on the customer's tenant.
+JOBS = ("Auto Triage V3", "SOC Case Analysis")
+OWNER_PLACEHOLDER = "set-owner-with-SOCFWConfig"
+JOB_VALUES = {"on": True, "off": False}
+
 FROM_TENANT = "tenant_config"          # SOCFWTenantConfig shadow.<action>.<actor>
 FROM_ACTOR = "action_actor"            # SOCFrameworkActions_V3 <action>.shadow_mode_by_actor.<actor>
 FROM_DEFAULT = "action_default"        # SOCFrameworkActions_V3 <action>.shadow_mode
@@ -317,6 +325,9 @@ def status(args):
                "value=<value>` — add `apply=yes` to write."]
     if not exists:
         md += ["", f"{TENANT_CONFIG_LIST} does not exist yet; the first `apply=yes` creates it."]
+
+    outputs["jobs"], job_md = _job_status()
+    md += job_md
     return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Status",
                           outputs=outputs)
 
@@ -503,6 +514,168 @@ def set_value(args):
                           outputs=outputs)
 
 
+# ── job ──────────────────────────────────────────────────────────────────────
+
+def _core_api(uri, body):
+    """POST through the Core REST API integration; the response object, or ConfigError."""
+    res = demisto.executeCommand("core-api-post", {"uri": uri, "body": json.dumps(body)})
+    if _is_error(res):
+        raise ConfigError(f"{uri} failed ({_error_text(res)}); jobs are read and written through "
+                          "the Core REST API integration, the same one SOCFWHealthCheck uses")
+    for e in res or []:
+        contents = e.get("Contents") if isinstance(e, dict) else None
+        if isinstance(contents, dict) and "response" in contents:
+            return contents["response"]
+    raise ConfigError(f"{uri} returned nothing readable")
+
+
+def load_jobs():
+    """The framework JOBs on this tenant, by name."""
+    found = _core_api("/xsoar/public/v1/jobs/search", {"page": 0, "size": 200})
+    data = found.get("data") if isinstance(found, dict) else found
+    return {j.get("name"): j for j in (data or []) if isinstance(j, dict) and j.get("name") in JOBS}
+
+
+def load_users():
+    """Lowercased usernames and emails of the tenant's users, or None if unreadable."""
+    try:
+        res = demisto.executeCommand("getUsers", {})
+    except Exception as e:  # noqa: BLE001
+        demisto.debug(f"SOCFWConfig: getUsers failed: {e}")
+        return None
+    if _is_error(res):
+        return None
+    users, readable = set(), False
+    for e in res or []:
+        if not isinstance(e, dict):
+            continue
+        found = []
+        if isinstance(e.get("Contents"), list):
+            found = e["Contents"]
+        else:
+            for value in (e.get("EntryContext") or {}).values():
+                found += value if isinstance(value, list) else [value]
+        for u in found:
+            if isinstance(u, dict):
+                readable = True
+                for key in ("username", "email", "id"):
+                    if u.get(key):
+                        users.add(str(u[key]).strip().lower())
+    return users if readable else None
+
+
+def _owner_ok(owner, users):
+    """True a user, False not one, None when the user list could not be read."""
+    if not owner or owner == OWNER_PLACEHOLDER:
+        return False
+    return None if users is None else owner.strip().lower() in users
+
+
+def _on_off(scheduled):
+    return "on" if scheduled else "off"
+
+
+def _job_status():
+    """Rows and table for status. Unreadable jobs are reported, never fatal."""
+    md = ["", "### Framework JOBs", ""]
+    try:
+        jobs = load_jobs()
+    except ConfigError as e:
+        return [], md + [f"Could not read the jobs: {e}"]
+    users = load_users()
+    rows = []
+    md += ["| Job | Schedule | Owner | Owner is a user | Next run |", "|---|---|---|---|---|"]
+    for name in JOBS:
+        j = jobs.get(name)
+        if not j:
+            rows.append({"job": name, "installed": False})
+            md.append(f"| {name} | not installed | | | |")
+            continue
+        ok = _owner_ok(j.get("owner"), users)
+        rows.append({"job": name, "installed": True, "scheduled": bool(j.get("scheduled")),
+                     "owner": j.get("owner"), "owner_is_user": ok,
+                     "next_run": j.get("nextRunTime") if j.get("scheduled") else None})
+        md.append(f"| {name} | {_on_off(j.get('scheduled'))} | {_shown(j.get('owner'))} | "
+                  f"{ {True: 'yes', False: '**no**', None: 'unknown'}[ok] } | "
+                  f"{(j.get('nextRunTime') or '') if j.get('scheduled') else ''} |")
+    md += ["", 'Change one: `!SOCFWConfig command=job job="<job>" owner=<user> value=on|off` '
+               "— add `apply=yes` to write."]
+    return rows, md
+
+
+def job(args):
+    name = str(args.get("job") or "").strip()
+    owner = str(args.get("owner") or "").strip()
+    value = str(args.get("value") or "").strip().lower()
+    apply = _yes(args.get("apply"))
+
+    match = [j for j in JOBS if j.lower() == name.lower()]
+    if not match:
+        raise ConfigError("job is required: one of " + ", ".join(JOBS))
+    name = match[0]
+    if value and value not in JOB_VALUES:
+        raise ConfigError("value must be on or off")
+    if not owner and not value:
+        raise ConfigError("give owner=<user>, value=on|off, or both")
+
+    current = load_jobs().get(name)
+    if not current:
+        raise ConfigError(f"{name} is not on this tenant; install soc-optimization-unified")
+
+    users = load_users()
+    if owner:
+        ok = _owner_ok(owner, users)
+        if ok is None:
+            raise ConfigError("could not read the tenant's users (getUsers) to check the owner")
+        if not ok:
+            raise ConfigError(f"{owner} is not a user on this tenant; the owner must be one")
+
+    before_owner, before_on = current.get("owner") or "", bool(current.get("scheduled"))
+    after_owner = owner or before_owner
+    after_on = JOB_VALUES[value] if value else before_on
+    if after_on and _owner_ok(after_owner, users) is False:
+        raise ConfigError(f"{name} cannot run without an owner who is a user on this tenant "
+                          f"(now {_plain(before_owner)}); add owner=<user>")
+
+    changes = []
+    if after_owner != before_owner:
+        changes.append(f"owner: {_plain(before_owner)} -> {after_owner}")
+    if after_on != before_on:
+        changes.append(f"schedule: {_on_off(before_on)} -> {_on_off(after_on)}")
+
+    apply_cmd = (f'!SOCFWConfig command=job job="{name}"' + (f" owner={owner}" if owner else "")
+                 + (f" value={value}" if value else "") + " apply=yes")
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "job", "job": name,
+               "dry_run": not apply, "applied": False, "changed": bool(changes),
+               "from": {"owner": before_owner, "scheduled": before_on},
+               "to": {"owner": after_owner, "scheduled": after_on},
+               "recorded": False, "apply_command": apply_cmd}
+
+    if changes and apply:
+        updated = dict(current, owner=after_owner, scheduled=after_on)
+        _core_api("/xsoar/public/v1/jobs", updated)
+        back = load_jobs().get(name) or {}
+        if (back.get("owner") or "") != after_owner or bool(back.get("scheduled")) != after_on:
+            raise ConfigError(f"{name} did not change on the tenant (read back owner "
+                              f"{_plain(back.get('owner'))}, schedule {_on_off(back.get('scheduled'))})")
+        outputs["applied"] = True
+        outputs["next_run"] = back.get("nextRunTime") if after_on else None
+        outputs["recorded"] = _record([{"vendor": "SOCFramework", "job": name,
+                                        "action_status": "job",
+                                        "action_taken": f"{name}: " + "; ".join(changes)}])
+
+    md = [f"### {name}: " + ("nothing to change" if not changes
+                             else "applied" if outputs["applied"] else "dry run, nothing written"),
+          "", "| | Now | After |", "|---|---|---|",
+          f"| Owner | {_shown(before_owner)} | {_shown(after_owner)} |",
+          f"| Schedule | {_on_off(before_on)} | {_on_off(after_on)} |"]
+    if outputs.get("next_run"):
+        md += ["", f"Next run: {outputs['next_run']}"]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Job",
+                          outputs=outputs)
+
+
 def _plain(value):
     return str(value) if value not in (None, "") else "(not set)"
 
@@ -538,7 +711,7 @@ def _yes(value):
     return str(value or "").strip().lower() == "yes"
 
 
-COMMANDS = {"status": status, "shadow": shadow, "set": set_value}
+COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job}
 
 
 def main():
