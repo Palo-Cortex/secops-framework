@@ -193,6 +193,10 @@ def effective(cfg, action, row, actor):
         if key in by_actor and _as_bool(by_actor[key]) is not None:
             return (_as_bool(by_actor[key]), FROM_ACTOR,
                     f"{ACTIONS_LIST} {action}.shadow_mode_by_actor.{key}")
+        if _as_bool(row.get("shadow_mode")) is None:
+            # Per-actor row that does not name this actor: simulated.
+            return (not is_read_only(row), FROM_DEFAULT,
+                    f"{ACTIONS_LIST} {action}.shadow_mode_by_actor.{key} (not named)")
     value = _as_bool(row.get("shadow_mode"))
     if value is None:
         # Same fail-closed rule as the wrapper: missing or unreadable means
@@ -296,7 +300,7 @@ def status(args):
     md += ["",
            f"✱ `{TENANT_CONFIG_LIST}` → `shadow.<action>.<actor>`",
            f"(no mark) `{ACTIONS_LIST}` → `<action>.shadow_mode_by_actor.<actor>`",
-           f"† `{ACTIONS_LIST}` → `<action>.shadow_mode` (the row names no setting for this actor)"]
+           f"† `{ACTIONS_LIST}` → `<action>.shadow_mode`, one setting for every actor"]
     if not wanted:
         md.append(f"{read_only} read-only actions (enrichment, investigation) always run "
                   "live and are not listed.")

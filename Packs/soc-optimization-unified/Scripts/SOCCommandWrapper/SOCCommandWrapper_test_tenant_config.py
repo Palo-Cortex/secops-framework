@@ -273,3 +273,27 @@ def test_star_case_with_shadow_fields_removed_is_not_executed():
                                   "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}]}
     script.main()
     assert "setParentIncidentFields" not in [c for c, _ in demisto._commands]
+
+
+# ── the shipped list follows the either/or shape ─────────────────────────────
+
+ACTOR_NAMES = {"analyst", "ai", "automation", "issue_emergency"}
+
+
+def test_shipped_rows_use_one_shape_or_the_other_never_both():
+    both = [k for k, v in ACTIONS.items() if isinstance(v, dict)
+            and "shadow_mode" in v and "shadow_mode_by_actor" in v]
+    assert both == []
+
+
+def test_shipped_per_actor_rows_name_exactly_the_four_actors():
+    for name, row in ACTIONS.items():
+        if isinstance(row, dict) and "shadow_mode_by_actor" in row:
+            assert set(row["shadow_mode_by_actor"]) == ACTOR_NAMES, name
+            assert all(isinstance(v, bool) for v in row["shadow_mode_by_actor"].values()), name
+
+
+def test_every_shipped_action_says_it_plainly():
+    for name, row in ACTIONS.items():
+        if isinstance(row, dict) and "responses" in row:
+            assert isinstance(row.get("shadow_mode"), bool) or "shadow_mode_by_actor" in row, name

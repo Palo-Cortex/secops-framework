@@ -117,9 +117,13 @@ def test_status_names_the_exact_field_behind_each_cell():
     assert cell(r, "soc-star-case", "analyst")["decided_by"] == "action_actor"
     assert cell(r, "soc-star-case", "automation")["field"] == "SOCFWTenantConfig shadow.soc-star-case.automation"
     assert cell(r, "soc-star-case", "automation")["decided_by"] == "tenant_config"
-    assert cell(r, "soc-star-case", "issue_emergency")["field"] == "SOCFrameworkActions_V3 soc-star-case.shadow_mode"
-    assert cell(r, "soc-star-case", "issue_emergency")["decided_by"] == "action_default"
-    assert "| soc-star-case | live | shadow | live ✱ | shadow † |" in r.readable_output
+    assert (cell(r, "soc-star-case", "issue_emergency")["field"]
+            == "SOCFrameworkActions_V3 soc-star-case.shadow_mode_by_actor.issue_emergency")
+    assert "| soc-star-case | live | shadow | live ✱ | shadow |" in r.readable_output
+    iso = run(t, command="status", action="soc-isolate-endpoint")
+    assert cell(iso, "soc-isolate-endpoint", "analyst")["field"] == "SOCFrameworkActions_V3 soc-isolate-endpoint.shadow_mode"
+    assert cell(iso, "soc-isolate-endpoint", "analyst")["decided_by"] == "action_default"
+    assert "| soc-isolate-endpoint | shadow † | shadow † | shadow † | shadow † |" in iso.readable_output
 
 
 def test_status_lists_mutating_actions_only_by_default():
@@ -367,7 +371,8 @@ def _mangled_actions():
     mangled = json.loads(json.dumps(ACTIONS))
     mangled["soc-isolate-endpoint"].pop("shadow_mode")
     mangled["soc-close-issue"]["shadow_mode"] = "yes"
-    mangled["soc-kill-process"]["shadow_mode_by_actor"]["analyst"] = "no"
+    mangled["soc-star-case"]["shadow_mode_by_actor"]["analyst"] = "no"     # garbled
+    mangled["soc-star-case"]["shadow_mode_by_actor"].pop("automation")      # not named
     mangled["soc-enrich-domain"].pop("shadow_mode")
     return mangled
 
@@ -375,10 +380,11 @@ def _mangled_actions():
 def test_status_reports_missing_or_garbled_settings_as_simulated():
     t = Tenant()
     t.lists["SOCFrameworkActions_V3"] = json.dumps(_mangled_actions())
-    r = run(t, command="status", action="soc-isolate-endpoint,soc-close-issue,soc-kill-process,soc-enrich-domain")
+    r = run(t, command="status", action="soc-isolate-endpoint,soc-close-issue,soc-star-case,soc-enrich-domain")
     for actor in ("analyst", "ai", "automation", "issue_emergency"):
         assert cell(r, "soc-close-issue", actor)["state"] == "shadow"
-        assert cell(r, "soc-kill-process", actor)["state"] == "shadow"
+        assert cell(r, "soc-star-case", actor)["state"] == "shadow"
+    assert cell(r, "soc-star-case", "automation")["field"].endswith("(not named)")
     assert cell(r, "soc-isolate-endpoint", "automation")["field"].endswith("(missing or unreadable)")
     assert cell(r, "soc-enrich-domain", "automation")["state"] == "live"
 

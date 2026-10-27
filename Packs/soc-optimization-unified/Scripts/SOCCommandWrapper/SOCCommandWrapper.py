@@ -540,16 +540,17 @@ def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
     A tenant override for this action and actor (tenant_shadow_override)
     decides first. Without one, the shipped action row decides as below.
 
-    shadow_mode is the action-level default and stays the only required field.
-    Where an action also carries shadow_mode_by_actor, the caller decides:
+    An action row says it one of two ways, never both:
 
-        "shadow_mode": true,
-        "shadow_mode_by_actor": {"analyst": false, "automation": true}
+        "shadow_mode": true                    one setting for every actor
+        "shadow_mode_by_actor": {"analyst": false, "ai": true,
+                                 "automation": true, "issue_emergency": true}
 
-    That separates the two things one flag used to conflate. A customer can let
-    analysts really contain from the issue layout while the JOB still only
-    simulates, which is the order most SOCs want to adopt in - a human in the
-    loop on every real action before any of it runs unattended.
+    The per-actor form lets a customer have analysts really act from the issue
+    layout while unattended runs still simulate - a human in the loop on every
+    real action before any of it runs unattended. An actor the per-actor form
+    does not name is simulated. A row still carrying both (a list edited before
+    this rule) is read as before: the named actor, else shadow_mode.
 
     Resolved on the raw actor, because normalize_action_actor rewrites "analyst"
     to "shadow" once shadowing is decided and would erase the distinction.

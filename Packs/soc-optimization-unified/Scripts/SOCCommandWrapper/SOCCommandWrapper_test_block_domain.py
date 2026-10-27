@@ -75,8 +75,8 @@ def _rows(demisto):
 
 def test_shipped_row_is_containment_shadowed_fan_out():
     assert SHIPPED["phase"] == "containment"
-    assert SHIPPED["shadow_mode"] is True
-    assert all(v is True for v in SHIPPED["shadow_mode_by_actor"].values())
+    assert SHIPPED["shadow_mode"] is True               # one setting for every actor
+    assert "shadow_mode_by_actor" not in SHIPPED
     assert SHIPPED["dispatch"] == "all_applicable"
     assert set(SHIPPED["responses"]) == {"ThreatStopv2", "Zscaler"}
 
