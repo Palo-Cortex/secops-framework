@@ -1009,16 +1009,6 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
         return {"vendor": vendor, "target": target, "outcome": "simulated"}
 
     try:
-        warroom_log(
-            "SOC Framework - Executing Command",
-            {
-                "command": command,
-                "args": inline_args,
-                "using": using
-            },
-            tags
-        )
-
         # Drop args that failed context resolution — sending empty values
         # to vendor APIs causes 4xx errors (e.g. Proofpoint TAP 400 when
         # threatId/campaignId are present-but-empty).
@@ -1026,8 +1016,19 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
             k: v for k, v in inline_args.items()
             if v not in (None, "", [], {})
         }
+        # A using= on the call overrides one from the tenant config.
         if using:
             execute_args["using"] = using
+
+        # Log exactly what is sent, so the instance shown is the one used.
+        warroom_log(
+            "SOC Framework - Executing Command",
+            {
+                "command": command,
+                "args": execute_args
+            },
+            tags
+        )
 
         # Ask the module registry before dispatching. An unavailable brand is
         # shaped as the error the post-dispatch handler already recognizes, so
