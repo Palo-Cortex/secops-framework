@@ -193,8 +193,13 @@ def effective(cfg, action, row, actor):
         if key in by_actor and _as_bool(by_actor[key]) is not None:
             return (_as_bool(by_actor[key]), FROM_ACTOR,
                     f"{ACTIONS_LIST} {action}.shadow_mode_by_actor.{key}")
-    return (bool(_as_bool(row.get("shadow_mode", False))), FROM_DEFAULT,
-            f"{ACTIONS_LIST} {action}.shadow_mode")
+    value = _as_bool(row.get("shadow_mode"))
+    if value is None:
+        # Same fail-closed rule as the wrapper: missing or unreadable means
+        # simulated for anything that can change something.
+        return (not is_read_only(row), FROM_DEFAULT,
+                f"{ACTIONS_LIST} {action}.shadow_mode (missing or unreadable)")
+    return value, FROM_DEFAULT, f"{ACTIONS_LIST} {action}.shadow_mode"
 
 
 def _state(shadow):

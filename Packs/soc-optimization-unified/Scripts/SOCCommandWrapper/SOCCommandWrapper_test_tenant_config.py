@@ -7,6 +7,8 @@ Run: pytest Scripts/SOCCommandWrapper/SOCCommandWrapper_test_tenant_config.py -v
 """
 
 import copy
+
+import pytest
 import json
 import os
 
@@ -204,3 +206,70 @@ def test_framework_named_explicitly_is_still_honoured():
 
 def test_shipped_star_row_no_longer_names_framework():
     assert "framework" not in STAR["shadow_mode_by_actor"]
+
+
+# ── fail closed: anything that can change something defaults to shadow ──────
+
+def _resolve(row, actor="automation"):
+    script, _ = load_script()
+    return script.resolve_shadow_mode(row, actor)
+
+
+MUTATING = {"responses": {}, "phase": "containment"}
+READ_ONLY = {"responses": {}, "phase": "enrichment"}
+
+
+@pytest.mark.parametrize("value", ["__missing__", "yes", 1, "", None, "off", "TRUE "])
+def test_mutating_action_without_a_plain_setting_is_simulated(value):
+    row = dict(MUTATING)
+    if value != "__missing__":
+        row["shadow_mode"] = value
+    expected = True  # "TRUE " is plainly true; everything else is unreadable -> shadow
+    assert _resolve(row) is expected
+
+
+def test_mutating_action_runs_only_on_a_deliberate_false():
+    assert _resolve(dict(MUTATING, shadow_mode=False)) is False
+    assert _resolve(dict(MUTATING, shadow_mode="false")) is False
+
+
+def test_read_only_action_without_a_setting_still_runs():
+    assert _resolve(dict(READ_ONLY)) is False
+
+
+def test_garbled_actor_value_falls_back_to_the_action_default():
+    row = dict(MUTATING, shadow_mode=True, shadow_mode_by_actor={"analyst": "no"})
+    assert _resolve(row, "analyst") is True
+    row = dict(MUTATING, shadow_mode=True, shadow_mode_by_actor={"analyst": False})
+    assert _resolve(row, "analyst") is False
+
+
+def test_every_shipped_action_with_its_shadow_fields_removed():
+    script, _ = load_script()
+    for name, row in ACTIONS.items():
+        if not (isinstance(row, dict) and "responses" in row):
+            continue
+        bare = {k: v for k, v in row.items() if k not in ("shadow_mode", "shadow_mode_by_actor")}
+        for actor in ("analyst", "ai", "automation", "issue_emergency", ""):
+            assert script.resolve_shadow_mode(bare, actor) is (not script.is_read_only(row)), (name, actor)
+
+
+def test_star_case_with_shadow_fields_removed_is_not_executed():
+    bare = {k: v for k, v in STAR.items() if k not in ("shadow_mode", "shadow_mode_by_actor")}
+    script, demisto = load_script()
+    demisto._args = {"action": "soc-star-case", "list_name": "SOCFrameworkActions_V3",
+                     "output_key": "UCTest.Executions", "Action_Actor": "ai"}
+    demisto._context = {"SOCFramework": {"RunID": "run-1", "Product": {}}}
+    getlist = _lists()
+
+    def _get(args):
+        if (args or {}).get("listName") == "SOCFrameworkActions_V3":
+            return [{"Contents": json.dumps({"soc-star-case": bare})}]
+        return getlist(args)
+
+    demisto._command_responses = {"getList": _get,
+                                  "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
+                                  "setParentIncidentFields": [{"Type": 1, "Contents": "ok"}],
+                                  "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}]}
+    script.main()
+    assert "setParentIncidentFields" not in [c for c, _ in demisto._commands]

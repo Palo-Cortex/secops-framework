@@ -359,3 +359,38 @@ def test_set_bad_arguments_name_the_fix(args, message):
 def test_unknown_command():
     with pytest.raises(RuntimeError, match="unknown command"):
         run(Tenant(), command="pov")
+
+
+# ── fail closed, reported the same way the wrapper decides it ────────────────
+
+def _mangled_actions():
+    mangled = json.loads(json.dumps(ACTIONS))
+    mangled["soc-isolate-endpoint"].pop("shadow_mode")
+    mangled["soc-close-issue"]["shadow_mode"] = "yes"
+    mangled["soc-kill-process"]["shadow_mode_by_actor"]["analyst"] = "no"
+    mangled["soc-enrich-domain"].pop("shadow_mode")
+    return mangled
+
+
+def test_status_reports_missing_or_garbled_settings_as_simulated():
+    t = Tenant()
+    t.lists["SOCFrameworkActions_V3"] = json.dumps(_mangled_actions())
+    r = run(t, command="status", action="soc-isolate-endpoint,soc-close-issue,soc-kill-process,soc-enrich-domain")
+    for actor in ("analyst", "ai", "automation", "issue_emergency"):
+        assert cell(r, "soc-close-issue", actor)["state"] == "shadow"
+        assert cell(r, "soc-kill-process", actor)["state"] == "shadow"
+    assert cell(r, "soc-isolate-endpoint", "automation")["field"].endswith("(missing or unreadable)")
+    assert cell(r, "soc-enrich-domain", "automation")["state"] == "live"
+
+
+def test_status_agrees_with_the_wrapper_on_a_mangled_list():
+    sys.path.insert(0, os.path.join(HERE, "..", "SOCCommandWrapper"))
+    from SOCCommandWrapper_test import load_script
+    mangled = _mangled_actions()
+    t = Tenant()
+    t.lists["SOCFrameworkActions_V3"] = json.dumps(mangled)
+    names = [k for k, v in mangled.items() if isinstance(v, dict) and "responses" in v]
+    r = run(t, command="status", action=",".join(names))
+    wrapper, _ = load_script()
+    for row in r.outputs["rows"]:
+        assert row["shadow"] == wrapper.resolve_shadow_mode(mangled[row["action"]], row["actor"]), row

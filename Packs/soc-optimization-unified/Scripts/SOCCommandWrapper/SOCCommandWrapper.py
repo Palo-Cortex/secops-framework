@@ -478,6 +478,14 @@ def brand_available(brand):
     return any(m.get("state") == "active" for m in registered)
 
 
+# Actions in these phases only read. Every other action can change something.
+READ_ONLY_PHASES = ("enrichment", "investigation")
+
+
+def is_read_only(action_entry):
+    return str(action_entry.get("phase") or "").strip().lower() in READ_ONLY_PHASES
+
+
 def _as_bool(value):
     """True/False for a bool or a "true"/"false" string; None for anything else."""
     if isinstance(value, bool):
@@ -545,14 +553,22 @@ def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
 
     Resolved on the raw actor, because normalize_action_actor rewrites "analyst"
     to "shadow" once shadowing is decided and would erase the distinction.
+
+    Fails closed. An action that can change something (any phase but
+    enrichment or investigation) is simulated when its shadow_mode is missing or
+    is not plainly true or false, and a garbled per-actor value falls back to
+    that default. Only a deliberate false makes such an action run.
     """
     if tenant_override is not None:
         demisto.debug(f"resolve_shadow_mode: tenant override shadow={tenant_override}")
         return tenant_override
 
-    default = action_entry.get("shadow_mode", False)
-    if not isinstance(default, bool):
-        default = str(default).lower() == "true"
+    default = _as_bool(action_entry.get("shadow_mode"))
+    if default is None:
+        default = not is_read_only(action_entry)
+        demisto.debug(
+            f"resolve_shadow_mode: shadow_mode missing or unreadable "
+            f"({action_entry.get('shadow_mode')!r}); using {default}")
 
     by_actor = action_entry.get("shadow_mode_by_actor")
     if not isinstance(by_actor, dict):
@@ -565,9 +581,11 @@ def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
     if actor not in by_actor:
         return default
 
-    value = by_actor[actor]
-    if not isinstance(value, bool):
-        value = str(value).lower() == "true"
+    value = _as_bool(by_actor[actor])
+    if value is None:
+        demisto.debug(f"resolve_shadow_mode: unreadable value for {actor} "
+                      f"({by_actor[actor]!r}); using the action default {default}")
+        return default
     demisto.debug(
         f"resolve_shadow_mode: actor={actor} shadow={value} (default {default})")
     return value
