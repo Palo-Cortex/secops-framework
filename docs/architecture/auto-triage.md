@@ -103,10 +103,10 @@ more frequently. Both are safe — the script is idempotent.
 
 ## Turning it on
 
-The pack installs the JOB **off**, owned by the placeholder
-`set-owner-with-SOCFWConfig`. A JOB only runs with an owner who is a user on the
-tenant: with the placeholder or a blank owner the platform accepts the schedule
-and every run errors. So set the owner first, then turn it on. Each is a dry run
+The pack installs the JOB **off**, and the owner it ships with is not a user on
+your tenant. A JOB only runs with an owner who is: with anyone else, or a blank
+owner, the platform accepts the schedule and every run errors. So set the owner
+first, then turn it on. Each is a dry run
 until `apply=yes`:
 
 ```

@@ -49,8 +49,9 @@ DATASET_COMMAND = "socfw-post-to-dataset"
 DATASET_INSTANCE = "socfw_ir_execution_writer"
 
 # Where each status cell came from.
-# JOBs the framework ships. The pack installs them off, owned by a placeholder,
-# because the owner must be a user on the customer's tenant.
+# JOBs the framework ships. The pack installs them off; the owner must be a
+# user on the customer's tenant or every run errors. The placeholder is treated
+# as no owner wherever it appears.
 JOBS = ("Auto Triage V3", "SOC Case Analysis")
 OWNER_PLACEHOLDER = "set-owner-with-SOCFWConfig"
 JOB_VALUES = {"on": True, "off": False}
