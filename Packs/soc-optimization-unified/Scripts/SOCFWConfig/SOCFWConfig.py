@@ -34,7 +34,7 @@ TENANT_CONFIG_LIST = "SOCFWTenantConfig"
 
 # The actors the framework passes to the wrapper. Status always shows these;
 # any other actor named in the tenant config is shown as well.
-ACTORS = ("analyst", "ai", "automation")
+ACTORS = ("analyst", "ai", "automation", "issue_emergency")
 
 # Old actor names the wrapper still reads, and what they mean now. Kept in step
 # with LEGACY_ACTOR_ALIASES in SOCCommandWrapper.

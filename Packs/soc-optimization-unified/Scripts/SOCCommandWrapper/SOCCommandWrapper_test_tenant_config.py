@@ -249,7 +249,7 @@ def test_every_shipped_action_with_its_shadow_fields_removed():
         if not (isinstance(row, dict) and "responses" in row):
             continue
         bare = {k: v for k, v in row.items() if k not in ("shadow_mode", "shadow_mode_by_actor")}
-        for actor in ("analyst", "ai", "automation", "layout", ""):
+        for actor in ("analyst", "ai", "automation", "issue_emergency", "layout", ""):
             assert script.resolve_shadow_mode(bare, actor) is (not script.is_read_only(row)), (name, actor)
 
 
@@ -276,7 +276,7 @@ def test_star_case_with_shadow_fields_removed_is_not_executed():
 
 # ── the shipped list follows the either/or shape ─────────────────────────────
 
-ACTOR_NAMES = {"analyst", "ai", "automation"}
+ACTOR_NAMES = {"analyst", "ai", "automation", "issue_emergency"}
 
 
 def test_shipped_rows_use_one_shape_or_the_other_never_both():
@@ -304,7 +304,7 @@ def test_action_actor_dropdown_offers_only_real_callers():
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "SOCCommandWrapper.yml")) as f:
         spec = yaml.safe_load(f)
     arg = next(a for a in spec["args"] if a["name"] == "Action_Actor")
-    assert arg["predefined"] == ["analyst", "ai", "automation", "layout"]
+    assert arg["predefined"] == ["analyst", "ai", "automation", "issue_emergency", "layout"]
     assert arg["defaultValue"] == "analyst"
     script, _ = load_script()
     for actor in arg["predefined"]:
