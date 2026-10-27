@@ -41,6 +41,9 @@ READ_ONLY_PHASES = ("enrichment", "investigation")
 
 VALUES = {"on": True, "off": False, "default": None}
 
+DATASET_COMMAND = "socfw-post-to-dataset"
+DATASET_INSTANCE = "socfw_ir_execution_writer"
+
 
 class ConfigError(Exception):
     pass
@@ -255,7 +258,7 @@ def shadow(args):
     outputs = {"contract_version": CONTRACT_VERSION, "command": "shadow",
                "dry_run": not apply, "applied": False, "action": action, "value": value,
                "changes": [], "refused": [], "tenant_config_list": TENANT_CONFIG_LIST,
-               "creates_list": False, "carried_over_from": None,
+               "creates_list": False, "carried_over_from": None, "recorded": False,
                "apply_command": (f"!SOCFWConfig command=shadow action={action} "
                                  f"actor={','.join(actors)} value={value} apply=yes")}
 
@@ -302,7 +305,34 @@ def shadow(args):
     if apply:
         write_tenant_config(new_cfg, source)
         outputs["applied"] = True
+        outputs["recorded"] = record_changes(action, value, outputs["changes"])
     return _shadow_result(outputs)
+
+
+def record_changes(action, value, changes):
+    """One execution-dataset row per actor whose setting changed.
+
+    No incident_id and no phase: the value dashboards group by incident and pick
+    rows by phase, so a configuration change must not land in either. Recording
+    never fails the command; the change is already written and read back.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    rows = [{"event_type": "config_change", "timestamp": now,
+             "universal_command": action, "action_actor": c["actor"],
+             "shadow_mode_state": c["to"], "action_status": f"set {value}",
+             "action_taken": f"{c['from']} -> {c['to']}"}
+            for c in changes if c["changed"]]
+    recorded = bool(rows)
+    for row in rows:  # one object per call, the shape SOCCommandWrapper posts
+        try:
+            res = demisto.executeCommand(DATASET_COMMAND,
+                                         {"using": DATASET_INSTANCE, "JSON": json.dumps(row)})
+            recorded = recorded and not _is_error(res)
+        except Exception as e:  # noqa: BLE001
+            demisto.debug(f"SOCFWConfig: config_change row not recorded: {e}")
+            recorded = False
+    return recorded
 
 
 def _shadow_result(o):
@@ -326,6 +356,9 @@ def _shadow_result(o):
                    if o["carried_over_from"] else "")
         md += ["", ("Created " if o["applied"] else "Will create ")
                + f"{o['tenant_config_list']}{carried}."]
+    if o["applied"] and not o["recorded"]:
+        md += ["", "The change is written, but its record in the execution dataset was not "
+                   "(check the socfw_ir_execution_writer instance)."]
     if o["dry_run"] and any(c["changed"] for c in o["changes"]):
         md += ["", f"To write it: `{o['apply_command']}`"]
     return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Shadow",
