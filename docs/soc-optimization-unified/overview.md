@@ -100,7 +100,7 @@ Automatically closes unstarred cases that exceed the configured age and score th
 | Playbook | `JOB - Auto Triage V3` |
 | Recurrent | ✓ |
 | Schedule | every 10 minutes daily |
-| Owner | `abarone@paloaltonetworks.com` |
+| Owner | `set-owner-with-SOCFWConfig` |
 
 ## Exported Playbooks
 
