@@ -544,7 +544,7 @@ def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
 
         "shadow_mode": true                    one setting for every actor
         "shadow_mode_by_actor": {"analyst": false, "ai": true,
-                                 "automation": true, "issue_emergency": true}
+                                 "automation": true}
 
     The per-actor form lets a customer have analysts really act from the issue
     layout while unattended runs still simulate - a human in the loop on every
@@ -598,8 +598,7 @@ def normalize_action_actor(raw_actor, shadow_mode):
     if shadow_mode and actor in ("", "analyst"):
         return "shadow"
 
-    if actor in ("automation", "analyst", "shadow", "system", "layout",
-                 "issue_emergency", "case_lifecycle", "ai", "framework"):
+    if actor in ("automation", "analyst", "shadow", "system", "layout", "ai", "framework"):
         return actor
 
     return "analyst"
