@@ -11,8 +11,10 @@ Commands
            what SOCFrameworkActions_V3 says. Dry run unless apply=yes.
   set      Set one customer value (a block-list id, a proxy category, an
            instance), or remove it with value=default. Dry run unless apply=yes.
-  job      Give a framework JOB a real owner and turn its schedule on or off.
-           The job's own schedule is the only on/off. Dry run unless apply=yes.
+  job      Turn a framework JOB's schedule on or off - the only on/off. A JOB
+           cannot be turned on until it has an owner. Dry run unless apply=yes.
+  owner    Give a framework JOB an owner who is a user on this tenant; the pack
+           ships a placeholder. Dry run unless apply=yes.
 
 Every command returns the same data twice: a War Room table for people and
 SOCFWConfig.* context for the PoV harness. contract_version changes when a key
@@ -598,79 +600,93 @@ def _job_status():
         md.append(f"| {name} | {_on_off(j.get('scheduled'))} | {_shown(j.get('owner'))} | "
                   f"{ {True: 'yes', False: '**no**', None: 'unknown'}[ok] } | "
                   f"{(j.get('nextRunTime') or '') if j.get('scheduled') else ''} |")
-    md += ["", 'Change one: `!SOCFWConfig command=job job="<job>" owner=<user> value=on|off` '
-               "— add `apply=yes` to write."]
+    md += ["", 'Owner: `!SOCFWConfig command=owner job="<job>" owner=<user>`; on or off: '
+               '`!SOCFWConfig command=job job="<job>" value=on|off` — add `apply=yes` to write.']
     return rows, md
 
 
-def job(args):
+def _pick_job(args):
     name = str(args.get("job") or "").strip()
-    owner = str(args.get("owner") or "").strip()
-    value = str(args.get("value") or "").strip().lower()
-    apply = _yes(args.get("apply"))
-
     match = [j for j in JOBS if j.lower() == name.lower()]
     if not match:
         raise ConfigError("job is required: one of " + ", ".join(JOBS))
-    name = match[0]
-    if value and value not in JOB_VALUES:
-        raise ConfigError("value must be on or off")
-    if not owner and not value:
-        raise ConfigError("give owner=<user>, value=on|off, or both")
-
-    current = load_jobs().get(name)
+    current = load_jobs().get(match[0])
     if not current:
-        raise ConfigError(f"{name} is not on this tenant; install soc-optimization-unified")
+        raise ConfigError(f"{match[0]} is not on this tenant; install soc-optimization-unified")
+    return match[0], current
 
-    users = load_users()
-    if owner:
-        ok = _owner_ok(owner, users)
-        if ok is None:
-            raise ConfigError("could not read the tenant's users (getUsers) to check the owner")
-        if not ok:
-            raise ConfigError(f"{owner} is not a user on this tenant; the owner must be one")
 
-    before_owner, before_on = current.get("owner") or "", bool(current.get("scheduled"))
-    after_owner = owner or before_owner
-    after_on = JOB_VALUES[value] if value else before_on
-    if after_on and _owner_ok(after_owner, users) is False:
+def _owner_command(name):
+    return f'!SOCFWConfig command=owner job="{name}" owner=<user>'
+
+
+def job(args):
+    """Turn a framework JOB's schedule on or off. The owner is set by command=owner."""
+    if str(args.get("owner") or "").strip():
+        raise ConfigError("job turns the schedule on or off; set the owner with "
+                          + _owner_command(str(args.get("job") or "<job>").strip()))
+    value = str(args.get("value") or "").strip().lower()
+    if value not in JOB_VALUES:
+        raise ConfigError("value must be on or off")
+    name, current = _pick_job(args)
+    owner = current.get("owner") or ""
+    before, after = bool(current.get("scheduled")), JOB_VALUES[value]
+    if after and _owner_ok(owner, load_users()) is False:
+        # Verified on deathstar 27 Oct 2026: the platform accepts it, then every run errors.
         raise ConfigError(f"{name} cannot run without an owner who is a user on this tenant "
-                          f"(now {_plain(before_owner)}); add owner=<user>")
+                          f"(now {_plain(owner)}); set one first: {_owner_command(name)}")
+    change = f"schedule: {_on_off(before)} -> {_on_off(after)}" if before != after else ""
+    return _write_job(name, current, dict(current, scheduled=after), change,
+                      f'!SOCFWConfig command=job job="{name}" value={value} apply=yes', args)
 
-    changes = []
-    if after_owner != before_owner:
-        changes.append(f"owner: {_plain(before_owner)} -> {after_owner}")
-    if after_on != before_on:
-        changes.append(f"schedule: {_on_off(before_on)} -> {_on_off(after_on)}")
 
-    apply_cmd = (f'!SOCFWConfig command=job job="{name}"' + (f" owner={owner}" if owner else "")
-                 + (f" value={value}" if value else "") + " apply=yes")
-    outputs = {"contract_version": CONTRACT_VERSION, "command": "job", "job": name,
-               "dry_run": not apply, "applied": False, "changed": bool(changes),
-               "from": {"owner": before_owner, "scheduled": before_on},
-               "to": {"owner": after_owner, "scheduled": after_on},
-               "recorded": False, "apply_command": apply_cmd}
+def owner(args):
+    """Give a framework JOB an owner who is a user on this tenant. The schedule is unchanged."""
+    who = str(args.get("owner") or "").strip()
+    if not who:
+        raise ConfigError("owner is required: an email or username on this tenant")
+    name, current = _pick_job(args)
+    ok = _owner_ok(who, load_users())
+    if ok is None:
+        raise ConfigError("could not read the tenant's users (getUsers) to check the owner")
+    if not ok:
+        raise ConfigError(f"{who} is not a user on this tenant; the owner must be one")
+    before = current.get("owner") or ""
+    change = f"owner: {_plain(before)} -> {who}" if before != who else ""
+    return _write_job(name, current, dict(current, owner=who), change,
+                      f'!SOCFWConfig command=owner job="{name}" owner={who} apply=yes', args)
 
-    if changes and apply:
-        updated = dict(current, owner=after_owner, scheduled=after_on)
+
+def _write_job(name, current, updated, change, apply_cmd, args):
+    """Dry run unless apply=yes; write, read back, record. Shared by job and owner."""
+    apply = _yes(args.get("apply"))
+    before = {"owner": current.get("owner") or "", "scheduled": bool(current.get("scheduled"))}
+    after = {"owner": updated.get("owner") or "", "scheduled": bool(updated.get("scheduled"))}
+    command = str(args.get("command") or "").strip().lower()
+    outputs = {"contract_version": CONTRACT_VERSION, "command": command, "job": name,
+               "dry_run": not apply, "applied": False, "changed": bool(change),
+               "from": before, "to": after, "recorded": False, "apply_command": apply_cmd}
+    if change and apply:
         _core_api("/xsoar/public/v1/jobs", updated)
         back = load_jobs().get(name) or {}
-        if (back.get("owner") or "") != after_owner or bool(back.get("scheduled")) != after_on:
+        landed = {"owner": back.get("owner") or "", "scheduled": bool(back.get("scheduled"))}
+        if landed != after:
             raise ConfigError(f"{name} did not change on the tenant (read back owner "
-                              f"{_plain(back.get('owner'))}, schedule {_on_off(back.get('scheduled'))})")
+                              f"{_plain(landed['owner'])}, schedule {_on_off(landed['scheduled'])})")
         outputs["applied"] = True
-        outputs["next_run"] = back.get("nextRunTime") if after_on else None
+        outputs["next_run"] = back.get("nextRunTime") if after["scheduled"] else None
         outputs["recorded"] = _record([{"vendor": "SOCFramework", "job": name,
-                                        "action_status": "job",
-                                        "action_taken": f"{name}: " + "; ".join(changes)}])
-
-    md = [f"### {name}: " + ("nothing to change" if not changes
+                                        "action_status": command,
+                                        "action_taken": f"{name}: {change}"}])
+    md = [f"### {name}: " + ("nothing to change" if not change
                              else "applied" if outputs["applied"] else "dry run, nothing written"),
           "", "| | Now | After |", "|---|---|---|",
-          f"| Owner | {_shown(before_owner)} | {_shown(after_owner)} |",
-          f"| Schedule | {_on_off(before_on)} | {_on_off(after_on)} |"]
+          f"| Owner | {_shown(before['owner'])} | {_shown(after['owner'])} |",
+          f"| Schedule | {_on_off(before['scheduled'])} | {_on_off(after['scheduled'])} |"]
     if outputs.get("next_run"):
         md += ["", f"Next run: {outputs['next_run']}"]
+    if after["scheduled"] is False and _owner_ok(after["owner"], None) is False:
+        md += ["", f"Before turning it on, set an owner: `{_owner_command(name)}`"]
     md += _write_notes(outputs)
     return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Job",
                           outputs=outputs)
@@ -711,7 +727,7 @@ def _yes(value):
     return str(value or "").strip().lower() == "yes"
 
 
-COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job}
+COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner}
 
 
 def main():

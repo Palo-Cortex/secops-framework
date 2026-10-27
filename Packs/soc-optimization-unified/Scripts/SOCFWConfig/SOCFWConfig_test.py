@@ -440,66 +440,119 @@ def test_shadow_accepts_actor_list_from_dropdown():
     assert as_list["changes"] and as_list["changes"] == as_text["changes"]
 
 
-# ── job ──────────────────────────────────────────────────────────────────────
+# ── job and owner ────────────────────────────────────────────────────────────
 
 AT = "Auto Triage V3"
+ANA = "ana@example.com"
+
+
+def owned(t, scheduled=False):
+    t.jobs[AT].update(owner=ANA, scheduled=scheduled)
+    return t
+
+
+def test_owner_dry_run_writes_nothing():
+    t = Tenant()
+    o = run(t, command="owner", job=AT, owner=ANA).outputs
+    assert o["dry_run"] and not o["applied"] and o["changed"]
+    assert o["to"] == {"owner": ANA, "scheduled": False}
+    assert t.jobs[AT]["owner"] == "set-owner-with-SOCFWConfig" and t.writes() == [] and t.rows == []
+    assert o["apply_command"] == f'!SOCFWConfig command=owner job="{AT}" owner={ANA} apply=yes'
+
+
+def test_owner_apply_sets_owner_only_reads_back_and_records():
+    t = Tenant()
+    r = run(t, command="owner", job="auto triage v3", owner="ANA@example.com", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.jobs[AT]["owner"] == "ANA@example.com" and t.jobs[AT]["scheduled"] is False
+    assert t.jobs[AT]["id"] == "id-0"
+    row = t.rows[-1]
+    assert row["event_type"] == "config_change" and row["job"] == AT and row["action_status"] == "owner"
+    assert "incident_id" not in row and "phase" not in row
+    assert "owner: set-owner-with-SOCFWConfig -> ANA@example.com" in row["action_taken"]
+
+
+def test_owner_refuses_someone_who_is_not_a_user():
+    t = Tenant()
+    with pytest.raises(RuntimeError, match="not a user on this tenant"):
+        run(t, command="owner", job=AT, owner="nobody@example.com", apply="yes")
+    assert t.writes() == []
+
+
+def test_owner_users_unreadable_refused():
+    t = Tenant()
+    t.users = []
+    with pytest.raises(RuntimeError, match="could not read the tenant's users"):
+        run(t, command="owner", job=AT, owner=ANA, apply="yes")
+
+
+def test_owner_required():
+    with pytest.raises(RuntimeError, match="owner is required"):
+        run(Tenant(), command="owner", job=AT)
+
+
+def test_job_turns_schedule_on_and_keeps_owner():
+    t = owned(Tenant())
+    r = run(t, command="job", job=AT, value="on", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.jobs[AT]["scheduled"] is True and t.jobs[AT]["owner"] == ANA
+    assert t.rows[-1]["action_status"] == "job"
+    assert "schedule: off -> on" in t.rows[-1]["action_taken"]
+    assert "Next run:" in r.readable_output
 
 
 def test_job_dry_run_writes_nothing():
+    t = owned(Tenant())
+    o = run(t, command="job", job=AT, value="on").outputs
+    assert o["dry_run"] and o["changed"] and t.jobs[AT]["scheduled"] is False and t.writes() == []
+
+
+def test_job_cannot_turn_on_without_owner_and_names_the_fix():
     t = Tenant()
-    o = run(t, command="job", job=AT, owner="ana@example.com", value="on").outputs
-    assert o["dry_run"] and not o["applied"] and o["changed"]
-    assert o["to"] == {"owner": "ana@example.com", "scheduled": True}
-    assert t.jobs[AT]["scheduled"] is False and t.writes() == [] and t.rows == []
-    assert "apply=yes" in o["apply_command"]
-
-
-def test_job_apply_sets_owner_and_schedule_reads_back_and_records():
-    t = Tenant()
-    r = run(t, command="job", job="auto triage v3", owner="ANA@example.com", value="on", apply="yes")
-    assert r.outputs["applied"] and r.outputs["recorded"]
-    assert t.jobs[AT]["owner"] == "ANA@example.com" and t.jobs[AT]["scheduled"] is True
-    assert t.jobs[AT]["id"] == "id-0"
-    row = t.rows[-1]
-    assert row["event_type"] == "config_change" and row["job"] == AT
-    assert "incident_id" not in row and "phase" not in row
-    assert "schedule: off -> on" in row["action_taken"]
-
-
-def test_job_refuses_owner_who_is_not_a_user():
-    with pytest.raises(RuntimeError, match="not a user on this tenant"):
-        run(Tenant(), command="job", job=AT, owner="nobody@example.com", value="on", apply="yes")
-
-
-def test_job_cannot_turn_on_with_placeholder_owner():
-    t = Tenant()
-    with pytest.raises(RuntimeError, match="cannot run without an owner"):
+    with pytest.raises(RuntimeError, match='command=owner job="Auto Triage V3"'):
         run(t, command="job", job=AT, value="on", apply="yes")
     assert t.jobs[AT]["scheduled"] is False
 
 
 def test_job_off_needs_no_owner():
     t = Tenant()
-    t.jobs[AT].update(owner="ana@example.com", scheduled=True)
+    t.jobs[AT]["scheduled"] = True
     r = run(t, command="job", job=AT, value="off", apply="yes")
     assert r.outputs["applied"] and t.jobs[AT]["scheduled"] is False
-    assert t.jobs[AT]["owner"] == "ana@example.com"
+    assert "set an owner" in r.readable_output
+
+
+def test_job_does_not_take_owner():
+    t = Tenant()
+    with pytest.raises(RuntimeError, match="set the owner with !SOCFWConfig command=owner"):
+        run(t, command="job", job=AT, owner=ANA, value="on")
+    assert t.writes() == []
 
 
 def test_job_unknown_name_and_bad_value_refused():
     with pytest.raises(RuntimeError, match="job is required"):
-        run(Tenant(), command="job", job="Something Else", value="on")
+        run(owned(Tenant()), command="job", job="Something Else", value="on")
     with pytest.raises(RuntimeError, match="on or off"):
         run(Tenant(), command="job", job=AT, value="default")
-    with pytest.raises(RuntimeError, match="give owner"):
+    with pytest.raises(RuntimeError, match="on or off"):
         run(Tenant(), command="job", job=AT)
 
 
-def test_job_write_that_does_not_land_is_reported():
-    t = Tenant()
+def test_no_change_is_said_and_not_written():
+    t = owned(Tenant(), scheduled=True)
+    r = run(t, command="job", job=AT, value="on", apply="yes")
+    assert not r.outputs["changed"] and "nothing to change" in r.readable_output and t.rows == []
+    r = run(t, command="owner", job=AT, owner=ANA, apply="yes")
+    assert not r.outputs["changed"] and t.rows == []
+
+
+def test_write_that_does_not_land_is_reported():
+    t = owned(Tenant())
     t.jobs_ignore_writes = True
     with pytest.raises(RuntimeError, match="did not change on the tenant"):
-        run(t, command="job", job=AT, owner="ana@example.com", value="on", apply="yes")
+        run(t, command="job", job=AT, value="on", apply="yes")
+    with pytest.raises(RuntimeError, match="did not change on the tenant"):
+        run(t, command="owner", job=AT, owner="ANA@example.com", apply="yes")
     assert t.rows == []
 
 
@@ -508,21 +561,14 @@ def test_job_without_core_api_says_what_is_missing():
         run(Tenant(core_api=False), command="job", job=AT, value="off")
 
 
-def test_job_users_unreadable_refuses_owner_change():
-    t = Tenant()
-    t.users = []
-    with pytest.raises(RuntimeError, match="could not read the tenant's users"):
-        run(t, command="job", job=AT, owner="ana@example.com", apply="yes")
-
-
 def test_status_shows_jobs_and_whether_owner_is_a_user():
-    t = Tenant()
-    t.jobs[AT].update(owner="ana@example.com", scheduled=True)
+    t = owned(Tenant(), scheduled=True)
     r = run(t, command="status")
     jobs = {j["job"]: j for j in r.outputs["jobs"]}
     assert jobs[AT]["scheduled"] is True and jobs[AT]["owner_is_user"] is True
     assert jobs["SOC Case Analysis"]["owner_is_user"] is False
     assert "| SOC Case Analysis | off | `set-owner-with-SOCFWConfig` | **no** |" in r.readable_output
+    assert "command=owner" in r.readable_output
     assert t.writes() == []
 
 
@@ -539,4 +585,4 @@ def test_job_dropdown_matches_jobs():
     run(Tenant(), command="status")
     assert tuple(arg["predefined"]) == sys.modules["SOCFWConfig"].JOBS
     cmd = next(a for a in spec["args"] if a["name"] == "command")
-    assert "job" in cmd["predefined"]
+    assert {"job", "owner"} <= set(cmd["predefined"])
