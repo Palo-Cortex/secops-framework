@@ -29,26 +29,44 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default), shadow or set.
+  description: status (default), shadow, set, job or owner.
   defaultValue: status
   auto: PREDEFINED
   predefined:
   - status
   - shadow
   - set
+  - job
+  - owner
 - name: action
   description: The action, e.g. soc-star-case. Required for shadow; for status, limits
     the table to these actions (comma-separated).
 - name: actor
-  description: For shadow - who asks for the action - analyst, ai, automation or issue_emergency.
-    Comma-separated for more than one.
+  description: For shadow - who asks for the action. Pick one or more.
+  auto: PREDEFINED
+  isArray: true
+  predefined:
+  - analyst
+  - ai
+  - automation
+  - issue_emergency
 - name: vendor
   description: For set - the vendor the value belongs to, e.g. Zscaler or ThreatStopv2.
 - name: arg
   description: For set - the setting, e.g. category-id, list_id or using. status lists them.
+- name: job
+  description: For job and owner - which framework JOB.
+  auto: PREDEFINED
+  predefined:
+  - Auto Triage V3
+  - SOC Case Analysis
+- name: owner
+  description: For owner - the user who owns the job (an email or username on this tenant).
+    A job cannot run without one.
 - name: value
   description: For shadow - on (simulate), off (run for real) or default (use the shipped
-    setting). For set - the value, or default to remove it.
+    setting). For set - the value, or default to remove it. For job - on (runs on its
+    schedule) or off.
 - name: apply
   description: yes writes the change. Anything else is a dry run that shows the change.
   defaultValue: "no"
@@ -105,5 +123,35 @@ outputs:
   description: The command that writes this change.
   type: String
 - contextPath: SOCFWConfig.Set.contract_version
+  description: Version of this output's keys.
+  type: Number
+- contextPath: SOCFWConfig.Status.jobs
+  description: One row per framework JOB - job, installed, scheduled, owner, owner_is_user, next_run.
+  type: Unknown
+- contextPath: SOCFWConfig.Job.job
+  description: The JOB changed.
+  type: String
+- contextPath: SOCFWConfig.Job.from
+  description: Owner and schedule before the change.
+  type: Unknown
+- contextPath: SOCFWConfig.Job.to
+  description: Owner and schedule after the change.
+  type: Unknown
+- contextPath: SOCFWConfig.Job.applied
+  description: True when the change was written and read back.
+  type: Boolean
+- contextPath: SOCFWConfig.Job.dry_run
+  description: True when nothing was written.
+  type: Boolean
+- contextPath: SOCFWConfig.Job.apply_command
+  description: The command that writes this change.
+  type: String
+- contextPath: SOCFWConfig.Job.next_run
+  description: When the job runs next, once it is on.
+  type: String
+- contextPath: SOCFWConfig.Job.recorded
+  description: True when the change got a config_change row in xsiam_socfw_ir_execution_raw.
+  type: Boolean
+- contextPath: SOCFWConfig.Job.contract_version
   description: Version of this output's keys.
   type: Number

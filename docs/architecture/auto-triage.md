@@ -101,9 +101,28 @@ If a tenant's open case volume routinely exceeds 500 between JOB runs,
 raise `max_batches` in the script's input arguments or run the JOB
 more frequently. Both are safe — the script is idempotent.
 
+## Turning it on
+
+The pack installs the JOB **off**, and the owner it ships with is not a user on
+your tenant. A JOB only runs with an owner who is: with anyone else, or a blank
+owner, the platform accepts the schedule and every run errors. So set the owner
+first, then turn it on. Each is a dry run
+until `apply=yes`:
+
+```
+!SOCFWConfig command=owner job="Auto Triage V3" owner=<user email> apply=yes
+!SOCFWConfig command=job job="Auto Triage V3" value=on apply=yes
+```
+
+`value=off` turns it off and needs no owner. `command=job value=on` is refused
+while the owner is not a user. The JOB's schedule is the only on/off;
+`!SOCFWConfig command=status` shows its owner, whether that owner is a real
+user, and the next run. Changes are recorded as `config_change` rows in
+`xsiam_socfw_ir_execution_raw`.
+
 ## Configuration
 
-Tunables live in `SOCOptimizationConfig_V3` under the `Auto Triage JOB`
+Tunables live in `SOCOptimizationConfig_V3` under the `Triage Incidents JOB`
 section:
 
 | Key | Default | Effect |

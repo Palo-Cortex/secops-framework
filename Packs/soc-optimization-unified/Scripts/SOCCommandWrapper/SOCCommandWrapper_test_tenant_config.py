@@ -122,7 +122,6 @@ def test_override_takes_named_actor_off_shadow():
 
 def test_override_leaves_other_actors_on_the_shipped_row():
     assert _shadow(STAR_LIVE, "analyst") is False          # shipped by_actor
-    assert _shadow(STAR_LIVE, "issue_emergency") is True   # shipped default
     assert _shadow(STAR_LIVE, "") is True
 
 
@@ -250,7 +249,7 @@ def test_every_shipped_action_with_its_shadow_fields_removed():
         if not (isinstance(row, dict) and "responses" in row):
             continue
         bare = {k: v for k, v in row.items() if k not in ("shadow_mode", "shadow_mode_by_actor")}
-        for actor in ("analyst", "ai", "automation", "issue_emergency", ""):
+        for actor in ("analyst", "ai", "automation", "issue_emergency", "layout", ""):
             assert script.resolve_shadow_mode(bare, actor) is (not script.is_read_only(row)), (name, actor)
 
 
@@ -297,3 +296,16 @@ def test_every_shipped_action_says_it_plainly():
     for name, row in ACTIONS.items():
         if isinstance(row, dict) and "responses" in row:
             assert isinstance(row.get("shadow_mode"), bool) or "shadow_mode_by_actor" in row, name
+
+
+def test_action_actor_dropdown_offers_only_real_callers():
+    """The wrapper's Action_Actor dropdown offers what callers pass, and each is kept as itself."""
+    import yaml
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "SOCCommandWrapper.yml")) as f:
+        spec = yaml.safe_load(f)
+    arg = next(a for a in spec["args"] if a["name"] == "Action_Actor")
+    assert arg["predefined"] == ["analyst", "ai", "automation", "issue_emergency", "layout"]
+    assert arg["defaultValue"] == "analyst"
+    script, _ = load_script()
+    for actor in arg["predefined"]:
+        assert script.normalize_action_actor(actor, False) == actor

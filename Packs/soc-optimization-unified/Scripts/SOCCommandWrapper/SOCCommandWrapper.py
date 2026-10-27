@@ -598,8 +598,8 @@ def normalize_action_actor(raw_actor, shadow_mode):
     if shadow_mode and actor in ("", "analyst"):
         return "shadow"
 
-    if actor in ("automation", "analyst", "shadow", "system", "layout",
-                 "issue_emergency", "case_lifecycle", "ai", "framework"):
+    if actor in ("automation", "analyst", "shadow", "system", "layout", "ai", "issue_emergency",
+                 "framework"):
         return actor
 
     return "analyst"

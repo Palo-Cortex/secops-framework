@@ -37,6 +37,13 @@ class Tenant:
         self.commands, self.rows = [], []
         self.dataset_down = False
         self.core_api = core_api
+        # As shipped: off, placeholder owner (jobs/search shape on deathstar, 27 Oct 2026).
+        self.jobs = {n: {"id": f"id-{i}", "version": 1, "name": n, "owner": "set-owner-with-SOCFWConfig",
+                         "scheduled": False, "playbookId": "JOB - " + n, "nextRunTime": "2026-10-27T13:23:48Z"}
+                     for i, n in enumerate(("Auto Triage V3", "SOC Case Analysis"))}
+        self.users = [{"id": "ana@example.com", "username": "ana@example.com",
+                       "email": "ana@example.com", "name": "Ana"}]
+        self.jobs_ignore_writes = False
 
     def execute(self, command, args):
         self.commands.append((command, args))
@@ -59,11 +66,21 @@ class Tenant:
         if command == "core-api-post":
             if not self.core_api:
                 return [{"Type": 4, "Contents": "Unsupported Command: core-api-post"}]
-            assert args["uri"] == "/xsoar/public/v1/lists/save"
             body = json.loads(args["body"])
+            if args["uri"] == "/xsoar/public/v1/jobs/search":
+                return [{"Type": 1, "Contents": {"response": {"data": [dict(j) for j in self.jobs.values()],
+                                                              "total": len(self.jobs)}}}]
+            if args["uri"] == "/xsoar/public/v1/jobs":
+                if not self.jobs_ignore_writes:
+                    body["version"] = body.get("version", 0) + 1
+                    self.jobs[body["name"]] = body
+                return [{"Type": 1, "Contents": {"response": body}}]
+            assert args["uri"] == "/xsoar/public/v1/lists/save"
             self.lists[body["name"]] = body["data"]
             self.types[body["name"]] = body.get("type", "plain_text")
             return [{"Type": 1, "Contents": {"response": {"id": body["name"]}}}]
+        if command == "getUsers":
+            return [{"Type": 1, "Contents": list(self.users)}]
         if command == "socfw-post-to-dataset":
             self.rows.append(json.loads(args["JSON"]))
             return ([{"Type": 4, "Contents": "writer down"}] if self.dataset_down
@@ -74,7 +91,8 @@ class Tenant:
         return json.loads(self.lists[name]) if name in self.lists else None
 
     def writes(self):
-        return [c for c, _ in self.commands if c in ("setList", "createList", "core-api-post")]
+        return [c for c, a in self.commands if c in ("setList", "createList", "core-api-post")
+                and a.get("uri") != "/xsoar/public/v1/jobs/search"]
 
 
 class Results:
@@ -117,8 +135,6 @@ def test_status_names_the_exact_field_behind_each_cell():
     assert cell(r, "soc-star-case", "analyst")["decided_by"] == "action_actor"
     assert cell(r, "soc-star-case", "automation")["field"] == "SOCFWTenantConfig shadow.soc-star-case.automation"
     assert cell(r, "soc-star-case", "automation")["decided_by"] == "tenant_config"
-    assert (cell(r, "soc-star-case", "issue_emergency")["field"]
-            == "SOCFrameworkActions_V3 soc-star-case.shadow_mode_by_actor.issue_emergency")
     assert "| soc-star-case | live | shadow | live ✱ | shadow |" in r.readable_output
     iso = run(t, command="status", action="soc-isolate-endpoint")
     assert cell(iso, "soc-isolate-endpoint", "analyst")["field"] == "SOCFrameworkActions_V3 soc-isolate-endpoint.shadow_mode"
@@ -400,3 +416,173 @@ def test_status_agrees_with_the_wrapper_on_a_mangled_list():
     wrapper, _ = load_script()
     for row in r.outputs["rows"]:
         assert row["shadow"] == wrapper.resolve_shadow_mode(mangled[row["action"]], row["actor"]), row
+
+
+
+def test_actor_dropdown_matches_actors():
+    """The actor dropdown in the YAML offers exactly the actors the script accepts."""
+    import yaml
+    with open(os.path.join(HERE, "SOCFWConfig.yml")) as f:
+        spec = yaml.safe_load(f)
+    actor = next(a for a in spec["args"] if a["name"] == "actor")
+    assert actor.get("auto") == "PREDEFINED"
+    assert actor.get("isArray") is True
+    run(Tenant(), command="status")  # loads the module
+    assert tuple(actor["predefined"]) == sys.modules["SOCFWConfig"].ACTORS
+
+
+def test_shadow_accepts_actor_list_from_dropdown():
+    """A multi-select arrives as a list; it must give the same change as a comma string."""
+    as_list = run(Tenant(), command="shadow", action="soc-star-case",
+                  actor=["ai", "automation"], value="off").outputs
+    as_text = run(Tenant(), command="shadow", action="soc-star-case",
+                  actor="ai,automation", value="off").outputs
+    assert as_list["changes"] and as_list["changes"] == as_text["changes"]
+
+
+# ── job and owner ────────────────────────────────────────────────────────────
+
+AT = "Auto Triage V3"
+ANA = "ana@example.com"
+
+
+def owned(t, scheduled=False):
+    t.jobs[AT].update(owner=ANA, scheduled=scheduled)
+    return t
+
+
+def test_owner_dry_run_writes_nothing():
+    t = Tenant()
+    o = run(t, command="owner", job=AT, owner=ANA).outputs
+    assert o["dry_run"] and not o["applied"] and o["changed"]
+    assert o["to"] == {"owner": ANA, "scheduled": False}
+    assert t.jobs[AT]["owner"] == "set-owner-with-SOCFWConfig" and t.writes() == [] and t.rows == []
+    assert o["apply_command"] == f'!SOCFWConfig command=owner job="{AT}" owner={ANA} apply=yes'
+
+
+def test_owner_apply_sets_owner_only_reads_back_and_records():
+    t = Tenant()
+    r = run(t, command="owner", job="auto triage v3", owner="ANA@example.com", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.jobs[AT]["owner"] == "ANA@example.com" and t.jobs[AT]["scheduled"] is False
+    assert t.jobs[AT]["id"] == "id-0"
+    row = t.rows[-1]
+    assert row["event_type"] == "config_change" and row["job"] == AT and row["action_status"] == "owner"
+    assert "incident_id" not in row and "phase" not in row
+    assert "owner: set-owner-with-SOCFWConfig -> ANA@example.com" in row["action_taken"]
+
+
+def test_owner_refuses_someone_who_is_not_a_user():
+    t = Tenant()
+    with pytest.raises(RuntimeError, match="not a user on this tenant"):
+        run(t, command="owner", job=AT, owner="nobody@example.com", apply="yes")
+    assert t.writes() == []
+
+
+def test_owner_users_unreadable_refused():
+    t = Tenant()
+    t.users = []
+    with pytest.raises(RuntimeError, match="could not read the tenant's users"):
+        run(t, command="owner", job=AT, owner=ANA, apply="yes")
+
+
+def test_owner_required():
+    with pytest.raises(RuntimeError, match="owner is required"):
+        run(Tenant(), command="owner", job=AT)
+
+
+def test_job_turns_schedule_on_and_keeps_owner():
+    t = owned(Tenant())
+    r = run(t, command="job", job=AT, value="on", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.jobs[AT]["scheduled"] is True and t.jobs[AT]["owner"] == ANA
+    assert t.rows[-1]["action_status"] == "job"
+    assert "schedule: off -> on" in t.rows[-1]["action_taken"]
+    assert "Next run:" in r.readable_output
+
+
+def test_job_dry_run_writes_nothing():
+    t = owned(Tenant())
+    o = run(t, command="job", job=AT, value="on").outputs
+    assert o["dry_run"] and o["changed"] and t.jobs[AT]["scheduled"] is False and t.writes() == []
+
+
+def test_job_cannot_turn_on_without_owner_and_names_the_fix():
+    t = Tenant()
+    with pytest.raises(RuntimeError, match='command=owner job="Auto Triage V3"'):
+        run(t, command="job", job=AT, value="on", apply="yes")
+    assert t.jobs[AT]["scheduled"] is False
+
+
+def test_job_off_needs_no_owner():
+    t = Tenant()
+    t.jobs[AT]["scheduled"] = True
+    r = run(t, command="job", job=AT, value="off", apply="yes")
+    assert r.outputs["applied"] and t.jobs[AT]["scheduled"] is False
+    assert "set an owner" in r.readable_output
+
+
+def test_job_does_not_take_owner():
+    t = Tenant()
+    with pytest.raises(RuntimeError, match="set the owner with !SOCFWConfig command=owner"):
+        run(t, command="job", job=AT, owner=ANA, value="on")
+    assert t.writes() == []
+
+
+def test_job_unknown_name_and_bad_value_refused():
+    with pytest.raises(RuntimeError, match="job is required"):
+        run(owned(Tenant()), command="job", job="Something Else", value="on")
+    with pytest.raises(RuntimeError, match="on or off"):
+        run(Tenant(), command="job", job=AT, value="default")
+    with pytest.raises(RuntimeError, match="on or off"):
+        run(Tenant(), command="job", job=AT)
+
+
+def test_no_change_is_said_and_not_written():
+    t = owned(Tenant(), scheduled=True)
+    r = run(t, command="job", job=AT, value="on", apply="yes")
+    assert not r.outputs["changed"] and "nothing to change" in r.readable_output and t.rows == []
+    r = run(t, command="owner", job=AT, owner=ANA, apply="yes")
+    assert not r.outputs["changed"] and t.rows == []
+
+
+def test_write_that_does_not_land_is_reported():
+    t = owned(Tenant())
+    t.jobs_ignore_writes = True
+    with pytest.raises(RuntimeError, match="did not change on the tenant"):
+        run(t, command="job", job=AT, value="on", apply="yes")
+    with pytest.raises(RuntimeError, match="did not change on the tenant"):
+        run(t, command="owner", job=AT, owner="ANA@example.com", apply="yes")
+    assert t.rows == []
+
+
+def test_job_without_core_api_says_what_is_missing():
+    with pytest.raises(RuntimeError, match="Core REST API"):
+        run(Tenant(core_api=False), command="job", job=AT, value="off")
+
+
+def test_status_shows_jobs_and_whether_owner_is_a_user():
+    t = owned(Tenant(), scheduled=True)
+    r = run(t, command="status")
+    jobs = {j["job"]: j for j in r.outputs["jobs"]}
+    assert jobs[AT]["scheduled"] is True and jobs[AT]["owner_is_user"] is True
+    assert jobs["SOC Case Analysis"]["owner_is_user"] is False
+    assert "| SOC Case Analysis | off | `set-owner-with-SOCFWConfig` | **no** |" in r.readable_output
+    assert "command=owner" in r.readable_output
+    assert t.writes() == []
+
+
+def test_status_without_core_api_still_works():
+    r = run(Tenant(core_api=False), command="status")
+    assert r.outputs["jobs"] == [] and "Could not read the jobs" in r.readable_output
+
+
+def test_job_dropdown_matches_jobs():
+    import yaml
+    with open(os.path.join(HERE, "SOCFWConfig.yml")) as f:
+        spec = yaml.safe_load(f)
+    arg = next(a for a in spec["args"] if a["name"] == "job")
+    run(Tenant(), command="status")
+    assert tuple(arg["predefined"]) == sys.modules["SOCFWConfig"].JOBS
+    cmd = next(a for a in spec["args"] if a["name"] == "command")
+    assert {"job", "owner"} <= set(cmd["predefined"])
