@@ -55,8 +55,9 @@ def _callers():
     named = set()
     for row in ACTIONS.values():
         named |= set((row.get("shadow_mode_by_actor") or {}).keys())
-    # "automation" is the playbook default; "" and an unknown name pin the fallback.
-    return sorted(named | {"automation", "", "unknown-caller"})
+    # "automation" is the playbook default; "" and an unknown name pin the fallback;
+    # "framework" pins its alias to automation.
+    return sorted(named | {"automation", "framework", "", "unknown-caller"})
 
 
 def _artifact_context():
@@ -155,6 +156,9 @@ def _with_overlay(tenant, overlay):
 
 
 def _routing_tables(overlay=None):
+    # Routing runs with shadow forced on so nothing is dispatched; a shadow
+    # override would lift that, and shadow is what the shadow table records.
+    overlay = {k: v for k, v in (overlay or {}).items() if k != "shadow"}
     none_cfg = _with_overlay(TENANT_CONFIGS["none"], overlay)
     full_cfg = _with_overlay(TENANT_CONFIGS["full"], overlay)
     plain, configured = {}, {}
@@ -226,14 +230,14 @@ def test_snapshot_covers_every_action_source_and_caller():
         assert set(row) == set(_callers())
 
 
-# A customer taking starring off shadow for the assessment and the framework,
+# A customer taking starring off shadow for the AI and for automation,
 # the way SOCFWConfig writes it.
-STAR_LIVE_FOR_AI_AND_FRAMEWORK = {"shadow": {"soc-star-case": {"ai": False, "framework": False}}}
+STAR_LIVE_FOR_AI_AND_AUTOMATION = {"shadow": {"soc-star-case": {"ai": False, "automation": False}}}
 
 
 def test_tenant_shadow_override_moves_only_the_rows_it_names():
     expected = _load_snapshot()
-    flipped = build_snapshot(STAR_LIVE_FOR_AI_AND_FRAMEWORK)
+    flipped = build_snapshot(STAR_LIVE_FOR_AI_AND_AUTOMATION)
     moved = []
     for section in SECTIONS:
         for key in sorted(set(expected[section]) | set(flipped[section])):
@@ -242,5 +246,7 @@ def test_tenant_shadow_override_moves_only_the_rows_it_names():
                 moved += [(section, key, c, a[c], b[c]) for c in sorted(a) if a[c] != b[c]]
             elif a != b:
                 moved.append((section, key))
+    # framework moves with automation: it is read as automation.
     assert moved == [("shadow", "soc-star-case", "ai", True, False),
+                     ("shadow", "soc-star-case", "automation", True, False),
                      ("shadow", "soc-star-case", "framework", True, False)]

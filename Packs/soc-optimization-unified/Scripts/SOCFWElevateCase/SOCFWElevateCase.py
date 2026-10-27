@@ -222,7 +222,7 @@ def _row(**kw):
     row = {
         "event_type": "elevate_decision",
         "phase": "triage",
-        "action_actor": kw.pop("actor", "framework"),
+        "action_actor": kw.pop("actor", "automation"),
         "decided_at": datetime.now(timezone.utc).isoformat(),
     }
     row.update({k: v for k, v in kw.items() if v not in ABSENT})
@@ -240,7 +240,7 @@ def main():
     source_key = args.get("source_key") or "Assessment.AI"
     # Which surface is calling. Defaults to the automated path, which ships
     # shadowed; a layout button or a test passes analyst, which is live.
-    actor = (args.get("actor") or "framework").strip().lower()
+    actor = (args.get("actor") or "automation").strip().lower()
 
     policy = _policy()
     assessment = _assessment(ctx, source_key)

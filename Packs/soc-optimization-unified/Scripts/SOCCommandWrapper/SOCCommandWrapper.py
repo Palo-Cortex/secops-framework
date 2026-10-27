@@ -498,6 +498,19 @@ def _as_bool(value):
     return None
 
 
+# "framework" was the starring path's name for an unattended run; it is now
+# "automation". Read as automation for one release so playbooks already
+# deployed keep working - unless the setting being read names "framework"
+# itself, so a list edited on a tenant does not change behaviour silently.
+LEGACY_ACTOR_ALIASES = {"framework": "automation"}
+
+
+def _shadow_actor(raw_actor, named):
+    actor = str(raw_actor or "").strip().lower()
+    alias = LEGACY_ACTOR_ALIASES.get(actor)
+    return alias if alias and actor not in named else actor
+
+
 def tenant_shadow_override(tenant_config, action, raw_actor):
     """The customer's shadow setting for this action and actor, or None.
 
@@ -506,12 +519,14 @@ def tenant_shadow_override(tenant_config, action, raw_actor):
     answer for any pair is either named here or comes from the shipped row.
     A value that is not a boolean is ignored rather than guessed.
     """
-    actor = str(raw_actor or "").strip().lower()
-    if not actor or not isinstance(tenant_config, dict):
+    if not str(raw_actor or "").strip() or not isinstance(tenant_config, dict):
         return None
     section = tenant_config.get("shadow")
     per_action = section.get(action) if isinstance(section, dict) else None
-    if not isinstance(per_action, dict) or actor not in per_action:
+    if not isinstance(per_action, dict):
+        return None
+    actor = _shadow_actor(raw_actor, per_action)
+    if actor not in per_action:
         return None
     value = _as_bool(per_action[actor])
     if value is None:
@@ -553,7 +568,7 @@ def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
     if not isinstance(by_actor, dict):
         return default
 
-    actor = str(raw_actor or "").strip().lower()
+    actor = _shadow_actor(raw_actor, by_actor)
     # An unrecognised or absent caller falls back to the action default rather
     # than to whichever entry happens to be first - an unknown caller is the
     # case where simulating is the safer guess.

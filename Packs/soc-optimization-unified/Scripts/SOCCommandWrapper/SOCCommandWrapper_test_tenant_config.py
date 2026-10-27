@@ -111,8 +111,8 @@ def test_customer_value_from_new_list_reaches_the_dispatch():
 # {"shadow": {action: {actor: bool}}}, written by SOCFWConfig. A named pair
 # decides; anything not named falls through to the shipped action row.
 
-STAR = ACTIONS["soc-star-case"]  # shadow true; analyst false, ai true, framework true
-STAR_LIVE = {"shadow": {"soc-star-case": {"ai": False, "framework": False}}}
+STAR = ACTIONS["soc-star-case"]  # shadow true; analyst false, ai true
+STAR_LIVE = {"shadow": {"soc-star-case": {"ai": False, "automation": False}}}
 
 
 def _shadow(tenant, actor, action="soc-star-case"):
@@ -124,12 +124,12 @@ def _shadow(tenant, actor, action="soc-star-case"):
 def test_override_takes_named_actor_off_shadow():
     assert _shadow(None, "ai") is True
     assert _shadow(STAR_LIVE, "ai") is False
-    assert _shadow(STAR_LIVE, "framework") is False
+    assert _shadow(STAR_LIVE, "automation") is False
 
 
 def test_override_leaves_other_actors_on_the_shipped_row():
-    assert _shadow(STAR_LIVE, "analyst") is False      # shipped by_actor
-    assert _shadow(STAR_LIVE, "automation") is True    # shipped default
+    assert _shadow(STAR_LIVE, "analyst") is False          # shipped by_actor
+    assert _shadow(STAR_LIVE, "issue_emergency") is True   # shipped default
     assert _shadow(STAR_LIVE, "") is True
 
 
@@ -192,3 +192,24 @@ def test_shadow_hint_names_the_socfwconfig_command():
     assert script.shadow_go_live_command("soc-star-case", "AI") == cmd
     assert cmd in script.shadow_footer("soc-star-case", "ai")
     assert "actor=<actor>" in script.shadow_go_live_command("soc-star-case", "")
+
+
+# ── framework is read as automation for one release ───────────────────────────
+
+def test_framework_reads_the_automation_setting():
+    assert _shadow(None, "framework") is True
+    assert _shadow(STAR_LIVE, "framework") is False
+
+
+def test_framework_named_explicitly_is_still_honoured():
+    # A list or tenant config edited before the rename keeps meaning what it said.
+    row = dict(STAR, shadow_mode_by_actor={"analyst": False, "framework": False})
+    script, _ = load_script()
+    assert script.resolve_shadow_mode(row, "framework") is False
+    assert script.resolve_shadow_mode(row, "automation") is True
+    cfg = {"shadow": {"soc-star-case": {"framework": False, "automation": True}}}
+    assert _shadow(cfg, "framework") is False
+
+
+def test_shipped_star_row_no_longer_names_framework():
+    assert "framework" not in STAR["shadow_mode_by_actor"]

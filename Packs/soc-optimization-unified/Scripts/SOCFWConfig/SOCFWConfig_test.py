@@ -94,7 +94,7 @@ def test_status_shipped_defaults_for_starring():
     r = run(Tenant(), command="status")
     assert status_of(r, "soc-star-case", "analyst")["state"] == "live"
     assert status_of(r, "soc-star-case", "ai")["state"] == "shadow"
-    assert status_of(r, "soc-star-case", "framework")["decided_by"] == "shipped_default"
+    assert status_of(r, "soc-star-case", "automation")["decided_by"] == "shipped_default"
     assert r.outputs["contract_version"] == 1
     assert r.outputs["tenant_config_list"] is None
 
@@ -125,7 +125,7 @@ def test_status_agrees_with_the_wrapper_for_every_action_and_actor():
     wrapper_dir = os.path.join(HERE, "..", "SOCCommandWrapper")
     sys.path.insert(0, wrapper_dir)
     from SOCCommandWrapper_test import load_script
-    flip = {"shadow": {"soc-star-case": {"ai": False, "framework": False},
+    flip = {"shadow": {"soc-star-case": {"ai": False, "automation": False},
                        "soc-isolate-endpoint": {"analyst": False}}}
     for cfg in (None, flip):
         r = run(Tenant(**({NEW: cfg} if cfg else {})), command="status",
@@ -143,10 +143,10 @@ def test_status_agrees_with_the_wrapper_for_every_action_and_actor():
 
 def test_shadow_dry_run_by_default_writes_nothing():
     t = Tenant()
-    r = run(t, command="shadow", action="soc-star-case", actor="ai,framework", value="off")
+    r = run(t, command="shadow", action="soc-star-case", actor="ai,automation", value="off")
     assert r.outputs["dry_run"] and not r.outputs["applied"]
     assert [(c["actor"], c["from"], c["to"]) for c in r.outputs["changes"]] == [
-        ("ai", "shadow", "live"), ("framework", "shadow", "live")]
+        ("ai", "shadow", "live"), ("automation", "shadow", "live")]
     assert t.writes() == []
     assert r.outputs["apply_command"].endswith("value=off apply=yes")
     assert r.outputs["creates_list"] is True
@@ -154,11 +154,11 @@ def test_shadow_dry_run_by_default_writes_nothing():
 
 def test_shadow_apply_creates_the_list_and_writes_only_the_named_pairs():
     t = Tenant()
-    r = run(t, command="shadow", action="soc-star-case", actor="ai,framework",
+    r = run(t, command="shadow", action="soc-star-case", actor="ai,automation",
             value="off", apply="yes")
     assert r.outputs["applied"]
     assert t.writes() == ["createList"]
-    assert t.config() == {"shadow": {"soc-star-case": {"ai": False, "framework": False}}}
+    assert t.config() == {"shadow": {"soc-star-case": {"ai": False, "automation": False}}}
 
 
 def test_first_write_carries_over_the_legacy_list():
@@ -180,8 +180,8 @@ def test_existing_list_is_updated_in_place():
 
 def test_default_removes_the_setting_and_reverses_the_change():
     t = Tenant(**{NEW: {"Zscaler": {"category-id": "cat-1"},
-                        "shadow": {"soc-star-case": {"ai": False, "framework": False}}}})
-    r = run(t, command="shadow", action="soc-star-case", actor="ai,framework",
+                        "shadow": {"soc-star-case": {"ai": False, "automation": False}}}})
+    r = run(t, command="shadow", action="soc-star-case", actor="ai,automation",
             value="default", apply="yes")
     assert [(c["from"], c["to"]) for c in r.outputs["changes"]] == [
         ("live", "shadow"), ("live", "shadow")]
@@ -241,3 +241,28 @@ def test_write_that_does_not_land_is_reported():
 def test_unknown_command():
     with pytest.raises(RuntimeError, match="unknown command"):
         run(Tenant(), command="pov")
+
+
+def test_framework_is_rejected_with_its_new_name():
+    t = Tenant()
+    with pytest.raises(RuntimeError, match="framework is now automation"):
+        run(t, command="shadow", action="soc-star-case", actor="framework", value="off")
+    assert t.writes() == []
+
+
+def test_status_and_wrapper_agree_on_framework_alias():
+    wrapper_dir = os.path.join(HERE, "..", "SOCCommandWrapper")
+    sys.path.insert(0, wrapper_dir)
+    from SOCCommandWrapper_test import load_script
+    run(Tenant(), command="status")   # loads SOCFWConfig with mocks
+    import SOCFWConfig as cfgmod
+    wrapper, _ = load_script()
+    for cfg in (None, {"shadow": {"soc-star-case": {"automation": False}}},
+                {"shadow": {"soc-star-case": {"framework": False, "automation": True}}}):
+        for name, row in ACTIONS.items():
+            if not (isinstance(row, dict) and "responses" in row):
+                continue
+            mine = cfgmod.effective(cfg or {}, name, row, "framework")[0]
+            theirs = wrapper.resolve_shadow_mode(
+                row, "framework", wrapper.tenant_shadow_override(cfg, name, "framework"))
+            assert mine == theirs, (cfg, name)
