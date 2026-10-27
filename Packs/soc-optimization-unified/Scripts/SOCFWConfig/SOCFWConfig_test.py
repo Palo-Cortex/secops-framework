@@ -136,10 +136,10 @@ def test_status_names_the_exact_field_behind_each_cell():
     assert cell(r, "soc-star-case", "automation")["field"] == "SOCFWTenantConfig shadow.soc-star-case.automation"
     assert cell(r, "soc-star-case", "automation")["decided_by"] == "tenant_config"
     assert "| soc-star-case | live | shadow | live ✱ | shadow |" in r.readable_output
-    iso = run(t, command="status", action="soc-isolate-endpoint")
-    assert cell(iso, "soc-isolate-endpoint", "analyst")["field"] == "SOCFrameworkActions_V3 soc-isolate-endpoint.shadow_mode"
-    assert cell(iso, "soc-isolate-endpoint", "analyst")["decided_by"] == "action_default"
-    assert "| soc-isolate-endpoint | shadow † | shadow † | shadow † | shadow † |" in iso.readable_output
+    iso = run(t, command="status", action="soc-kill-process")
+    assert cell(iso, "soc-kill-process", "analyst")["field"] == "SOCFrameworkActions_V3 soc-kill-process.shadow_mode"
+    assert cell(iso, "soc-kill-process", "analyst")["decided_by"] == "action_default"
+    assert "| soc-kill-process | shadow † | shadow † | shadow † | shadow † |" in iso.readable_output
 
 
 def test_status_lists_mutating_actions_only_by_default():
@@ -153,7 +153,8 @@ def test_status_shows_customer_values_and_what_is_missing():
     t = Tenant(**{NEW: {"Zscaler": {"category-id": "CAT-1"}}})
     r = run(t, command="status")
     values = {(v["vendor"], v["arg"]): v for v in r.outputs["values"]}
-    assert set(values) == {("Zscaler", "category-id"), ("Zscaler", "using"), ("ThreatStopv2", "list_id")}
+    assert set(values) == {("Zscaler", "category-id"), ("Zscaler", "using"), ("ThreatStopv2", "list_id"),
+                           ("CrowdStrike Falcon", "using")}
     assert values[("Zscaler", "category-id")]["value"] == "CAT-1"
     assert values[("ThreatStopv2", "list_id")]["set"] is False
     assert values[("ThreatStopv2", "list_id")]["required"] is True
@@ -385,7 +386,7 @@ def test_unknown_command():
 
 def _mangled_actions():
     mangled = json.loads(json.dumps(ACTIONS))
-    mangled["soc-isolate-endpoint"].pop("shadow_mode")
+    mangled["soc-kill-process"].pop("shadow_mode")
     mangled["soc-close-issue"]["shadow_mode"] = "yes"
     mangled["soc-star-case"]["shadow_mode_by_actor"]["analyst"] = "no"     # garbled
     mangled["soc-star-case"]["shadow_mode_by_actor"].pop("automation")      # not named
@@ -396,12 +397,12 @@ def _mangled_actions():
 def test_status_reports_missing_or_garbled_settings_as_simulated():
     t = Tenant()
     t.lists["SOCFrameworkActions_V3"] = json.dumps(_mangled_actions())
-    r = run(t, command="status", action="soc-isolate-endpoint,soc-close-issue,soc-star-case,soc-enrich-domain")
+    r = run(t, command="status", action="soc-kill-process,soc-close-issue,soc-star-case,soc-enrich-domain")
     for actor in ("analyst", "ai", "automation", "issue_emergency"):
         assert cell(r, "soc-close-issue", actor)["state"] == "shadow"
         assert cell(r, "soc-star-case", actor)["state"] == "shadow"
     assert cell(r, "soc-star-case", "automation")["field"].endswith("(not named)")
-    assert cell(r, "soc-isolate-endpoint", "automation")["field"].endswith("(missing or unreadable)")
+    assert cell(r, "soc-kill-process", "automation")["field"].endswith("(missing or unreadable)")
     assert cell(r, "soc-enrich-domain", "automation")["state"] == "live"
 
 
@@ -586,3 +587,32 @@ def test_job_dropdown_matches_jobs():
     assert tuple(arg["predefined"]) == sys.modules["SOCFWConfig"].JOBS
     cmd = next(a for a in spec["args"] if a["name"] == "command")
     assert {"job", "owner"} <= set(cmd["predefined"])
+
+
+# ── CrowdStrike isolate: per actor, and the instance ────────────────────────
+
+CS = "CrowdStrike Falcon"
+
+
+def test_set_accepts_crowdstrike_using_and_status_lists_it():
+    t = Tenant()
+    r = run(t, command="set", vendor="crowdstrike falcon", arg="using", value="CrowdStrike_Prod", apply="yes")
+    assert r.outputs["applied"] and t.config()[CS] == {"using": "CrowdStrike_Prod"}
+    assert set(r.outputs["used_by"]) == {"soc-isolate-endpoint", "soc-deisolate-endpoint"}
+    assert r.outputs["required"] is False
+    s = run(t, command="status")
+    row = [v for v in s.outputs["values"] if v["vendor"] == CS and v["arg"] == "using"]
+    assert row and row[0]["value"] == "CrowdStrike_Prod"
+
+
+def test_shadow_takes_isolate_live_for_analyst_only():
+    t = Tenant()
+    run(t, command="shadow", action="soc-isolate-endpoint", actor="analyst", value="off", apply="yes")
+    assert t.config()["shadow"]["soc-isolate-endpoint"] == {"analyst": False}
+    r = run(t, command="status", action="soc-isolate-endpoint")
+    assert cell(r, "soc-isolate-endpoint", "analyst")["shadow"] is False
+    assert cell(r, "soc-isolate-endpoint", "analyst")["decided_by"] == "tenant_config"
+    for actor in ("ai", "automation", "issue_emergency"):
+        c = cell(r, "soc-isolate-endpoint", actor)
+        assert c["shadow"] is True and c["decided_by"] == "action_actor"
+        assert c["field"] == f"SOCFrameworkActions_V3 soc-isolate-endpoint.shadow_mode_by_actor.{actor}"

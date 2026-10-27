@@ -228,32 +228,56 @@ def check_file(filepath, actions_map, policy):
             })
             continue
 
-        if 'shadow_mode' not in entry:
+        # A row says shadow one of two ways, never both: shadow_mode (every
+        # actor) or shadow_mode_by_actor (each actor named). Per-actor rows are
+        # judged the same way: every actor shadowed passes, any actor live
+        # needs the same policy exemption as shadow_mode: false.
+        has_one = 'shadow_mode' in entry
+        by_actor = entry.get('shadow_mode_by_actor')
+        has_by_actor = isinstance(by_actor, dict) and bool(by_actor)
+        if has_one and has_by_actor:
             issues.append({
                 'task_id': tid,
                 'action':  action,
                 'msg':     (
-                    f'Action "{action}" has no shadow_mode field in SOCFrameworkActions_V3. '
-                    'Add shadow_mode: true (destructive) or shadow_mode: false with a '
+                    f'Action "{action}" has both shadow_mode and shadow_mode_by_actor in '
+                    'SOCFrameworkActions_V3. Use one or the other.'
+                ),
+            })
+            continue
+        if not has_one and not has_by_actor:
+            issues.append({
+                'task_id': tid,
+                'action':  action,
+                'msg':     (
+                    f'Action "{action}" has no shadow_mode or shadow_mode_by_actor field in '
+                    'SOCFrameworkActions_V3. Add shadow_mode: true (destructive), a '
+                    'shadow_mode_by_actor block, or shadow_mode: false with a '
                     'corresponding entry in shadow_mode_policy.json (read-only/enrichment).'
                 ),
             })
             continue
 
+        if has_one:
+            live = [] if shadow_mode_is_on(entry['shadow_mode']) else ['every actor']
+            field = 'shadow_mode: false'
+        else:
+            live = sorted(a for a, v in by_actor.items() if not shadow_mode_is_on(v))
+            field = 'shadow_mode_by_actor live for ' + ', '.join(live)
+
         # ------------------------------------------------------------------
-        # Check 4: shadow_mode: false requires a policy exemption
+        # Check 4: anything live requires a policy exemption
         # ------------------------------------------------------------------
-        if shadow_mode_is_on(entry['shadow_mode']):
-            # shadow_mode: true -- always OK
+        if not live:
+            # shadowed for every actor -- always OK
             pass
         else:
-            # shadow_mode: false -- must be explicitly approved in policy
             if action in production_allowed:
                 warnings.append({
                     'task_id': tid,
                     'action':  action,
                     'msg':     (
-                        f'shadow_mode: false -- approved in policy. '
+                        f'{field} -- approved in policy. '
                         f'Category: {production_allowed[action].get("category", "??")}. '
                         f'Reason: {production_allowed[action].get("reason", "no reason given")}'
                     ),
@@ -263,9 +287,9 @@ def check_file(filepath, actions_map, policy):
                     'task_id': tid,
                     'action':  action,
                     'msg':     (
-                        f'Action "{action}" has shadow_mode: false but is NOT listed in '
+                        f'Action "{action}" has {field} but is NOT listed in '
                         'shadow_mode_policy.json production_allowed. '
-                        'Add a policy entry with a documented reason, or set shadow_mode: true.'
+                        'Add a policy entry with a documented reason, or shadow it.'
                     ),
                 })
 
