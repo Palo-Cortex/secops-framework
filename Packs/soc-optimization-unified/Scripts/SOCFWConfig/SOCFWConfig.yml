@@ -7,11 +7,12 @@ type: python
 subtype: python3
 dockerimage: demisto/python3:3.12.8.1983910
 comment: Configures the SOC Framework on this tenant. status shows which actions
-  are live or simulated for each actor and whether the tenant config or the shipped
-  default decided it. shadow takes one action on or off shadow for named actors, or
-  returns it to the shipped default; it is a dry run unless apply=yes. Settings are
-  written to SOCFWTenantConfig, which this script creates on first write and no pack
-  install overwrites.
+  are live or simulated for each actor, the exact list field that decided each one,
+  and which customer values are set. shadow takes one action on or off shadow for
+  named actors, or returns it to the shipped setting. set sets or removes one customer
+  value, such as a block-list id or proxy category. shadow and set are dry runs unless
+  apply=yes. Settings are written to SOCFWTenantConfig, a JSON list this script creates
+  on first write (through the Core REST API integration) and no pack install overwrites.
 tags:
 - socfw
 enabled: true
@@ -28,26 +29,26 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default) or shadow.
+  description: status (default), shadow or set.
   defaultValue: status
   auto: PREDEFINED
   predefined:
   - status
   - shadow
+  - set
 - name: action
   description: The action, e.g. soc-star-case. Required for shadow; for status, limits
     the table to these actions (comma-separated).
 - name: actor
-  description: Who asks for the action - analyst, ai, framework, automation or issue_emergency.
-    Comma-separated for more than one. Required for shadow.
+  description: For shadow - who asks for the action - analyst, ai, automation or issue_emergency.
+    Comma-separated for more than one.
+- name: vendor
+  description: For set - the vendor the value belongs to, e.g. Zscaler or ThreatStopv2.
+- name: arg
+  description: For set - the setting, e.g. category-id, list_id or using. status lists them.
 - name: value
-  description: on (simulate), off (run for real) or default (remove the setting and use
-    the shipped default). Required for shadow.
-  auto: PREDEFINED
-  predefined:
-  - "on"
-  - "off"
-  - default
+  description: For shadow - on (simulate), off (run for real) or default (use the shipped
+    setting). For set - the value, or default to remove it.
 - name: apply
   description: yes writes the change. Anything else is a dry run that shows the change.
   defaultValue: "no"
@@ -57,8 +58,8 @@ args:
   - "no"
 outputs:
 - contextPath: SOCFWConfig.Status.rows
-  description: One row per action and actor - action, actor, shadow, state, decided_by,
-    read_only.
+  description: One row per action and actor - action, actor, shadow, state, decided_by
+    (tenant_config, action_actor or action_default), field, read_only.
   type: Unknown
 - contextPath: SOCFWConfig.Status.contract_version
   description: Version of this output's keys.
@@ -85,3 +86,24 @@ outputs:
 - contextPath: SOCFWConfig.Shadow.recorded
   description: True when every changed actor got a config_change row in xsiam_socfw_ir_execution_raw.
   type: Boolean
+- contextPath: SOCFWConfig.Status.values
+  description: One row per customer value - vendor, arg, value, set, required, used_by.
+  type: Unknown
+- contextPath: SOCFWConfig.Set.from
+  description: The value before the change.
+  type: String
+- contextPath: SOCFWConfig.Set.to
+  description: The value after the change.
+  type: String
+- contextPath: SOCFWConfig.Set.applied
+  description: True when the change was written and read back.
+  type: Boolean
+- contextPath: SOCFWConfig.Set.dry_run
+  description: True when nothing was written.
+  type: Boolean
+- contextPath: SOCFWConfig.Set.apply_command
+  description: The command that writes this change.
+  type: String
+- contextPath: SOCFWConfig.Set.contract_version
+  description: Version of this output's keys.
+  type: Number

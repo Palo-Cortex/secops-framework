@@ -1,14 +1,14 @@
 """
 SOCCommandWrapper_test_tenant_config.py
 
-Which tenant config list the wrapper reads. SOCFWTenantConfig is the name; the
-list shipped as SOCFrameworkTenantConfig_V3 and is read only when the new list
-does not exist, for one release.
+Reading the tenant config list, SOCFWTenantConfig, and the shadow overrides in it.
 
 Run: pytest Scripts/SOCCommandWrapper/SOCCommandWrapper_test_tenant_config.py -v
 """
 
 import copy
+
+import pytest
 import json
 import os
 
@@ -23,7 +23,7 @@ CLASS_MAP = json.load(open(os.path.join(
     _LISTS, "SOCActionClassMap_V3", "SOCActionClassMap_V3_data.json")))
 
 NEW = "SOCFWTenantConfig"
-OLD = "SOCFrameworkTenantConfig_V3"
+OLD = "SOCFrameworkTenantConfig_V3"  # removed name; must never be read
 
 
 def _lists(**by_name):
@@ -48,19 +48,12 @@ def test_reads_new_name():
     assert _load(**{NEW: {"Zscaler": {"category-id": "new"}}}) == {"Zscaler": {"category-id": "new"}}
 
 
-def test_falls_back_to_legacy_name_when_new_list_missing():
-    assert _load(**{OLD: {"Zscaler": {"category-id": "old"}}}) == {"Zscaler": {"category-id": "old"}}
+def test_old_list_name_is_never_read():
+    assert _load(**{OLD: {"Zscaler": {"category-id": "old"}}}) == {}
 
 
-def test_new_list_wins_over_legacy():
-    cfg = _load(**{NEW: {"Zscaler": {"category-id": "new"}},
-                   OLD: {"Zscaler": {"category-id": "old"}}})
-    assert cfg == {"Zscaler": {"category-id": "new"}}
-
-
-def test_malformed_new_list_does_not_fall_back():
-    # Stale values from the old list would be worse than a skip naming the value.
-    assert _load(**{NEW: "not json", OLD: {"Zscaler": {"category-id": "old"}}}) == {}
+def test_malformed_list_means_nothing_configured():
+    assert _load(**{NEW: "not json"}) == {}
 
 
 def test_neither_list_means_nothing_configured():
@@ -182,8 +175,8 @@ def test_star_case_runs_for_ai_with_override_in_new_list():
     assert "setParentIncidentFields" in _star("ai", **{NEW: STAR_LIVE})
 
 
-def test_star_case_override_read_from_legacy_list_when_new_missing():
-    assert "setParentIncidentFields" in _star("framework", **{OLD: STAR_LIVE})
+def test_star_case_old_playbook_passing_framework_follows_automation():
+    assert "setParentIncidentFields" in _star("framework", **{NEW: STAR_LIVE})
 
 
 def test_shadow_hint_names_the_socfwconfig_command():
@@ -213,3 +206,94 @@ def test_framework_named_explicitly_is_still_honoured():
 
 def test_shipped_star_row_no_longer_names_framework():
     assert "framework" not in STAR["shadow_mode_by_actor"]
+
+
+# ── fail closed: anything that can change something defaults to shadow ──────
+
+def _resolve(row, actor="automation"):
+    script, _ = load_script()
+    return script.resolve_shadow_mode(row, actor)
+
+
+MUTATING = {"responses": {}, "phase": "containment"}
+READ_ONLY = {"responses": {}, "phase": "enrichment"}
+
+
+@pytest.mark.parametrize("value", ["__missing__", "yes", 1, "", None, "off", "TRUE "])
+def test_mutating_action_without_a_plain_setting_is_simulated(value):
+    row = dict(MUTATING)
+    if value != "__missing__":
+        row["shadow_mode"] = value
+    expected = True  # "TRUE " is plainly true; everything else is unreadable -> shadow
+    assert _resolve(row) is expected
+
+
+def test_mutating_action_runs_only_on_a_deliberate_false():
+    assert _resolve(dict(MUTATING, shadow_mode=False)) is False
+    assert _resolve(dict(MUTATING, shadow_mode="false")) is False
+
+
+def test_read_only_action_without_a_setting_still_runs():
+    assert _resolve(dict(READ_ONLY)) is False
+
+
+def test_garbled_actor_value_falls_back_to_the_action_default():
+    row = dict(MUTATING, shadow_mode=True, shadow_mode_by_actor={"analyst": "no"})
+    assert _resolve(row, "analyst") is True
+    row = dict(MUTATING, shadow_mode=True, shadow_mode_by_actor={"analyst": False})
+    assert _resolve(row, "analyst") is False
+
+
+def test_every_shipped_action_with_its_shadow_fields_removed():
+    script, _ = load_script()
+    for name, row in ACTIONS.items():
+        if not (isinstance(row, dict) and "responses" in row):
+            continue
+        bare = {k: v for k, v in row.items() if k not in ("shadow_mode", "shadow_mode_by_actor")}
+        for actor in ("analyst", "ai", "automation", "issue_emergency", ""):
+            assert script.resolve_shadow_mode(bare, actor) is (not script.is_read_only(row)), (name, actor)
+
+
+def test_star_case_with_shadow_fields_removed_is_not_executed():
+    bare = {k: v for k, v in STAR.items() if k not in ("shadow_mode", "shadow_mode_by_actor")}
+    script, demisto = load_script()
+    demisto._args = {"action": "soc-star-case", "list_name": "SOCFrameworkActions_V3",
+                     "output_key": "UCTest.Executions", "Action_Actor": "ai"}
+    demisto._context = {"SOCFramework": {"RunID": "run-1", "Product": {}}}
+    getlist = _lists()
+
+    def _get(args):
+        if (args or {}).get("listName") == "SOCFrameworkActions_V3":
+            return [{"Contents": json.dumps({"soc-star-case": bare})}]
+        return getlist(args)
+
+    demisto._command_responses = {"getList": _get,
+                                  "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
+                                  "setParentIncidentFields": [{"Type": 1, "Contents": "ok"}],
+                                  "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}]}
+    script.main()
+    assert "setParentIncidentFields" not in [c for c, _ in demisto._commands]
+
+
+# ── the shipped list follows the either/or shape ─────────────────────────────
+
+ACTOR_NAMES = {"analyst", "ai", "automation", "issue_emergency"}
+
+
+def test_shipped_rows_use_one_shape_or_the_other_never_both():
+    both = [k for k, v in ACTIONS.items() if isinstance(v, dict)
+            and "shadow_mode" in v and "shadow_mode_by_actor" in v]
+    assert both == []
+
+
+def test_shipped_per_actor_rows_name_exactly_the_four_actors():
+    for name, row in ACTIONS.items():
+        if isinstance(row, dict) and "shadow_mode_by_actor" in row:
+            assert set(row["shadow_mode_by_actor"]) == ACTOR_NAMES, name
+            assert all(isinstance(v, bool) for v in row["shadow_mode_by_actor"].values()), name
+
+
+def test_every_shipped_action_says_it_plainly():
+    for name, row in ACTIONS.items():
+        if isinstance(row, dict) and "responses" in row:
+            assert isinstance(row.get("shadow_mode"), bool) or "shadow_mode_by_actor" in row, name

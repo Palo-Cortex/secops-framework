@@ -403,9 +403,6 @@ def get_or_create_run_id(ctx):
 
 
 TENANT_CONFIG_LIST = "SOCFWTenantConfig"
-# The name the list shipped under with soc-block-domain. Read only when the new
-# list does not exist, for one release, then this fallback is removed.
-LEGACY_TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
 
 
 def _read_tenant_config_list(name):
@@ -433,15 +430,8 @@ def load_tenant_config():
     Created on the tenant, never shipped in a pack, so an upgrade cannot
     overwrite it. Missing or unreadable means nothing is configured, and any
     action that needs a value skips with a reason naming it.
-
-    The legacy name is read only when the new list does not exist. A new list
-    that exists but is malformed does not fall back: stale values from the old
-    list would be worse than a skip that names the missing value.
     """
-    cfg = _read_tenant_config_list(TENANT_CONFIG_LIST)
-    if cfg is None:
-        cfg = _read_tenant_config_list(LEGACY_TENANT_CONFIG_LIST)
-    return cfg or {}
+    return _read_tenant_config_list(TENANT_CONFIG_LIST) or {}
 
 
 def brand_available(brand):
@@ -486,6 +476,14 @@ def brand_available(brand):
         return True
 
     return any(m.get("state") == "active" for m in registered)
+
+
+# Actions in these phases only read. Every other action can change something.
+READ_ONLY_PHASES = ("enrichment", "investigation")
+
+
+def is_read_only(action_entry):
+    return str(action_entry.get("phase") or "").strip().lower() in READ_ONLY_PHASES
 
 
 def _as_bool(value):
@@ -542,27 +540,36 @@ def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
     A tenant override for this action and actor (tenant_shadow_override)
     decides first. Without one, the shipped action row decides as below.
 
-    shadow_mode is the action-level default and stays the only required field.
-    Where an action also carries shadow_mode_by_actor, the caller decides:
+    An action row says it one of two ways, never both:
 
-        "shadow_mode": true,
-        "shadow_mode_by_actor": {"analyst": false, "automation": true}
+        "shadow_mode": true                    one setting for every actor
+        "shadow_mode_by_actor": {"analyst": false, "ai": true,
+                                 "automation": true, "issue_emergency": true}
 
-    That separates the two things one flag used to conflate. A customer can let
-    analysts really contain from the issue layout while the JOB still only
-    simulates, which is the order most SOCs want to adopt in - a human in the
-    loop on every real action before any of it runs unattended.
+    The per-actor form lets a customer have analysts really act from the issue
+    layout while unattended runs still simulate - a human in the loop on every
+    real action before any of it runs unattended. An actor the per-actor form
+    does not name is simulated. A row still carrying both (a list edited before
+    this rule) is read as before: the named actor, else shadow_mode.
 
     Resolved on the raw actor, because normalize_action_actor rewrites "analyst"
     to "shadow" once shadowing is decided and would erase the distinction.
+
+    Fails closed. An action that can change something (any phase but
+    enrichment or investigation) is simulated when its shadow_mode is missing or
+    is not plainly true or false, and a garbled per-actor value falls back to
+    that default. Only a deliberate false makes such an action run.
     """
     if tenant_override is not None:
         demisto.debug(f"resolve_shadow_mode: tenant override shadow={tenant_override}")
         return tenant_override
 
-    default = action_entry.get("shadow_mode", False)
-    if not isinstance(default, bool):
-        default = str(default).lower() == "true"
+    default = _as_bool(action_entry.get("shadow_mode"))
+    if default is None:
+        default = not is_read_only(action_entry)
+        demisto.debug(
+            f"resolve_shadow_mode: shadow_mode missing or unreadable "
+            f"({action_entry.get('shadow_mode')!r}); using {default}")
 
     by_actor = action_entry.get("shadow_mode_by_actor")
     if not isinstance(by_actor, dict):
@@ -575,9 +582,11 @@ def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
     if actor not in by_actor:
         return default
 
-    value = by_actor[actor]
-    if not isinstance(value, bool):
-        value = str(value).lower() == "true"
+    value = _as_bool(by_actor[actor])
+    if value is None:
+        demisto.debug(f"resolve_shadow_mode: unreadable value for {actor} "
+                      f"({by_actor[actor]!r}); using the action default {default}")
+        return default
     demisto.debug(
         f"resolve_shadow_mode: actor={actor} shadow={value} (default {default})")
     return value

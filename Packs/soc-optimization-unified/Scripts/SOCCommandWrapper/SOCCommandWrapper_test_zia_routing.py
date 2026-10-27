@@ -7,7 +7,7 @@ soc-block-network-indicator must carry an implementation for that vendor, or the
 wrapper skips the block with "no implementation for source vendor".
 
 Zscaler blocks by adding to a customer-owned custom URL category, the same one
-soc-block-domain uses, so the category id comes from SOCFrameworkTenantConfig_V3.
+soc-block-domain uses, so the category id comes from SOCFWTenantConfig.
 
 Indicator actions on a ZIA issue route to Unit 42 Intelligence, which the
 framework installs, pinned to the instance it creates.
@@ -54,7 +54,7 @@ def _run(shadow, tenant=None, action=ACTION):
             return [{"Contents": json.dumps({action: row})}]
         if name == "SOCActionClassMap_V3":
             return [{"Contents": json.dumps(CLASS_MAP)}]
-        if name == "SOCFrameworkTenantConfig_V3" and tenant is not None:
+        if name == "SOCFWTenantConfig" and tenant is not None:
             return [{"Contents": json.dumps(tenant)}]
         return [{"Contents": "Item not found"}]
 

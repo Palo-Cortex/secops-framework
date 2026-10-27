@@ -344,6 +344,7 @@ def test_main_production_success():
             return [{
                 "Contents": json.dumps({
                     "unisolate-endpoint": {
+                        "shadow_mode": False,
                         "responses": {
                             "CrowdStrikeFalcon": {
                                 "command": "cs-falcon-lift-containment",
@@ -400,6 +401,7 @@ def test_main_production_failure_returns_error():
             return [{
                 "Contents": json.dumps({
                     "delete-file": {
+                        "shadow_mode": False,
                         "responses": {
                             "CrowdStrikeFalcon": {
                                 "command": "cs-falcon-delete-file",
@@ -586,7 +588,8 @@ def _wrapper_harness(demisto, action, vendor, inline_args):
         name = args["listName"]
         if name == "SOCFrameworkActions_V3":
             return [{"Contents": json.dumps({
-                action: {"responses": {vendor: {
+                # Deliberately live: these tests exercise the dispatch path.
+                action: {"shadow_mode": False, "responses": {vendor: {
                     "command": inline_args["__command__"],
                     "inline_args": inline_args["args"],
                 }}}

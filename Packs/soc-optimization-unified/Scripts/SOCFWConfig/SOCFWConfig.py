@@ -1,32 +1,32 @@
 """Configure the SOC Framework on this tenant.
 
 Writes go to SOCFWTenantConfig, the one list a customer's settings live in. It
-is created on the tenant by this script, never shipped in a pack, so an upgrade
-cannot overwrite it and shipped lists never need detaching.
+is created on the tenant by this script as a JSON list, never shipped in a pack,
+so an upgrade cannot overwrite it and shipped lists never need detaching.
 
 Commands
-  status   Which mutating actions are live or simulated, per actor, and what
-           decided it: the tenant config or the shipped default.
+  status   Which mutating actions are live or simulated, per actor, and the exact
+           field that decided each one; and which customer values are set.
   shadow   Take one action on or off shadow for named actors, or return it to
-           the shipped default. Dry-run unless apply=yes.
+           what SOCFrameworkActions_V3 says. Dry run unless apply=yes.
+  set      Set one customer value (a block-list id, a proxy category, an
+           instance), or remove it with value=default. Dry run unless apply=yes.
 
 Every command returns the same data twice: a War Room table for people and
-SOCFWConfig.* context for the PoV harness. contract_version changes only when a
-key is renamed or removed.
+SOCFWConfig.* context for the PoV harness. contract_version changes when a key
+or a value of a key changes meaning.
 
-SOCCommandWrapper reads what this script writes: {"shadow": {action: {actor:
-bool}}}, one entry per action per actor, checked before the shipped row.
+SOCCommandWrapper reads what this script writes:
+  {"shadow": {action: {actor: bool}}}   checked before the action's row
+  {vendor: {arg: value}}                fills args the action ships empty
 """
 
 import json
 
-CONTRACT_VERSION = 1
+CONTRACT_VERSION = 2
 
 ACTIONS_LIST = "SOCFrameworkActions_V3"
 TENANT_CONFIG_LIST = "SOCFWTenantConfig"
-# Read only while SOCFWTenantConfig does not exist; its content seeds the new
-# list on the first write so the customer's vendor values carry over.
-LEGACY_TENANT_CONFIG_LIST = "SOCFrameworkTenantConfig_V3"
 
 # The actors the framework passes to the wrapper. Status always shows these;
 # any other actor named in the tenant config is shown as well.
@@ -39,10 +39,15 @@ LEGACY_ACTOR_ALIASES = {"framework": "automation"}
 # Actions in these phases only read. They run live and are never shadowed.
 READ_ONLY_PHASES = ("enrichment", "investigation")
 
-VALUES = {"on": True, "off": False, "default": None}
+SHADOW_VALUES = {"on": True, "off": False, "default": None}
 
 DATASET_COMMAND = "socfw-post-to-dataset"
 DATASET_INSTANCE = "socfw_ir_execution_writer"
+
+# Where each status cell came from.
+FROM_TENANT = "tenant_config"          # SOCFWTenantConfig shadow.<action>.<actor>
+FROM_ACTOR = "action_actor"            # SOCFrameworkActions_V3 <action>.shadow_mode_by_actor.<actor>
+FROM_DEFAULT = "action_default"        # SOCFrameworkActions_V3 <action>.shadow_mode
 
 
 class ConfigError(Exception):
@@ -79,34 +84,40 @@ def load_actions():
 
 
 def load_tenant_config():
-    """(config, source). source names the list read, or None if neither exists.
+    """(config, exists).
 
     A SOCFWTenantConfig that exists but is not a JSON object is an error rather
     than an empty config: writing over it would destroy whatever is in it.
     """
     exists, cfg = _read_list(TENANT_CONFIG_LIST)
-    if exists:
-        if cfg is None:
-            raise ConfigError(f"{TENANT_CONFIG_LIST} is not a JSON object; fix or empty it "
-                              "in Settings > Lists before running SOCFWConfig")
-        return cfg, TENANT_CONFIG_LIST
-    exists, cfg = _read_list(LEGACY_TENANT_CONFIG_LIST)
-    if exists and cfg is not None:
-        return cfg, LEGACY_TENANT_CONFIG_LIST
-    return {}, None
+    if exists and cfg is None:
+        raise ConfigError(f"{TENANT_CONFIG_LIST} is not a JSON object; fix or empty it "
+                          "in Settings > Lists before running SOCFWConfig")
+    return (cfg or {}), exists
 
 
-def write_tenant_config(cfg, source):
-    """Write, then read back: a write that did not land is reported, not assumed."""
+def write_tenant_config(cfg, exists):
+    """Write, then read back: a write that did not land is reported, not assumed.
+
+    A new list is created through the REST API so it is a JSON list; the
+    built-in createList always makes a plain-text one. setList keeps the type of
+    an existing list.
+    """
     data = json.dumps(cfg, indent=2, sort_keys=True)
-    command = "setList" if source == TENANT_CONFIG_LIST else "createList"
-    res = demisto.executeCommand(command, {"listName": TENANT_CONFIG_LIST, "listData": data})
-    if _is_error(res):
-        raise ConfigError(f"could not write {TENANT_CONFIG_LIST} ({command}): {_error_text(res)}")
-    exists, written = _read_list(TENANT_CONFIG_LIST)
-    if not exists or written != cfg:
-        raise ConfigError(f"wrote {TENANT_CONFIG_LIST} but reading it back did not return "
-                          "the change; check the list in Settings > Lists")
+    if exists:
+        how = "setList"
+        res = demisto.executeCommand("setList", {"listName": TENANT_CONFIG_LIST, "listData": data})
+    else:
+        how = "core-api-post /xsoar/public/v1/lists/save"
+        body = json.dumps({"name": TENANT_CONFIG_LIST, "data": data, "type": "json"})
+        res = demisto.executeCommand("core-api-post", {"uri": "/xsoar/public/v1/lists/save",
+                                                       "body": body})
+    written_exists, written = _read_list(TENANT_CONFIG_LIST)
+    if not written_exists or written != cfg:
+        detail = _error_text(res) or "no error returned"
+        hint = ("" if exists else "; creating it needs the Core REST API integration, the "
+                "same one SOCFWHealthCheck uses")
+        raise ConfigError(f"could not write {TENANT_CONFIG_LIST} ({how}: {detail}){hint}")
 
 
 def _is_error(res):
@@ -118,7 +129,29 @@ def _error_text(res):
                      if isinstance(e, dict) and e.get("Type") == 4)
 
 
-# ── Resolution — the same rules SOCCommandWrapper applies ───────────────────
+def _record(rows):
+    """Post config_change rows to the execution dataset, one object per call.
+
+    No incident_id and no phase: the value dashboards group by incident and pick
+    rows by phase, so a configuration change must not land in either. Recording
+    never fails the command; the change is already written and read back.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    recorded = bool(rows)
+    for row in rows:
+        row = dict({"event_type": "config_change", "timestamp": now}, **row)
+        try:
+            res = demisto.executeCommand(DATASET_COMMAND,
+                                         {"using": DATASET_INSTANCE, "JSON": json.dumps(row)})
+            recorded = recorded and not _is_error(res)
+        except Exception as e:  # noqa: BLE001
+            demisto.debug(f"SOCFWConfig: config_change row not recorded: {e}")
+            recorded = False
+    return recorded
+
+
+# ── Shadow resolution — the same rules SOCCommandWrapper applies ────────────
 
 def _as_bool(value):
     if isinstance(value, bool):
@@ -147,34 +180,74 @@ def tenant_value(cfg, action, actor):
     return _as_bool(per_action[actor])
 
 
-def shipped_value(row, actor):
-    by_actor = row.get("shadow_mode_by_actor")
-    if isinstance(by_actor, dict):
-        actor = _shadow_actor(actor, by_actor)
-    if isinstance(by_actor, dict) and actor in by_actor:
-        value = _as_bool(by_actor[actor])
-        if value is not None:
-            return value
-    return bool(_as_bool(row.get("shadow_mode", False)))
-
-
 def effective(cfg, action, row, actor):
-    """(shadow, decided_by)."""
+    """(shadow, decided_by, field) - field is the exact setting that decided it."""
     override = tenant_value(cfg, action, actor)
     if override is not None:
-        return override, "tenant_config"
-    return shipped_value(row, actor), "shipped_default"
+        named = (cfg.get("shadow") or {}).get(action) or {}
+        return override, FROM_TENANT, (f"{TENANT_CONFIG_LIST} shadow.{action}."
+                                       f"{_shadow_actor(actor, named)}")
+    by_actor = row.get("shadow_mode_by_actor")
+    if isinstance(by_actor, dict):
+        key = _shadow_actor(actor, by_actor)
+        if key in by_actor and _as_bool(by_actor[key]) is not None:
+            return (_as_bool(by_actor[key]), FROM_ACTOR,
+                    f"{ACTIONS_LIST} {action}.shadow_mode_by_actor.{key}")
+        if _as_bool(row.get("shadow_mode")) is None:
+            # Per-actor row that does not name this actor: simulated.
+            return (not is_read_only(row), FROM_DEFAULT,
+                    f"{ACTIONS_LIST} {action}.shadow_mode_by_actor.{key} (not named)")
+    value = _as_bool(row.get("shadow_mode"))
+    if value is None:
+        # Same fail-closed rule as the wrapper: missing or unreadable means
+        # simulated for anything that can change something.
+        return (not is_read_only(row), FROM_DEFAULT,
+                f"{ACTIONS_LIST} {action}.shadow_mode (missing or unreadable)")
+    return value, FROM_DEFAULT, f"{ACTIONS_LIST} {action}.shadow_mode"
 
 
 def _state(shadow):
     return "shadow" if shadow else "live"
 
 
+MARK = {FROM_TENANT: " ✱", FROM_ACTOR: "", FROM_DEFAULT: " †"}
+
+
+# ── Customer values — the args the wrapper fills from the tenant config ─────
+
+def value_slots(actions):
+    """{(vendor, arg): {"used_by": [...], "required": bool}}.
+
+    A slot is an arg a shipped response leaves empty for the customer to fill,
+    which is exactly what SOCCommandWrapper fills from the tenant config.
+    required means some action skips without it.
+    """
+    slots = {}
+    for name, row in actions.items():
+        for vendor, binding in (row.get("responses") or {}).items():
+            if not isinstance(binding, dict):
+                continue
+            required = set(binding.get("required_args") or [])
+            for arg, template in (binding.get("inline_args") or {}).items():
+                if template in (None, ""):
+                    slot = slots.setdefault((vendor, arg), {"used_by": [], "required": False})
+                    slot["used_by"].append(name)
+                    slot["required"] = slot["required"] or arg in required
+    for slot in slots.values():
+        slot["used_by"] = sorted(set(slot["used_by"]))
+    return slots
+
+
+def _current_value(cfg, vendor, arg):
+    per_vendor = cfg.get(vendor)
+    return per_vendor.get(arg) if isinstance(per_vendor, dict) else None
+
+
 # ── status ───────────────────────────────────────────────────────────────────
 
 def status(args):
     actions = load_actions()
-    cfg, source = load_tenant_config()
+    cfg, exists = load_tenant_config()
 
     wanted = _split(args.get("action"))
     unknown = [a for a in wanted if a not in actions]
@@ -187,7 +260,7 @@ def status(args):
     if isinstance(section, dict):
         for per_action in section.values():
             if isinstance(per_action, dict):
-                named |= {str(a).lower() for a in per_action}
+                named |= {_shadow_actor(str(a).lower(), {}) for a in per_action}
     actors = list(ACTORS) + sorted(named - set(ACTORS))
 
     rows, table, read_only = [], [], 0
@@ -202,26 +275,48 @@ def status(args):
             continue
         cells = []
         for actor in actors:
-            shadow, decided_by = effective(cfg, name, row, actor)
+            shadow, decided_by, field = effective(cfg, name, row, actor)
             rows.append({"action": name, "actor": actor, "shadow": shadow,
                          "state": _state(shadow), "decided_by": decided_by,
-                         "read_only": ro})
-            cells.append(_state(shadow) + (" ✱" if decided_by == "tenant_config" else ""))
+                         "field": field, "read_only": ro})
+            cells.append(_state(shadow) + MARK[decided_by])
         table.append([name] + cells)
 
+    values = []
+    for (vendor, arg), slot in sorted(value_slots(actions).items()):
+        current = _current_value(cfg, vendor, arg)
+        values.append({"vendor": vendor, "arg": arg, "value": current,
+                       "set": current not in (None, ""), "required": slot["required"],
+                       "used_by": slot["used_by"]})
+
     outputs = {"contract_version": CONTRACT_VERSION, "command": "status",
-               "tenant_config_list": source, "actors": actors, "rows": rows}
+               "tenant_config_list": TENANT_CONFIG_LIST, "tenant_config_exists": exists,
+               "actors": actors, "rows": rows, "values": values}
 
     md = ["### SOC Framework — live or simulated, by actor", "",
           "| Action | " + " | ".join(actors) + " |",
           "|---|" + "---|" * len(actors)]
     md += ["| " + " | ".join(r) + " |" for r in table]
-    md += ["", "✱ set in the tenant config; everything else is the shipped default."]
+    md += ["",
+           f"✱ `{TENANT_CONFIG_LIST}` → `shadow.<action>.<actor>`",
+           f"(no mark) `{ACTIONS_LIST}` → `<action>.shadow_mode_by_actor.<actor>`",
+           f"† `{ACTIONS_LIST}` → `<action>.shadow_mode`, one setting for every actor"]
     if not wanted:
         md.append(f"{read_only} read-only actions (enrichment, investigation) always run "
                   "live and are not listed.")
-    md.append("To change one: `!SOCFWConfig command=shadow action=<action> actor=<actor> "
-              "value=on|off|default` — add `apply=yes` to write.")
+    md += ["", "Change one: `!SOCFWConfig command=shadow action=<action> actor=<actor> "
+               "value=on|off|default` — add `apply=yes` to write."]
+
+    md += ["", f"### Customer values in {TENANT_CONFIG_LIST}", "",
+           "| Vendor | Setting | Value | Used by |", "|---|---|---|---|"]
+    for v in values:
+        shown = (f"`{v['value']}`" if v["set"]
+                 else ("**missing** — required" if v["required"] else "not set (optional)"))
+        md.append(f"| {v['vendor']} | {v['arg']} | {shown} | {', '.join(v['used_by'])} |")
+    md += ["", "Set one: `!SOCFWConfig command=set vendor=<vendor> arg=<setting> "
+               "value=<value>` — add `apply=yes` to write."]
+    if not exists:
+        md += ["", f"{TENANT_CONFIG_LIST} does not exist yet; the first `apply=yes` creates it."]
     return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Status",
                           outputs=outputs)
 
@@ -233,13 +328,13 @@ def shadow(args):
     action = str(args.get("action") or "").strip()
     actors = [a.lower() for a in _split(args.get("actor"))]
     value = str(args.get("value") or "").strip().lower()
-    apply = str(args.get("apply") or "").strip().lower() == "yes"
+    apply = _yes(args.get("apply"))
 
     if not action:
         raise ConfigError("action is required, e.g. action=soc-star-case")
     if action not in actions:
         raise ConfigError(f"unknown action {action}; run !SOCFWConfig command=status to list them")
-    if value not in VALUES:
+    if value not in SHADOW_VALUES:
         raise ConfigError("value must be on, off or default")
     if not actors:
         raise ConfigError("actor is required: one or more of " + ", ".join(ACTORS))
@@ -249,6 +344,7 @@ def shadow(args):
     valid_actors = set(ACTORS)
     for r in actions.values():
         valid_actors |= {str(a).lower() for a in (r.get("shadow_mode_by_actor") or {})}
+    valid_actors -= set(LEGACY_ACTOR_ALIASES)
     unknown = [a for a in actors if a not in valid_actors]
     if unknown:
         raise ConfigError(f"unknown actor {', '.join(unknown)}; use one or more of "
@@ -258,7 +354,7 @@ def shadow(args):
     outputs = {"contract_version": CONTRACT_VERSION, "command": "shadow",
                "dry_run": not apply, "applied": False, "action": action, "value": value,
                "changes": [], "refused": [], "tenant_config_list": TENANT_CONFIG_LIST,
-               "creates_list": False, "carried_over_from": None, "recorded": False,
+               "creates_list": False, "recorded": False,
                "apply_command": (f"!SOCFWConfig command=shadow action={action} "
                                  f"actor={','.join(actors)} value={value} apply=yes")}
 
@@ -269,26 +365,28 @@ def shadow(args):
                       "and is never shadowed"})
         return _shadow_result(outputs)
 
-    cfg, source = load_tenant_config()
+    cfg, exists = load_tenant_config()
     new_cfg = json.loads(json.dumps(cfg))
     section = new_cfg.setdefault("shadow", {})
     if not isinstance(section, dict):
-        raise ConfigError(f"'shadow' in {source} is not an object; fix it in Settings > Lists")
+        raise ConfigError(f"'shadow' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
     per_action = section.setdefault(action, {})
     if not isinstance(per_action, dict):
-        raise ConfigError(f"'shadow.{action}' in {source} is not an object; fix it in "
-                          "Settings > Lists")
+        raise ConfigError(f"'shadow.{action}' in {TENANT_CONFIG_LIST} is not an object; fix it "
+                          "in Settings > Lists")
 
     for actor in actors:
-        before, before_by = effective(cfg, action, row, actor)
-        if VALUES[value] is None:
+        before, before_by, before_field = effective(cfg, action, row, actor)
+        if SHADOW_VALUES[value] is None:
             per_action.pop(actor, None)
         else:
-            per_action[actor] = VALUES[value]
-        after, after_by = effective(new_cfg, action, row, actor)
+            per_action[actor] = SHADOW_VALUES[value]
+        after, after_by, after_field = effective(new_cfg, action, row, actor)
         outputs["changes"].append({
             "actor": actor, "from": _state(before), "to": _state(after),
             "decided_by_before": before_by, "decided_by_after": after_by,
+            "field_after": after_field,
             "changed": (before, before_by) != (after, after_by)})
 
     if not per_action:
@@ -299,40 +397,16 @@ def shadow(args):
     if not any(c["changed"] for c in outputs["changes"]):
         return _shadow_result(outputs)
 
-    if source != TENANT_CONFIG_LIST:
-        outputs["creates_list"] = True
-        outputs["carried_over_from"] = source
+    outputs["creates_list"] = not exists
     if apply:
-        write_tenant_config(new_cfg, source)
+        write_tenant_config(new_cfg, exists)
         outputs["applied"] = True
-        outputs["recorded"] = record_changes(action, value, outputs["changes"])
-    return _shadow_result(outputs)
-
-
-def record_changes(action, value, changes):
-    """One execution-dataset row per actor whose setting changed.
-
-    No incident_id and no phase: the value dashboards group by incident and pick
-    rows by phase, so a configuration change must not land in either. Recording
-    never fails the command; the change is already written and read back.
-    """
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
-    rows = [{"event_type": "config_change", "timestamp": now,
-             "universal_command": action, "action_actor": c["actor"],
+        outputs["recorded"] = _record([
+            {"universal_command": action, "action_actor": c["actor"],
              "shadow_mode_state": c["to"], "action_status": f"set {value}",
              "action_taken": f"{c['from']} -> {c['to']}"}
-            for c in changes if c["changed"]]
-    recorded = bool(rows)
-    for row in rows:  # one object per call, the shape SOCCommandWrapper posts
-        try:
-            res = demisto.executeCommand(DATASET_COMMAND,
-                                         {"using": DATASET_INSTANCE, "JSON": json.dumps(row)})
-            recorded = recorded and not _is_error(res)
-        except Exception as e:  # noqa: BLE001
-            demisto.debug(f"SOCFWConfig: config_change row not recorded: {e}")
-            recorded = False
-    return recorded
+            for c in outputs["changes"] if c["changed"]])
+    return _shadow_result(outputs)
 
 
 def _shadow_result(o):
@@ -349,20 +423,106 @@ def _shadow_result(o):
         md += ["", "| Actor | Now | After | Decided by |", "|---|---|---|---|"]
         for c in o["changes"]:
             after = c["to"] + ("" if c["changed"] else " (unchanged)")
-            md.append(f"| {c['actor']} | {c['from']} | {after} | "
-                      f"{c['decided_by_after'].replace('_', ' ')} |")
-    if o["creates_list"]:
-        carried = (f", carrying over the values in {o['carried_over_from']}"
-                   if o["carried_over_from"] else "")
+            md.append(f"| {c['actor']} | {c['from']} | {after} | `{c['field_after']}` |")
+    md += _write_notes(o)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Shadow",
+                          outputs=o)
+
+
+# ── set ──────────────────────────────────────────────────────────────────────
+
+def set_value(args):
+    actions = load_actions()
+    vendor_arg = str(args.get("vendor") or "").strip()
+    arg_arg = str(args.get("arg") or "").strip()
+    raw_value = args.get("value")
+    value = "" if raw_value is None else str(raw_value).strip()
+    apply = _yes(args.get("apply"))
+
+    slots = value_slots(actions)
+    valid = ", ".join(f"{v} {a}" for v, a in sorted(slots))
+    if not vendor_arg or not arg_arg:
+        raise ConfigError(f"vendor and arg are required; settable values: {valid}")
+    match = [(v, a) for v, a in slots
+             if v.lower() == vendor_arg.lower() and a.lower() == arg_arg.lower()]
+    if not match:
+        raise ConfigError(f"{vendor_arg} {arg_arg} is not a customer value any action uses; "
+                          f"settable values: {valid}")
+    vendor, arg = match[0]
+    if value == "":
+        raise ConfigError("value is required; use value=default to remove the setting")
+    remove = value.lower() == "default"
+
+    cfg, exists = load_tenant_config()
+    if vendor in cfg and not isinstance(cfg[vendor], dict):
+        raise ConfigError(f"'{vendor}' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    before = _current_value(cfg, vendor, arg)
+    new_cfg = json.loads(json.dumps(cfg))
+    per_vendor = new_cfg.setdefault(vendor, {})
+    if remove:
+        per_vendor.pop(arg, None)
+        if not per_vendor:
+            new_cfg.pop(vendor, None)
+    else:
+        per_vendor[arg] = value
+    after = _current_value(new_cfg, vendor, arg)
+
+    slot = slots[(vendor, arg)]
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "set",
+               "dry_run": not apply, "applied": False, "vendor": vendor, "arg": arg,
+               "from": before, "to": after, "changed": before != after,
+               "required": slot["required"], "used_by": slot["used_by"],
+               "tenant_config_list": TENANT_CONFIG_LIST, "creates_list": False,
+               "recorded": False,
+               "apply_command": f"!SOCFWConfig command=set vendor={vendor} arg={arg} "
+                                f"value={value} apply=yes"}
+
+    if outputs["changed"]:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([{
+                "vendor": vendor, "action_status": f"set {arg}",
+                "action_taken": f"{arg}: {_plain(before)} -> {_plain(after)}"}])
+
+    md = []
+    if not outputs["changed"]:
+        md.append(f"### {vendor} {arg}: already set — nothing to change")
+    else:
+        md.append(f"### {vendor} {arg}: " + ("applied" if outputs["applied"]
+                                              else "dry run, nothing written"))
+    md += ["", "| Now | After | Used by |", "|---|---|---|",
+           f"| {_shown(before)} | {_shown(after)} | {', '.join(slot['used_by'])} |"]
+    if remove and slot["required"] and outputs["changed"]:
+        md += ["", f"Without it, {', '.join(slot['used_by'])} skip for {vendor} with "
+                   "\"not configured\"."]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Set",
+                          outputs=outputs)
+
+
+def _plain(value):
+    return str(value) if value not in (None, "") else "(not set)"
+
+
+def _shown(value):
+    return f"`{value}`" if value not in (None, "") else "(not set)"
+
+
+def _write_notes(o):
+    changed = o["changed"] if "changed" in o else any(c["changed"] for c in o.get("changes", []))
+    md = []
+    if o.get("creates_list") and changed:
         md += ["", ("Created " if o["applied"] else "Will create ")
-               + f"{o['tenant_config_list']}{carried}."]
+               + f"{o['tenant_config_list']} as a JSON list."]
     if o["applied"] and not o["recorded"]:
         md += ["", "The change is written, but its record in the execution dataset was not "
                    "(check the socfw_ir_execution_writer instance)."]
-    if o["dry_run"] and any(c["changed"] for c in o["changes"]):
+    if o["dry_run"] and changed:
         md += ["", f"To write it: `{o['apply_command']}`"]
-    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Shadow",
-                          outputs=o)
+    return md
 
 
 # ── entry ────────────────────────────────────────────────────────────────────
@@ -374,7 +534,11 @@ def _split(value):
     return [str(i).strip() for i in items if str(i).strip()]
 
 
-COMMANDS = {"status": status, "shadow": shadow}
+def _yes(value):
+    return str(value or "").strip().lower() == "yes"
+
+
+COMMANDS = {"status": status, "shadow": shadow, "set": set_value}
 
 
 def main():
