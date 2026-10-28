@@ -35,7 +35,7 @@ IP = "203.0.113.7"
 DOMAIN = "zia-test.example"
 
 
-def _run(shadow, tenant=None, action=ACTION):
+def _run(shadow, tenant=None, action=ACTION, key="ds_zscaler_zia"):
     row = copy.deepcopy(ACTIONS[action])
     row["shadow_mode"] = shadow
     row["shadow_mode_by_actor"] = {}
@@ -43,8 +43,9 @@ def _run(shadow, tenant=None, action=ACTION):
     demisto._args = {"action": action, "list_name": "SOCFrameworkActions_V3",
                      "output_key": "UCTest.Executions", "Action_Actor": "analyst"}
     demisto._context = {"SOCFramework": {
-        "Product": {"key": "ds_zscaler_zia", "category": ZIA["category"],
-                    "response": ZIA.get("response"), "responses": ZIA.get("responses")},
+        "Product": {"key": key, "category": PRODUCT_MAP[key]["category"],
+                    "response": PRODUCT_MAP[key].get("response"),
+                    "responses": PRODUCT_MAP[key].get("responses")},
         "Artifacts": {"Network": {"Destination": {"IP": IP, "Hostname": DOMAIN}}},
         "RunID": "run-1"}}
 
@@ -116,3 +117,27 @@ def test_zia_domain_enrichment_uses_the_framework_unit42_instance():
     assert len(calls) == 1
     assert calls[0]["domain"] == DOMAIN
     assert calls[0]["using"] == "Unit_42_Intelligence_SOCFW"
+
+
+# Zscaler NSS web-log issues (ds_zscaler_nssweblog) are the same proxy, logged
+# through NSS: they route exactly like ZIA. Before 27 Oct 2026 the key was not in
+# the map, so the source resolved to no vendor and the IP block skipped.
+
+NSS = "ds_zscaler_nssweblog"
+
+
+def test_nssweblog_is_mapped_like_zia():
+    assert PRODUCT_MAP[NSS] == ZIA
+
+
+def test_nssweblog_ip_block_adds_ip_to_the_customer_category():
+    demisto = _run(shadow=False, tenant=TENANT, key=NSS)
+    calls = _calls(demisto, "zscaler-category-add-ip")
+    assert len(calls) == 1
+    assert calls[0]["ip"] == IP and calls[0]["category-id"] == "CUSTOM_99"
+    assert calls[0]["using"] == "zscaler_test"
+
+
+def test_nssweblog_domain_enrichment_uses_unit42():
+    calls = _calls(_run(shadow=False, action="soc-enrich-domain", key=NSS), "domain")
+    assert len(calls) == 1 and calls[0]["using"] == "Unit_42_Intelligence_SOCFW"
