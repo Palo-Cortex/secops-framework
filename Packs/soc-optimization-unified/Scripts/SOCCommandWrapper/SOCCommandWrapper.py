@@ -293,6 +293,38 @@ def _resolve_from_entry_context(ec, path):
     return None
 
 
+def read_observations(vendor_data, entry_context):
+    """{status, status_raw, role, role_raw} from a vendor branch's reads.
+
+    A branch may say where its vendor reports an endpoint's containment state
+    and role, and how each value reads in the framework's terms:
+
+      "status": {"path": "CrowdStrike.Device.Status",
+                 "values": {"normal": "normal", "contained": "contained", ...}}
+      "role":   {"path": "Core.Endpoint.endpoint_type",
+                 "values": {"agent_type_server": "server", ...}}
+
+    status reads as contained, containment_pending, normal or unknown; role as
+    workstation, server, domain_controller or unknown. A value the map does not
+    name is unknown, never guessed. A branch with no reads returns nothing.
+    """
+    out = {}
+    for key in ("status", "role"):
+        spec = (vendor_data or {}).get(key)
+        if not isinstance(spec, dict) or not spec.get("path"):
+            continue
+        raw = _resolve_from_entry_context(entry_context, spec["path"])
+        if isinstance(raw, list):
+            raw = raw[0] if raw else None
+        if isinstance(raw, bool):
+            raw = str(raw).lower()
+        raw = "" if raw in (None, "", [], {}) else str(raw).strip()
+        values = {str(k).strip().lower(): v for k, v in (spec.get("values") or {}).items()}
+        out[key] = values.get(raw.lower(), "unknown") if raw else "unknown"
+        out[f"{key}_raw"] = raw
+    return out
+
+
 def apply_output_map(output_map, ctx, shadow_mode, entry_context=None):
     """
     Write UC.* canonical keys from vendor-specific context paths.
@@ -1148,6 +1180,22 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
         if target is not None:
             record["target"] = target
 
+        # Read what the vendor reported about the endpoint - containment state and
+        # role - from this call's own output, and return it on the record. A caller
+        # that dispatched the wrapper cannot see the vendor's context until it
+        # finishes, so the record is how a layout or a playbook step gets the
+        # answer in the same run.
+        entry_context = _extract_entry_context(result)
+        observed = read_observations(vendor_data, entry_context)
+        record.update(observed)
+        if observed and normalize_action_actor(args.get("Action_Actor"), False) != "layout":
+            # A render must not move what containment reads; any other caller
+            # refreshes the endpoint contract with the live value.
+            for key, ctx_key in (("status", "SOCFramework.Endpoint.containment_status"),
+                                 ("role", "SOCFramework.Endpoint.role")):
+                if observed.get(key) not in (None, "", "unknown"):
+                    demisto.setContext(ctx_key, observed[key])
+
         if output_key:
             append_context(output_key, record)
 
@@ -1179,7 +1227,6 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
         # Map vendor output to canonical UC.* context keys
         output_map = vendor_data.get("output_map", {})
         fresh_ctx = demisto.context()
-        entry_context = _extract_entry_context(result)
         apply_output_map(output_map, fresh_ctx, shadow_mode=False, entry_context=entry_context)
 
         warroom_log(
