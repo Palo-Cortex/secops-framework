@@ -1,10 +1,12 @@
 """
 SOCFWEmergencyResponse_test.py
 
-The shipped emergency policies and the shipped actions, against a fake tenant whose
-SOCCommandWrapper appends the same records the real one does (a contract test at the
-bottom holds that shape to the real wrapper). Every outcome the wrapper can report -
-shadow, executed, skipped, failed, nothing - is driven per action.
+The shipped emergency policies and actions, against a fake tenant whose
+SOCCommandWrapper returns the same entries the real one does (contract tests at
+the bottom hold that shape to the real wrapper). Covers which policies fire, which
+hosts and accounts may be contained, the role coalesce, the EDR status skip,
+escalation (star + raise-only severity, as automation), the status write-back
+after a real isolate, and the contained close.
 
 Run: pytest Scripts/SOCFWEmergencyResponse/SOCFWEmergencyResponse_test.py -v
 """
@@ -20,7 +22,7 @@ HERE = os.path.dirname(__file__)
 LISTS = os.path.join(HERE, "..", "..", "Lists")
 POLICY = json.load(open(os.path.join(LISTS, "SOCFrameworkPhasePolicy_V3", "SOCFrameworkPhasePolicy_V3_data.json")))
 ACTIONS = json.load(open(os.path.join(LISTS, "SOCFrameworkActions_V3", "SOCFrameworkActions_V3_data.json")))
-IDENTITY = ["soc-clear-sessions", "soc-revoke-tokens", "soc-reset-password"]
+IDENTITY = ["soc-clear-sessions", "soc-revoke-tokens"]
 
 
 def _get(data, path, default=None):
@@ -66,37 +68,62 @@ class Results:
         self.readable_output = readable_output
 
 
+WORKSTATION = {"hostname": "hobgoblin", "os": "Windows 10", "ip": "10.20.20.5"}
+DC = {"hostname": "bannik", "os": "Windows Server 2019", "ip": "10.20.10.9"}
+
+
 class Tenant:
-    """Lists, one issue's context, and a wrapper whose outcome is set per action."""
+    """Lists, one issue's context, a case, and a wrapper whose outcome is set per action."""
 
     def __init__(self, assessment=None, category="Identity", key="ds_okta_systemlog",
                  name="Okta - suspicious sign-in", ruleid=None, tenant=None, policy=None,
-                 outcome="shadow"):
+                 outcome="shadow", host=None, role=None, status=None, case_severity="medium",
+                 user="gunter@skt.local", lists=None):
         self.lists = {"SOCFrameworkPhasePolicy_V3": copy.deepcopy(policy or POLICY),
                       "SOCFrameworkActions_V3": copy.deepcopy(ACTIONS)}
+        self.lists.update(lists or {})
         if tenant is not None:
             self.lists["SOCFWTenantConfig"] = tenant
-        self.ctx = {"SOCFramework": {"Product": {"category": category, "key": key}}}
+        self.ctx = {"SOCFramework": {"Product": {"category": category, "key": key},
+                                     "Artifacts": {"Identity": {"User": {"UPN": user}}}}}
+        if host:
+            self.ctx["SOCFramework"]["Artifacts"]["Endpoint"] = {
+                "Hostname": host["hostname"], "OSVersion": host.get("os"), "IPAddress": host.get("ip"),
+                "AgentID": "aid-1"}
+            self.ctx["SOCFramework"]["Endpoint"] = {"hostname": host["hostname"]}
+            if role:
+                self.ctx["SOCFramework"]["Endpoint"]["role"] = role
+            if status:
+                self.ctx["SOCFramework"]["Endpoint"]["containment_status"] = status
         if assessment is not None:
             self.ctx["Assessment"] = {"AI": assessment}
-        self.incident = {"id": "100", "name": name}
+        self.incident = {"id": "100", "name": name, "parentXDRIncident": "INCIDENT-500"}
         if ruleid is not None:
             self.incident["ruleid"] = ruleid
+        self.case_severity = case_severity
         self.outcome = outcome if isinstance(outcome, dict) else {}
         self.default_outcome = outcome if isinstance(outcome, str) else "shadow"
-        self.calls, self.rows, self.out = [], [], []
+        self.calls, self.rows, self.out, self.set_issue = [], [], [], []
 
     def execute(self, command, args):
         if command == "getList":
             name = args["listName"]
             if name not in self.lists:
                 return [{"Type": 4, "Contents": f" - Item not found (8) on list [{name}] (2609)"}]
-            return [{"Type": 1, "Contents": json.dumps(self.lists[name])}]
+            v = self.lists[name]
+            return [{"Type": 1, "Contents": v if isinstance(v, str) else json.dumps(v)}]
         if command == "socfw-post-to-dataset":
             self.rows.append(json.loads(args["JSON"]))
             return [{"Type": 1, "Contents": "ok"}]
+        if command == "setIssue":
+            self.set_issue.append(dict(args))
+            return [{"Type": 1, "Contents": "done"}]
+        if command == "core-api-post":
+            if self.case_severity is None:
+                return [{"Type": 4, "Contents": "boom"}]
+            return [{"Type": 1, "Contents": {"response": {"reply": {"DATA": [
+                {"case_id": 500, "severity": self.case_severity}]}}}}]
         if command == "SOCCommandWrapper":
-            # Entries shaped like the real wrapper's (see the contract tests below).
             self.calls.append(dict(args))
             action = args["action"]
             mode = self.outcome.get(action, self.default_outcome)
@@ -140,11 +167,14 @@ class Tenant:
         er.main()
         return self
 
-    def dispatched(self):
-        return [c["action"] for c in self.calls]
+    def dispatched(self, actor=None):
+        return [c["action"] for c in self.calls if actor is None or c["Action_Actor"] == actor]
 
     def decision(self):
         return [r for r in self.rows if r["event_type"] == "emergency_decision"][-1]
+
+    def statuses(self):
+        return dict(p.split("=", 1) for p in self.decision().get("action_status", "").split("; ") if p)
 
 
 MAL_HIGH = {"verdict": "malicious", "confidence": "high", "exposure": "executed",
@@ -155,51 +185,49 @@ def a(**kw):
     return dict(MAL_HIGH, **kw)
 
 
+def endpoint(host=WORKSTATION, **kw):
+    kw.setdefault("category", "Endpoint")
+    kw.setdefault("key", "ds_crowdstrike_falcon_event")
+    return Tenant(a(primary_entity_type="endpoint"), host=host, **kw)
+
+
 # ── Which policies fire ──────────────────────────────────────────────────────
 
-def test_identity_issue_runs_the_identity_actions_as_issue_emergency_in_order():
+def test_identity_issue_runs_the_identity_containment_as_issue_emergency():
     t = Tenant(a()).run()
-    assert t.dispatched() == IDENTITY
-    assert {c["Action_Actor"] for c in t.calls} == {"issue_emergency"}
-    assert [c["Phase"] for c in t.calls] == ["containment", "containment", "eradication"]
+    assert t.dispatched(er.ACTOR) == IDENTITY
+    assert [c["Phase"] for c in t.calls if c["Action_Actor"] == er.ACTOR] == ["containment", "containment"]
 
 
-def test_okta_issue_where_the_model_names_the_ip_is_still_about_identity():
-    t = Tenant(a(primary_entity_type="ip")).run()
-    assert t.dispatched() == IDENTITY
+def test_about_is_the_category_not_the_entity():
+    """An email click whose user the model names is not an identity compromise."""
+    t = Tenant(a(primary_entity_type="identity", exposure="executed"), category="Email",
+               key="ds_proofpoint_tap_v2_generic_alert").run()
+    assert "identity_compromise" not in t.decision()["policy"]
+    assert t.dispatched(er.ACTOR) == ["soc-retract-email", "soc-block-domain"]
 
 
-def test_edr_credential_theft_is_about_the_identity_too():
-    """CrowdStrike source, category Endpoint, entity identity: both policies, each action once."""
-    t = Tenant(a(), category="Endpoint", key="ds_crowdstrike_falcon_event").run()
-    assert t.dispatched() == IDENTITY + ["soc-isolate-endpoint"]
-    assert t.decision()["policy"] == "identity_compromise, endpoint_execution"
+def test_entity_type_narrows_when_a_policy_names_it():
+    tenant = {"emergency": {"policies": {"identity_compromise": {"entity_type": ["identity"]}}}}
+    assert Tenant(a(primary_entity_type="ip"), tenant=tenant).run().dispatched(er.ACTOR) == []
+    assert Tenant(a(), tenant=tenant).run().dispatched(er.ACTOR) == IDENTITY
 
 
 def test_endpoint_policy_needs_execution():
-    t = Tenant(a(primary_entity_type="endpoint", exposure="attempted"),
-               category="Endpoint", key="ds_crowdstrike_falcon_event").run()
-    assert t.dispatched() == []
-    assert t.decision()["status"] == "no_match"
-
-
-def test_email_delivered_retracts():
-    t = Tenant(a(primary_entity_type="email", exposure="delivered"), category="Email",
-               key="ds_proofpoint_tap_v2_generic_alert").run()
-    assert t.dispatched() == ["soc-retract-email"]
+    t = Tenant(a(primary_entity_type="endpoint", exposure="attempted"), category="Endpoint",
+               key="ds_crowdstrike_falcon_event", host=WORKSTATION).run()
+    assert t.dispatched() == [] and t.decision()["status"] == "no_match"
 
 
 @pytest.mark.parametrize("change", [{"verdict": "suspicious"}, {"confidence": "medium"},
                                     {"verdict": None}, {"confidence": ""}])
 def test_shipped_gate_is_malicious_at_high_confidence(change):
-    t = Tenant(a(**change)).run()
-    assert t.dispatched() == []
+    assert Tenant(a(**change)).run().dispatched() == []
 
 
 def test_already_contained_is_never_acted_on():
     t = Tenant(a(already_contained=True)).run()
-    assert t.dispatched() == []
-    assert t.decision()["status"] == "already_contained"
+    assert t.dispatched() == [] and t.decision()["status"] == "already_contained"
 
 
 def test_no_assessment_does_nothing():
@@ -216,9 +244,12 @@ def test_section_off_does_nothing():
 
 # ── Tenant policies ──────────────────────────────────────────────────────────
 
+SPAMHAUS = {"rule_id": ["345"], "verdict": ["any"], "confidence": "any", "actions": IDENTITY}
+
+
 def test_tenant_lowers_the_gate_on_a_shipped_policy_by_its_label():
     tenant = {"emergency": {"policies": {"identity_compromise": {"confidence": "medium"}}}}
-    assert Tenant(a(confidence="medium"), tenant=tenant).run().dispatched() == IDENTITY
+    assert Tenant(a(confidence="medium"), tenant=tenant).run().dispatched(er.ACTOR) == IDENTITY
 
 
 def test_tenant_turns_a_shipped_policy_off():
@@ -226,113 +257,226 @@ def test_tenant_turns_a_shipped_policy_off():
     assert Tenant(a(), tenant=tenant).run().dispatched() == []
 
 
-SPAMHAUS = {"rule_id": ["345"], "verdict": ["any"], "confidence": "any",
-            "actions": IDENTITY}
-
-
 def test_rule_id_policy_fires_on_its_detection_whatever_the_verdict():
     tenant = {"emergency": {"policies": {"okta_spamhaus": SPAMHAUS,
                                          "identity_compromise": {"enabled": False}}}}
     t = Tenant(a(verdict="suspicious", confidence="low"), ruleid="345", tenant=tenant).run()
-    assert t.dispatched() == IDENTITY
-    assert t.decision()["policy"] == "okta_spamhaus"
-
-
-def test_rule_id_policy_leaves_other_detections_alone():
-    tenant = {"emergency": {"policies": {"okta_spamhaus": SPAMHAUS,
-                                         "identity_compromise": {"enabled": False}}}}
+    assert t.dispatched(er.ACTOR) == IDENTITY and t.decision()["policy"] == "okta_spamhaus"
     assert Tenant(a(verdict="suspicious"), ruleid="346", tenant=tenant).run().dispatched() == []
-    assert Tenant(a(verdict="suspicious"), tenant=tenant).run().dispatched() == []
 
 
 def test_rule_id_is_read_from_custom_fields_too():
     tenant = {"emergency": {"policies": {"okta_spamhaus": SPAMHAUS}}}
     t = Tenant(a(verdict="suspicious"), tenant=tenant)
     t.incident["CustomFields"] = {"ruleid": "345"}
-    assert t.run().dispatched() == IDENTITY
+    assert t.run().dispatched(er.ACTOR) == IDENTITY
 
 
 def test_name_contains_is_case_insensitive():
-    tenant = {"emergency": {"policies": {"okta_spamhaus": {
-        "name_contains": ["spamhaus"], "actions": IDENTITY}}}}
-    t = Tenant(a(), name="TDE – OKTA Spamhaus", tenant=tenant).run()
-    assert "okta_spamhaus" in t.decision()["policy"]
+    tenant = {"emergency": {"policies": {"okta_spamhaus": {"name_contains": ["spamhaus"], "actions": IDENTITY}}}}
+    assert "okta_spamhaus" in Tenant(a(), name="TDE – OKTA Spamhaus", tenant=tenant).run().decision()["policy"]
 
 
 def test_source_narrows_to_one_data_source():
-    tenant = {"emergency": {"policies": {
-        "identity_compromise": {"source": ["ds_okta_systemlog"]}}}}
-    assert Tenant(a(), tenant=tenant).run().dispatched() == IDENTITY
+    tenant = {"emergency": {"policies": {"identity_compromise": {"source": ["ds_okta_systemlog"]}}}}
+    assert Tenant(a(), tenant=tenant).run().dispatched(er.ACTOR) == IDENTITY
     assert Tenant(a(), key="ds_msft_azure_ad", tenant=tenant).run().dispatched() == []
 
 
 def test_matching_policies_run_each_action_once():
-    tenant = {"emergency": {"policies": {"okta_spamhaus": dict(SPAMHAUS, actions=[
-        "soc-reset-password", "soc-disable-user"])}}}
-    t = Tenant(a(), ruleid="345", tenant=tenant).run()
-    assert t.dispatched() == IDENTITY + ["soc-disable-user"]
+    tenant = {"emergency": {"policies": {"okta_spamhaus": dict(SPAMHAUS, actions=["soc-revoke-tokens",
+                                                                                  "soc-disable-user"])}}}
+    assert Tenant(a(), ruleid="345", tenant=tenant).run().dispatched(er.ACTOR) == IDENTITY + ["soc-disable-user"]
 
 
-@pytest.mark.parametrize("bad", [{"actions": IDENTITY}, {"rule_id": ["345"]},
-                                 {"about": [], "actions": IDENTITY}])
+def test_only_containment_runs_here():
+    """Reset password is eradication: excluded, not dispatched, and not a reason to escalate."""
+    tenant = {"emergency": {"policies": {"identity_compromise": {"actions": IDENTITY + ["soc-reset-password"]}}}}
+    t = Tenant(a(), tenant=tenant, outcome="executed").run()
+    assert "soc-reset-password" not in t.dispatched()
+    assert t.statuses()["soc-reset-password"] == "excluded"
+    assert er.STAR_ACTION not in t.dispatched()
+    assert er.CLOSE_ACTION in t.dispatched()
+
+
+@pytest.mark.parametrize("bad", [{"actions": IDENTITY}, {"rule_id": ["345"]}])
 def test_a_policy_with_no_subject_or_no_actions_never_fires(bad):
     tenant = {"emergency": {"policies": {"identity_compromise": {"enabled": False}, "x": bad}}}
     assert Tenant(a(), ruleid="345", tenant=tenant).run().dispatched() == []
 
 
-def test_unknown_action_in_a_policy_is_skipped_not_dispatched():
-    tenant = {"emergency": {"policies": {"identity_compromise": {"actions": ["soc-made-up"]}}}}
-    t = Tenant(a(), tenant=tenant).run()
-    assert t.dispatched() == []
-    assert "soc-made-up=skipped" in t.decision()["action_status"]
+# ── Which hosts may be contained ─────────────────────────────────────────────
+
+def test_a_workstation_is_isolated():
+    assert endpoint().run().dispatched(er.ACTOR) == ["soc-isolate-endpoint"]
+
+
+def test_the_domain_controller_is_never_isolated_and_is_escalated():
+    t = endpoint(host=DC).run()
+    assert "soc-isolate-endpoint" not in t.dispatched()
+    assert t.statuses()["soc-isolate-endpoint"] == "blocked"
+    assert "role server (operating system" in t.decision()["blocked_reason"]
+    assert t.dispatched(er.TRIAGE_ACTOR) == [er.STAR_ACTION, er.SEVERITY_ACTION]
+    assert [c.get("target") for c in t.calls if c["action"] == er.SEVERITY_ACTION] == ["critical"]
+
+
+def test_the_edr_role_wins_over_the_os():
+    assert endpoint(role="server").run().statuses()["soc-isolate-endpoint"] == "blocked"
+
+
+def test_the_tenant_role_entry_wins_over_everything():
+    tenant = {"emergency": {"role": ["host:bannik:workstation"]}}
+    assert endpoint(host=DC, role="server", tenant=tenant).run().dispatched(er.ACTOR) == ["soc-isolate-endpoint"]
+
+
+@pytest.mark.parametrize("os_text, isolated", [("macOS 14.2", True), ("Windows 11 Pro", True),
+                                               ("Ubuntu 22.04", False), (None, False)])
+def test_role_from_the_os_when_no_one_reports_it(os_text, isolated):
+    t = endpoint(host={"hostname": "box1", "os": os_text}).run()
+    assert (t.dispatched(er.ACTOR) == ["soc-isolate-endpoint"]) is isolated
+    if not isolated:
+        assert "role unknown" in t.decision()["blocked_reason"]
+
+
+def test_containable_roles_any_turns_the_role_check_off():
+    tenant = {"emergency": {"containable_roles": ["any"]}}
+    assert endpoint(host={"hostname": "box1", "os": "Ubuntu"}, tenant=tenant).run().dispatched(er.ACTOR) == \
+        ["soc-isolate-endpoint"]
+
+
+@pytest.mark.parametrize("entry", ["host:BANNIK", "host:bann*", "ip:10.20.10.9", "cidr:10.20.10.0/24",
+                                   "10.20.10.9", "bannik"])
+def test_protect_by_name_pattern_ip_or_range(entry):
+    tenant = {"emergency": {"protect": [entry], "containable_roles": ["any"]}}
+    t = endpoint(host=DC, tenant=tenant).run()
+    assert t.statuses()["soc-isolate-endpoint"] == "blocked"
+    assert "protected (this tenant" in t.decision()["blocked_reason"]
+
+
+def test_protect_ignores_the_domain_on_the_host_name():
+    tenant = {"emergency": {"protect": ["host:hobgoblin"]}}
+    t = endpoint(host={"hostname": "HOBGOBLIN.skt.local", "os": "Windows 10"}, tenant=tenant).run()
+    assert t.statuses()["soc-isolate-endpoint"] == "blocked"
+
+
+def test_protect_from_an_xsiam_list():
+    tenant = {"emergency": {"protect": ["list:CriticalServers"], "containable_roles": ["any"]}}
+    t = endpoint(tenant=tenant, lists={"CriticalServers": "# servers\nexchange01\n10.20.20.0/24\n"}).run()
+    assert t.statuses()["soc-isolate-endpoint"] == "blocked"
+
+
+def test_containable_hosts_replaces_the_role_check():
+    tenant = {"emergency": {"containable_hosts": ["host:box*"]}}
+    assert endpoint(host={"hostname": "box1", "os": "Ubuntu"}, tenant=tenant).run().dispatched(er.ACTOR) == \
+        ["soc-isolate-endpoint"]
+    assert "not in containable_hosts" in endpoint(tenant=tenant).run().decision()["blocked_reason"]
+
+
+def test_protect_wins_over_containable_hosts():
+    tenant = {"emergency": {"containable_hosts": ["host:*"], "protect": ["host:bannik"]}}
+    assert endpoint(host=DC, tenant=tenant).run().statuses()["soc-isolate-endpoint"] == "blocked"
+
+
+def test_a_protected_account_is_never_contained():
+    tenant = {"emergency": {"protect": ["account:breakglass*"]}}
+    t = Tenant(a(), user="BREAKGLASS01@corp.example", tenant=tenant).run()
+    assert t.dispatched(er.ACTOR) == []
+    assert set(t.statuses().values()) == {"blocked"}
+    assert er.STAR_ACTION in t.dispatched(er.TRIAGE_ACTOR)
+
+
+def test_host_settings_do_not_touch_account_actions():
+    tenant = {"emergency": {"containable_roles": ["server"]}}
+    assert Tenant(a(), tenant=tenant).run().dispatched(er.ACTOR) == IDENTITY
+
+
+# ── Contain once ─────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("status", ["contained", "containment_pending"])
+def test_a_host_the_edr_reports_contained_is_not_isolated_again(status):
+    t = endpoint(status=status, outcome="executed").run()
+    assert "soc-isolate-endpoint" not in t.dispatched()
+    assert t.statuses()["soc-isolate-endpoint"] == "already"
+    assert er.STAR_ACTION not in t.dispatched()
+    assert er.CLOSE_ACTION in t.dispatched()
+
+
+def test_a_real_isolate_marks_the_host_pending_for_the_next_issue():
+    t = endpoint(outcome="executed").run()
+    assert t.set_issue == [{"endpointisolationstatus": "containment_pending"}]
+    assert t.ctx["SOCFramework"]["Endpoint"]["containment_status"] == "containment_pending"
+
+
+def test_a_shadowed_isolate_writes_no_status():
+    t = endpoint(outcome="shadow").run()
+    assert t.set_issue == [] and "containment_status" not in t.ctx["SOCFramework"]["Endpoint"]
+
+
+# ── Escalation ───────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("held", ["skipped", "failed", "error", "none"])
+def test_containment_that_did_not_happen_is_escalated(held):
+    t = Tenant(a(), outcome={"soc-clear-sessions": held, "soc-revoke-tokens": "executed"}).run()
+    assert t.dispatched(er.TRIAGE_ACTOR)[:1] == [er.STAR_ACTION]
+    assert t.decision()["contained"] is False
+
+
+def test_a_shadowed_action_is_not_escalated():
+    t = Tenant(a(), outcome="shadow").run()
+    assert t.dispatched(er.TRIAGE_ACTOR) == []
+    assert "escalation" not in t.decision()
+
+
+@pytest.mark.parametrize("current, raised", [("low", True), ("medium", True), ("high", True), ("critical", False)])
+def test_severity_is_raised_only(current, raised):
+    t = endpoint(host=DC, case_severity=current).run()
+    assert (er.SEVERITY_ACTION in t.dispatched()) is raised
+    assert er.STAR_ACTION in t.dispatched()
+
+
+def test_unreadable_case_severity_stars_but_never_raises_blind():
+    t = endpoint(host=DC, case_severity=None).run()
+    assert t.dispatched(er.TRIAGE_ACTOR) == [er.STAR_ACTION]
+    assert "not raising blind" in t.decision()["escalation"]
+
+
+def test_the_tenant_sets_the_escalation_severity():
+    t = endpoint(host=DC, tenant={"emergency": {"escalate_severity": "high"}}).run()
+    assert [c.get("target") for c in t.calls if c["action"] == er.SEVERITY_ACTION] == ["high"]
 
 
 # ── Closing ──────────────────────────────────────────────────────────────────
 
 def test_shadowed_actions_never_close_the_issue():
     t = Tenant(a(), outcome="shadow").run()
-    assert "soc-close-issue-contained" not in t.dispatched()
-    row = t.decision()
-    assert row["contained"] is False and row["close_status"] == "not_attempted"
-    assert "did not run for real" in row["decision_reason"]
+    assert er.CLOSE_ACTION not in t.dispatched()
+    assert t.decision()["contained"] is False and "did not run for real" in t.decision()["decision_reason"]
     assert t.ctx["SOCFramework"]["Emergency"]["closed"] is False
 
 
-def test_closes_as_contained_only_when_every_action_really_ran():
+def test_closes_as_contained_as_automation_only_when_every_action_really_ran():
     t = Tenant(a(), outcome="executed").run()
-    assert t.dispatched() == IDENTITY + ["soc-close-issue-contained"]
+    assert t.dispatched(er.ACTOR) == IDENTITY
+    assert t.dispatched(er.TRIAGE_ACTOR) == [er.CLOSE_ACTION]
     notes = t.ctx["SOCFramework"]["Emergency"]["close_notes"]
-    assert "identity_compromise" in notes and "soc-reset-password" in notes
-    assert t.decision()["contained"] is True and t.decision()["close_status"] == "executed"
-    assert t.ctx["SOCFramework"]["Emergency"]["closed"] is True
+    assert "identity_compromise" in notes and "soc-revoke-tokens" in notes
+    assert t.decision()["close_status"] == "executed" and t.ctx["SOCFramework"]["Emergency"]["closed"] is True
 
 
-@pytest.mark.parametrize("held", ["skipped", "failed", "shadow", "none", "error"])
-def test_one_action_that_did_not_run_keeps_the_issue_open(held):
-    t = Tenant(a(), outcome={"soc-clear-sessions": "executed", "soc-revoke-tokens": held,
-                             "soc-reset-password": "executed"}).run()
-    assert "soc-close-issue-contained" not in t.dispatched()
-    assert t.decision()["contained"] is False
+def test_a_blocked_host_keeps_the_issue_open():
+    t = endpoint(host=DC, outcome="executed").run()
+    assert er.CLOSE_ACTION not in t.dispatched() and t.decision()["contained"] is False
 
 
 def test_a_shadowed_close_is_recorded_as_shadow():
-    t = Tenant(a(), outcome={**{x: "executed" for x in IDENTITY},
-                             "soc-close-issue-contained": "shadow"}).run()
-    assert t.decision()["close_status"] == "shadow"
-    assert t.ctx["SOCFramework"]["Emergency"]["closed"] is False
+    t = Tenant(a(), outcome={**{x: "executed" for x in IDENTITY}, er.CLOSE_ACTION: "shadow"}).run()
+    assert t.decision()["close_status"] == "shadow" and t.ctx["SOCFramework"]["Emergency"]["closed"] is False
 
 
-def test_a_record_for_another_action_is_not_this_actions_outcome():
-    entries = [{"Type": 1, "Contents": {"action": "soc-revoke-tokens", "success": True,
-                                        "shadow_mode": False}, "HumanReadable": "### x"}]
-    assert er.outcome_of("soc-clear-sessions", er.records_from("soc-clear-sessions", entries))[0] == "no_record"
-
-
-def test_the_resolved_entry_alone_is_not_an_outcome():
-    """Resolved carries shadow_mode but no success: it says what will happen, not what did."""
-    entries = [{"Type": 1, "Contents": {"action": "a", "shadow_mode": False},
-                "HumanReadable": "### SOC Framework - Universal Command Resolved"}]
-    assert er.outcome_of("a", er.records_from("a", entries))[0] == "no_record"
+def test_closing_off_in_policy_never_closes():
+    policy = copy.deepcopy(POLICY)
+    policy["phases"]["triage"]["emergency"]["close_when_contained"] = False
+    assert er.CLOSE_ACTION not in Tenant(a(), outcome="executed", policy=policy).run().dispatched()
 
 
 def test_a_wrapper_that_raises_reads_as_failed():
@@ -345,64 +489,62 @@ def test_a_wrapper_that_raises_reads_as_failed():
         return real(command, args)
     t.execute = boom
     t.run()
-    assert "soc-revoke-tokens=failed" in t.decision()["action_status"]
-    assert t.decision()["contained"] is False
-
-
-def test_closing_off_in_policy_never_closes():
-    policy = copy.deepcopy(POLICY)
-    policy["phases"]["triage"]["emergency"]["close_when_contained"] = False
-    t = Tenant(a(), outcome="executed", policy=policy).run()
-    assert "soc-close-issue-contained" not in t.dispatched()
+    assert t.statuses()["soc-revoke-tokens"] == "failed" and t.decision()["contained"] is False
 
 
 # ── What ships ───────────────────────────────────────────────────────────────
 
-def test_every_shipped_policy_names_real_mutating_actions():
+def test_every_shipped_policy_runs_only_containment():
     section = POLICY["phases"]["triage"]["emergency"]
     assert section["enabled"] is True
+    assert section["containable_roles"] == ["workstation"] and section["escalate_severity"] == "critical"
+    assert section["protect"] == [] and section["containable_hosts"] == [] and section["role"] == []
     for p in section["policies"]:
         assert p["about"], p["policy"]
-        assert not {"rule_id", "name_contains", "source"} & set(p), \
-            f"{p['policy']}: tenant-local matching does not belong in the shipped list"
+        assert not {"rule_id", "name_contains", "source"} & set(p), p["policy"]
         for name in p["actions"]:
-            assert name in ACTIONS, name
-            assert ACTIONS[name]["phase"] in ("containment", "eradication"), name
+            assert ACTIONS[name]["phase"] == "containment", name
 
 
-def test_close_row_is_shadowed_for_every_actor_and_takes_its_notes_from_this_script():
-    row = ACTIONS["soc-close-issue-contained"]
-    assert row["shadow_mode_by_actor"] == {"analyst": True, "ai": True, "automation": True,
-                                           "issue_emergency": True}
-    args = row["responses"]["Builtin"]["inline_args"]
-    # The display wording: closeInvestigation stores it as RESOLVED_TRUE_POSITIVE, while
-    # the enum string itself is stored as RESOLVED_OTHER (deathstar, 28 Oct 2026).
-    assert args["closeReason"] == "Resolved - True Positive"
-    assert args["closeNotes"] == "${" + er.NOTES_KEY + "}"
+def test_triage_rows_never_carry_issue_emergency():
+    for name in (er.CLOSE_ACTION, er.SEVERITY_ACTION):
+        assert set(ACTIONS[name]["shadow_mode_by_actor"]) == {"analyst", "ai", "automation"}
+        assert all(ACTIONS[name]["shadow_mode_by_actor"].values())
 
 
-def test_merge_is_the_same_one_socfwconfig_shows():
-    sys.path.insert(0, os.path.join(HERE, "..", "SOCFWConfig"))
-    import importlib
+def test_close_and_severity_rows():
+    close = ACTIONS[er.CLOSE_ACTION]["responses"]["Builtin"]["inline_args"]
+    assert close["closeReason"] == "Resolved - True Positive"
+    assert close["closeNotes"] == "${" + er.NOTES_KEY + "}"
+    sev = ACTIONS[er.SEVERITY_ACTION]
+    assert sev["target_arg"] == "manual_severity"
+    assert sev["responses"]["Builtin"] == {"command": "setParentIncidentFields",
+                                           "inline_args": {"manual_severity": ""}}
+
+
+def test_merges_are_the_same_ones_socfwconfig_shows():
     import builtins
+    import importlib
+    sys.path.insert(0, os.path.join(HERE, "..", "SOCFWConfig"))
     for n in ("demisto", "CommandResults", "return_results", "return_error"):
         setattr(builtins, n, getattr(builtins, n, None))
     cfg_mod = importlib.import_module("SOCFWConfig")
     section = POLICY["phases"]["triage"]["emergency"]
     for tenant in (None, {}, {"emergency": {"policies": {"identity_compromise": {"enabled": False}}}},
-                   {"emergency": {"policies": {"okta_spamhaus": SPAMHAUS,
-                                               "email_delivered": {"confidence": "medium"}}}},
+                   {"emergency": {"policies": {"okta_spamhaus": SPAMHAUS}, "protect": ["host:bannik"],
+                                  "containable_roles": ["any"], "escalate_severity": "high"}},
                    {"emergency": {"policies": "garbled"}}):
         assert er.merge_policies(section, tenant) == cfg_mod.merge_policies(section, tenant)
+        assert er.merge_settings(section, tenant) == cfg_mod.merge_settings(section, tenant)
 
 
-# ── The wrapper's record shape, from the real wrapper ────────────────────────
+# ── The wrapper's entries, from the real wrapper ─────────────────────────────
 
-def _wrapper_records(tenant_cfg, ctx_user="00u1"):
+def _wrapper(action, tenant_cfg, ctx_user="00u1"):
     sys.path.insert(0, os.path.join(HERE, "..", "SOCCommandWrapper"))
     from SOCCommandWrapper_test import load_script
     script, demisto = load_script()
-    demisto._args = {"action": "soc-clear-sessions", "list_name": "SOCFrameworkActions_V3",
+    demisto._args = {"action": action, "list_name": "SOCFrameworkActions_V3",
                      "output_key": er.DISPATCH_KEY, "Action_Actor": "issue_emergency"}
     demisto._context = {"SOCFramework": {"RunID": "r", "Artifacts": (
         {"Identity": {"User": {"ID": ctx_user}}} if ctx_user else {}),
@@ -411,7 +553,7 @@ def _wrapper_records(tenant_cfg, ctx_user="00u1"):
     def _route(args):
         name = (args or {}).get("listName")
         if name == "SOCFrameworkActions_V3":
-            return [{"Contents": json.dumps({"soc-clear-sessions": ACTIONS["soc-clear-sessions"]})}]
+            return [{"Contents": json.dumps({action: ACTIONS[action]})}]
         if name == "SOCFWTenantConfig":
             return [{"Contents": json.dumps(tenant_cfg)}]
         return [{"Type": 4, "Contents": f" - Item not found (8) on list [{name}] (2609)"}]
@@ -423,27 +565,38 @@ def _wrapper_records(tenant_cfg, ctx_user="00u1"):
         "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
     }
     script.main()
-    return er.records_from("soc-clear-sessions", demisto._results)
+    return er.records_from(action, demisto._results)
 
 
 def test_real_wrapper_shadowed_reads_as_shadow():
-    recs = _wrapper_records({})
-    assert er.outcome_of("soc-clear-sessions", recs)[0] == "shadow"
+    assert er.outcome_of("soc-clear-sessions", _wrapper("soc-clear-sessions", {}))[0] == "shadow"
 
 
 def test_real_wrapper_live_reads_as_executed():
-    recs = _wrapper_records({"shadow": {"soc-clear-sessions": {"issue_emergency": False}}})
+    recs = _wrapper("soc-clear-sessions", {"shadow": {"soc-clear-sessions": {"issue_emergency": False}}})
     assert er.outcome_of("soc-clear-sessions", recs)[0] == "executed"
 
 
 def test_real_wrapper_skip_reads_as_skipped():
-    recs = _wrapper_records({"shadow": {"soc-clear-sessions": {"issue_emergency": False}}}, ctx_user=None)
+    recs = _wrapper("soc-clear-sessions", {"shadow": {"soc-clear-sessions": {"issue_emergency": False}}},
+                    ctx_user=None)
     assert er.outcome_of("soc-clear-sessions", recs)[0] == "skipped"
 
 
 def test_not_configured_skip_reads_as_skipped():
-    """A vendor branch whose required tenant value is missing logs this title."""
     entries = [{"Type": 1, "ContentsFormat": "json",
                 "Contents": {"reason": "list_id not configured", "action": "soc-block-domain"},
                 "HumanReadable": "### SOC Framework - soc-block-domain: skipped (vendor not configured)\n```json"}]
     assert er.outcome_of("soc-block-domain", er.records_from("soc-block-domain", entries))[0] == "skipped"
+
+
+def test_a_record_for_another_action_is_not_this_actions_outcome():
+    entries = [{"Type": 1, "Contents": {"action": "soc-revoke-tokens", "success": True, "shadow_mode": False},
+                "HumanReadable": "### x"}]
+    assert er.outcome_of("soc-clear-sessions", er.records_from("soc-clear-sessions", entries))[0] == "no_record"
+
+
+def test_the_resolved_entry_alone_is_not_an_outcome():
+    entries = [{"Type": 1, "Contents": {"action": "a", "shadow_mode": False},
+                "HumanReadable": "### SOC Framework - Universal Command Resolved"}]
+    assert er.outcome_of("a", er.records_from("a", entries))[0] == "no_record"

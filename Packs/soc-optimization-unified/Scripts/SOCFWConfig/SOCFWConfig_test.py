@@ -154,7 +154,9 @@ def test_status_shows_customer_values_and_what_is_missing():
     r = run(t, command="status")
     values = {(v["vendor"], v["arg"]): v for v in r.outputs["values"]}
     assert set(values) == {("Zscaler", "category-id"), ("Zscaler", "using"), ("ThreatStopv2", "list_id"),
-                           ("CrowdStrike Falcon", "using")}
+                           ("CrowdStrike Falcon", "using"), ("Okta v2", "using")}
+    assert values[("Okta v2", "using")]["required"] is False
+    assert "soc-clear-sessions" in values[("Okta v2", "using")]["used_by"]
     assert values[("Zscaler", "category-id")]["value"] == "CAT-1"
     assert values[("ThreatStopv2", "list_id")]["set"] is False
     assert values[("ThreatStopv2", "list_id")]["required"] is True
@@ -623,7 +625,7 @@ def test_shadow_takes_isolate_live_for_analyst_only():
 POLICY = json.load(open(os.path.join(
     HERE, "..", "..", "Lists", "SOCFrameworkPhasePolicy_V3", "SOCFrameworkPhasePolicy_V3_data.json")))
 PL = "SOCFrameworkPhasePolicy_V3"
-IDENTITY = "soc-clear-sessions,soc-revoke-tokens,soc-reset-password"
+IDENTITY = "soc-clear-sessions,soc-revoke-tokens"
 
 
 def em_tenant(cfg=None):
@@ -716,7 +718,8 @@ def test_emergency_name_only_policy_is_flagged():
     ({"policy": "new_one", "rule_id": "345"}, "needs action="),
     ({"policy": "new_one"}, "no policy new_one"),
     ({"policy": "x", "rule_id": "1", "action": "soc-made-up"}, "unknown action soc-made-up"),
-    ({"policy": "x", "rule_id": "1", "action": "soc-enrich-domain"}, "only read"),
+    ({"policy": "x", "rule_id": "1", "action": "soc-enrich-domain"}, "not a containment action"),
+    ({"policy": "x", "rule_id": "1", "action": "soc-reset-password"}, "not a containment action"),
     ({"policy": "x", "rule_id": "1", "action": IDENTITY, "confidence": "very"}, "confidence must be"),
     ({"policy": "x", "rule_id": "1", "action": IDENTITY, "verdict": "evil"}, "verdict evil"),
     ({"policy": "identity_compromise", "enabled": "default", "confidence": "low"}, "on its own"),
@@ -762,3 +765,69 @@ def test_emergency_arguments_are_all_declared_and_marked():
     assert "emergency" in declared["command"]["predefined"]
     for name in module.COMMAND_ARGS["emergency"] - {"action"}:
         assert declared[name]["description"].startswith("[emergency]"), name
+
+
+# ── emergency settings: which hosts and accounts may be contained ────────────
+
+def test_emergency_listing_shows_the_shipped_settings():
+    r = run(em_tenant(), command="emergency")
+    s = r.outputs["settings"]
+    assert s["containable_roles"] == ["workstation"] and s["containable_roles_from"] == "shipped"
+    assert s["protect"] == [] and s["escalate_severity"] == "critical"
+    assert "containable_roles" in r.readable_output
+
+
+def test_protect_is_written_replaced_and_cleared():
+    t = em_tenant({})
+    r = run(t, command="emergency", protect="host:bannik,ip:10.0.0.5,cidr:10.0.5.0/24,account:breakglass*",
+            apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.config()["emergency"]["protect"] == ["host:bannik", "ip:10.0.0.5", "cidr:10.0.5.0/24",
+                                                  "account:breakglass*"]
+    run(t, command="emergency", protect="list:CriticalServers", apply="yes")
+    assert t.config()["emergency"]["protect"] == ["list:CriticalServers"]
+    run(t, command="emergency", protect="default", apply="yes")
+    assert "emergency" not in t.config()
+
+
+def test_settings_are_a_dry_run_by_default():
+    t = em_tenant({})
+    r = run(t, command="emergency", containable_roles="any")
+    assert r.outputs["dry_run"] and r.outputs["changed"] and t.writes() == []
+    assert "containable_roles=any" in r.outputs["apply_command"]
+
+
+def test_settings_leave_the_policies_alone():
+    t = em_tenant({"emergency": {"policies": {"x": {"rule_id": ["1"], "actions": ["soc-disable-user"]}}}})
+    run(t, command="emergency", role="host:mac-*:workstation", escalate_severity="high", apply="yes")
+    em = t.config()["emergency"]
+    assert em["policies"] == {"x": {"rule_id": ["1"], "actions": ["soc-disable-user"]}}
+    assert em["role"] == ["host:mac-*:workstation"] and em["escalate_severity"] == "high"
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"protect": "bannik"}, "must be one of host:"),
+    ({"protect": "ip:10.0.0"}, "not an IP address"),
+    ({"protect": "cidr:10.0.5.0/99"}, "not a range"),
+    ({"containable_hosts": "account:x"}, "must be one of host:"),
+    ({"containable_roles": "laptop"}, "containable_roles laptop is not one of"),
+    ({"containable_roles": "any,workstation"}, "give it on its own"),
+    ({"role": "host:bannik"}, "must be host:<name or pattern>:<"),
+    ({"role": "host:bannik:printer"}, "must be host:<name or pattern>:<"),
+    ({"escalate_severity": "urgent"}, "escalate_severity must be one of"),
+    ({"protect": "host:x", "policy": "identity_compromise"}, "apply to every policy"),
+    ({"protect": "host:x", "confidence": "low"}, "apply to every policy"),
+])
+def test_emergency_settings_bad_arguments_name_the_fix(args, message):
+    with pytest.raises(RuntimeError, match=message):
+        run(em_tenant({}), command="emergency", **args)
+
+
+def test_settings_arguments_are_refused_on_other_commands():
+    with pytest.raises(RuntimeError, match="protect is for command=emergency"):
+        run(em_tenant({}), command="status", protect="host:x")
+
+
+def test_the_severity_target_is_not_a_customer_value():
+    r = run(em_tenant(), command="status")
+    assert not [v for v in r.outputs["values"] if v["arg"] == "manual_severity"]

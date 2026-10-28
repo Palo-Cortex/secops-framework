@@ -126,6 +126,32 @@ args:
   - "on"
   - "off"
   - default
+- name: entity_type
+  description: "[emergency] Optional on a policy - the assessment's primary entity type
+    must be one of these (identity, endpoint, email, ip ...; comma-separated)."
+- name: protect
+  description: "[emergency] Never contained, for every policy - host:<name or pattern>,
+    ip:<address>, cidr:<range>, account:<name or pattern> or list:<XSIAM list>, comma-separated.
+    Replaces this tenant's list; default clears it."
+- name: containable_hosts
+  description: "[emergency] When set, a host action runs only on these - host:, ip:, cidr:
+    or list: entries, comma-separated. Replaces the role check. default clears it."
+- name: containable_roles
+  description: "[emergency] Roles a host may have to be contained (workstation, server,
+    domain_controller), or any to turn the role check off. default returns to workstation."
+- name: role
+  description: "[emergency] A role for hosts that report none - host:<name or pattern>:<role>,
+    comma-separated. default clears them."
+- name: escalate_severity
+  description: "[emergency] The case severity when containment was needed but blocked (low,
+    medium, high, critical; raise only). default returns to critical."
+  auto: PREDEFINED
+  predefined:
+  - low
+  - medium
+  - high
+  - critical
+  - default
 - name: apply
   description: yes writes the change. Anything else is a dry run that shows the change.
   defaultValue: "no"
@@ -233,6 +259,10 @@ outputs:
 - contextPath: SOCFWConfig.Emergency.apply_command
   description: The command that writes this change.
   type: String
+- contextPath: SOCFWConfig.Emergency.settings
+  description: Which hosts and accounts may be contained - each of protect, containable_hosts,
+    containable_roles, role, escalate_severity with where it came from (shipped or this tenant).
+  type: Unknown
 - contextPath: SOCFWConfig.Emergency.contract_version
   description: Version of this output's keys.
   type: Number

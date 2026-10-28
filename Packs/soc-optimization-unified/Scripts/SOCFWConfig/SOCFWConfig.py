@@ -248,7 +248,11 @@ def value_slots(actions):
             if not isinstance(binding, dict):
                 continue
             required = set(binding.get("required_args") or [])
+            # The target arg is filled by the caller (target=), not by the tenant.
+            target_arg = binding.get("target_arg") or row.get("target_arg")
             for arg, template in (binding.get("inline_args") or {}).items():
+                if arg == target_arg:
+                    continue
                 if template in (None, ""):
                     slot = slots.setdefault((vendor, arg), {"used_by": [], "required": False})
                     slot["used_by"].append(name)
@@ -742,7 +746,7 @@ EMERGENCY_ACTOR = "issue_emergency"
 # Fields a policy can carry, in the order they are shown. Comma lists except
 # confidence (a floor). about, source, rule_id and name_contains say which issues;
 # verdict, confidence and exposure are the assessment gate.
-EMERGENCY_FIELDS = ("about", "source", "rule_id", "name_contains",
+EMERGENCY_FIELDS = ("about", "entity_type", "source", "rule_id", "name_contains",
                     "verdict", "confidence", "exposure", "actions")
 SUBJECT_FIELDS = ("about", "source", "rule_id", "name_contains")
 VERDICTS = ("malicious", "suspicious", "benign", "inconclusive", "any")
@@ -778,6 +782,146 @@ def merge_policies(section, tenant_cfg):
             continue
         out.append(dict(p, policy=name, origin="this tenant"))
     return out
+
+
+SECTION_SETTINGS = ("containable_roles", "containable_hosts", "protect", "role", "escalate_severity")
+ROLES = ("workstation", "server", "domain_controller", "any")
+SEVERITIES = ("low", "medium", "high", "critical")
+ENTRY_KINDS = ("host", "ip", "cidr", "account", "list")
+
+
+def merge_settings(section, tenant_cfg):
+    """The section's host settings, each replaced whole by the tenant's when set.
+
+    The same merge SOCFWEmergencyResponse applies; a test holds the two to each other.
+    """
+    tenant = (tenant_cfg or {}).get("emergency") or {}
+    out = {}
+    for key in SECTION_SETTINGS:
+        if isinstance(tenant, dict) and key in tenant:
+            out[key], out[f"{key}_from"] = tenant[key], "this tenant"
+        else:
+            out[key], out[f"{key}_from"] = (section or {}).get(key), "shipped"
+    return out
+
+
+def _check_entries(field, values, kinds):
+    import ipaddress
+    for v in values:
+        kind, _, rest = v.partition(":")
+        if kind.lower() not in kinds or not rest.strip():
+            raise ConfigError(f"{field} entry {v!r} must be one of " + ", ".join(f"{k}:<...>" for k in kinds))
+        if kind.lower() == "ip":
+            try:
+                ipaddress.ip_address(rest.strip())
+            except ValueError:
+                raise ConfigError(f"{field} entry {v!r}: {rest.strip()} is not an IP address")
+        if kind.lower() == "cidr":
+            try:
+                ipaddress.ip_network(rest.strip(), strict=False)
+            except ValueError:
+                raise ConfigError(f"{field} entry {v!r}: {rest.strip()} is not a range like 10.0.5.0/24")
+
+
+def _settings_from_args(args):
+    """{setting: value or None for default} for the settings this command names."""
+    edit = {}
+    for field in ("protect", "containable_hosts"):
+        raw = str(args.get(field) or "").strip()
+        if raw:
+            if raw.lower() == "default":
+                edit[field] = None
+                continue
+            values = _split(args.get(field))
+            kinds = ENTRY_KINDS if field == "protect" else ("host", "ip", "cidr", "list")
+            _check_entries(field, values, kinds)
+            edit[field] = values
+    raw = str(args.get("containable_roles") or "").strip()
+    if raw:
+        if raw.lower() == "default":
+            edit["containable_roles"] = None
+        else:
+            roles = [r.lower() for r in _split(args.get("containable_roles"))]
+            bad = [r for r in roles if r not in ROLES]
+            if bad:
+                raise ConfigError(f"containable_roles {', '.join(bad)} is not one of " + ", ".join(ROLES))
+            if "any" in roles and len(roles) > 1:
+                raise ConfigError("containable_roles=any turns the role check off; give it on its own")
+            edit["containable_roles"] = roles
+    raw = str(args.get("role") or "").strip()
+    if raw:
+        if raw.lower() == "default":
+            edit["role"] = None
+        else:
+            values = _split(args.get("role"))
+            for v in values:
+                parts = v.split(":")
+                if len(parts) != 3 or parts[0].lower() != "host" or not parts[1] or parts[2].lower() not in ROLES[:-1]:
+                    raise ConfigError(f"role entry {v!r} must be host:<name or pattern>:<"
+                                      + "|".join(ROLES[:-1]) + ">")
+            edit["role"] = values
+    raw = str(args.get("escalate_severity") or "").strip().lower()
+    if raw:
+        if raw == "default":
+            edit["escalate_severity"] = None
+        elif raw not in SEVERITIES:
+            raise ConfigError("escalate_severity must be one of " + ", ".join(SEVERITIES))
+        else:
+            edit["escalate_severity"] = raw
+    return edit
+
+
+def _settings_table(settings):
+    def shown(key):
+        v = settings.get(key)
+        v = ", ".join(v) if isinstance(v, list) else v
+        return f"`{v}`" if v not in (None, "", []) else "(none)"
+    md = ["| Setting | Value | From |", "|---|---|---|"]
+    for key in SECTION_SETTINGS:
+        md.append(f"| {key} | {shown(key)} | {settings.get(key + '_from')} |")
+    return md
+
+
+def emergency_settings(args, section, cfg, exists, apply):
+    edit = _settings_from_args(args)
+    new_cfg = json.loads(json.dumps(cfg))
+    em = new_cfg.setdefault("emergency", {})
+    if not isinstance(em, dict):
+        raise ConfigError(f"'emergency' in {TENANT_CONFIG_LIST} is not an object; fix it in Settings > Lists")
+    for key, value in edit.items():
+        if value is None:
+            em.pop(key, None)
+        else:
+            em[key] = value
+    if not em:
+        new_cfg.pop("emergency", None)
+    before, after = merge_settings(section, cfg), merge_settings(section, new_cfg)
+    changed = before != after
+    shown = " ".join(f"{k}={','.join(v) if isinstance(v, list) else ('default' if v is None else v)}"
+                     for k, v in edit.items())
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "emergency", "settings": True,
+               "dry_run": not apply, "applied": False, "changed": changed,
+               "from": before, "to": after, "tenant_config_list": TENANT_CONFIG_LIST,
+               "creates_list": False, "recorded": False,
+               "apply_command": f"!SOCFWConfig command=emergency {shown} apply=yes"}
+    if changed:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([{
+                "universal_command": "emergency", "action_actor": EMERGENCY_ACTOR,
+                "action_status": "settings", "action_taken": shown}])
+    md = ["### Emergency response settings: " + ("nothing to change" if not changed
+                                                  else "applied" if outputs["applied"]
+                                                  else "dry run, nothing written"), ""]
+    if changed:
+        md += ["Now:"] + _settings_table(before) + ["", "After:"] + _settings_table(after)
+    else:
+        md += _settings_table(after)
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Emergency",
+                          outputs=outputs)
 
 
 def load_emergency_section():
@@ -845,7 +989,7 @@ def _emergency_table(views):
 def _edit_from_args(args, actions, shipped):
     """The fields this command sets on the policy, validated."""
     edit = {}
-    for field in ("about", "source"):
+    for field in ("about", "entity_type", "source"):
         if _split(args.get(field)):
             edit[field] = [v.lower() for v in _split(args.get(field))]
     for field in ("rule_id", "name_contains"):
@@ -873,10 +1017,11 @@ def _edit_from_args(args, actions, shipped):
         if unknown:
             raise ConfigError(f"unknown action {', '.join(unknown)}; run !SOCFWConfig "
                               "command=status to list them")
-        read_only = [a for a in wanted if is_read_only(actions[a])]
-        if read_only:
-            raise ConfigError(f"{', '.join(read_only)} only read; an emergency policy runs "
-                              "actions that contain or eradicate")
+        not_containment = [a for a in wanted
+                           if str(actions[a].get("phase") or "").lower() != "containment"]
+        if not_containment:
+            raise ConfigError(f"{', '.join(not_containment)} is not a containment action; emergency "
+                              "response runs containment only - eradication and recovery wait for the case")
         edit["actions"] = wanted
     enabled = str(args.get("enabled") or "").strip().lower()
     if enabled:
@@ -895,10 +1040,17 @@ def emergency(args):
     apply = _yes(args.get("apply"))
     shipped_names = [p.get("policy") for p in (section.get("policies") or []) if isinstance(p, dict)]
 
+    policy_args = ("about", "entity_type", "source", "rule_id", "name_contains", "verdict",
+                   "confidence", "exposure", "action", "enabled")
+    setting_args = [f for f in SECTION_SETTINGS if str(args.get(f) or "").strip()]
+    if setting_args:
+        if label or any(str(args.get(f) or "").strip() for f in policy_args):
+            raise ConfigError(f"{', '.join(setting_args)} apply to every policy; set them without "
+                              "policy= or the policy fields")
+        return emergency_settings(args, section, cfg, exists, apply)
+
     if not label:
-        if any(str(args.get(f) or "").strip() for f in
-               ("about", "source", "rule_id", "name_contains", "verdict", "confidence",
-                "exposure", "action", "enabled")):
+        if any(str(args.get(f) or "").strip() for f in policy_args):
             raise ConfigError("policy is required to change one: the label of a shipped policy "
                               f"({', '.join(shipped_names)}) or a new one")
         views = [_policy_view(p, actions, cfg) for p in merge_policies(section, cfg)]
@@ -908,7 +1060,13 @@ def emergency(args):
               "`phases.triage.emergency.enabled`. Each action's state is what the wrapper "
               "does for `issue_emergency`; shadow records what would have happened.", ""]
         md += _emergency_table(views)
-        md += ["", "Every policy that matches fires; each action runs once. The issue is closed "
+        settings = merge_settings(section, cfg)
+        md += ["", "**Which hosts and accounts may be contained** — every policy:", ""]
+        md += _settings_table(settings)
+        md += ["", "A host action runs only on a host that is not protected and is either in "
+                   "containable_hosts (when set) or has a role in containable_roles. An unknown role "
+                   "is never contained. Blocked containment stars the case and raises its severity.",
+               "", "Every policy that matches fires; each action runs once. The issue is closed "
                    "as true positive, contained only when every action really ran.",
                "", "Edit or add: `!SOCFWConfig command=emergency policy=<label> ...` — "
                    "add `apply=yes` to write. Back to shipped: `enabled=default`."]
@@ -918,7 +1076,8 @@ def emergency(args):
         return CommandResults(readable_output="\n".join(md),
                               outputs_prefix="SOCFWConfig.Emergency",
                               outputs={"contract_version": CONTRACT_VERSION, "command": "emergency",
-                                       "enabled": on, "policies": views})
+                                       "enabled": on, "policies": views,
+                                       "settings": merge_settings(section, cfg)})
 
     shipped = label in shipped_names
     enabled = str(args.get("enabled") or "").strip().lower()
@@ -964,7 +1123,7 @@ def emergency(args):
 
     shown = " ".join(f"{k}={','.join(_split(args.get(k)))}" if k != "confidence"
                      else f"confidence={args.get(k)}"
-                     for k in ("about", "source", "rule_id", "name_contains", "verdict",
+                     for k in ("about", "entity_type", "source", "rule_id", "name_contains", "verdict",
                                "confidence", "exposure", "action", "enabled")
                      if str(args.get(k) or "").strip())
     outputs = {"contract_version": CONTRACT_VERSION, "command": "emergency",
@@ -1012,8 +1171,9 @@ COMMAND_ARGS = {
     "set": {"vendor", "arg", "value"},
     "job": {"job", "value", "owner"},
     "owner": {"job", "owner"},
-    "emergency": {"policy", "about", "source", "rule_id", "name_contains", "verdict",
-                  "confidence", "exposure", "action", "enabled"},
+    "emergency": {"policy", "about", "entity_type", "source", "rule_id", "name_contains", "verdict",
+                  "confidence", "exposure", "action", "enabled", "protect", "containable_hosts",
+                  "containable_roles", "role", "escalate_severity"},
 }
 ALWAYS_ARGS = {"command", "apply"}
 
