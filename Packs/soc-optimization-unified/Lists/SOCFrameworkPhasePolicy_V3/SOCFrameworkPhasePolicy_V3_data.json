@@ -91,8 +91,7 @@
             "confidence": "high",
             "actions": [
               "soc-clear-sessions",
-              "soc-revoke-tokens",
-              "soc-reset-password"
+              "soc-revoke-tokens"
             ]
           },
           {
@@ -125,11 +124,19 @@
               "executed"
             ],
             "actions": [
-              "soc-retract-email"
+              "soc-retract-email",
+              "soc-block-domain"
             ]
           }
         ],
-        "note": "Issue-level response that does not wait for the case: SOCFWEmergencyResponse runs the actions of every policy an issue matches, once each, as the issue_emergency actor, then closes the issue as true positive, contained (soc-close-issue-contained) only if every action really ran. Every action ships shadowed for issue_emergency, so in a PoV this records what would have been contained and closes nothing. about matches the product category or the assessment's primary_entity_type. An issue the assessment says is already contained is never acted on. A tenant edits a policy by its label, or adds one, with !SOCFWConfig command=emergency (SOCFWTenantConfig emergency.policies); rule_id and name_contains belong there, never here, because rule ids are local to a tenant and names change."
+        "note": "Issue-level containment that does not wait for the case. SOCFWEmergencyResponse runs the containment actions of every policy an issue matches, once each, as issue_emergency; only containment actions are allowed. about matches the issue's product category. A host action runs only on a host that is not protected and is either in containable_hosts (when that is set) or has a role in containable_roles (any turns the role check off). The role comes from, first to answer: this tenant's role entries, the EDR (SOCFramework.Endpoint.role), the operating system (macOS and Windows client editions read as workstation, Windows Server as server, Linux as unknown). An unknown role is never contained. A host the EDR already reports contained or pending is skipped. Containment that was needed but blocked by these rules stars the case and raises its severity to escalate_severity (raise only), as automation. Every action ships shadowed, so in a PoV this records what would have been contained. The issue is closed as true positive, contained (soc-close-issue-contained, as automation) only when every action really ran. Entries in protect and containable_hosts are host:<name or pattern>, ip:<address>, cidr:<range>, account:<name or pattern> or list:<XSIAM list name>, one entry per line; role entries are host:<pattern>:<role>. A tenant replaces any of these with !SOCFWConfig command=emergency; rule_id and name_contains belong in tenant policies only.",
+        "containable_roles": [
+          "workstation"
+        ],
+        "containable_hosts": [],
+        "protect": [],
+        "role": [],
+        "escalate_severity": "critical"
       }
     }
   },
