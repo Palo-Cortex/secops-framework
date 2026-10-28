@@ -616,3 +616,149 @@ def test_shadow_takes_isolate_live_for_analyst_only():
         c = cell(r, "soc-isolate-endpoint", actor)
         assert c["shadow"] is True and c["decided_by"] == "action_actor"
         assert c["field"] == f"SOCFrameworkActions_V3 soc-isolate-endpoint.shadow_mode_by_actor.{actor}"
+
+
+# ── emergency ────────────────────────────────────────────────────────────────
+
+POLICY = json.load(open(os.path.join(
+    HERE, "..", "..", "Lists", "SOCFrameworkPhasePolicy_V3", "SOCFrameworkPhasePolicy_V3_data.json")))
+PL = "SOCFrameworkPhasePolicy_V3"
+IDENTITY = "soc-clear-sessions,soc-revoke-tokens,soc-reset-password"
+
+
+def em_tenant(cfg=None):
+    lists = {PL: POLICY}
+    if cfg is not None:
+        lists[NEW] = cfg
+    return Tenant(**lists)
+
+
+def test_emergency_lists_the_shipped_policies_with_each_action_state():
+    r = run(em_tenant(), command="emergency")
+    views = {v["policy"]: v for v in r.outputs["policies"]}
+    assert set(views) == {"identity_compromise", "endpoint_execution", "email_delivered"}
+    assert r.outputs["enabled"] is True
+    assert [a["action"] for a in views["identity_compromise"]["actions"]] == IDENTITY.split(",")
+    assert {a["state"] for v in views.values() for a in v["actions"]} == {"shadow"}
+    assert all(v["origin"] == "shipped" for v in views.values())
+
+
+def test_emergency_action_state_follows_the_tenant_shadow_setting():
+    t = em_tenant({"shadow": {"soc-clear-sessions": {"issue_emergency": False}}})
+    r = run(t, command="emergency")
+    acts = next(v for v in r.outputs["policies"] if v["policy"] == "identity_compromise")["actions"]
+    assert acts[0] == {"action": "soc-clear-sessions", "state": "live"}
+
+
+def test_emergency_add_is_a_dry_run_by_default():
+    t = em_tenant()
+    r = run(t, command="emergency", policy="okta_spamhaus", rule_id="345", action=IDENTITY)
+    assert r.outputs["dry_run"] and not r.outputs["applied"] and r.outputs["changed"]
+    assert t.writes() == []
+    assert "apply=yes" in r.outputs["apply_command"] and "rule_id=345" in r.outputs["apply_command"]
+
+
+def test_emergency_add_writes_the_policy_and_records_it():
+    t = em_tenant({})
+    r = run(t, command="emergency", policy="okta_spamhaus", rule_id="345", verdict=["any"],
+            confidence="any", action=IDENTITY, apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.config()["emergency"]["policies"]["okta_spamhaus"] == {
+        "rule_id": ["345"], "verdict": ["any"], "confidence": "any",
+        "actions": IDENTITY.split(",")}
+    assert t.rows[-1]["event_type"] == "config_change" and "incident_id" not in t.rows[-1]
+    listed = run(t, command="emergency").outputs["policies"]
+    assert listed[-1]["policy"] == "okta_spamhaus" and listed[-1]["origin"] == "this tenant"
+
+
+def test_emergency_edit_of_a_shipped_policy_stores_only_what_changed():
+    t = em_tenant({})
+    run(t, command="emergency", policy="identity_compromise", confidence="medium",
+        source="DS_OKTA_SYSTEMLOG", apply="yes")
+    assert t.config()["emergency"]["policies"]["identity_compromise"] == {
+        "confidence": "medium", "source": ["ds_okta_systemlog"]}
+    v = next(v for v in run(t, command="emergency").outputs["policies"]
+             if v["policy"] == "identity_compromise")
+    assert v["origin"] == "shipped, edited on this tenant" and v["about"] == ["identity"]
+
+
+def test_emergency_off_then_default_returns_to_shipped():
+    t = em_tenant({})
+    run(t, command="emergency", policy="identity_compromise", enabled="off", apply="yes")
+    assert t.config()["emergency"]["policies"]["identity_compromise"] == {"enabled": False}
+    r = run(t, command="emergency", policy="identity_compromise", enabled="default", apply="yes")
+    assert r.outputs["applied"] and "emergency" not in t.config()
+
+
+def test_emergency_default_removes_a_tenant_policy():
+    t = em_tenant({"emergency": {"policies": {"x": {"about": ["identity"], "actions": ["soc-disable-user"]}}}})
+    r = run(t, command="emergency", policy="x", enabled="default", apply="yes")
+    assert r.outputs["to"] is None and "emergency" not in t.config()
+
+
+def test_emergency_repeat_is_a_no_op():
+    t = em_tenant({"emergency": {"policies": {"identity_compromise": {"confidence": "medium"}}}})
+    r = run(t, command="emergency", policy="identity_compromise", confidence="medium", apply="yes")
+    assert not r.outputs["changed"] and t.writes() == []
+
+
+def test_emergency_name_only_policy_is_flagged():
+    t = em_tenant({})
+    r = run(t, command="emergency", policy="spam", name_contains="Spamhaus", action=IDENTITY)
+    assert r.outputs["to"]["name_only"] is True
+    assert "issue name alone" in r.readable_output
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"policy": "identity_compromise", "rule_id": "345"}, "policy of this tenant's own"),
+    ({"policy": "identity_compromise", "name_contains": "x"}, "policy of this tenant's own"),
+    ({"policy": "new_one", "action": IDENTITY}, "needs at least one of about"),
+    ({"policy": "new_one", "rule_id": "345"}, "needs action="),
+    ({"policy": "new_one"}, "no policy new_one"),
+    ({"policy": "x", "rule_id": "1", "action": "soc-made-up"}, "unknown action soc-made-up"),
+    ({"policy": "x", "rule_id": "1", "action": "soc-enrich-domain"}, "only read"),
+    ({"policy": "x", "rule_id": "1", "action": IDENTITY, "confidence": "very"}, "confidence must be"),
+    ({"policy": "x", "rule_id": "1", "action": IDENTITY, "verdict": "evil"}, "verdict evil"),
+    ({"policy": "identity_compromise", "enabled": "default", "confidence": "low"}, "on its own"),
+    ({"confidence": "low"}, "policy is required"),
+])
+def test_emergency_bad_arguments_name_the_fix(args, message):
+    with pytest.raises(RuntimeError, match=message):
+        run(em_tenant({}), command="emergency", **args)
+
+
+@pytest.mark.parametrize("command, args, message", [
+    ("shadow", {"action": "soc-star-case", "actor": "ai", "value": "on", "policy": "x"},
+     "policy is for command=emergency, not shadow"),
+    ("emergency", {"vendor": "Zscaler"}, "vendor is for command=set, not emergency"),
+    ("status", {"rule_id": "345"}, "rule_id is for command=emergency, not status"),
+    ("set", {"vendor": "Zscaler", "arg": "category-id", "value": "x", "actor": ["ai"]},
+     "actor is for command=shadow"),
+])
+def test_an_argument_for_another_command_is_refused(command, args, message):
+    with pytest.raises(RuntimeError, match=message):
+        run(em_tenant({}), command=command, **args)
+
+
+def test_empty_arguments_from_the_cli_are_not_refused():
+    r = run(em_tenant({}), command="status", policy="", rule_id=None, actor=[], apply="no")
+    assert r.outputs["command"] == "status"
+
+
+def test_status_summarises_emergency_response():
+    t = em_tenant({"emergency": {"policies": {"x": {"rule_id": ["1"], "actions": ["soc-disable-user"]}}}})
+    r = run(t, command="status")
+    assert r.outputs["emergency"] == {"enabled": True, "policies": 4, "tenant_policies": 1}
+    assert "command=emergency" in r.readable_output
+
+
+def test_emergency_arguments_are_all_declared_and_marked():
+    import yaml
+    spec = yaml.safe_load(open(os.path.join(HERE, "SOCFWConfig.yml")))
+    declared = {a["name"]: a for a in spec["args"]}
+    module = importlib.import_module("SOCFWConfig")
+    used = set().union(*module.COMMAND_ARGS.values()) | module.ALWAYS_ARGS
+    assert used == set(declared)
+    assert "emergency" in declared["command"]["predefined"]
+    for name in module.COMMAND_ARGS["emergency"] - {"action"}:
+        assert declared[name]["description"].startswith("[emergency]"), name

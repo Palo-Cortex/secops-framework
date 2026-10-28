@@ -75,6 +75,61 @@
           }
         ],
         "note": "Any matching rule elevates the case; conditions inside a rule are AND'd via `requires`. Deliberately conservative - a star cannot be undone by the framework and a starred case is exempt from auto-close, so the bar is a malicious verdict at high confidence. escalate_recommended was removed as a star condition: the prompt itself warns it must not merely restate the verdict, and on a Turla Carbon replay it was true on 53 of 60 assessed issues against 48 malicious - so it only ever loosened the bar, adding one case that had no malicious issue at all. Measured on that replay, malicious-at-high-confidence starred exactly the five cases carrying real attack activity and left the unrelated AIRS and AWS findings alone. raise_severity ships FALSE: the severity action is not shipped yet because its placeholders do not resolve from context written in the same run. Starring is unaffected. When severity lands it is RAISE ONLY - the framework never lowers one. An absent field never matches. Operators: eq, in, gte."
+      },
+      "emergency": {
+        "enabled": true,
+        "close_when_contained": true,
+        "policies": [
+          {
+            "policy": "identity_compromise",
+            "about": [
+              "identity"
+            ],
+            "verdict": [
+              "malicious"
+            ],
+            "confidence": "high",
+            "actions": [
+              "soc-clear-sessions",
+              "soc-revoke-tokens",
+              "soc-reset-password"
+            ]
+          },
+          {
+            "policy": "endpoint_execution",
+            "about": [
+              "endpoint"
+            ],
+            "verdict": [
+              "malicious"
+            ],
+            "confidence": "high",
+            "exposure": [
+              "executed"
+            ],
+            "actions": [
+              "soc-isolate-endpoint"
+            ]
+          },
+          {
+            "policy": "email_delivered",
+            "about": [
+              "email"
+            ],
+            "verdict": [
+              "malicious"
+            ],
+            "confidence": "high",
+            "exposure": [
+              "delivered",
+              "executed"
+            ],
+            "actions": [
+              "soc-retract-email"
+            ]
+          }
+        ],
+        "note": "Issue-level response that does not wait for the case: SOCFWEmergencyResponse runs the actions of every policy an issue matches, once each, as the issue_emergency actor, then closes the issue as true positive, contained (soc-close-issue-contained) only if every action really ran. Every action ships shadowed for issue_emergency, so in a PoV this records what would have been contained and closes nothing. about matches the product category or the assessment's primary_entity_type. An issue the assessment says is already contained is never acted on. A tenant edits a policy by its label, or adds one, with !SOCFWConfig command=emergency (SOCFWTenantConfig emergency.policies); rule_id and name_contains belong there, never here, because rule ids are local to a tenant and names change."
       }
     }
   },

@@ -15,6 +15,13 @@ Commands
            cannot be turned on until it has an owner. Dry run unless apply=yes.
   owner    Give a framework JOB an owner who is a user on this tenant; the pack
            ships a placeholder. Dry run unless apply=yes.
+  emergency
+           List the emergency response policies (shipped and this tenant's), or
+           edit one by its label, add one, or return one to what shipped with
+           enabled=default. Dry run unless apply=yes.
+
+Each command takes only its own arguments; one that belongs to another command
+is refused rather than ignored.
 
 Every command returns the same data twice: a War Room table for people and
 SOCFWConfig.* context for the PoV harness. contract_version changes when a key
@@ -23,6 +30,8 @@ or a value of a key changes meaning.
 SOCCommandWrapper reads what this script writes:
   {"shadow": {action: {actor: bool}}}   checked before the action's row
   {vendor: {arg: value}}                fills args the action ships empty
+SOCFWEmergencyResponse reads:
+  {"emergency": {"policies": {label: {field: value}}}}
 """
 
 import json
@@ -331,6 +340,17 @@ def status(args):
 
     outputs["jobs"], job_md = _job_status()
     md += job_md
+    try:
+        section = load_emergency_section()
+        policies = merge_policies(section, cfg)
+        local = sum(1 for p in policies if p.get("origin") != "shipped")
+        outputs["emergency"] = {"enabled": section.get("enabled") is True,
+                                "policies": len(policies), "tenant_policies": local}
+        md += ["", "### Emergency response", "",
+               f"{'On' if section.get('enabled') is True else 'Off'}: {len(policies)} policies, "
+               f"{local} edited or added on this tenant. See them: `!SOCFWConfig command=emergency`"]
+    except ConfigError as e:
+        md += ["", f"Emergency response policies unreadable: {e}"]
     return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Status",
                           outputs=outputs)
 
@@ -715,7 +735,299 @@ def _write_notes(o):
     return md
 
 
+# ── emergency ────────────────────────────────────────────────────────────────
+
+POLICY_LIST = "SOCFrameworkPhasePolicy_V3"
+EMERGENCY_ACTOR = "issue_emergency"
+# Fields a policy can carry, in the order they are shown. Comma lists except
+# confidence (a floor). about, source, rule_id and name_contains say which issues;
+# verdict, confidence and exposure are the assessment gate.
+EMERGENCY_FIELDS = ("about", "source", "rule_id", "name_contains",
+                    "verdict", "confidence", "exposure", "actions")
+SUBJECT_FIELDS = ("about", "source", "rule_id", "name_contains")
+VERDICTS = ("malicious", "suspicious", "benign", "inconclusive", "any")
+CONFIDENCES = ("low", "medium", "high", "any")
+EXPOSURES = ("none", "attempted", "delivered", "executed", "unknown", "any")
+ENABLED_VALUES = {"on": True, "off": False, "default": None}
+
+
+def merge_policies(section, tenant_cfg):
+    """Shipped policies edited by the tenant's, then the tenant's own, in order.
+
+    The same merge SOCFWEmergencyResponse applies; a test holds the two to each other.
+    """
+    tenant = ((tenant_cfg or {}).get("emergency") or {}).get("policies") or {}
+    if not isinstance(tenant, dict):
+        tenant = {}
+    out, seen = [], set()
+    for p in (section or {}).get("policies") or []:
+        if not isinstance(p, dict) or not p.get("policy"):
+            continue
+        name = p["policy"]
+        merged = dict(p)
+        edit = tenant.get(name)
+        if isinstance(edit, dict):
+            merged.update({k: v for k, v in edit.items() if k != "policy"})
+            merged["origin"] = "shipped, edited on this tenant"
+        else:
+            merged["origin"] = "shipped"
+        out.append(merged)
+        seen.add(name)
+    for name, p in tenant.items():
+        if name in seen or not isinstance(p, dict):
+            continue
+        out.append(dict(p, policy=name, origin="this tenant"))
+    return out
+
+
+def load_emergency_section():
+    exists, doc = _read_list(POLICY_LIST)
+    if not exists or doc is None:
+        raise ConfigError(f"{POLICY_LIST} is missing or not valid JSON; "
+                          "reinstall soc-optimization-unified")
+    return ((doc.get("phases") or {}).get("triage") or {}).get("emergency") or {}
+
+
+def _policy_on(p):
+    return not (p.get("enabled") is False or str(p.get("enabled")).strip().lower() == "false")
+
+
+def _gate(p):
+    verdict = "/".join(_split(p.get("verdict")) or ["malicious"])
+    confidence = str(p.get("confidence") or "high")
+    gate = [f"verdict {verdict}"]
+    if confidence != "any":
+        gate.append(f"{confidence}+ confidence")
+    if _split(p.get("exposure")):
+        gate.append("exposure " + "/".join(_split(p.get("exposure"))))
+    return ", ".join(gate)
+
+
+def _subject(p):
+    parts = []
+    for field in SUBJECT_FIELDS:
+        values = _split(p.get(field))
+        if values:
+            parts.append(f"{field} {', '.join(values)}")
+    return "; ".join(parts) or "**nothing - never fires**"
+
+
+def _name_only(p):
+    return bool(_split(p.get("name_contains"))) and not any(
+        _split(p.get(f)) for f in ("about", "source", "rule_id"))
+
+
+def _policy_view(p, actions, cfg):
+    acts = []
+    for a in _split(p.get("actions")):
+        row = actions.get(a)
+        state = "unknown action" if row is None else _state(effective(cfg, a, row, EMERGENCY_ACTOR)[0])
+        acts.append({"action": a, "state": state})
+    view = {f: p.get(f) for f in EMERGENCY_FIELDS
+            if f != "actions" and p.get(f) not in (None, "", [])}
+    view.update({"policy": p.get("policy"), "origin": p.get("origin"), "on": _policy_on(p),
+                 "subject": _subject(p), "gate": _gate(p), "actions": acts,
+                 "name_only": _name_only(p)})
+    return view
+
+
+def _emergency_table(views):
+    md = ["| Policy | | Which issues | Gate | Actions (for issue_emergency) | From |",
+          "|---|---|---|---|---|---|"]
+    for v in views:
+        acts = ", ".join(f"{a['action']} ({a['state']})" for a in v["actions"]) or "none"
+        flag = " ⚠ name only" if v["name_only"] else ""
+        md.append(f"| {v['policy']} | {'on' if v['on'] else 'off'} | {v['subject']}{flag} | "
+                  f"{v['gate']} | {acts} | {v['origin']} |")
+    return md
+
+
+def _edit_from_args(args, actions, shipped):
+    """The fields this command sets on the policy, validated."""
+    edit = {}
+    for field in ("about", "source"):
+        if _split(args.get(field)):
+            edit[field] = [v.lower() for v in _split(args.get(field))]
+    for field in ("rule_id", "name_contains"):
+        if _split(args.get(field)):
+            if shipped:
+                raise ConfigError(f"{field} belongs on a policy of this tenant's own, not on the "
+                                  f"shipped {args.get('policy')}: rule ids are local to a tenant "
+                                  "and names change. Give the new policy its own label.")
+            edit[field] = _split(args.get(field))
+    for field, allowed in (("verdict", VERDICTS), ("exposure", EXPOSURES)):
+        values = [v.lower() for v in _split(args.get(field))]
+        bad = [v for v in values if v not in allowed]
+        if bad:
+            raise ConfigError(f"{field} {', '.join(bad)} is not one of " + ", ".join(allowed))
+        if values:
+            edit[field] = values
+    confidence = str(args.get("confidence") or "").strip().lower()
+    if confidence:
+        if confidence not in CONFIDENCES:
+            raise ConfigError("confidence must be one of " + ", ".join(CONFIDENCES))
+        edit["confidence"] = confidence
+    wanted = _split(args.get("action"))
+    if wanted:
+        unknown = [a for a in wanted if a not in actions]
+        if unknown:
+            raise ConfigError(f"unknown action {', '.join(unknown)}; run !SOCFWConfig "
+                              "command=status to list them")
+        read_only = [a for a in wanted if is_read_only(actions[a])]
+        if read_only:
+            raise ConfigError(f"{', '.join(read_only)} only read; an emergency policy runs "
+                              "actions that contain or eradicate")
+        edit["actions"] = wanted
+    enabled = str(args.get("enabled") or "").strip().lower()
+    if enabled:
+        if enabled not in ENABLED_VALUES:
+            raise ConfigError("enabled must be on, off or default")
+        if ENABLED_VALUES[enabled] is not None:
+            edit["enabled"] = ENABLED_VALUES[enabled]
+    return edit
+
+
+def emergency(args):
+    actions = load_actions()
+    section = load_emergency_section()
+    cfg, exists = load_tenant_config()
+    label = str(args.get("policy") or "").strip()
+    apply = _yes(args.get("apply"))
+    shipped_names = [p.get("policy") for p in (section.get("policies") or []) if isinstance(p, dict)]
+
+    if not label:
+        if any(str(args.get(f) or "").strip() for f in
+               ("about", "source", "rule_id", "name_contains", "verdict", "confidence",
+                "exposure", "action", "enabled")):
+            raise ConfigError("policy is required to change one: the label of a shipped policy "
+                              f"({', '.join(shipped_names)}) or a new one")
+        views = [_policy_view(p, actions, cfg) for p in merge_policies(section, cfg)]
+        on = section.get("enabled") is True
+        md = ["### Emergency response policies", "",
+              f"Issue-level response is **{'on' if on else 'off'}** in `{POLICY_LIST}` → "
+              "`phases.triage.emergency.enabled`. Each action's state is what the wrapper "
+              "does for `issue_emergency`; shadow records what would have happened.", ""]
+        md += _emergency_table(views)
+        md += ["", "Every policy that matches fires; each action runs once. The issue is closed "
+                   "as true positive, contained only when every action really ran.",
+               "", "Edit or add: `!SOCFWConfig command=emergency policy=<label> ...` — "
+                   "add `apply=yes` to write. Back to shipped: `enabled=default`."]
+        if any(v["name_only"] for v in views):
+            md += ["", "⚠ name only: matches on the issue name alone, so it depends on how "
+                       "the detection is named. Prefer rule_id where the issue has one."]
+        return CommandResults(readable_output="\n".join(md),
+                              outputs_prefix="SOCFWConfig.Emergency",
+                              outputs={"contract_version": CONTRACT_VERSION, "command": "emergency",
+                                       "enabled": on, "policies": views})
+
+    shipped = label in shipped_names
+    enabled = str(args.get("enabled") or "").strip().lower()
+    edit = _edit_from_args(args, actions, shipped)
+    reset = enabled == "default"
+    if reset and edit:
+        raise ConfigError("enabled=default returns the policy to what shipped (or removes "
+                          "this tenant's own); give it on its own")
+
+    new_cfg = json.loads(json.dumps(cfg))
+    em = new_cfg.setdefault("emergency", {})
+    if not isinstance(em, dict) or not isinstance(em.setdefault("policies", {}), dict):
+        raise ConfigError(f"'emergency' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    tenant = em["policies"]
+    before = tenant.get(label)
+    if reset:
+        tenant.pop(label, None)
+    elif edit:
+        merged = dict(before or {}, **edit)
+        if not shipped:
+            if not any(_split(merged.get(f)) for f in SUBJECT_FIELDS):
+                raise ConfigError(f"{label} is a new policy and needs at least one of about, "
+                                  "source, rule_id or name_contains")
+            if not _split(merged.get("actions")):
+                raise ConfigError(f"{label} is a new policy and needs action=<actions>")
+        tenant[label] = merged
+    if not tenant:
+        em.pop("policies", None)
+    if not em:
+        new_cfg.pop("emergency", None)
+
+    after = (new_cfg.get("emergency") or {}).get("policies", {}).get(label)
+    changed = before != after
+    view_before = next((v for v in (_policy_view(p, actions, cfg) for p in merge_policies(section, cfg))
+                        if v["policy"] == label), None)
+    view_after = next((v for v in (_policy_view(p, actions, new_cfg)
+                                   for p in merge_policies(section, new_cfg))
+                       if v["policy"] == label), None)
+    if view_before is None and view_after is None:
+        raise ConfigError(f"no policy {label}; shipped: {', '.join(shipped_names)}. To add one, "
+                          "give it a subject (about, source, rule_id or name_contains) and action=")
+
+    shown = " ".join(f"{k}={','.join(_split(args.get(k)))}" if k != "confidence"
+                     else f"confidence={args.get(k)}"
+                     for k in ("about", "source", "rule_id", "name_contains", "verdict",
+                               "confidence", "exposure", "action", "enabled")
+                     if str(args.get(k) or "").strip())
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "emergency",
+               "dry_run": not apply, "applied": False, "policy": label, "shipped": shipped,
+               "changed": changed, "from": view_before, "to": view_after,
+               "tenant_config_list": TENANT_CONFIG_LIST, "creates_list": False,
+               "recorded": False,
+               "apply_command": f"!SOCFWConfig command=emergency policy={label} {shown} apply=yes"}
+    if changed:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([{
+                "universal_command": "emergency", "action_actor": EMERGENCY_ACTOR,
+                "action_status": "reset" if reset else "set",
+                "action_taken": f"policy {label}: " + (
+                    "returned to shipped" if reset and shipped else
+                    "removed" if reset else json.dumps(after, sort_keys=True))}])
+
+    md = [f"### Emergency policy {label}: " + ("nothing to change" if not changed
+                                                else "applied" if outputs["applied"]
+                                                else "dry run, nothing written"), ""]
+    rows = [v for v in (view_before, view_after) if v]
+    if changed and view_before and view_after:
+        md += ["Now:"] + _emergency_table([view_before]) + ["", "After:"] + _emergency_table([view_after])
+    elif view_after:
+        md += _emergency_table([view_after])
+    else:
+        md += _emergency_table(rows) + ["", f"After: {label} is removed."]
+    if view_after and view_after["name_only"]:
+        md += ["", "⚠ This matches on the issue name alone. Prefer rule_id where the issue has one."]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Emergency",
+                          outputs=outputs)
+
+
 # ── entry ────────────────────────────────────────────────────────────────────
+
+# The arguments each command takes. One given to the wrong command is refused, so
+# a typo never reads as "done". job lists owner only to give its own, better error.
+COMMAND_ARGS = {
+    "status": {"action"},
+    "shadow": {"action", "actor", "value"},
+    "set": {"vendor", "arg", "value"},
+    "job": {"job", "value", "owner"},
+    "owner": {"job", "owner"},
+    "emergency": {"policy", "about", "source", "rule_id", "name_contains", "verdict",
+                  "confidence", "exposure", "action", "enabled"},
+}
+ALWAYS_ARGS = {"command", "apply"}
+
+
+def check_args(command, args):
+    known = set().union(*COMMAND_ARGS.values())
+    stray = sorted(k for k, v in (args or {}).items()
+                   if k in known and k not in COMMAND_ARGS[command] | ALWAYS_ARGS
+                   and str(v if v is not None else "").strip() not in ("", "[]"))
+    if stray:
+        owners = {k: sorted(c for c, a in COMMAND_ARGS.items() if k in a) for k in stray}
+        raise ConfigError("; ".join(f"{k} is for command={'/'.join(owners[k])}" for k in stray)
+                          + f", not {command}")
+
 
 def _split(value):
     if value is None:
@@ -728,7 +1040,8 @@ def _yes(value):
     return str(value or "").strip().lower() == "yes"
 
 
-COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner}
+COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner,
+            "emergency": emergency}
 
 
 def main():
@@ -738,6 +1051,7 @@ def main():
         handler = COMMANDS.get(name)
         if not handler:
             raise ConfigError(f"unknown command {name}; use one of: " + ", ".join(COMMANDS))
+        check_args(name, args)
         return_results(handler(args))
     except ConfigError as e:
         return_error(f"SOCFWConfig {name}: {e}")

@@ -1,0 +1,46 @@
+commonfields:
+  id: SOCFWEmergencyResponse
+  version: -1
+name: SOCFWEmergencyResponse
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.8.1983910
+comment: Responds to an issue without waiting for its case to develop. When the issue
+  matches an emergency policy - phases.triage.emergency in SOCFrameworkPhasePolicy_V3,
+  edited or added to on a tenant with !SOCFWConfig command=emergency - runs the policy's
+  actions through SOCCommandWrapper as the issue_emergency actor, so shadow mode decides
+  whether they really run. Closes the issue as true positive, contained, only when every
+  action really ran; otherwise records what it would have done and leaves the issue open.
+  Never acts on an issue the assessment says is already contained.
+tags:
+- socfw
+enabled: true
+scripttarget: 0
+runonce: false
+runas: DBotWeakRole
+fromversion: 6.10.0
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+system: false
+args:
+- name: source_key
+  description: Context key holding the promoted assessment object. Defaults to Assessment.AI.
+  defaultValue: Assessment.AI
+outputs:
+- contextPath: SOCFramework.Emergency.policies
+  description: The emergency policies that matched this issue.
+  type: Unknown
+- contextPath: SOCFramework.Emergency.contained
+  description: True when every action of the matched policies really ran and succeeded.
+  type: Boolean
+- contextPath: SOCFramework.Emergency.closed
+  description: True when the issue was closed as true positive, contained.
+  type: Boolean
+- contextPath: SOCFramework.Emergency.Dispatch
+  description: The wrapper's record of each call, as written to its output_key.
+  type: Unknown
