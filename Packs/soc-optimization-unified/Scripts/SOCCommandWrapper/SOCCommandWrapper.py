@@ -1253,6 +1253,20 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
         return {"vendor": vendor, "target": target, "outcome": "failed", "reason": str(e)}
 
 
+def parse_target_override(raw):
+    """target= from the CLI: a comma-separated string or a list; blanks and repeats dropped."""
+    if raw in (None, "", []):
+        return []
+    items = raw if isinstance(raw, list) else str(raw).split(",")
+    out, seen = [], set()
+    for item in items:
+        t = str(item).strip()
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
 def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     """Resolve one vendor branch's args and dispatch it once per target.
 
@@ -1279,6 +1293,10 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
         if (k in _inline_args_template and _inline_args_template.get(k) in (None, "")
                 and not _is_ctx_template(_inline_args_template.get(k))):
             inline_args[k] = v
+
+    override = shared.get("target_override")
+    if override and target_arg:
+        inline_args[target_arg] = override[0]
 
     # Guard: the action declares argument templates but every CONTEXT-DERIVED
     # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
@@ -1367,7 +1385,9 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     # lost all but one target. The target arg alone gets the list-preserving
     # walk.
     target_values = None
-    if target_arg:
+    if override and target_arg:
+        target_values = list(override)
+    elif target_arg:
         raw_tmpl = _inline_args_template.get(target_arg)
         if _is_ctx_template(raw_tmpl):
             s = str(raw_tmpl).strip()
@@ -1429,6 +1449,12 @@ def main():
 
     action = args.get("action")
     using = args.get("using")
+    # target= names what to act on from the CLI (a domain, an IP), replacing the
+    # issue's artifact for the action's target_arg. For an analyst in the War Room
+    # on an issue that carries none (a manual issue) or several (an endpoint's DNS
+    # lookups). Everything else - shadow per actor, tenant config, the record - is
+    # unchanged.
+    target_override = parse_target_override(args.get("target"))
     list_name = args.get("list_name")
     output_key = args.get("output_key")
     # shadow_mode is now read from the action entry in SOCFrameworkActions_V3.
@@ -1486,6 +1512,18 @@ def main():
         tenant_shadow_override(tenant_config, action, args.get("Action_Actor")))
 
     responses = action_entry.get("responses", {})
+
+    # target= only means something on an action that names what it acts on.
+    # Decided from the action's own definition, before routing, so the answer is
+    # the same on every source - an analyst never sees target silently ignored.
+    if target_override and not (
+            action_entry.get("target_arg")
+            or any(isinstance(r, dict) and r.get("target_arg")
+                   for r in (responses.values() if isinstance(responses, dict) else []))):
+        return_error(
+            f"{action} takes no target: it acts on the issue's own artifacts. "
+            "target= works on actions that name what they act on, such as soc-block-domain.")
+        return
 
     # ── Dispatch mode ────────────────────────────────────────────────────────
     # dispatch on the action entry decides fan-out. Absent means "routed":
@@ -1686,6 +1724,7 @@ def main():
         "action_time_minutes": action_time_minutes,
         "action_time_category": action_time_category,
         "tenant_config": tenant_config,
+        "target_override": target_override,
     }
 
     single_vendor = len(plan) == 1
