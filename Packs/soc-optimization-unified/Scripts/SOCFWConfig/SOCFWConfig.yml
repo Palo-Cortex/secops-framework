@@ -10,7 +10,8 @@ comment: Configures the SOC Framework on this tenant. status shows which actions
   are live or simulated for each actor, the exact list field that decided each one,
   and which customer values are set. shadow takes one action on or off shadow for
   named actors, or returns it to the shipped setting. set sets or removes one customer
-  value, such as a block-list id or proxy category. shadow and set are dry runs unless
+  value, such as a block-list id or proxy category. emergency lists, edits or adds
+  the issue-level emergency response policies. Every change is a dry run unless
   apply=yes. Settings are written to SOCFWTenantConfig, a JSON list this script creates
   on first write (through the Core REST API integration) and no pack install overwrites.
 tags:
@@ -29,7 +30,8 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default), shadow, set, job or owner.
+  description: status (default), shadow, set, job, owner or emergency. Each command takes
+    only the arguments marked with it; one marked for another command is refused.
   defaultValue: status
   auto: PREDEFINED
   predefined:
@@ -38,11 +40,13 @@ args:
   - set
   - job
   - owner
+  - emergency
 - name: action
-  description: The action, e.g. soc-star-case. Required for shadow; for status, limits
-    the table to these actions (comma-separated).
+  description: "[status, shadow, emergency] The action, e.g. soc-star-case. Required for
+    shadow. For status, limits the table to these actions (comma-separated). For emergency,
+    the actions the policy runs, in order (comma-separated)."
 - name: actor
-  description: For shadow - who asks for the action. Pick one or more.
+  description: "[shadow] Who asks for the action. Pick one or more."
   auto: PREDEFINED
   isArray: true
   predefined:
@@ -51,22 +55,77 @@ args:
   - automation
   - issue_emergency
 - name: vendor
-  description: For set - the vendor the value belongs to, e.g. Zscaler or ThreatStopv2.
+  description: "[set] The vendor the value belongs to, e.g. Zscaler or ThreatStopv2."
 - name: arg
-  description: For set - the setting, e.g. category-id, list_id or using. status lists them.
+  description: "[set] The setting, e.g. category-id, list_id or using. status lists them."
 - name: job
-  description: For job and owner - which framework JOB.
+  description: "[job, owner] Which framework JOB."
   auto: PREDEFINED
   predefined:
   - Auto Triage V3
   - SOC Case Analysis
 - name: owner
-  description: For owner - the user who owns the job (an email or username on this tenant).
-    A job cannot run without one.
+  description: "[owner] The user who owns the job (an email or username on this tenant).
+    A job cannot run without one."
 - name: value
-  description: For shadow - on (simulate), off (run for real) or default (use the shipped
-    setting). For set - the value, or default to remove it. For job - on (runs on its
-    schedule) or off.
+  description: "[shadow, set, job] For shadow - on (simulate), off (run for real) or default
+    (use the shipped setting). For set - the value, or default to remove it. For job - on
+    (runs on its schedule) or off."
+- name: policy
+  description: "[emergency] The policy's label - a shipped one (identity_compromise,
+    endpoint_execution, email_delivered) to edit it, or a new one to add it. Leave empty
+    to list every policy."
+- name: about
+  description: "[emergency] What the issue is about - identity, endpoint, email ...
+    Matches the issue's product category or the assessment's primary entity type
+    (comma-separated)."
+- name: source
+  description: "[emergency] Source keys the policy applies to, e.g. ds_okta_systemlog
+    (comma-separated)."
+- name: rule_id
+  description: "[emergency] Detection rule ids (issue.ruleid) the policy applies to,
+    comma-separated. Local to this tenant, so only on a policy of its own."
+- name: name_contains
+  description: "[emergency] Text the issue name must contain, case-insensitive. For
+    issues with no rule id; depends on how the detection is named."
+- name: verdict
+  description: "[emergency] Assessment verdicts that let it act (default malicious), or
+    any."
+  isArray: true
+  auto: PREDEFINED
+  predefined:
+  - malicious
+  - suspicious
+  - benign
+  - inconclusive
+  - any
+- name: confidence
+  description: "[emergency] Minimum assessment confidence (default high), or any."
+  auto: PREDEFINED
+  predefined:
+  - low
+  - medium
+  - high
+  - any
+- name: exposure
+  description: "[emergency] Assessment exposure values that let it act (default any)."
+  isArray: true
+  auto: PREDEFINED
+  predefined:
+  - none
+  - attempted
+  - delivered
+  - executed
+  - unknown
+  - any
+- name: enabled
+  description: "[emergency] on or off for this policy on this tenant; default returns
+    it to what shipped, or removes a policy of this tenant's own."
+  auto: PREDEFINED
+  predefined:
+  - "on"
+  - "off"
+  - default
 - name: apply
   description: yes writes the change. Anything else is a dry run that shows the change.
   defaultValue: "no"
@@ -153,5 +212,27 @@ outputs:
   description: True when the change got a config_change row in xsiam_socfw_ir_execution_raw.
   type: Boolean
 - contextPath: SOCFWConfig.Job.contract_version
+  description: Version of this output's keys.
+  type: Number
+- contextPath: SOCFWConfig.Emergency.policies
+  description: Every emergency policy - policy, origin (shipped, edited on this tenant,
+    this tenant), on, subject, gate, actions with their state for issue_emergency, name_only.
+  type: Unknown
+- contextPath: SOCFWConfig.Emergency.from
+  description: The policy before the change.
+  type: Unknown
+- contextPath: SOCFWConfig.Emergency.to
+  description: The policy after the change, or null when it is removed.
+  type: Unknown
+- contextPath: SOCFWConfig.Emergency.applied
+  description: True when the change was written and read back.
+  type: Boolean
+- contextPath: SOCFWConfig.Emergency.dry_run
+  description: True when nothing was written.
+  type: Boolean
+- contextPath: SOCFWConfig.Emergency.apply_command
+  description: The command that writes this change.
+  type: String
+- contextPath: SOCFWConfig.Emergency.contract_version
   description: Version of this output's keys.
   type: Number
