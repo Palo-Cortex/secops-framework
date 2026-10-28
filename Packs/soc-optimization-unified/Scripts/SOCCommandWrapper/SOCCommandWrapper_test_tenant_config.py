@@ -285,10 +285,19 @@ def test_shipped_rows_use_one_shape_or_the_other_never_both():
     assert both == []
 
 
-def test_shipped_per_actor_rows_name_exactly_the_four_actors():
+def test_shipped_per_actor_rows_name_every_actor_that_calls_them():
+    """analyst, ai and automation on every per-actor row; issue_emergency on containment rows.
+
+    issue_emergency is the issue-level containment caller and nothing else, so a
+    triage row it never calls (the contained close, the severity raise) leaves it out.
+    """
     for name, row in ACTIONS.items():
         if isinstance(row, dict) and "shadow_mode_by_actor" in row:
-            assert set(row["shadow_mode_by_actor"]) == ACTOR_NAMES, name
+            named = set(row["shadow_mode_by_actor"])
+            assert named <= ACTOR_NAMES, name
+            assert ACTOR_NAMES - {"issue_emergency"} <= named, name
+            if row.get("phase") == "containment":
+                assert "issue_emergency" in named, name
             assert all(isinstance(v, bool) for v in row["shadow_mode_by_actor"].values()), name
 
 

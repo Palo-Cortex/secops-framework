@@ -31,8 +31,7 @@
     "shadow_mode_by_actor": {
       "analyst": true,
       "ai": true,
-      "automation": true,
-      "issue_emergency": true
+      "automation": true
     },
     "phase": "triage",
     "entity_scope": "case",
@@ -57,6 +56,26 @@
     "entity_scope": "case",
     "capability": "Triage \u2014 star case for analyst attention",
     "note": "Starring is case-level and goes through the XSOAR CLI layer, not the XDR public API: `starred` is read-only on both incidents/update_incident (absent from allowed keys) and the Cases API case/update (400 Invalid update fields), but setParentIncidentFields writes it. Verified on a tenant - starred went false -> true -> false. No case id argument: setParentIncidentFields resolves the parent from the calling investigation, so this must be dispatched from an issue that belongs to the case. The framework never un-stars. A star is the backstop that stops auto-triage closing a case, so removing one silently withdraws a safety net. Ships shadowed; analyst is live because a human has already decided."
+  },
+  "soc-raise-case-severity": {
+    "responses": {
+      "Builtin": {
+        "command": "setParentIncidentFields",
+        "inline_args": {
+          "manual_severity": ""
+        }
+      }
+    },
+    "target_arg": "manual_severity",
+    "shadow_mode_by_actor": {
+      "analyst": true,
+      "ai": true,
+      "automation": true
+    },
+    "phase": "triage",
+    "entity_scope": "case",
+    "capability": "Triage \u2014 raise case severity",
+    "note": "The severity comes from the caller: !SOCCommandWrapper action=soc-raise-case-severity target=critical. setParentIncidentFields manual_severity sets the parent case's severity and user_severity (verified on the dev tenant, 28 Oct 2026). The action itself does not check the current value; SOCFWEmergencyResponse raises only."
   },
   "soc-isolate-endpoint": {
     "responses": {
@@ -353,7 +372,8 @@
       "Okta v2": {
         "command": "okta-deactivate-user",
         "inline_args": {
-          "username": "${SOCFramework.Artifacts.Identity.User.UPN}"
+          "username": "${SOCFramework.Artifacts.Identity.User.UPN}",
+          "using": ""
         }
       }
     },
@@ -370,7 +390,8 @@
       "Okta v2": {
         "command": "okta-clear-user-sessions",
         "inline_args": {
-          "userId": "${SOCFramework.Artifacts.Identity.User.ID}"
+          "userId": "${SOCFramework.Artifacts.Identity.User.ID}",
+          "using": ""
         }
       }
     },
@@ -394,7 +415,8 @@
         "inline_args": {
           "username": "${SOCFramework.Artifacts.Identity.User.UPN}",
           "temporary_password": "true",
-          "revoke_session": "true"
+          "revoke_session": "true",
+          "using": ""
         }
       }
     },
@@ -409,7 +431,8 @@
         "command": "okta-clear-user-sessions",
         "inline_args": {
           "userId": "${SOCFramework.Artifacts.Identity.User.ID}",
-          "revokeOauthTokens": "true"
+          "revokeOauthTokens": "true",
+          "using": ""
         }
       },
       "Entra ID Users": {
@@ -436,7 +459,8 @@
       "Okta v2": {
         "command": "okta-activate-user",
         "inline_args": {
-          "username": "${SOCFramework.Artifacts.Identity.User.UPN}"
+          "username": "${SOCFramework.Artifacts.Identity.User.UPN}",
+          "using": ""
         }
       }
     },
@@ -502,6 +526,22 @@
         "command": "core-get-endpoints",
         "inline_args": {
           "endpoint_id_list": "${SOCFramework.Artifacts.Endpoint.AgentID}"
+        },
+        "status": {
+          "path": "Core.Endpoint.is_isolated",
+          "values": {
+            "AGENT_ISOLATED": "contained",
+            "AGENT_PENDING_ISOLATION": "containment_pending",
+            "AGENT_PENDING_ISOLATION_CANCELLATION": "contained",
+            "AGENT_UNISOLATED": "normal"
+          }
+        },
+        "role": {
+          "path": "Core.Endpoint.endpoint_type",
+          "values": {
+            "AGENT_TYPE_SERVER": "server",
+            "AGENT_TYPE_WORKSTATION": "workstation"
+          }
         }
       },
       "Carbon Black EDR": {
@@ -526,6 +566,15 @@
         "command": "cs-falcon-search-device",
         "inline_args": {
           "ids": "${SOCFramework.Artifacts.Endpoint.AgentID}"
+        },
+        "status": {
+          "path": "CrowdStrike.Device.Status",
+          "values": {
+            "normal": "normal",
+            "containment_pending": "containment_pending",
+            "contained": "contained",
+            "lift_containment_pending": "contained"
+          }
         }
       },
       "Microsoft Defender Advanced Threat Protection": {
@@ -538,6 +587,23 @@
         "command": "sentinelone-list-agents",
         "inline_args": {
           "computer_name": "${SOCFramework.Artifacts.Endpoint.Hostname}"
+        },
+        "status": {
+          "path": "SentinelOne.Agents.NetworkStatus",
+          "values": {
+            "connected": "normal",
+            "disconnecting": "containment_pending",
+            "disconnected": "contained",
+            "connecting": "contained"
+          }
+        },
+        "role": {
+          "path": "SentinelOne.Agents.MachineType",
+          "values": {
+            "desktop": "workstation",
+            "laptop": "workstation",
+            "server": "server"
+          }
         }
       },
       "Trend Micro Vision One": {
@@ -551,7 +617,8 @@
     "shadow_mode": false,
     "phase": "enrichment",
     "entity_scope": "host",
-    "capability": "Enrichment \u2014 endpoint"
+    "capability": "Enrichment \u2014 endpoint",
+    "note": "status and role on a branch say where that vendor reports the endpoint's containment state and role and how each value reads (contained, containment_pending, normal; workstation, server). The wrapper returns them on its record and refreshes SOCFramework.Endpoint.containment_status and SOCFramework.Endpoint.role, except for a layout render. Paths from the integrations' context outputs (demisto/content, 28 Oct 2026). CrowdStrike's device lookup reports no role. lift_containment_pending, SentinelOne connecting and Cortex pending cancellation read as contained: the host is still isolated while a release is under way. Defender and Trend Micro report no isolation state on these commands, so they read as nothing here."
   },
   "soc-enrich-file": {
     "responses": {
