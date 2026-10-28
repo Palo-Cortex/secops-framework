@@ -148,20 +148,21 @@ def _endpoint_status(ctx):
         if is_error(result):
             return _dot("unknown")
 
+        # The wrapper reads the vendor's containment state and returns it on its
+        # own record of the call - the entry whose Contents carries success. Read
+        # only that record: other entries carry unrelated status fields (the
+        # issue's own status on the dataset row, the vendor's raw device), and the
+        # vendor's context is not visible to this script until the wrapper ends.
         for entry in (result or []):
-            contents = entry.get("Contents") or {}
+            contents = entry.get("Contents") if isinstance(entry, dict) else None
             if isinstance(contents, str):
                 try:
                     contents = json.loads(contents)
                 except ValueError:
                     continue
-            if isinstance(contents, dict):
-                raw = (demisto.get(contents, "status")
-                       or demisto.get(contents, "containment_status")
-                       or demisto.get(contents, "device_status")
-                       or "")
-                if raw:
-                    break
+            if isinstance(contents, dict) and contents.get("success") is True and contents.get("status"):
+                raw = contents["status"]
+                break
     except Exception as e:
         demisto.debug(f"SOCFWDisplayIdentityDevice: status lookup failed - {e}")
         return _dot("unknown")
