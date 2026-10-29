@@ -155,7 +155,7 @@ class Tenant:
         return []
 
     def run(self):
-        d = sys.modules["demistomock"]
+        d = er.demisto   # the module the script imported; the contract tests swap sys.modules
         d.args = lambda: {}
         d.context = lambda: copy.deepcopy(self.ctx)
         d.incident = lambda: self.incident
@@ -204,7 +204,9 @@ def test_about_is_the_category_not_the_entity():
     t = Tenant(a(primary_entity_type="identity", exposure="executed"), category="Email",
                key="ds_proofpoint_tap_v2_generic_alert").run()
     assert "identity_compromise" not in t.decision()["policy"]
-    assert t.dispatched(er.ACTOR) == ["soc-retract-email", "soc-block-domain"]
+    assert t.dispatched(er.ACTOR) == ["soc-retract-email"]
+    # No domain on the issue: nothing to block, and nothing to escalate for it.
+    assert t.statuses()["soc-block-domain"] == "none"
 
 
 def test_entity_type_narrows_when_a_policy_names_it():
@@ -600,3 +602,165 @@ def test_the_resolved_entry_alone_is_not_an_outcome():
     entries = [{"Type": 1, "Contents": {"action": "a", "shadow_mode": False},
                 "HumanReadable": "### SOC Framework - Universal Command Resolved"}]
     assert er.outcome_of("a", er.records_from("a", entries))[0] == "no_record"
+
+
+# ── Blocking a C2 destination ────────────────────────────────────────────────
+
+NETWORK_BLOCKS = ["soc-block-network-indicator", "soc-block-domain"]
+
+
+def c2(ips=("176.59.15.33",), domains=("anto-int.com",), scores=None, tactic="TA0011",
+       host=WORKSTATION, **kw):
+    """A CrowdStrike C2 issue: tactic on the issue, destinations in context, reputation."""
+    t = endpoint(host=host, **kw)
+    # Where the NIST IR map puts them for an endpoint issue - not the block keys.
+    ep = t.ctx["SOCFramework"]["Endpoint"]
+    if ips:
+        ep["remote_ips"] = list(ips)
+    if domains:
+        ep["dns_queries"] = list(domains)
+    if scores is None:
+        scores = {v: 3 for v in list(ips or []) + list(domains or [])}
+    t.ctx["DBotScore"] = [{"Indicator": k, "Score": v, "Type": "ip", "Vendor": "VirusTotal"}
+                          for k, v in scores.items()]
+    t.incident["CustomFields"] = {"mitretacticid": [tactic], "mitretacticname": ["Command and Control"]}
+    return t
+
+
+def blocks(t):
+    return [(c["action"], c.get("target")) for c in t.calls
+            if c["Action_Actor"] == er.ACTOR and c["action"] in NETWORK_BLOCKS]
+
+
+def test_c2_blocks_each_malicious_destination_as_issue_emergency():
+    t = c2().run()
+    assert "endpoint_c2" in t.decision()["policy"]
+    assert blocks(t) == [("soc-block-network-indicator", "176.59.15.33"),
+                         ("soc-block-domain", "anto-int.com")]
+    assert all(c["Phase"] == "containment" for c in t.calls if c["action"] in NETWORK_BLOCKS)
+
+
+def test_the_tactic_decides_not_the_issue_name():
+    t = c2(tactic="TA0008").run()
+    assert "endpoint_c2" not in t.decision()["policy"]
+    assert blocks(t) == []
+
+
+def test_tactic_by_name_in_a_tenant_policy():
+    tenant = {"emergency": {"policies": {"endpoint_c2": {"tactic": ["command and control"]}}}}
+    t = c2(tactic="T-unknown", tenant=tenant).run()
+    assert "endpoint_c2" in t.decision()["policy"]
+
+
+def test_a_tactic_alone_is_a_subject():
+    policy = {"policy": "any_c2", "tactic": ["TA0011"], "actions": ["soc-block-domain"]}
+    assert er.evaluate(policy, er.facts_for(MAL_HIGH, {}, {"CustomFields": {"mitretacticid": ["TA0011"]}}))[0]
+
+
+def test_no_malicious_reputation_is_escalated_not_blocked():
+    t = c2(scores={"176.59.15.33": 2}).run()
+    st = t.statuses()
+    assert blocks(t) == []
+    assert st["soc-block-network-indicator 176.59.15.33"] == "blocked"
+    assert "score 2" in t.decision()["blocked_reason"]
+    assert "not scored" in t.decision()["blocked_reason"]
+    assert er.STAR_ACTION in t.dispatched(er.TRIAGE_ACTOR)
+
+
+@pytest.mark.parametrize("ip", ["10.20.20.102", "192.168.1.7", "127.0.0.1", "169.254.1.1", "fd00::1"])
+def test_an_internal_address_is_left_to_a_person(ip):
+    t = c2(ips=(ip,), domains=(), scores={ip: 3}).run()
+    assert blocks(t) == []
+    assert t.statuses()[f"soc-block-network-indicator {ip}"] == "blocked"
+    assert "internal destination" in t.decision()["blocked_reason"]
+    assert er.STAR_ACTION in t.dispatched(er.TRIAGE_ACTOR)
+
+
+@pytest.mark.parametrize("name", ["skt.local", "dc01", "files.corp", "x.internal"])
+def test_an_internal_domain_is_left_to_a_person(name):
+    t = c2(ips=(), domains=(name,), scores={name: 3}).run()
+    assert blocks(t) == []
+    assert "internal destination" in t.decision()["blocked_reason"]
+
+
+@pytest.mark.parametrize("entry,value", [("domain:anto-int.com", "anto-int.com"),
+                                         ("domain:*.example.com", "c2.example.com"),
+                                         ("domain:example.com", "deep.c2.example.com"),
+                                         ("ip:176.59.15.33", "176.59.15.33"),
+                                         ("cidr:176.59.0.0/16", "176.59.15.33")])
+def test_protect_covers_destinations(entry, value):
+    ip = value[0].isdigit()
+    t = c2(ips=(value,) if ip else (), domains=() if ip else (value,),
+           tenant={"emergency": {"protect": [entry]}}).run()
+    assert blocks(t) == []
+    assert "protected" in t.decision()["blocked_reason"]
+
+
+def test_each_destination_is_checked_on_its_own():
+    t = c2(ips=("176.59.15.33", "91.52.62.64", "10.20.20.102"), domains=(),
+           scores={"176.59.15.33": 3, "91.52.62.64": 1, "10.20.20.102": 3}).run()
+    st = t.statuses()
+    assert blocks(t) == [("soc-block-network-indicator", "176.59.15.33")]
+    assert st["soc-block-network-indicator 91.52.62.64"] == "blocked"
+    assert st["soc-block-network-indicator 10.20.20.102"] == "blocked"
+
+
+def test_reputation_is_matched_regardless_of_case():
+    t = c2(ips=(), domains=("Anto-Int.COM",), scores={"anto-int.com": 3}).run()
+    assert blocks(t) == [("soc-block-domain", "Anto-Int.COM")]
+
+
+def test_a_c2_issue_with_no_destination_is_none_not_an_escalation():
+    t = c2(ips=(), domains=()).run()
+    st = t.statuses()
+    assert st["soc-block-network-indicator"] == "none" and st["soc-block-domain"] == "none"
+    assert blocks(t) == []
+    assert er.STAR_ACTION not in t.dispatched(er.TRIAGE_ACTOR)
+
+
+def test_a_dc_still_gets_its_c2_blocked_though_isolation_is_refused():
+    t = c2(host=DC).run()
+    st = t.statuses()
+    assert st["soc-isolate-endpoint"] == "blocked"
+    assert blocks(t) == [("soc-block-network-indicator", "176.59.15.33"),
+                         ("soc-block-domain", "anto-int.com")]
+
+
+def test_executed_blocks_count_toward_the_close():
+    t = c2(outcome="executed").run()
+    assert t.decision()["contained"] is True
+    assert er.CLOSE_ACTION in t.dispatched(er.TRIAGE_ACTOR)
+
+
+def test_an_unblocked_destination_keeps_the_issue_open():
+    t = c2(scores={"176.59.15.33": 3}, outcome="executed").run()   # domain not scored
+    assert t.decision()["contained"] is False
+    assert er.CLOSE_ACTION not in t.dispatched(er.TRIAGE_ACTOR)
+
+
+def test_the_block_keys_are_read_too():
+    t = c2(ips=(), domains=())
+    t.ctx["SOCFramework"]["Artifacts"]["Network"] = {"Destination": {"IP": ["176.59.15.33"]}}
+    t.ctx["DBotScore"] = [{"Indicator": "176.59.15.33", "Score": 3}]
+    assert blocks(t.run()) == [("soc-block-network-indicator", "176.59.15.33")]
+
+
+def test_a_value_in_both_places_is_blocked_once():
+    t = c2(domains=())
+    t.ctx["SOCFramework"]["Artifacts"]["Network"] = {"Destination": {"IP": ["176.59.15.33"]}}
+    assert blocks(t.run()) == [("soc-block-network-indicator", "176.59.15.33")]
+
+
+def test_only_network_blocks_get_the_destination_check():
+    assert er.network_paths(ACTIONS["soc-block-network-indicator"]) == [
+        "SOCFramework.Artifacts.Network.Destination.IP"]
+    assert er.network_paths(ACTIONS["soc-block-domain"]) == ["SOCFramework.Artifacts.Network.DNS.Query"]
+    for other in ("soc-retract-email", "soc-quarantine-files", "soc-block-sender", "soc-isolate-endpoint"):
+        assert er.network_paths(ACTIONS[other]) == []
+
+
+def test_every_block_response_names_its_target_arg():
+    for action in NETWORK_BLOCKS:
+        for vendor, data in ACTIONS[action]["responses"].items():
+            arg = data.get("target_arg") or ACTIONS[action].get("target_arg")
+            assert arg and str(data["inline_args"][arg]).startswith("${SOCFramework.Artifacts.Network."), vendor

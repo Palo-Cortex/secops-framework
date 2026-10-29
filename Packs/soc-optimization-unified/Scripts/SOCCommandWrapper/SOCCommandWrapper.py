@@ -1485,11 +1485,23 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
                      "reason": f"target list {target_arg} resolved to no usable values"}]
         targets = usable
 
+    # An arg that embeds the target's reference - a firewall object named
+    # socfw-block-<address> - follows each target, or every call after the first
+    # would reuse the first target's name.
+    target_ref = str(_inline_args_template.get(target_arg) or "").strip() if target_arg else ""
+    followers = {
+        k: raw for k, raw in _inline_args_template.items()
+        if k != target_arg and _is_ctx_template(target_ref)
+        and isinstance(raw, str) and target_ref in raw
+    }
+
     results = []
     for t in targets:
         call_args = dict(inline_args)
         if t is not None:
             call_args[target_arg] = t
+            for k, raw in followers.items():
+                call_args[k] = _resolve_templates({k: raw.replace(target_ref, str(t))}, ctx).get(k)
         terminal = single_vendor and len(targets) == 1
         results.append(
             _dispatch_one(shared, vendor, vendor_data, command, call_args, t, terminal)
