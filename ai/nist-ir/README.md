@@ -51,8 +51,9 @@ playbooks call, plus `JOB - SOC Case Analysis`.
 
 Confirm the automations landed before continuing — `SOCFWCollectIntel`,
 `SOCFWRenderAssessment`, `SOCFWPromoteAssessment` and `SOCFWCloseDecision` from
-the AI pack, and `SOCFWCaseIterationSetup` and `SOCFWCaseVerdictReport` from
-`soc-framework-nist-ir`.
+the AI pack, `SOCFWCaseIterationSetup` and `SOCFWCaseVerdictReport` from
+`soc-framework-nist-ir`, and `SOCFWEmergencyResponse` and `SOCFWElevateCase` from
+`soc-optimization-unified` (3.29.0 or later).
 
 ### 2. Create the AI Prompts
 
