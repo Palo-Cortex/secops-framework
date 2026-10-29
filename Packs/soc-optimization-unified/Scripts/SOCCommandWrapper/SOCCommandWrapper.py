@@ -1345,6 +1345,16 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     if override and target_arg:
         inline_args[target_arg] = override[0]
 
+    # A branch may translate an arg's resolved value into the vendor's own
+    # wording: the AI returns RESOLVED_FALSE_POSITIVE, closeInvestigation needs
+    # "Resolved - False Positive" (the enum string itself is stored as
+    # RESOLVED_OTHER - measured on the dev tenant, 29 Oct 2026). A value the map
+    # does not name passes through unchanged.
+    for arg, mapping in (vendor_data.get("value_map") or {}).items():
+        value = inline_args.get(arg)
+        if isinstance(mapping, dict) and isinstance(value, str) and value.strip() in mapping:
+            inline_args[arg] = mapping[value.strip()]
+
     # Guard: the action declares argument templates but every CONTEXT-DERIVED
     # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
     # when this alert carries no file hash). Firing a command with a missing required
