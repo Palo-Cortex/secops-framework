@@ -127,9 +127,26 @@
               "soc-retract-email",
               "soc-block-domain"
             ]
+          },
+          {
+            "policy": "endpoint_c2",
+            "about": [
+              "endpoint"
+            ],
+            "tactic": [
+              "TA0011"
+            ],
+            "verdict": [
+              "malicious"
+            ],
+            "confidence": "high",
+            "actions": [
+              "soc-block-network-indicator",
+              "soc-block-domain"
+            ]
           }
         ],
-        "note": "Issue-level containment that does not wait for the case. SOCFWEmergencyResponse runs the containment actions of every policy an issue matches, once each, as issue_emergency; only containment actions are allowed. about matches the issue's product category. A host action runs only on a host that is not protected and is either in containable_hosts (when that is set) or has a role in containable_roles (any turns the role check off). The role comes from, first to answer: this tenant's role entries, the EDR (SOCFramework.Endpoint.role), the operating system (macOS and Windows client editions read as workstation, Windows Server as server, Linux as unknown). An unknown role is never contained. A host the EDR already reports contained or pending is skipped. Containment that was needed but blocked by these rules stars the case and raises its severity to escalate_severity (raise only), as automation. Every action ships shadowed, so in a PoV this records what would have been contained. The issue is closed as true positive, contained (soc-close-issue-contained, as automation) only when every action really ran. Entries in protect and containable_hosts are host:<name or pattern>, ip:<address>, cidr:<range>, account:<name or pattern> or list:<XSIAM list name>, one entry per line; role entries are host:<pattern>:<role>. A tenant replaces any of these with !SOCFWConfig command=emergency; rule_id and name_contains belong in tenant policies only.",
+        "note": "Issue-level containment that does not wait for the case. SOCFWEmergencyResponse runs the containment actions of every policy an issue matches, once each, as issue_emergency; only containment actions are allowed. about matches the issue's product category. A host action runs only on a host that is not protected and is either in containable_hosts (when that is set) or has a role in containable_roles (any turns the role check off). The role comes from, first to answer: this tenant's role entries, the EDR (SOCFramework.Endpoint.role), the operating system (macOS and Windows client editions read as workstation, Windows Server as server, Linux as unknown). An unknown role is never contained. A host the EDR already reports contained or pending is skipped. tactic matches the issue's MITRE tactic ids or names. A block runs once per destination address or domain on the issue, and only on one that is not protected, not internal (a private or reserved address, or a domain with no public suffix) and scored malicious by a reputation source; any other is escalated for a person. An issue with nothing to block is none, not an escalation. Containment that was needed but blocked by these rules stars the case and raises its severity to escalate_severity (raise only), as automation. Every action ships shadowed, so in a PoV this records what would have been contained. The issue is closed as true positive, contained (soc-close-issue-contained, as automation) only when every action really ran. Entries in protect and containable_hosts are host:<name or pattern>, ip:<address>, cidr:<range>, account:<name or pattern>, domain:<name or pattern> or list:<XSIAM list name>, one entry per line; role entries are host:<pattern>:<role>. A tenant replaces any of these with !SOCFWConfig command=emergency; rule_id and name_contains belong in tenant policies only.",
         "containable_roles": [
           "workstation"
         ],

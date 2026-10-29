@@ -26,13 +26,15 @@ CS = {"key": "ds_crowdstrike_falcon_event", "category": "Endpoint", "response": 
 
 
 def _run(target=None, issue_domains=None, tenant=None, actor="analyst", action="soc-block-domain",
-         product=CS):
+         product=CS, issue_ips=None):
     script, demisto = load_script()
     demisto._args = {"action": action, "list_name": "SOCFrameworkActions_V3",
                      "output_key": "UCTest.Executions", "Action_Actor": actor}
     if target is not None:
         demisto._args["target"] = target
     art = {"Network": {"DNS": {"Query": issue_domains}}} if issue_domains is not None else {}
+    if issue_ips is not None:
+        art.setdefault("Network", {})["Destination"] = {"IP": issue_ips}
     demisto._context = {"SOCFramework": {"Artifacts": art, "RunID": "run-1",
                                          "Product": product}}
     cfg = dict(TENANT, **(tenant or {}))
@@ -51,6 +53,7 @@ def _run(target=None, issue_domains=None, tenant=None, actor="analyst", action="
         "threatstopv2-update-domain-list": [{"Type": 1, "Contents": "ok"}],
         "zscaler-category-add-url": [{"Type": 1, "Contents": "ok"}],
         "cs-falcon-contain-host": [{"Type": 1, "Contents": "ok"}],
+        "pan-os-create-address": [{"Type": 1, "Contents": "ok"}],
         "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
     }
     script.main()
@@ -134,3 +137,35 @@ def test_refusal_does_not_depend_on_the_source():
     with pytest.raises(Exception, match="takes no target"):
         _run(target="host-1", action="soc-isolate-endpoint",
              product={"key": "ds_prisma_cloud", "category": "Workload"})
+
+
+PANORAMA = {"key": "ds_panorama", "category": "Network", "response": "Panorama"}
+IP_LIVE = {"shadow": {"soc-block-network-indicator": {"analyst": False}}}
+
+
+def test_an_arg_that_embeds_the_target_follows_each_target():
+    d = _run(target="176.59.15.33,91.52.62.64", action="soc-block-network-indicator",
+             product=PANORAMA, tenant=IP_LIVE)
+    calls = _calls(d, "pan-os-create-address")
+    assert [(c["address"], c["name"]) for c in calls] == [
+        ("176.59.15.33", "socfw-block-176.59.15.33"), ("91.52.62.64", "socfw-block-91.52.62.64")]
+
+
+def test_the_issue_list_fans_out_with_matching_names():
+    d = _run(issue_ips=["176.59.15.33", "91.52.62.64"], action="soc-block-network-indicator",
+             product=PANORAMA, tenant=IP_LIVE)
+    assert [c["name"] for c in _calls(d, "pan-os-create-address")] == [
+        "socfw-block-176.59.15.33", "socfw-block-91.52.62.64"]
+
+
+def test_static_args_do_not_follow_the_target():
+    d = _run(target="176.59.15.33", action="soc-block-network-indicator",
+             product=PANORAMA, tenant=IP_LIVE)
+    assert _calls(d, "pan-os-create-address")[0]["description"] == "SOCFramework containment block"
+
+
+def test_an_endpoint_issue_reaches_every_enforcement_point():
+    # Routed by source vendor it skipped on CrowdStrike issues: no CrowdStrike branch.
+    d = _run(target="176.59.15.33", action="soc-block-network-indicator", product=CS,
+             tenant={"shadow": {"soc-block-network-indicator": {"analyst": False}}})
+    assert [c["address"] for c in _calls(d, "pan-os-create-address")] == ["176.59.15.33"]

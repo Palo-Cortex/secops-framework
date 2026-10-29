@@ -91,7 +91,9 @@ def _zia_block(**by_name):
     }
     script.main()
     rec = demisto._context["UCTest"]["Executions"]
-    return rec[0] if isinstance(rec, list) else rec
+    rec = rec if isinstance(rec, list) else [rec]
+    # The block fans out to every enforcement point; the customer value is Zscaler's.
+    return next((r for r in rec if r.get("vendor") == "Zscaler"), rec[0])
 
 
 def test_customer_value_from_new_list_reaches_the_dispatch():

@@ -638,7 +638,8 @@ def em_tenant(cfg=None):
 def test_emergency_lists_the_shipped_policies_with_each_action_state():
     r = run(em_tenant(), command="emergency")
     views = {v["policy"]: v for v in r.outputs["policies"]}
-    assert set(views) == {"identity_compromise", "endpoint_execution", "email_delivered"}
+    assert set(views) == {"identity_compromise", "endpoint_execution", "email_delivered", "endpoint_c2"}
+    assert "tactic TA0011" in views["endpoint_c2"]["subject"]
     assert r.outputs["enabled"] is True
     assert [a["action"] for a in views["identity_compromise"]["actions"]] == IDENTITY.split(",")
     assert {a["state"] for v in views.values() for a in v["actions"]} == {"shadow"}
@@ -751,7 +752,7 @@ def test_empty_arguments_from_the_cli_are_not_refused():
 def test_status_summarises_emergency_response():
     t = em_tenant({"emergency": {"policies": {"x": {"rule_id": ["1"], "actions": ["soc-disable-user"]}}}})
     r = run(t, command="status")
-    assert r.outputs["emergency"] == {"enabled": True, "policies": 4, "tenant_policies": 1}
+    assert r.outputs["emergency"] == {"enabled": True, "policies": 5, "tenant_policies": 1}
     assert "command=emergency" in r.readable_output
 
 
@@ -831,3 +832,35 @@ def test_settings_arguments_are_refused_on_other_commands():
 def test_the_severity_target_is_not_a_customer_value():
     r = run(em_tenant(), command="status")
     assert not [v for v in r.outputs["values"] if v["arg"] == "manual_severity"]
+
+
+def test_a_tactic_is_a_subject_on_a_new_policy():
+    t = em_tenant({})
+    r = run(t, command="emergency", policy="any_c2", tactic="TA0011", action="soc-block-domain",
+            apply="yes")
+    assert r.outputs["applied"]
+    assert t.config()["emergency"]["policies"]["any_c2"] == {"tactic": ["TA0011"],
+                                                            "actions": ["soc-block-domain"]}
+    assert "tactic TA0011" in r.outputs["to"]["subject"] and not r.outputs["to"]["name_only"]
+
+
+def test_a_tactic_may_edit_a_shipped_policy():
+    t = em_tenant({})
+    run(t, command="emergency", policy="endpoint_c2", tactic="TA0011,TA0010", apply="yes")
+    assert t.config()["emergency"]["policies"]["endpoint_c2"] == {"tactic": ["TA0011", "TA0010"]}
+
+
+def test_tactic_belongs_to_the_emergency_command_only():
+    with pytest.raises(Exception, match="tactic"):
+        run(em_tenant({}), command="status", tactic="TA0011")
+
+
+def test_protect_takes_domains():
+    t = em_tenant({})
+    run(t, command="emergency", protect="domain:skt.local,domain:*.example.com", apply="yes")
+    assert t.config()["emergency"]["protect"] == ["domain:skt.local", "domain:*.example.com"]
+
+
+def test_containable_hosts_does_not_take_domains():
+    with pytest.raises(Exception, match="containable_hosts entry"):
+        run(em_tenant({}), command="emergency", containable_hosts="domain:skt.local")

@@ -19,6 +19,8 @@ A policy says what the issue is about and how sure the assessment must be:
                  only ever in a tenant policy - but it survives a rename.
   name_contains  text in the issue name, case-insensitive. For issues with no rule
                  id; it depends on how the detection is named.
+  tactic         MITRE tactic ids or names on the issue (TA0011, Command and
+                 Control), case-insensitive
   verdict        assessment verdicts allowed (default malicious; "any" drops it)
   confidence     minimum assessment confidence (default high; "any" drops it)
   exposure       assessment exposure values allowed (default: any)
@@ -27,7 +29,8 @@ A policy says what the issue is about and how sure the assessment must be:
 Which hosts and accounts may be contained is set once for the section:
 
   protect            never contained: host:<name or pattern>, ip:<address>,
-                     cidr:<range>, account:<name or pattern>, list:<XSIAM list>
+                     cidr:<range>, account:<name or pattern>, domain:<name or
+                     pattern>, list:<XSIAM list>
   containable_hosts  when set, a host action runs only on these (same entries)
   containable_roles  otherwise the host's role must be one of these (default
                      workstation; any turns the check off)
@@ -44,6 +47,15 @@ containable, the vendor failed or the action skipped - stars the case and raises
 its severity to escalate_severity, raise only, as automation, so a person
 contains it by hand. Never acts on an issue the assessment says is already
 contained.
+
+A block of a network destination (an address or a domain) runs once
+per value the issue carries - in the block keys, or where an endpoint issue
+records what its host connected to and looked up - each checked on its own: not protected, not an
+internal destination (a private or reserved address, or a domain with no public
+suffix - one of this network's own machines, so a person decides), and scored
+malicious by some reputation source (DBotScore 3). A value that fails is
+blocked and escalated like a host. An issue with nothing to block is "none" -
+not an escalation, since there was nothing to contain.
 
 The actions go through SOCCommandWrapper like every other action, so shadow per
 actor, tenant config, the execution row and the environment checks apply
@@ -75,13 +87,25 @@ STAR_ACTION = "soc-star-case"
 SEVERITY_ACTION = "soc-raise-case-severity"
 HOST_SCOPE = "host"
 IDENTITY_SCOPE = "identity"
+ARTIFACT_SCOPE = "artifact"
+# The destinations a block acts on, and where else the issue records them. An
+# endpoint issue keeps what its host connected to and looked up out of the block
+# keys - a host's traffic is not a block list - so those are read here and each
+# one blocked with target= only after the checks below.
+NETWORK_PATHS = {
+    "SOCFramework.Artifacts.Network.Destination.IP": ("SOCFramework.Endpoint.remote_ips",),
+    "SOCFramework.Artifacts.Network.DNS.Query": ("SOCFramework.Endpoint.dns_queries",),
+}
 DISPATCH_KEY = "SOCFramework.Emergency.Dispatch"
 NOTES_KEY = "SOCFramework.Emergency.close_notes"
 
 CONFIDENCE = {"low": 1, "medium": 2, "high": 3}
 DEFAULT_VERDICT = ["malicious"]
 DEFAULT_CONFIDENCE = "high"
-SUBJECT_FIELDS = ("about", "source", "rule_id", "name_contains")
+SUBJECT_FIELDS = ("about", "source", "rule_id", "name_contains", "tactic")
+MALICIOUS_SCORE = 3
+# Suffixes that never resolve on the internet: a domain under one is internal.
+INTERNAL_SUFFIXES = ("local", "lan", "internal", "intranet", "corp", "home", "localdomain", "arpa")
 ABSENT = (None, "", [], {})
 SEVERITY_RANK = {"info": 1, "informational": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}
 CONTAINED_STATES = ("contained", "containment_pending")
@@ -163,7 +187,25 @@ def facts_for(assessment, ctx, incident):
         "containment_status": str(demisto.get(ctx, "SOCFramework.Endpoint.containment_status") or "").strip().lower(),
         "accounts": _values(ctx, "SOCFramework.Artifacts.Identity.User.UPN", "SOCFramework.Artifacts.Identity.User.Email",
                             "SOCFramework.Artifacts.Identity.User.SAM", "SOCFramework.Primary.User"),
+        "tactics": [t.lower() for t in _values(custom, "mitretacticid", "mitretacticname")],
+        "reputation": reputation(ctx),
     }
+
+
+def reputation(ctx):
+    """Highest DBotScore per indicator, keyed lowercase."""
+    out = {}
+    scores = demisto.get(ctx, "DBotScore") or []
+    for s in (scores if isinstance(scores, list) else [scores]):
+        if not isinstance(s, dict) or s.get("Indicator") in ABSENT:
+            continue
+        try:
+            score = int(s.get("Score") or 0)
+        except (TypeError, ValueError):
+            continue
+        key = str(s["Indicator"]).strip().lower()
+        out[key] = max(out.get(key, 0), score)
+    return out
 
 
 def _values(ctx, *paths):
@@ -221,7 +263,7 @@ def _list_text(name):
 
 
 def _typed(entry):
-    if ":" in entry and entry.split(":", 1)[0].lower() in ("host", "ip", "cidr", "account"):
+    if ":" in entry and entry.split(":", 1)[0].lower() in ("host", "ip", "cidr", "account", "domain"):
         kind, value = entry.split(":", 1)
         return kind.lower(), value.strip()
     try:
@@ -327,6 +369,48 @@ def gate(scope, settings, f):
     return True, "", ""
 
 
+def network_paths(row):
+    """The network destinations an action blocks, from its responses' target args.
+
+    Empty for every other action - a retract or a file quarantine is not a block.
+    """
+    paths = []
+    for data in (row.get("responses") or {}).values():
+        arg = (data or {}).get("target_arg") or row.get("target_arg")
+        raw = str(((data or {}).get("inline_args") or {}).get(arg) or "").strip()
+        if raw.startswith("${") and raw.endswith("}") and raw[2:-1] not in paths:
+            paths.append(raw[2:-1])
+    return paths if paths and all(p in NETWORK_PATHS for p in paths) else []
+
+
+def _internal(value):
+    try:
+        return not ipaddress.ip_address(value).is_global
+    except ValueError:
+        name = value.strip().lower().rstrip(".")
+        return "." not in name or name.rsplit(".", 1)[1] in INTERNAL_SUFFIXES
+
+
+def _domain_hit(value, pattern):
+    v, p = value.strip().lower().rstrip("."), pattern.strip().lower().rstrip(".")
+    return fnmatch.fnmatch(v, p) or v == p or v.endswith("." + p)
+
+
+def gate_indicator(value, settings, f):
+    """(go, outcome, why) for blocking one destination address or domain."""
+    for kind, entry in expand_entries(settings.get("protect")):
+        if ((kind == "ip" and value == entry) or (kind == "cidr" and _ip_in(value, entry))
+                or (kind in ("domain", "host") and _domain_hit(value, entry))):
+            return False, "blocked", f"protected ({settings.get('protect_from')}: {kind} {entry})"
+    if _internal(value):
+        return False, "blocked", "internal destination - one of this network's own; a person decides"
+    score = f["reputation"].get(value.strip().lower(), 0)
+    if score < MALICIOUS_SCORE:
+        return False, "blocked", ("no malicious reputation (" + (f"score {score}" if score else "not scored")
+                                  + ") - a person decides")
+    return True, "", ""
+
+
 # ── Matching ─────────────────────────────────────────────────────────────────
 
 def _off(policy):
@@ -339,7 +423,7 @@ def evaluate(policy, f):
     if _off(policy):
         return False, f"{name}: turned off"
     if not any(_as_list(policy.get(k)) for k in SUBJECT_FIELDS):
-        return False, f"{name}: names no subject (about, source, rule_id or name_contains)"
+        return False, f"{name}: names no subject (about, source, rule_id, name_contains or tactic)"
     if not _as_list(policy.get("actions")):
         return False, f"{name}: lists no actions"
 
@@ -370,6 +454,12 @@ def evaluate(policy, f):
         if not hit:
             return False, f"{name}: issue name contains none of {', '.join(contains)}"
         held.append(f"name contains {hit!r}")
+    tactics = [t.lower() for t in _as_list(policy.get("tactic"))]
+    if tactics:
+        hit = next((t for t in tactics if t in f["tactics"]), None)
+        if not hit:
+            return False, f"{name}: tactic {'/'.join(f['tactics']) or '(none)'} not in {', '.join(tactics)}"
+        held.append(f"tactic {hit}")
 
     verdicts = [v.lower() for v in (_as_list(policy.get("verdict")) or DEFAULT_VERDICT)]
     if "any" not in verdicts:
@@ -522,7 +612,7 @@ def _row(**kw):
 
 
 ICON = {"executed": "✅", "shadow": "🟡", "skipped": "⚪", "failed": "🔴", "no_record": "⚠️",
-        "blocked": "⛔", "already": "☑️", "excluded": "➖"}
+        "blocked": "⛔", "already": "☑️", "excluded": "➖", "none": "∅"}
 
 
 def _assessment(ctx, source_key):
@@ -580,6 +670,18 @@ def main():
             results.append((action, "excluded", f"{row.get('phase')} action - emergency response runs "
                                                 "containment only"))
             continue
+        paths = network_paths(row) if row.get("entity_scope") == ARTIFACT_SCOPE else []
+        if paths:
+            seen = [q for p in paths for q in (p,) + NETWORK_PATHS[p]]
+            values = _values(ctx, *seen)
+            if not values:
+                results.append((action, "none", f"nothing to block ({', '.join(seen)} empty)"))
+            for value in values:
+                go, outcome, why = gate_indicator(value, settings, f)
+                if go:
+                    outcome, why, _ = _dispatch(action, "containment", target=value)
+                results.append((f"{action} {value}", outcome, why))
+            continue
         go, outcome, why = gate(row.get("entity_scope"), settings, f)
         if not go:
             results.append((action, outcome, why))
@@ -591,7 +693,7 @@ def main():
             demisto.setContext("SOCFramework.Endpoint.containment_status", "containment_pending")
             demisto.executeCommand("setIssue", {"endpointisolationstatus": "containment_pending"})
 
-    done = ("executed", "already", "excluded")
+    done = ("executed", "already", "excluded", "none")
     contained = (any(s in ("executed", "already") for _, s, _ in results)
                  and all(s in done for _, s, _ in results))
     needs_person = [(a, s, w) for a, s, w in results if s in ("blocked", "failed", "skipped", "no_record")]

@@ -744,11 +744,11 @@ def _write_notes(o):
 POLICY_LIST = "SOCFrameworkPhasePolicy_V3"
 EMERGENCY_ACTOR = "issue_emergency"
 # Fields a policy can carry, in the order they are shown. Comma lists except
-# confidence (a floor). about, source, rule_id and name_contains say which issues;
-# verdict, confidence and exposure are the assessment gate.
-EMERGENCY_FIELDS = ("about", "entity_type", "source", "rule_id", "name_contains",
+# confidence (a floor). about, source, rule_id, name_contains and tactic say which
+# issues; verdict, confidence and exposure are the assessment gate.
+EMERGENCY_FIELDS = ("about", "entity_type", "source", "rule_id", "name_contains", "tactic",
                     "verdict", "confidence", "exposure", "actions")
-SUBJECT_FIELDS = ("about", "source", "rule_id", "name_contains")
+SUBJECT_FIELDS = ("about", "source", "rule_id", "name_contains", "tactic")
 VERDICTS = ("malicious", "suspicious", "benign", "inconclusive", "any")
 CONFIDENCES = ("low", "medium", "high", "any")
 EXPOSURES = ("none", "attempted", "delivered", "executed", "unknown", "any")
@@ -787,7 +787,7 @@ def merge_policies(section, tenant_cfg):
 SECTION_SETTINGS = ("containable_roles", "containable_hosts", "protect", "role", "escalate_severity")
 ROLES = ("workstation", "server", "domain_controller", "any")
 SEVERITIES = ("low", "medium", "high", "critical")
-ENTRY_KINDS = ("host", "ip", "cidr", "account", "list")
+ENTRY_KINDS = ("host", "ip", "cidr", "account", "domain", "list")
 
 
 def merge_settings(section, tenant_cfg):
@@ -958,7 +958,7 @@ def _subject(p):
 
 def _name_only(p):
     return bool(_split(p.get("name_contains"))) and not any(
-        _split(p.get(f)) for f in ("about", "source", "rule_id"))
+        _split(p.get(f)) for f in ("about", "source", "rule_id", "tactic"))
 
 
 def _policy_view(p, actions, cfg):
@@ -999,6 +999,8 @@ def _edit_from_args(args, actions, shipped):
                                   f"shipped {args.get('policy')}: rule ids are local to a tenant "
                                   "and names change. Give the new policy its own label.")
             edit[field] = _split(args.get(field))
+    if _split(args.get("tactic")):
+        edit["tactic"] = _split(args.get("tactic"))
     for field, allowed in (("verdict", VERDICTS), ("exposure", EXPOSURES)):
         values = [v.lower() for v in _split(args.get(field))]
         bad = [v for v in values if v not in allowed]
@@ -1040,7 +1042,7 @@ def emergency(args):
     apply = _yes(args.get("apply"))
     shipped_names = [p.get("policy") for p in (section.get("policies") or []) if isinstance(p, dict)]
 
-    policy_args = ("about", "entity_type", "source", "rule_id", "name_contains", "verdict",
+    policy_args = ("about", "entity_type", "source", "rule_id", "name_contains", "tactic", "verdict",
                    "confidence", "exposure", "action", "enabled")
     setting_args = [f for f in SECTION_SETTINGS if str(args.get(f) or "").strip()]
     if setting_args:
@@ -1101,7 +1103,7 @@ def emergency(args):
         if not shipped:
             if not any(_split(merged.get(f)) for f in SUBJECT_FIELDS):
                 raise ConfigError(f"{label} is a new policy and needs at least one of about, "
-                                  "source, rule_id or name_contains")
+                                  "source, rule_id, name_contains or tactic")
             if not _split(merged.get("actions")):
                 raise ConfigError(f"{label} is a new policy and needs action=<actions>")
         tenant[label] = merged
@@ -1119,12 +1121,12 @@ def emergency(args):
                        if v["policy"] == label), None)
     if view_before is None and view_after is None:
         raise ConfigError(f"no policy {label}; shipped: {', '.join(shipped_names)}. To add one, "
-                          "give it a subject (about, source, rule_id or name_contains) and action=")
+                          "give it a subject (about, source, rule_id, name_contains or tactic) and action=")
 
     shown = " ".join(f"{k}={','.join(_split(args.get(k)))}" if k != "confidence"
                      else f"confidence={args.get(k)}"
-                     for k in ("about", "entity_type", "source", "rule_id", "name_contains", "verdict",
-                               "confidence", "exposure", "action", "enabled")
+                     for k in ("about", "entity_type", "source", "rule_id", "name_contains", "tactic",
+                               "verdict", "confidence", "exposure", "action", "enabled")
                      if str(args.get(k) or "").strip())
     outputs = {"contract_version": CONTRACT_VERSION, "command": "emergency",
                "dry_run": not apply, "applied": False, "policy": label, "shipped": shipped,
@@ -1171,7 +1173,7 @@ COMMAND_ARGS = {
     "set": {"vendor", "arg", "value"},
     "job": {"job", "value", "owner"},
     "owner": {"job", "owner"},
-    "emergency": {"policy", "about", "entity_type", "source", "rule_id", "name_contains", "verdict",
+    "emergency": {"policy", "about", "entity_type", "source", "rule_id", "name_contains", "tactic", "verdict",
                   "confidence", "exposure", "action", "enabled", "protect", "containable_hosts",
                   "containable_roles", "role", "escalate_severity"},
 }
