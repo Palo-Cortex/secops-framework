@@ -64,6 +64,7 @@ _TIME_FIELD_CANDIDATES = [
 _REBASE_FIELDS = set(_TIME_FIELD_CANDIDATES) | {
     "crawled_timestamp",
     "_insert_time",
+    "occurred",
 }
 
 # Timestamp formats tried when ISO8601 auto-parse fails.
@@ -343,8 +344,10 @@ def rebase(
         ev["_insert_time"] = new_iso
 
         # Rebase other known time fields if present
+        # _time and _insert_time were just set from the primary field above;
+        # shifting them again here would push them past the anchor.
         for fld in _REBASE_FIELDS:
-            if fld == field or fld not in ev:
+            if fld in (field, "_time", "_insert_time") or fld not in ev:
                 continue
             other_raw = ev[fld]
             if not isinstance(other_raw, str):
