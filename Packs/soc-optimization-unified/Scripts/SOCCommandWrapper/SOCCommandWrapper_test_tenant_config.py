@@ -60,7 +60,7 @@ def test_neither_list_means_nothing_configured():
     assert _load() == {}
 
 
-def _zia_block(**by_name):
+def _zia_block(_posted=None, **by_name):
     action = "soc-block-network-indicator"
     row = copy.deepcopy(ACTIONS[action])
     row["shadow_mode"] = True
@@ -87,7 +87,8 @@ def _zia_block(**by_name):
     demisto._command_responses = {
         "getList": _get,
         "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
-        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+        "socfw-post-to-dataset": (lambda a: (_posted.append(json.loads(a["JSON"])) if _posted is not None
+                                             else None) or [{"Type": 1, "Contents": "ok"}]),
     }
     script.main()
     rec = demisto._context["UCTest"]["Executions"]
@@ -320,3 +321,68 @@ def test_action_actor_dropdown_offers_only_real_callers():
     script, _ = load_script()
     for actor in arg["predefined"]:
         assert script.normalize_action_actor(actor, False) == actor
+
+
+# ── Action value from the tenant config ───────────────────────────────────────
+# {"value": {action: {"time_minutes": n, "action_category": c}}}, written by
+# setValueTags. SOCActionTimeMap_V3 is a pack list the platform will not let a
+# script change, so the customer's value lives here and wins field by field.
+
+TIME_MAP = {"id": "SOCActionTimeMap_V3",
+            "soc-block-network-indicator": {"time_minutes": 15, "action_category": "containment"}}
+
+
+def _value(tenant, action="soc-block-network-indicator", time_map=TIME_MAP):
+    script, _ = load_script()
+    return script.resolve_action_value(time_map, tenant, action)
+
+
+def test_shipped_value_when_the_tenant_sets_none():
+    assert _value({}) == (15, "containment", "shipped")
+
+
+def test_tenant_value_wins():
+    assert _value({"value": {"soc-block-network-indicator": {"time_minutes": 25, "action_category": "eradication"}}}) \
+        == (25, "eradication", "tenant")
+
+
+def test_tenant_minutes_alone_keep_the_shipped_category():
+    assert _value({"value": {"soc-block-network-indicator": {"time_minutes": "7"}}}) == (7, "containment", "tenant")
+
+
+def test_tenant_zero_is_a_value_not_a_gap():
+    assert _value({"value": {"soc-block-network-indicator": {"time_minutes": 0}}})[:2] == (0, "containment")
+
+
+@pytest.mark.parametrize("bad", ["lots", -3, None, ""])
+def test_unusable_tenant_minutes_fall_back_to_shipped(bad):
+    assert _value({"value": {"soc-block-network-indicator": {"time_minutes": bad}}})[:2] == (15, "containment")
+
+
+def test_an_action_in_neither_records_zero():
+    assert _value({}, action="soc-star-case") == (0, "", "none")
+    assert _value({"value": {"soc-star-case": {"time_minutes": 5, "action_category": "triage"}}},
+                  action="soc-star-case") == (5, "triage", "tenant")
+
+
+@pytest.mark.parametrize("tenant", [{"value": "5"}, {"value": {"soc-block-network-indicator": 5}}, "x", None])
+def test_malformed_value_sections_are_ignored(tenant):
+    assert _value(tenant) == (15, "containment", "shipped")
+
+
+def _posted_minutes(tenant):
+    posted = []
+    _zia_block(_posted=posted, **{NEW: tenant, "SOCActionTimeMap_V3": TIME_MAP})
+    rows = [r for p in posted for r in (p if isinstance(p, list) else [p])]
+    rows = [r for r in rows if r.get("universal_command") == "soc-block-network-indicator"]
+    assert rows, posted
+    return {r.get("action_time_minutes") for r in rows}
+
+
+def test_tenant_value_reaches_the_dataset_row():
+    assert _posted_minutes({"Zscaler": {"category-id": "c"},
+                            "value": {"soc-block-network-indicator": {"time_minutes": 42}}}) == {42}
+
+
+def test_shipped_value_reaches_the_dataset_row():
+    assert _posted_minutes({"Zscaler": {"category-id": "c"}}) == {15}

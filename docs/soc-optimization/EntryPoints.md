@@ -69,9 +69,9 @@ The `PlaybookDeploymentMatrix` list tracks:
 
 ## 📊 Integration with Value Metrics
 
-All Entry Points should call the `setValueTags` script to update the `value_tags` lookup table with playbook execution metrics. This allows visibility into automation usage, time saved, and script-level actions.
+Value is recorded per action, not per Entry Point. `SOCCommandWrapper` takes each action's analyst minutes and category (this tenant's, from `SOCFWTenantConfig`, or the pack's, from `SOCActionTimeMap_V3`) and writes them onto the row in `xsiam_socfw_ir_execution_raw`, which the value dashboards add up. Entry Points need no value step.
 
-👉 See [setValueTags Usage](https://github.com/Palo-Cortex/soc-optimization/blob/main/Documentation/setValueTags.md)
+👉 See [setValueTags Usage](setValueTags.md) to view or change an action's value.
 
 ---
 

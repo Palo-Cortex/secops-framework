@@ -18,83 +18,27 @@ The Value Metrics dashboard helps quantify automation value by capturing:
 
 ## ⚙️ How Value Metrics Work
 
-The dashboard is powered by **two data sets**:
+Value is recorded per action: the analyst minutes it saves and its category. `SOCCommandWrapper`
+takes this tenant's value (`SOCFWTenantConfig` → `value`) or else the pack's (`SOCActionTimeMap_V3`)
+every time an action runs, and writes both onto the row in `xsiam_socfw_ir_execution_raw`, which the
+dashboard adds up. Playbook
+metrics come from the JOB that stores playbook runs in `xsiam_playbookmetrics_raw`.
 
-### 1. Value Tags
-
-Defined manually to describe automation tasks and playbooks with:
-
-- Estimated time savings
-- Task category (e.g., enrichment, triage)
-- Vendor/product attribution
-- Script or playbook identifiers
-
-### 2. Playbook Metrics
-
-Generated automatically by a job included in the **SOC Optimization** content pack.  
-It tracks real-time playbook executions and joins them with Value Tags to display actionable metrics.
+No lookup table and no join: the `value_tags` lookup is retired.
 
 ---
 
-## 🛠️ Configuring Value Tags
+## 🛠️ Configuring Value
 
-To configure Value Tags:
+View and change values with [`setValueTags`](setValueTags.md):
 
-1. Navigate to:  
-   `Settings → Configuration → Data Management → Data Management Sets`
-
-2. Find or create a dataset called:  
-   `value_tags`
-
-3. Add rows using the following formats:
-
-### ➤ Task-based Tags
-
-| Field      | Description                                        |
-|------------|----------------------------------------------------|
-| `category` | Task type (e.g., `triage`, `enrichment`)           |
-| `tag`      | Friendly task label shown on the dashboard         |
-| `time`     | Estimated time saved per task                      |
-| `scriptid` | Script or automation command executed              |
-| `product`  | Optional: product name tied to the automation      |
-| `vendor`   | Optional: vendor associated with the task          |
-
-**Example:**
-```json
-{
-  "category": "enrichment",
-  "tag": "URL Detonation",
-  "time": 6,
-  "script_id": "DetonateURL",
-  "product": "WildFire",
-  "vendor": "Palo Alto Networks"
-}
+```bash
+!setValueTags action=list_all
+!setValueTags action=update tag=soc-isolate-endpoint time=20
+!setValueTags action=add tag=soc-star-case time=5 category=triage
 ```
-### ➤ Playbook-based Tags
 
-Used to track automation at the playbook level, typically representing a full use case (e.g., phishing response, insider threat investigation).
-
-| Field        | Description                                                                  |
-|--------------|------------------------------------------------------------------------------|
-| `category`   | Logical grouping, typically set to `use_case`                                |
-| `tag`        | Friendly label for the use case (e.g., `Phishing`, `Malware Triage`)         |
-| `playbookid` | Identifier for the playbook — can be either the playbook **name** or **UUID** |
-| `product`    | (Optional) Product associated with the use case                              |
-| `vendor`     | (Optional) Vendor responsible for the product                                |
-
-**Tip:** Use the **playbook name** instead of UUID when possible.  
-If using a UUID, you may need to export the playbook and extract the `"id"` field from the JSON.
-
-**Example Entry (JSON-style):**
-```json
-{
-  "category": "use_case",
-  "tag": "Phishing Investigation",
-  "playbookid": "XSOAR - Auto Phishing Enrichment",
-  "product": "Cortex XSOAR",
-  "vendor": "Palo Alto Networks"
-}
-```
+`list_all` also names the framework actions with no value; they record 0 minutes until one is added.
 
 ## 🧩 What Value Metrics Show You
 
