@@ -987,3 +987,17 @@ def test_triage_arguments_are_declared_and_marked():
     assert "triage" in declared["command"]["predefined"]
     for name in module.COMMAND_ARGS["triage"]:
         assert declared[name]["description"].startswith("[triage]"), name
+
+
+def test_status_shows_auto_triage_settings():
+    t = triage_tenant({"triage": {"score_threshold": 100}})
+    r = run(t, command="status")
+    tri = r.outputs["triage"]
+    assert tri["score_threshold"]["effective"] == 100 and tri["score_threshold"]["from"] == "tenant"
+    assert tri["window_hours"]["effective"] == "6" and tri["window_hours"]["from"] == "shipped"
+    assert "### Auto Triage settings" in r.readable_output and "command=triage" in r.readable_output
+
+
+def test_status_reports_a_malformed_triage_section_without_failing():
+    r = run(triage_tenant({"triage": "100"}), command="status")
+    assert "Auto Triage settings unreadable" in r.readable_output and "triage" not in r.outputs

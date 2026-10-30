@@ -350,6 +350,14 @@ def status(args):
     outputs["jobs"], job_md = _job_status()
     md += job_md
     try:
+        triage_view = _triage_view(cfg, shipped_triage())
+        outputs["triage"] = triage_view
+        md += ["", "### Auto Triage settings", ""] + _triage_table(triage_view) + [
+               "", "Change one: `!SOCFWConfig command=triage score_threshold=<n|off|default> "
+                   "window_hours=<n|default>` — add `apply=yes` to write."]
+    except ConfigError as e:
+        md += ["", f"Auto Triage settings unreadable: {e}"]
+    try:
         section = load_emergency_section()
         policies = merge_policies(section, cfg)
         local = sum(1 for p in policies if p.get("origin") != "shipped")
