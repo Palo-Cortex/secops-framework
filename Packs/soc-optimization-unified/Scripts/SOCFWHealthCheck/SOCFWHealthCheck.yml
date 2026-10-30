@@ -9,32 +9,28 @@ subtype: python3
 dockerimage: demisto/python3:3.12.12.6796194
 runas: DBotWeakRole
 comment: >-
-  Tenant-side SOC Framework health check. Validates integration instances,
-  installed playbooks, scheduled jobs, and required lists/datasets against
-  the expected SOC Framework configuration. No API key or network config
-  required — runs entirely inside the XSIAM tenant.
-
-  Outputs a structured warroom report and CommandResults table.
-  Optionally writes a trend row to the socfw_health_checks dataset for PoV
-  metric tracking.
-
-  Run from any incident, layout button, or as a scheduled job.
+  Read-only SOC Framework health check for a tenant. Configuration: what
+  !SOCFWConfig command=status reports, graded - the tenant config list, the
+  mode the tenant matches and what runs for real, required customer values,
+  each framework JOB (on or off, and whether its owner is a user; on with an
+  owner who is not a user is a FAIL), Auto Triage settings and emergency
+  response. Installation: with config_url, every list, integration instance,
+  job, lookup dataset, pack and correlation rule named in that
+  xsoar_config.json; without it, prefix matching on entry-point playbooks and
+  jobs, plus integrations, correlation rules, dashboards and installed packs.
+  Changes nothing on the tenant except an optional row in socfw_health_checks
+  (write_dataset=true). Run from any incident or as a job.
 enabled: true
 tags:
   - soc-framework
   - health-check
   - utilities
-
 args:
-  - name: config_list
+  - name: config_url
     required: false
-    default: true
-    defaultValue: SOCFWConfig
     description: >-
-      Name of the XSIAM list containing SOC Framework config JSON.
-      Must contain keys: required_brands, entry_point_prefixes,
-      job_prefixes, required_lists, required_datasets.
-      Falls back to built-in defaults if list is absent.
+      Raw URL of an xsoar_config.json. When given, the installation checks use
+      the exact items it names. Without it, prefix matching is used.
 
   - name: write_dataset
     required: false
@@ -44,8 +40,27 @@ args:
       - "true"
       - "false"
     description: >-
-      Write a summary row to the socfw_health_checks dataset for PoV trend
-      tracking. Set to true during PoV to capture health over time.
+      Write one row per check to the socfw_health_checks lookup dataset, to
+      track health over a PoV.
+
+  - name: core_rest_instance
+    required: false
+    description: >-
+      Core REST API instance to use. Leave empty to use the default.
+
+  - name: entry_point_prefixes
+    required: false
+    isArray: true
+    description: >-
+      Without config_url: playbook name prefixes counted as entry points.
+      Default EP_IR_NIST, "Foundation - ", "JOB - ".
+
+  - name: job_playbook_prefixes
+    required: false
+    isArray: true
+    description: >-
+      Without config_url: playbook name prefixes for framework jobs. Default
+      "JOB - ".
 
   - name: verbose
     required: false
@@ -55,20 +70,31 @@ args:
       - "true"
       - "false"
     description: >-
-      Enable verbose debug logging to the warroom. Useful when
-      diagnosing unexpected PASS/FAIL results.
+      Without config_url: list every matching entry-point playbook, not only
+      the count.
 
 outputs:
-  - contextPath: SOCFWHealth.timestamp
-    description: UTC timestamp of the health check run.
-    type: Date
-
-  - contextPath: SOCFWHealth.overall
-    description: Overall status — PASS, WARN, or FAIL.
+  - contextPath: SOCFWHealthCheck.version
+    description: Version of the health check.
     type: String
-
-  - contextPath: SOCFWHealth.sections
-    description: >-
-      List of section result objects, each with name, status, and findings
-      list. Each finding has check, item, status, and note fields.
+  - contextPath: SOCFWHealthCheck.timestamp
+    description: UTC time of the run.
+    type: Date
+  - contextPath: SOCFWHealthCheck.config_url
+    description: The config_url used, empty when prefix matching was used.
+    type: String
+  - contextPath: SOCFWHealthCheck.overall_status
+    description: OK, WARN or FAIL - the worst status among the checks.
+    type: String
+  - contextPath: SOCFWHealthCheck.ok_count
+    description: Number of checks that are OK.
+    type: Number
+  - contextPath: SOCFWHealthCheck.warn_count
+    description: Number of checks that are WARN.
+    type: Number
+  - contextPath: SOCFWHealthCheck.fail_count
+    description: Number of checks that are FAIL.
+    type: Number
+  - contextPath: SOCFWHealthCheck.checks
+    description: One object per check, with check, status (OK, WARN or FAIL) and detail.
     type: Unknown

@@ -1,39 +1,21 @@
 register_module_line('SOCFWHealthCheck', 'start', __line__())
-demisto.debug('pack name = SOCFramework, pack version = 1.4.0')
-
 # ============================================================
-# SOCFWHealthCheck v1.5.0
+# SOCFWHealthCheck
 # ============================================================
-# Validates XSIAM tenant against the *same* xsoar_config.json
-# used by the XSIAM Starter Configuration Setup playbook.
+# Read-only. Grades a tenant for SOC Framework work in two parts:
 #
-# When config_url is provided the script:
-#   1. Fetches the xsoar_config.json via HttpV2
-#   2. Derives exact expected items from each section:
-#        lists              → check each list exists
-#        integration_instances → check each brand has enabled instance
-#        jobs               → check each job name exists
-#        lookup_datasets    → check each dataset_name exists
-#        custom_packs       → check each pack id is installed
-#        marketplace_packs  → check each pack id is installed
-#   3. Always checks SOCFW_UniversalCommand regardless of config
-#
-# Without config_url falls back to smart defaults (v1.3.1 mode).
+#   Configuration  what SOCFWConfig status reports: the tenant config list,
+#                  the mode the tenant matches, the framework JOBs (on/off and
+#                  whether the owner is a user), Auto Triage settings,
+#                  emergency response, and required customer values.
+#   Installation   what is on the tenant. With config_url, the items named in
+#                  an xsoar_config.json (lists, integration instances, jobs,
+#                  lookup datasets, packs, correlation rules); without it,
+#                  prefix matching on playbooks and jobs.
 #
 # Usage:
-#   !SOCFWHealthCheck config_url="https://raw.githubusercontent.com/org/repo/main/xsoar_config.json"
-#   !SOCFWHealthCheck config_url="..." core_rest_instance="Core REST API_instance_1" write_dataset="true"
-#   !SOCFWHealthCheck   # no config — uses default prefix matching
-#
-# xsoar_config.json schema (from annabarone/xsiam-pov-automation capture.py):
-#   custom_packs:          [{id, url, system}]
-#   marketplace_packs:     [{id, name, version}]
-#   integration_instances: [{brand, name, enabled, ...}]
-#   jobs:                  [{name, playbook, scheduled, ...}]
-#   lists:                 [{name, value, type}]  (if present)
-#   lookup_datasets:       [{dataset_name, dataset_type, dataset_schema, url}]
-#   correlation_rules:     [{name, ...}]
-#   dashboards:            [{name, ...}]
+#   !SOCFWHealthCheck
+#   !SOCFWHealthCheck config_url="https://.../xsoar_config.json" write_dataset=true
 # ============================================================
 
 import json
@@ -41,20 +23,12 @@ import traceback
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-SCRIPT_VERSION = "1.5.5"
+SCRIPT_VERSION = "2.0.0"
 SCRIPT_NAME    = "SOCFWHealthCheck"
 
 STATUS_OK   = "OK"
 STATUS_WARN = "WARN"
 STATUS_FAIL = "FAIL"
-
-UNIVERSAL_CMD_LIST    = "SOCFW_UniversalCommand"
-UNIVERSAL_CMD_DEFAULT = json.dumps({
-    "branch_execution": "shadow",
-    "warroom_logging": True,
-    "dataset_logging": True,
-    "execute_vendor_commands": False
-}, indent=2)
 
 HEALTH_DATASET = "socfw_health_checks"
 
@@ -127,60 +101,116 @@ def fetch_xsoar_config(config_url: str) -> Tuple[bool, Any]:
 
 
 # ============================================================
-# Check: SOCFW_UniversalCommand list (always runs)
+# Configuration — graded from SOCFWConfig status (always runs)
 # ============================================================
 
-def check_universal_command(using: Optional[str]) -> Dict[str, Any]:
-    check_name = "SOCFW_UniversalCommand List"
+CONFIG_COMMAND = "SOCFWConfig"
+AUTOMATED_ACTORS = ("ai", "automation", "issue_emergency")
 
-    result = demisto.executeCommand("getList", {"listName": UNIVERSAL_CMD_LIST})
-    entry  = result[0] if result else {}
-    is_missing = (
-            entry.get("Type") == entryTypes.get("error", 4)
-            and "Item not found" in str(entry.get("Contents", ""))
-    )
 
-    if not is_missing:
-        raw = entry.get("Contents", "")
-        try:
-            cfg       = json.loads(raw) if isinstance(raw, str) else raw
-            branch    = cfg.get("branch_execution", "")
-            no_vendor = not cfg.get("execute_vendor_commands", True)
-            mode_ok   = (branch == "shadow" and no_vendor)
-            return {
-                "check": check_name,
-                "status": STATUS_OK if mode_ok else STATUS_WARN,
-                "detail": (
-                        f"branch_execution={branch}, "
-                        f"execute_vendor_commands={not no_vendor}"
-                        + ("" if mode_ok else " — Expected: shadow + False")
-                ),
-            }
-        except Exception as e:
-            return {
-                "check": check_name,
-                "status": STATUS_WARN,
-                "detail": f"Found but could not parse JSON: {e}",
-            }
+def _check(name: str, status: str, detail: str) -> Dict[str, Any]:
+    return {"check": name, "status": status, "detail": detail}
 
-    # Auto-create
-    demisto.info(f"{SCRIPT_NAME}: {UNIVERSAL_CMD_LIST} missing — auto-creating.")
-    ok, _ = _call_core_api(
-        "post", "/xsoar/public/v1/lists/save",
-        body={"name": UNIVERSAL_CMD_LIST, "data": UNIVERSAL_CMD_DEFAULT, "type": "plain_text"},
-        using=using,
-    )
-    if ok:
-        return {
-            "check": check_name,
-            "status": STATUS_WARN,
-            "detail": "Was missing — auto-created with Shadow defaults. Confirm in XSIAM Lists.",
-        }
-    return {
-        "check": check_name,
-        "status": STATUS_FAIL,
-        "detail": "Missing and auto-create failed. Verify Core REST API integration.",
-    }
+
+def _config_status() -> Tuple[Optional[Dict], str]:
+    """SOCFWConfig.Status from !SOCFWConfig command=status, or (None, why)."""
+    try:
+        res = demisto.executeCommand(CONFIG_COMMAND, {"command": "status"})
+    except Exception as e:  # noqa: BLE001
+        return None, f"{CONFIG_COMMAND} did not run: {e}"
+    for entry in res or []:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("Type") == entryTypes.get("error", 4):
+            return None, f"{CONFIG_COMMAND} failed: {str(entry.get('Contents', ''))[:300]}"
+        for key, value in (entry.get("EntryContext") or {}).items():
+            if key.split("(")[0] == "SOCFWConfig.Status" and isinstance(value, dict):
+                return value, ""
+    return None, f"{CONFIG_COMMAND} returned no status"
+
+
+def _triage_detail(view: Dict) -> Tuple[str, str]:
+    score = (view or {}).get("score_threshold") or {}
+    window = (view or {}).get("window_hours") or {}
+    s_eff, w_eff = score.get("effective"), window.get("effective")
+    detail = (f"score below {s_eff} ({score.get('from', '?')}), "
+              f"older than {w_eff}h ({window.get('from', '?')})")
+    if s_eff in (None, "off"):
+        return STATUS_WARN, ("score gate is off: Auto Triage closes any unstarred new case past the "
+                             f"window, whatever its score; window {w_eff}h ({window.get('from', '?')})")
+    return STATUS_OK, detail
+
+
+def check_configuration() -> List[Dict[str, Any]]:
+    status, why = _config_status()
+    if status is None:
+        return [_check("Configuration (SOCFWConfig)", STATUS_FAIL,
+                       why + " — install or repair soc-optimization-unified.")]
+    checks = []
+
+    exists = status.get("tenant_config_exists")
+    checks.append(_check(
+        "Tenant config (SOCFWTenantConfig)", STATUS_OK,
+        "present and readable" if exists
+        else "not created yet; the framework runs on the shipped settings"))
+
+    mode = status.get("mode")
+    live = sorted({f"{r['action']} ({r['actor']})" for r in status.get("rows") or []
+                   if r.get("actor") in AUTOMATED_ACTORS and r.get("state") == "live"
+                   and not r.get("read_only")})
+    live_text = ("nothing automated runs for real" if not live
+                 else f"runs for real: {', '.join(live)}")
+    if mode is None:
+        checks.append(_check("Mode", STATUS_WARN, f"modes unreadable; {live_text}"))
+    else:
+        checks.append(_check("Mode", STATUS_OK, f"matches {mode}; {live_text}"))
+
+    missing = [f"{v.get('vendor')} {v.get('arg')}" for v in status.get("values") or []
+               if v.get("required") and not v.get("set")]
+    checks.append(_check(
+        "Customer values", STATUS_WARN if missing else STATUS_OK,
+        ("required and not set: " + ", ".join(missing)
+         + " — !SOCFWConfig command=set vendor=<vendor> arg=<setting> value=<value>")
+        if missing else "every required value is set"))
+
+    jobs = status.get("jobs") or []
+    if not jobs:
+        checks.append(_check("Framework JOBs", STATUS_WARN,
+                             "could not read the jobs (Core REST API integration)"))
+    for j in jobs:
+        name = f"JOB: {j.get('job')}"
+        if not j.get("installed"):
+            checks.append(_check(name, STATUS_WARN, "not installed"))
+            continue
+        on, owner, ok = j.get("scheduled"), j.get("owner") or "(none)", j.get("owner_is_user")
+        fix = f'!SOCFWConfig command=owner job="{j.get("job")}" owner=<email> apply=yes'
+        if on and ok is False:
+            checks.append(_check(name, STATUS_FAIL,
+                                 f"on, but owner {owner} is not a user on this tenant, so every run "
+                                 f"errors — {fix}"))
+        elif ok is None:
+            checks.append(_check(name, STATUS_WARN,
+                                 f"{'on' if on else 'off'}, owner {owner}; could not check the owner"))
+        elif on:
+            checks.append(_check(name, STATUS_OK, f"on, owner {owner}"))
+        else:
+            checks.append(_check(name, STATUS_OK,
+                                 f"off, owner {owner}" + ("" if ok else f" (set one before turning it on: {fix})")))
+
+    if "triage" in status:
+        checks.append(_check("Auto Triage settings", *_triage_detail(status["triage"])))
+    else:
+        checks.append(_check("Auto Triage settings", STATUS_WARN, "unreadable"))
+
+    em = status.get("emergency")
+    if isinstance(em, dict):
+        checks.append(_check(
+            "Emergency response", STATUS_OK,
+            f"{'on' if em.get('enabled') else 'off'}: {em.get('policies', 0)} policies, "
+            f"{em.get('tenant_policies', 0)} edited or added on this tenant"))
+    else:
+        checks.append(_check("Emergency response", STATUS_WARN, "policies unreadable"))
+    return checks
 
 
 # ============================================================
@@ -869,8 +899,8 @@ def main():
 
     checks: List[Dict[str, Any]] = []
 
-    # ── 1. Always: SOCFW_UniversalCommand ────────────────────
-    checks.append(check_universal_command(using))
+    # ── 1. Always: configuration, from SOCFWConfig status ────
+    checks.extend(check_configuration())
 
     # ── 2a. CONFIG-DRIVEN mode ────────────────────────────────
     if config_url:
