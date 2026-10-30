@@ -255,3 +255,50 @@ def test_all_requires_must_hold():
     ok = {"verdict": "malicious", "confidence": "high", "already_contained": False}
     assert evaluate(rule, ok)[0] is True
     assert evaluate(rule, dict(ok, already_contained=True))[0] is False
+
+
+# ── The shipped rule: malicious + high confidence + needs an analyst ─────────
+# Read from the list the pack installs, so these tests fail if the list changes.
+
+def _shipped_rules():
+    import json, os
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "Lists", "SOCFrameworkPhasePolicy_V3",
+                        "SOCFrameworkPhasePolicy_V3_data.json")
+    return json.load(open(path))["phases"]["triage"]["elevate"]["rules"]
+
+
+def _stars(assessment):
+    return any(evaluate(r, assessment)[0] for r in _shipped_rules())
+
+
+BAD = {"verdict": "malicious", "confidence": "high"}
+
+
+@pytest.mark.parametrize("value", [True, "true", "True", " TRUE ", 1])
+def test_shipped_rule_stars_malicious_high_that_needs_an_analyst(value):
+    assert _stars(dict(BAD, escalate_recommended=value))
+
+
+@pytest.mark.parametrize("value", [False, "false", "False", None, "", "yes", 0])
+def test_shipped_rule_does_not_star_when_no_analyst_is_needed(value):
+    """Delivered, never-clicked email comes back malicious/high but needing no analyst."""
+    assert not _stars(dict(BAD, escalate_recommended=value))
+
+
+def test_shipped_rule_does_not_star_without_escalate_recommended():
+    assert not _stars(BAD)
+
+
+@pytest.mark.parametrize("assessment", [
+    {"verdict": "malicious", "confidence": "medium", "escalate_recommended": True},
+    {"verdict": "suspicious", "confidence": "high", "escalate_recommended": True},
+    {"verdict": "benign", "confidence": "high", "escalate_recommended": True},
+])
+def test_shipped_rule_still_needs_malicious_at_high_confidence(assessment):
+    """The new condition only narrows: nothing that did not star before stars now."""
+    assert not _stars(assessment)
+
+
+def test_the_no_analyst_case_explains_itself():
+    matched, detail = evaluate(_shipped_rules()[0], dict(BAD, escalate_recommended=False))
+    assert matched is False and "escalate_recommended" in detail
