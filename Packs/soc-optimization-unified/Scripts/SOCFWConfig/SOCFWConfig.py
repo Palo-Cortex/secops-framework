@@ -22,6 +22,9 @@ Commands
   triage   Show or set Auto Triage's score threshold and age window for this
            tenant, or return either to what SOCOptimizationConfig_V3 ships with
            default. Dry run unless apply=yes.
+  mode     List the modes in SOCFWConfigModes against this tenant, or apply one:
+           the shadow settings it names and the Auto Triage JOB (owner=<email>
+           optional). mode=default removes them and turns the JOB off.
 
 Each command takes only its own arguments; one that belongs to another command
 is refused rather than ignored.
@@ -349,6 +352,15 @@ def status(args):
 
     outputs["jobs"], job_md = _job_status()
     md += job_md
+    try:
+        jobs_by_name = {r["job"]: {"scheduled": r.get("scheduled")} for r in outputs["jobs"]
+                        if r.get("installed")}
+        current = matching_mode(cfg, load_modes(), jobs_by_name if outputs["jobs"] else None)
+        outputs["mode"] = current or "custom"
+        md += ["", "### Mode", "", f"This tenant matches: **{current or 'custom'}**. See the modes: "
+                   "`!SOCFWConfig command=mode`"]
+    except ConfigError as e:
+        md += ["", f"Modes unreadable: {e}"]
     try:
         triage_view = _triage_view(cfg, shipped_triage())
         outputs["triage"] = triage_view
@@ -1319,6 +1331,222 @@ def triage(args):
                           outputs=outputs)
 
 
+# ── mode ─────────────────────────────────────────────────────────────────────
+
+MODES_LIST = "SOCFWConfigModes"
+DEFAULT_MODE = "default"
+
+
+def load_modes():
+    """{name: mode} from SOCFWConfigModes, checked against the actions list."""
+    exists, doc = _read_list(MODES_LIST)
+    modes = (doc or {}).get("modes") if exists else None
+    if not isinstance(modes, dict) or not modes:
+        raise ConfigError(f"{MODES_LIST} is missing or has no modes; reinstall soc-optimization-unified")
+    return modes
+
+
+def mode_switches(modes):
+    """Every (action, actor) any mode sets, in list order. Each mode sets all of them."""
+    seen = []
+    for m in modes.values():
+        for action, actors in (m.get("shadow") or {}).items():
+            for actor in actors:
+                if (action, actor) not in seen:
+                    seen.append((action, actor))
+    return seen
+
+
+def mode_jobs(modes):
+    seen = []
+    for m in modes.values():
+        for name in (m.get("jobs") or {}):
+            if name not in seen:
+                seen.append(name)
+    return seen
+
+
+def _apply_mode_shadow(cfg, modes, name):
+    """A copy of cfg with this mode's shadow settings, or all of them removed for default."""
+    new_cfg = json.loads(json.dumps(cfg))
+    section = new_cfg.get("shadow", {})
+    if not isinstance(section, dict):
+        raise ConfigError(f"'shadow' in {TENANT_CONFIG_LIST} is not an object; fix it in Settings > Lists")
+    wanted = (modes[name].get("shadow") or {}) if name != DEFAULT_MODE else {}
+    for action, actor in mode_switches(modes):
+        per_action = section.setdefault(action, {})
+        if not isinstance(per_action, dict):
+            raise ConfigError(f"'shadow.{action}' in {TENANT_CONFIG_LIST} is not an object; fix it "
+                              "in Settings > Lists")
+        value = (wanted.get(action) or {}).get(actor)
+        if value is None:
+            per_action.pop(actor, None)
+        else:
+            per_action[actor] = bool(value)
+        if not per_action:
+            section.pop(action, None)
+    if section:
+        new_cfg["shadow"] = section
+    else:
+        new_cfg.pop("shadow", None)
+    return new_cfg
+
+
+def matching_mode(cfg, modes, jobs):
+    """The mode this tenant's settings equal, 'default' for none set, or None (custom)."""
+    section = cfg.get("shadow") if isinstance(cfg.get("shadow"), dict) else {}
+
+    def tenant(action, actor):
+        per = section.get(action)
+        return per.get(actor) if isinstance(per, dict) else None
+
+    def job_on(name):
+        j = (jobs or {}).get(name)
+        return None if j is None else bool(j.get("scheduled"))
+
+    switches, names = mode_switches(modes), mode_jobs(modes)
+    if all(tenant(a, r) is None for a, r in switches) and all(job_on(n) in (False, None) for n in names):
+        return DEFAULT_MODE
+    for name, m in modes.items():
+        sh, jb = m.get("shadow") or {}, m.get("jobs") or {}
+        if all(tenant(a, r) == (sh.get(a) or {}).get(r) for a, r in switches) and \
+                all(job_on(n) in (None, jb.get(n) == "on") for n in names):
+            return name
+    return None
+
+
+def _mode_listing(modes, cfg, actions, jobs):
+    names = list(modes)
+    md = ["### SOC Framework modes", "", "| Setting | " + " | ".join(names) + " | This tenant |",
+          "|---|" + "---|" * (len(names) + 1)]
+    for action, actor in mode_switches(modes):
+        row = actions.get(action)
+        now = _state(effective(cfg, action, row, actor)[0]) if row else "not installed"
+        cells = [_state((m.get("shadow") or {}).get(action, {}).get(actor)) for m in modes.values()]
+        md.append(f"| {action} ({actor}) | " + " | ".join(cells) + f" | {now} |")
+    for job_name in mode_jobs(modes):
+        j = (jobs or {}).get(job_name)
+        now = "unknown" if jobs is None else ("not installed" if j is None else _on_off(j.get("scheduled")))
+        md.append(f"| {job_name} JOB | " + " | ".join((m.get("jobs") or {}).get(job_name, "off")
+                                                    for m in modes.values()) + f" | {now} |")
+    md += [""] + [f"- **{n}** — {m.get('description', '')}" for n, m in modes.items()]
+    md += [f"- **{DEFAULT_MODE}** — removes these settings and turns the JOBs off: what the pack installs."]
+    return md
+
+
+def mode(args):
+    modes = load_modes()
+    actions = load_actions()
+    cfg, exists = load_tenant_config()
+    name = str(args.get("mode") or "").strip().lower()
+    who = str(args.get("owner") or "").strip()
+    apply = _yes(args.get("apply"))
+    try:
+        jobs = load_jobs()
+    except ConfigError:
+        jobs = None
+    current = matching_mode(cfg, modes, jobs)
+
+    if not name:
+        if who:
+            raise ConfigError("owner goes with a mode: !SOCFWConfig command=mode mode=<name> owner=<email>")
+        md = _mode_listing(modes, cfg, actions, jobs)
+        md += ["", f"This tenant matches: **{current or 'custom'}**", "",
+               "Apply one: `!SOCFWConfig command=mode mode=<name> owner=<email>` — add `apply=yes` to write."]
+        return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mode",
+                              outputs={"contract_version": CONTRACT_VERSION, "command": "mode",
+                                       "modes": list(modes), "current": current or "custom"})
+
+    if name != DEFAULT_MODE and name not in modes:
+        raise ConfigError(f"unknown mode {name}; use one of: " + ", ".join(list(modes) + [DEFAULT_MODE]))
+    missing = sorted({a for a, _ in mode_switches(modes) if a not in actions})
+    if missing:
+        raise ConfigError(f"{MODES_LIST} names actions not in {ACTIONS_LIST}: {', '.join(missing)}")
+    if who and "@" not in who:
+        raise ConfigError("owner is the email of a user on this tenant")
+
+    new_cfg = _apply_mode_shadow(cfg, modes, name)
+    changes = []
+    for action, actor in mode_switches(modes):
+        row = actions[action]
+        before, after = effective(cfg, action, row, actor)[0], effective(new_cfg, action, row, actor)[0]
+        changes.append({"action": action, "actor": actor, "from": _state(before), "to": _state(after),
+                        "changed": tenant_value(cfg, action, actor) != tenant_value(new_cfg, action, actor)})
+
+    users = load_users() if (who or name != DEFAULT_MODE) else None
+    if who and _owner_ok(who, users) is not True:
+        raise ConfigError(f"{who} is not a user on this tenant" if users is not None
+                          else "could not read the tenant's users (getUsers) to check the owner")
+    job_plan, notes = [], []
+    for job_name in mode_jobs(modes):
+        want_on = name != DEFAULT_MODE and (modes[name].get("jobs") or {}).get(job_name) == "on"
+        j = (jobs or {}).get(job_name)
+        if jobs is None:
+            notes.append(f"{job_name}: could not read the jobs (Core REST API integration); not changed.")
+            continue
+        if j is None:
+            notes.append(f"{job_name} is not installed; not changed.")
+            continue
+        owner_now = j.get("owner") or ""
+        owner_after = who or owner_now
+        if want_on and _owner_ok(owner_after, users) is False:
+            notes.append(f"{job_name} stays off: it needs an owner who is a user on this tenant (now "
+                         f"{_plain(owner_now)}). Run again with owner=<email>.")
+            want_on = False
+        updated = dict(j, scheduled=want_on, owner=owner_after)
+        change = [f"owner: {_plain(owner_now)} -> {owner_after}"] if owner_after != owner_now else []
+        if bool(j.get("scheduled")) != want_on:
+            change.append(f"schedule: {_on_off(j.get('scheduled'))} -> {_on_off(want_on)}")
+        job_plan.append({"job": job_name, "from": {"owner": owner_now, "scheduled": bool(j.get("scheduled"))},
+                         "to": {"owner": owner_after, "scheduled": want_on}, "changed": bool(change),
+                         "change": "; ".join(change), "updated": updated})
+
+    changed = any(c["changed"] for c in changes) or any(p["changed"] for p in job_plan)
+    owner_arg = f" owner={who}" if who else ""
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "mode", "mode": name,
+               "dry_run": not apply, "applied": False, "changed": changed, "from_mode": current or "custom",
+               "changes": changes, "jobs": [{k: v for k, v in p.items() if k != "updated"} for p in job_plan],
+               "notes": notes, "tenant_config_list": TENANT_CONFIG_LIST, "creates_list": False,
+               "recorded": False, "apply_command": f"!SOCFWConfig command=mode mode={name}{owner_arg} apply=yes"}
+
+    if changed and apply:
+        rows = []
+        if any(c["changed"] for c in changes):
+            outputs["creates_list"] = not exists
+            write_tenant_config(new_cfg, exists)
+            rows += [{"universal_command": c["action"], "action_actor": c["actor"],
+                      "shadow_mode_state": c["to"], "action_status": f"mode {name}",
+                      "action_taken": f"{c['from']} -> {c['to']}"} for c in changes if c["changed"]]
+        for p in job_plan:
+            if not p["changed"]:
+                continue
+            _core_api("/xsoar/public/v1/jobs", p["updated"])
+            back = load_jobs().get(p["job"]) or {}
+            landed = {"owner": back.get("owner") or "", "scheduled": bool(back.get("scheduled"))}
+            if landed != p["to"]:
+                raise ConfigError(f"the shadow settings were written, but {p['job']} did not change on "
+                                  f"the tenant (read back owner {_plain(landed['owner'])}, schedule "
+                                  f"{_on_off(landed['scheduled'])})")
+            rows.append({"vendor": "SOCFramework", "job": p["job"], "action_status": f"mode {name}",
+                         "action_taken": f"{p['job']}: {p['change']}"})
+        outputs["applied"] = True
+        outputs["recorded"] = _record(rows)
+
+    title = ("nothing to change" if not changed else "applied" if outputs["applied"]
+             else "dry run, nothing written")
+    md = [f"### Mode {name}: {title}", "", f"This tenant matched: {current or 'custom'}", "",
+          "| Setting | Now | After |", "|---|---|---|"]
+    md += [f"| {c['action']} ({c['actor']}) | {c['from']} | {c['to']}{'' if c['changed'] else ' (no change)'} |"
+           for c in changes]
+    for p in job_plan:
+        md.append(f"| {p['job']} JOB | {_on_off(p['from']['scheduled'])}, owner {_shown(p['from']['owner'])} | "
+                  f"{_on_off(p['to']['scheduled'])}, owner {_shown(p['to']['owner'])} |")
+    if notes:
+        md += [""] + [f"- {n}" for n in notes]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mode", outputs=outputs)
+
+
 # ── entry ────────────────────────────────────────────────────────────────────
 
 # The arguments each command takes. One given to the wrong command is refused, so
@@ -1333,6 +1561,7 @@ COMMAND_ARGS = {
                   "confidence", "exposure", "action", "enabled", "protect", "containable_hosts",
                   "containable_roles", "role", "escalate_severity"},
     "triage": {"score_threshold", "window_hours"},
+    "mode": {"mode", "owner"},
 }
 ALWAYS_ARGS = {"command", "apply"}
 
@@ -1360,7 +1589,8 @@ def _yes(value):
 
 
 COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner,
-            "emergency": emergency, "triage": triage}
+            "emergency": emergency, "triage": triage,
+            "mode": mode}
 
 
 def main():

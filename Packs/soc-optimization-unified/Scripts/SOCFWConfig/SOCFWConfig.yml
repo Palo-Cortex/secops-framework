@@ -12,7 +12,8 @@ comment: Configures the SOC Framework on this tenant. status shows which actions
   named actors, or returns it to the shipped setting. set sets or removes one customer
   value, such as a block-list id or proxy category. emergency lists, edits or adds
   the issue-level emergency response policies. triage shows or sets Auto Triage's
-  score threshold and age window. Every change is a dry run unless
+  score threshold and age window. mode applies a set of these settings from SOCFWConfigModes,
+  including turning Auto Triage on. Every change is a dry run unless
   apply=yes. Settings are written to SOCFWTenantConfig, a JSON list this script creates
   on first write (through the Core REST API integration) and no pack install overwrites.
 tags:
@@ -31,8 +32,8 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default), shadow, set, job, owner, emergency or triage. Each command
-    takes only the arguments marked with it; one marked for another command is refused.
+  description: status (default), shadow, set, job, owner, emergency, triage or mode. Each
+    command takes only the arguments marked with it; one marked for another command is refused.
   defaultValue: status
   auto: PREDEFINED
   predefined:
@@ -43,6 +44,7 @@ args:
   - owner
   - emergency
   - triage
+  - mode
 - name: action
   description: "[status, shadow, emergency] The action, e.g. soc-star-case. Required for
     shadow. For status, limits the table to these actions (comma-separated). For emergency,
@@ -67,8 +69,9 @@ args:
   - Auto Triage V3
   - SOC Case Analysis
 - name: owner
-  description: "[owner] The user who owns the job (an email or username on this tenant).
-    A job cannot run without one."
+  description: "[owner, mode] The user who owns the job - the email of a user on this tenant.
+    A job cannot run without one. Optional with mode; without it a JOB that has no owner stays
+    off."
 - name: value
   description: "[shadow, set, job] For shadow - on (simulate), off (run for real) or default
     (use the shipped setting). For set - the value, or default to remove it. For job - on
@@ -164,6 +167,17 @@ args:
 - name: window_hours
   description: "[triage] Auto Triage never closes a case younger than this many hours (more
     than 0). default returns to the value in SOCOptimizationConfig_V3."
+- name: mode
+  description: "[mode] The mode to apply from SOCFWConfigModes - pov, star_and_triage,
+    contain_identity_and_hosts or contain_all - or default to remove the mode settings and turn
+    Auto Triage off. Leave empty to list the modes against this tenant."
+  auto: PREDEFINED
+  predefined:
+  - pov
+  - star_and_triage
+  - contain_identity_and_hosts
+  - contain_all
+  - default
 - name: apply
   description: yes writes the change. Anything else is a dry run that shows the change.
   defaultValue: "no"
@@ -300,5 +314,32 @@ outputs:
   description: The command that writes this change.
   type: String
 - contextPath: SOCFWConfig.Triage.contract_version
+  description: Version of this output's keys.
+  type: Number
+- contextPath: SOCFWConfig.Status.mode
+  description: The mode this tenant's settings match, default, or custom.
+  type: String
+- contextPath: SOCFWConfig.Mode.current
+  description: Listing only - the mode this tenant matches, default, or custom.
+  type: String
+- contextPath: SOCFWConfig.Mode.changes
+  description: One row per switch the mode sets - action, actor, from, to, changed.
+  type: Unknown
+- contextPath: SOCFWConfig.Mode.jobs
+  description: One row per JOB - job, from and to (owner, scheduled), changed.
+  type: Unknown
+- contextPath: SOCFWConfig.Mode.notes
+  description: What was not changed and why, e.g. a JOB left off for want of an owner.
+  type: Unknown
+- contextPath: SOCFWConfig.Mode.applied
+  description: True when the change was written and read back.
+  type: Boolean
+- contextPath: SOCFWConfig.Mode.dry_run
+  description: True when nothing was written.
+  type: Boolean
+- contextPath: SOCFWConfig.Mode.apply_command
+  description: The command that writes this change.
+  type: String
+- contextPath: SOCFWConfig.Mode.contract_version
   description: Version of this output's keys.
   type: Number
