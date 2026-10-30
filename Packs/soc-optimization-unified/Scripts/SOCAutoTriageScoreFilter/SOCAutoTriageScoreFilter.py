@@ -175,6 +175,61 @@ def _is_unstarred(value):
     return False
 
 
+TENANT_CONFIG_LIST = 'SOCFWTenantConfig'
+
+
+def tenant_triage():
+    """The 'triage' overrides in SOCFWTenantConfig, or {} when there are none.
+
+    Set with !SOCFWConfig command=triage. They live in the tenant's own list, so a
+    pack upgrade that rewrites SOCOptimizationConfig_V3 cannot undo them. Read
+    with demisto.executeCommand rather than execute_command: a tenant that never
+    created the list is the normal case, not an error.
+    """
+    try:
+        res = demisto.executeCommand('getList', {'listName': TENANT_CONFIG_LIST})
+    except Exception as e:  # noqa: BLE001
+        demisto.debug(f'{TENANT_CONFIG_LIST} unreadable, using the JOB values: {e}')
+        return {}
+    entry = res[0] if isinstance(res, list) and res and isinstance(res[0], dict) else {}
+    raw = entry.get('Contents')
+    if entry.get('Type') == 4 or not raw:
+        return {}
+    try:
+        doc = raw if isinstance(raw, dict) else json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    section = doc.get('triage') if isinstance(doc, dict) else None
+    return section if isinstance(section, dict) else {}
+
+
+def resolve_settings(args, overrides):
+    """(threshold, window_hours, sources). threshold None means the score is off.
+
+    A tenant override beats the argument the JOB passes from SOCOptimizationConfig_V3.
+    Raises ValueError on a value that is not usable; the run then closes nothing.
+    """
+    sources = {'score_threshold': 'argument', 'window_hours': 'argument'}
+    raw_threshold = args.get('score_threshold', '40')
+    raw_window = args.get('window_hours', '6')
+    if overrides.get('score_threshold') not in (None, ''):
+        raw_threshold, sources['score_threshold'] = overrides['score_threshold'], TENANT_CONFIG_LIST
+    if overrides.get('window_hours') not in (None, ''):
+        raw_window, sources['window_hours'] = overrides['window_hours'], TENANT_CONFIG_LIST
+
+    if str(raw_threshold).strip().lower() == 'off':
+        threshold = None
+    else:
+        threshold = _to_float(raw_threshold)
+        if threshold is None:
+            raise ValueError(f'Invalid score_threshold value from {sources["score_threshold"]}: '
+                             f'{raw_threshold!r}')
+    window_hours = _to_float(raw_window)
+    if window_hours is None or window_hours <= 0:
+        raise ValueError(f'Invalid window_hours value from {sources["window_hours"]}: {raw_window!r}')
+    return threshold, window_hours, sources
+
+
 def fetch_batch(cutoff_ms: int, search_from: int, batch_size: int) -> dict:
     """Fetch one page of unstarred New incidents created at or before cutoff_ms.
 
@@ -218,24 +273,26 @@ def fetch_batch(cutoff_ms: int, search_from: int, batch_size: int) -> dict:
 def main():
     args = demisto.args()
 
-    # Policy default is 40 (close cases scored 40 or below). The JOB should still
-    # pass score_threshold explicitly so the policy lives in one obvious place.
-    threshold = args.get('score_threshold', '40')
-    window_hours = args.get('window_hours', '6')
+    # Policy default is 40 (close cases scored 40 or below) and 6 hours. The JOB
+    # passes both from SOCOptimizationConfig_V3; a tenant value set with
+    # SOCFWConfig command=triage wins over either.
+    try:
+        threshold, window_hours, sources = resolve_settings(args, tenant_triage())
+    except ValueError as e:
+        return_error(str(e))
+        return
+    threshold_label = 'off' if threshold is None else threshold
+    if sources['score_threshold'] != 'argument':
+        threshold_label = f'{threshold_label} ({sources["score_threshold"]})'
+    window_label = f'{window_hours}h'
+    if sources['window_hours'] != 'argument':
+        window_label = f'{window_label} ({sources["window_hours"]})'
     # max_batches caps offset depth per run. With offset pagination each batch
     # is O(offset), so this is a COST ceiling, not a "drain the whole backlog in
     # one run" knob — large backlogs drain over repeated scheduled runs as closed
     # cases leave status=new. Keep it modest (deepest offset = max_batches*100);
     # the wall-clock guard (MAX_RUNTIME_SECONDS) is the real timeout backstop.
     max_batches = args.get('max_batches', '20')
-
-    threshold = _to_float(threshold)
-    if threshold is None:
-        return_error(f'Invalid score_threshold value: {args.get("score_threshold")}')
-
-    window_hours = _to_float(window_hours)
-    if window_hours is None:
-        return_error(f'Invalid window_hours value: {args.get("window_hours")}')
 
     try:
         max_batches = int(max_batches)
@@ -440,7 +497,8 @@ def main():
                 # a silent drop here made 201 scanned / 0 passed / 0 skipped
                 # indistinguishable from "missing score field" vs "above
                 # threshold" and hid the real cause for a whole session.
-                if aggregated_score is None:
+                # With the score off (threshold None) neither score check applies.
+                if threshold is not None and aggregated_score is None:
                     skipped.append({
                         'incident_id': incident_id,
                         'aggregated_score': None,
@@ -449,7 +507,7 @@ def main():
                     continue
 
                 # Skip if the score is above threshold. RECORDED for the same reason.
-                if aggregated_score > threshold:
+                if threshold is not None and aggregated_score > threshold:
                     skipped.append({
                         'incident_id': incident_id,
                         'aggregated_score': aggregated_score,
@@ -513,6 +571,9 @@ def main():
 
     outputs = {
         'dry_run': dry_run,
+        'score_threshold': 'off' if threshold is None else threshold,
+        'window_hours': window_hours,
+        'settings_from': sources,
         'skipped_incidents': skipped,
         'passed_count': len(passed),
         'closed_count': len(closed_ok),
@@ -536,15 +597,15 @@ def main():
     if dry_run:
         readable = (
             f'DRY RUN — would close {len(passed)} case(s); closed 0. '
-            f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold}, '
-            f'window: {window_hours}h, scanned: {total_scanned} across {batches_run} '
+            f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold_label}, '
+            f'window: {window_label}, scanned: {total_scanned} across {batches_run} '
             f'batches){budget_note}{metrics_note}. Set dry_run=false to close for real.'
         )
     else:
         readable = (
             f'Auto triage: closed {len(closed_ok)}, failed {len(closed_fail)}, '
-            f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold}, '
-            f'window: {window_hours}h, scanned: {total_scanned} across {batches_run} '
+            f'{len(skipped)} skipped (domains: {domain_scope_label}, threshold: {threshold_label}, '
+            f'window: {window_label}, scanned: {total_scanned} across {batches_run} '
             f'batches){budget_note}{metrics_note}'
         )
 
