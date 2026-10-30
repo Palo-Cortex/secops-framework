@@ -68,13 +68,21 @@
                 "field": "confidence",
                 "op": "gte",
                 "value": "high"
+              },
+              {
+                "field": "escalate_recommended",
+                "op": "in",
+                "values": [
+                  true,
+                  "true"
+                ]
               }
             ],
             "target_severity": "critical",
-            "reason": "Assessment returned a malicious verdict at high confidence"
+            "reason": "Assessment returned a malicious verdict at high confidence and asked for an analyst"
           }
         ],
-        "note": "Any matching rule elevates the case; conditions inside a rule are AND'd via `requires`. Deliberately conservative - a star cannot be undone by the framework and a starred case is exempt from auto-close, so the bar is a malicious verdict at high confidence. escalate_recommended was removed as a star condition: the prompt itself warns it must not merely restate the verdict, and on a Turla Carbon replay it was true on 53 of 60 assessed issues against 48 malicious - so it only ever loosened the bar, adding one case that had no malicious issue at all. Measured on that replay, malicious-at-high-confidence starred exactly the five cases carrying real attack activity and left the unrelated AIRS and AWS findings alone. raise_severity ships FALSE: the severity action is not shipped yet because its placeholders do not resolve from context written in the same run. Starring is unaffected. When severity lands it is RAISE ONLY - the framework never lowers one. An absent field never matches. Operators: eq, in, gte."
+        "note": "Any matching rule elevates the case; conditions inside a rule are AND'd via `requires`. Deliberately conservative - a star cannot be undone by the framework and a starred case is exempt from auto-close, so the bar is a malicious verdict at high confidence that also needs an analyst (escalate_recommended). escalate_recommended is AND'd, never a rule of its own: on a Turla Carbon replay it was true on 53 of 60 assessed issues against 48 malicious, so as an OR it only loosened the bar. As a requirement it can only narrow: malicious work the assessment says needs no analyst - a phishing email delivered and never clicked, a threat a control already stopped - stays visible and unstarred, and is starred if a later issue in the case (a click, an execution) needs one. It lists both true and \"true\" so a model that writes the string cannot silently stop all starring; an absent value never matches. raise_severity ships FALSE: the severity action is not shipped yet because its placeholders do not resolve from context written in the same run. Starring is unaffected. When severity lands it is RAISE ONLY - the framework never lowers one. An absent field never matches. Operators: eq, in, gte."
       },
       "emergency": {
         "enabled": true,
