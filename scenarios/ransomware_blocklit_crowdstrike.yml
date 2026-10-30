@@ -1,0 +1,23 @@
+# CrowdStrike Falcon — BlockLit ransomware
+#
+# A ransomware run against a CrowdStrike sensor, as the SOC CrowdStrike Falcon -
+# Endpoint All Alerts rule ingests it: 63 detection events (21 detections plus
+# CrowdStrike's update events for them). The TSV is local only — input_tsv/ is
+# gitignored, and the capture is sanitized before it is placed there.
+#
+# Chain: obfuscated PowerShell (T1059.001) -> C2 over 8080/8081 -> fsutil
+#        setZeroData (T1070) -> BlockLit encryption (T1486). Falcon prevention was
+#        detection-only, so containment, eradication and recovery come from the
+#        SOC Framework (Shadow Mode by default).
+#
+# compress_window matches the original attack's span, so its gaps are reproduced.
+#
+#   python3 tools/replay_scenario.py --manifest scenarios/ransomware_blocklit_crowdstrike.yml --dry-run
+#   python3 tools/replay_scenario.py --manifest scenarios/ransomware_blocklit_crowdstrike.yml
+#
+scenario: Ransomware — BlockLit on CrowdStrike
+compress_window: 23m
+sources:
+  - name: CrowdStrike Falcon
+    file: input_tsv/CrowdStrike-Ransomware-BlockLit.tsv
+    env: .env-deathstar-crowdstrike
