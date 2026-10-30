@@ -35,14 +35,18 @@ enabled: true
 args:
 - supportedModules: []
   name: score_threshold
-  required: true
+  required: false
   description: Maximum aggregated_score to be eligible for auto-close. Cases above
-    this are skipped. Reads from SOCOptimizationConfig_V3 TriageScoreThreshold field.
+    this are skipped. The JOB passes SOCOptimizationConfig_V3 TriageScoreThreshold; a
+    value set with !SOCFWConfig command=triage (kept in SOCFWTenantConfig) wins over it,
+    and off there ignores the score. Default 40.
 - supportedModules: []
   name: window_hours
-  required: true
+  required: false
   description: Minimum age in hours before a case is eligible for auto-close. Cases
-    newer than this are skipped. Reads from SOCOptimizationConfig_V3 TriageWindowHours field.
+    newer than this are skipped. The JOB passes SOCOptimizationConfig_V3 TriageWindowHours;
+    a value set with !SOCFWConfig command=triage (kept in SOCFWTenantConfig) wins over it.
+    Default 6.
 - supportedModules: []
   name: max_batches
   required: false
@@ -92,6 +96,16 @@ outputs:
 - contextPath: AutoTriage.dry_run
   description: Whether this run was a dry run (selected but closed nothing).
   type: Boolean
+- contextPath: AutoTriage.score_threshold
+  description: The threshold this run used, or off when the score was ignored.
+  type: Unknown
+- contextPath: AutoTriage.window_hours
+  description: The age window in hours this run used.
+  type: Number
+- contextPath: AutoTriage.settings_from
+  description: Where each setting came from - argument (the JOB's SOCOptimizationConfig_V3
+    value) or SOCFWTenantConfig.
+  type: Unknown
 - contextPath: AutoTriage.would_close_count
   description: In a dry run, the number of cases that would have closed.
   type: Number

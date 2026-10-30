@@ -19,6 +19,9 @@ Commands
            List the emergency response policies (shipped and this tenant's), or
            edit one by its label, add one, or return one to what shipped with
            enabled=default. Dry run unless apply=yes.
+  triage   Show or set Auto Triage's score threshold and age window for this
+           tenant, or return either to what SOCOptimizationConfig_V3 ships with
+           default. Dry run unless apply=yes.
 
 Each command takes only its own arguments; one that belongs to another command
 is refused rather than ignored.
@@ -32,6 +35,8 @@ SOCCommandWrapper reads what this script writes:
   {vendor: {arg: value}}                fills args the action ships empty
 SOCFWEmergencyResponse reads:
   {"emergency": {"policies": {label: {field: value}}}}
+SOCAutoTriageScoreFilter reads:
+  {"triage": {"score_threshold": number or "off", "window_hours": number}}
 """
 
 import json
@@ -1163,6 +1168,149 @@ def emergency(args):
                           outputs=outputs)
 
 
+# ── triage ───────────────────────────────────────────────────────────────────
+
+OPTIMIZATION_LIST = "SOCOptimizationConfig_V3"
+TRIAGE_JOB_SECTION = "Triage Incidents JOB"
+# Tenant key -> the field the JOB passes from SOCOptimizationConfig_V3. The tenant
+# value wins in SOCAutoTriageScoreFilter, so a pack upgrade that rewrites the
+# shipped list cannot undo it.
+TRIAGE_FIELDS = {"score_threshold": "TriageScoreThreshold",
+                 "window_hours": "TriageWindowHours"}
+
+
+def shipped_triage():
+    """The values SOCOptimizationConfig_V3 hands the Auto Triage JOB, or None each."""
+    try:
+        _, doc = _read_list(OPTIMIZATION_LIST)
+    except ConfigError:
+        doc = None
+    fields = (((doc or {}).get(TRIAGE_JOB_SECTION) or {}).get("fields") or {})
+    return {key: fields.get(field) for key, field in TRIAGE_FIELDS.items()}
+
+
+def _number(text):
+    n = float(text)
+    return int(n) if n.is_integer() else n
+
+
+def triage_value(key, raw):
+    """What to store for key: a number, "off" (score only), or None to remove."""
+    text = str(raw).strip().lower()
+    if text == "default":
+        return None
+    if key == "score_threshold" and text == "off":
+        return "off"
+    try:
+        n = _number(text)
+    except ValueError:
+        allowed = "a number, off or default" if key == "score_threshold" else "a number or default"
+        raise ConfigError(f"{key} must be {allowed}, not {raw!r}")
+    if key == "score_threshold" and n < 0:
+        raise ConfigError("score_threshold must be 0 or more")
+    if key == "window_hours" and n <= 0:
+        raise ConfigError("window_hours must be more than 0; Auto Triage never closes a case "
+                          "younger than this")
+    return n
+
+
+def _triage_section(cfg):
+    section = cfg.get("triage", {})
+    if not isinstance(section, dict):
+        raise ConfigError(f"'triage' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    return section
+
+
+def _triage_view(cfg, shipped):
+    section = _triage_section(cfg)
+    view = {}
+    for key in TRIAGE_FIELDS:
+        tenant = section.get(key)
+        view[key] = {"shipped": shipped.get(key), "tenant": tenant,
+                     "effective": tenant if tenant not in (None, "") else shipped.get(key),
+                     "from": "tenant" if tenant not in (None, "") else "shipped"}
+    return view
+
+
+def _triage_table(view):
+    md = ["| Setting | Shipped | This tenant | Auto Triage uses |", "|---|---|---|---|"]
+    for key, v in view.items():
+        md.append(f"| {key} | {_shown(v['shipped'])} | {_shown(v['tenant'])} | "
+                  f"{_shown(v['effective'])} |")
+    return md
+
+
+def triage(args):
+    given = {k: args.get(k) for k in TRIAGE_FIELDS
+             if str(args.get(k) if args.get(k) is not None else "").strip()}
+    apply = _yes(args.get("apply"))
+    cfg, exists = load_tenant_config()
+    shipped = shipped_triage()
+    before = _triage_view(cfg, shipped)
+
+    if not given:
+        md = ["### Auto Triage settings", ""] + _triage_table(before) + [
+              "", f"Shipped values come from `{OPTIMIZATION_LIST}` → `{TRIAGE_JOB_SECTION}`; a value "
+              f"set here is kept in `{TENANT_CONFIG_LIST}` and survives pack upgrades.",
+              "score_threshold: cases scored at or below it may close; `off` ignores the score. "
+              "window_hours: cases younger than this are never closed.",
+              "", "Change one: `!SOCFWConfig command=triage score_threshold=<n|off|default> "
+                  "window_hours=<n|default>` — add `apply=yes` to write."]
+        return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Triage",
+                              outputs={"contract_version": CONTRACT_VERSION, "command": "triage",
+                                       "settings": before, "dry_run": True, "applied": False})
+
+    new_cfg = json.loads(json.dumps(cfg))
+    section = _triage_section(new_cfg)
+    for key, raw in given.items():
+        value = triage_value(key, raw)
+        if value is None:
+            section.pop(key, None)
+        else:
+            section[key] = value
+    if section:
+        new_cfg["triage"] = section
+    else:
+        new_cfg.pop("triage", None)
+    after = _triage_view(new_cfg, shipped)
+
+    changes = [{"setting": k, "from": before[k]["effective"], "to": after[k]["effective"],
+                "from_source": before[k]["from"], "to_source": after[k]["from"],
+                "changed": before[k]["tenant"] != after[k]["tenant"]} for k in given]
+    changed = any(c["changed"] for c in changes)
+    apply_args = " ".join(f"{k}={str(v).strip()}" for k, v in given.items())
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "triage",
+               "dry_run": not apply, "applied": False, "changed": changed, "changes": changes,
+               "settings": after, "tenant_config_list": TENANT_CONFIG_LIST,
+               "creates_list": False, "recorded": False,
+               "apply_command": f"!SOCFWConfig command=triage {apply_args} apply=yes"}
+
+    if changed:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([
+                {"universal_command": "auto_triage", "action_status": f"set {c['setting']}",
+                 "action_taken": f"{c['setting']}: {_plain(c['from'])} ({c['from_source']}) -> "
+                                 f"{_plain(c['to'])} ({c['to_source']})"}
+                for c in changes if c["changed"]])
+
+    md = ["### Auto Triage settings: " + ("nothing to change" if not changed else
+                                          "applied" if outputs["applied"]
+                                          else "dry run, nothing written"), ""]
+    md += ["| Setting | Now | After |", "|---|---|---|"]
+    md += [f"| {c['setting']} | {_shown(c['from'])} ({c['from_source']}) | "
+           f"{_shown(c['to'])} ({c['to_source']}) |" for c in changes]
+    if any(c["setting"] == "score_threshold" and c["to"] == "off" and c["changed"] for c in changes):
+        md += ["", "With the score off, every unstarred New case older than the window closes. "
+                   "Only starred cases are protected."]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Triage",
+                          outputs=outputs)
+
+
 # ── entry ────────────────────────────────────────────────────────────────────
 
 # The arguments each command takes. One given to the wrong command is refused, so
@@ -1176,6 +1324,7 @@ COMMAND_ARGS = {
     "emergency": {"policy", "about", "entity_type", "source", "rule_id", "name_contains", "tactic", "verdict",
                   "confidence", "exposure", "action", "enabled", "protect", "containable_hosts",
                   "containable_roles", "role", "escalate_severity"},
+    "triage": {"score_threshold", "window_hours"},
 }
 ALWAYS_ARGS = {"command", "apply"}
 
@@ -1203,7 +1352,7 @@ def _yes(value):
 
 
 COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner,
-            "emergency": emergency}
+            "emergency": emergency, "triage": triage}
 
 
 def main():

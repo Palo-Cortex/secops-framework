@@ -864,3 +864,126 @@ def test_protect_takes_domains():
 def test_containable_hosts_does_not_take_domains():
     with pytest.raises(Exception, match="containable_hosts entry"):
         run(em_tenant({}), command="emergency", containable_hosts="domain:skt.local")
+
+
+# ── triage: Auto Triage threshold and window, kept out of the shipped list ───
+
+OPT = json.load(open(os.path.join(
+    HERE, "..", "..", "Lists", "SOCOptimizationConfig_V3", "SOCOptimizationConfig_V3_data.json")))
+
+
+def triage_tenant(cfg=None):
+    lists = {"SOCOptimizationConfig_V3": OPT}
+    if cfg is not None:
+        lists[NEW] = cfg
+    return Tenant(**lists)
+
+
+def test_triage_lists_shipped_values_when_nothing_is_set():
+    r = run(triage_tenant(), command="triage")
+    s = r.outputs["settings"]
+    assert s["score_threshold"] == {"shipped": "40", "tenant": None, "effective": "40", "from": "shipped"}
+    assert s["window_hours"]["effective"] == "6" and s["window_hours"]["from"] == "shipped"
+    assert "command=triage" in r.readable_output
+
+
+def test_triage_is_a_dry_run_by_default():
+    t = triage_tenant()
+    r = run(t, command="triage", score_threshold="100")
+    assert r.outputs["dry_run"] and r.outputs["changed"] and t.writes() == []
+    assert r.outputs["apply_command"] == "!SOCFWConfig command=triage score_threshold=100 apply=yes"
+
+
+def test_triage_apply_writes_the_tenant_list_records_and_wins_over_shipped():
+    t = triage_tenant({})
+    r = run(t, command="triage", score_threshold="100", window_hours="12", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.config()["triage"] == {"score_threshold": 100, "window_hours": 12}
+    assert r.outputs["settings"]["score_threshold"]["effective"] == 100
+    assert r.outputs["settings"]["score_threshold"]["from"] == "tenant"
+    rows = [x for x in t.rows if x["event_type"] == "config_change"]
+    assert len(rows) == 2 and all("incident_id" not in x and "phase" not in x for x in rows)
+    # The shipped list is never touched.
+    assert json.loads(t.lists["SOCOptimizationConfig_V3"]) == OPT
+
+
+def test_triage_first_write_creates_a_json_list():
+    t = triage_tenant()
+    run(t, command="triage", window_hours="3", apply="yes")
+    assert t.types[NEW] == "json" and t.config() == {"triage": {"window_hours": 3}}
+
+
+def test_triage_off_ignores_the_score_and_warns():
+    t = triage_tenant({})
+    r = run(t, command="triage", score_threshold="off", apply="yes")
+    assert t.config()["triage"]["score_threshold"] == "off"
+    assert "Only starred cases are protected" in r.readable_output
+
+
+def test_triage_default_removes_one_setting_then_the_section():
+    t = triage_tenant({"triage": {"score_threshold": 100, "window_hours": 12}, "Zscaler": {"using": "z"}})
+    run(t, command="triage", score_threshold="default", apply="yes")
+    assert t.config()["triage"] == {"window_hours": 12}
+    run(t, command="triage", window_hours="default", apply="yes")
+    assert "triage" not in t.config() and t.config()["Zscaler"] == {"using": "z"}
+
+
+def test_triage_repeat_is_a_no_op():
+    t = triage_tenant({"triage": {"score_threshold": 100}})
+    r = run(t, command="triage", score_threshold="100", apply="yes")
+    assert not r.outputs["changed"] and not r.outputs["applied"] and t.writes() == []
+    assert "nothing to change" in r.readable_output
+
+
+def test_triage_decimal_hours_are_kept():
+    t = triage_tenant({})
+    run(t, command="triage", window_hours="1.5", apply="yes")
+    assert t.config()["triage"]["window_hours"] == 1.5
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"score_threshold": "high"}, "score_threshold must be a number, off or default"),
+    ({"score_threshold": "-1"}, "score_threshold must be 0 or more"),
+    ({"window_hours": "0"}, "window_hours must be more than 0"),
+    ({"window_hours": "-2"}, "window_hours must be more than 0"),
+    ({"window_hours": "off"}, "window_hours must be a number or default"),
+])
+def test_triage_bad_values_name_the_fix(args, message):
+    t = triage_tenant({})
+    with pytest.raises(RuntimeError, match=message):
+        run(t, command="triage", apply="yes", **args)
+    assert t.writes() == []
+
+
+def test_triage_malformed_section_is_never_overwritten():
+    t = triage_tenant({"triage": "100"})
+    with pytest.raises(RuntimeError, match="'triage' in SOCFWTenantConfig is not an object"):
+        run(t, command="triage", score_threshold="50", apply="yes")
+    assert t.config() == {"triage": "100"}
+
+
+def test_triage_without_the_shipped_list_still_shows_the_tenant_value():
+    t = Tenant(**{NEW: {"triage": {"score_threshold": 100}}})
+    r = run(t, command="triage")
+    assert r.outputs["settings"]["score_threshold"]["effective"] == 100
+    assert r.outputs["settings"]["window_hours"]["effective"] is None
+
+
+@pytest.mark.parametrize("command, args, message", [
+    ("status", {"score_threshold": "100"}, "score_threshold is for command=triage, not status"),
+    ("triage", {"policy": "x"}, "policy is for command=emergency, not triage"),
+    ("triage", {"value": "on"}, "value is for command=job/set/shadow, not triage"),
+])
+def test_triage_arguments_belong_to_triage_only(command, args, message):
+    with pytest.raises(RuntimeError, match=message):
+        run(triage_tenant({}), command=command, **args)
+
+
+def test_triage_arguments_are_declared_and_marked():
+    import yaml
+    spec = yaml.safe_load(open(os.path.join(HERE, "SOCFWConfig.yml")))
+    declared = {a["name"]: a for a in spec["args"]}
+    module = importlib.import_module("SOCFWConfig")
+    assert "triage" in declared["command"]["predefined"]
+    for name in module.COMMAND_ARGS["triage"]:
+        assert declared[name]["description"].startswith("[triage]"), name

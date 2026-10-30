@@ -11,7 +11,8 @@ comment: Configures the SOC Framework on this tenant. status shows which actions
   and which customer values are set. shadow takes one action on or off shadow for
   named actors, or returns it to the shipped setting. set sets or removes one customer
   value, such as a block-list id or proxy category. emergency lists, edits or adds
-  the issue-level emergency response policies. Every change is a dry run unless
+  the issue-level emergency response policies. triage shows or sets Auto Triage's
+  score threshold and age window. Every change is a dry run unless
   apply=yes. Settings are written to SOCFWTenantConfig, a JSON list this script creates
   on first write (through the Core REST API integration) and no pack install overwrites.
 tags:
@@ -30,8 +31,8 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default), shadow, set, job, owner or emergency. Each command takes
-    only the arguments marked with it; one marked for another command is refused.
+  description: status (default), shadow, set, job, owner, emergency or triage. Each command
+    takes only the arguments marked with it; one marked for another command is refused.
   defaultValue: status
   auto: PREDEFINED
   predefined:
@@ -41,6 +42,7 @@ args:
   - job
   - owner
   - emergency
+  - triage
 - name: action
   description: "[status, shadow, emergency] The action, e.g. soc-star-case. Required for
     shadow. For status, limits the table to these actions (comma-separated). For emergency,
@@ -155,6 +157,13 @@ args:
   - high
   - critical
   - default
+- name: score_threshold
+  description: "[triage] Auto Triage closes a case scored at or below this (0 or more). off
+    ignores the score, so every unstarred New case older than the window closes. default
+    returns to the value in SOCOptimizationConfig_V3."
+- name: window_hours
+  description: "[triage] Auto Triage never closes a case younger than this many hours (more
+    than 0). default returns to the value in SOCOptimizationConfig_V3."
 - name: apply
   description: yes writes the change. Anything else is a dry run that shows the change.
   defaultValue: "no"
@@ -267,5 +276,25 @@ outputs:
     containable_roles, role, escalate_severity with where it came from (shipped or this tenant).
   type: Unknown
 - contextPath: SOCFWConfig.Emergency.contract_version
+  description: Version of this output's keys.
+  type: Number
+- contextPath: SOCFWConfig.Triage.settings
+  description: score_threshold and window_hours, each with shipped (SOCOptimizationConfig_V3),
+    tenant (SOCFWTenantConfig), effective (what Auto Triage uses) and from (shipped or
+    tenant).
+  type: Unknown
+- contextPath: SOCFWConfig.Triage.changes
+  description: One row per setting given - setting, from, to, from_source, to_source, changed.
+  type: Unknown
+- contextPath: SOCFWConfig.Triage.applied
+  description: True when the change was written and read back.
+  type: Boolean
+- contextPath: SOCFWConfig.Triage.dry_run
+  description: True when nothing was written.
+  type: Boolean
+- contextPath: SOCFWConfig.Triage.apply_command
+  description: The command that writes this change.
+  type: String
+- contextPath: SOCFWConfig.Triage.contract_version
   description: Version of this output's keys.
   type: Number
