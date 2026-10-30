@@ -19,7 +19,7 @@ Part of the CrowdStrike three-pack set — one pack per product, all sharing the
 
 | Component | Description |
 |---|---|
-| **Correlation Rule** — `SOC CrowdStrike Falcon - Endpoint All Alerts` | Fires on every CrowdStrike EPP detection (`product = "epp"`). Normalizes fields, resolves identity email-first, and maps to SOC Framework issue fields. Real-time; suppression per `composite_id` / 1 hour. |
+| **Correlation Rule** — `SOC CrowdStrike Falcon - Endpoint All Alerts` | Fires on every CrowdStrike EPP detection (`product = "epp"`). Normalizes fields, resolves identity email-first, and maps to SOC Framework issue fields. Appends the detection's file activity (files accessed and written) to the alert description so the assessment sees what the process touched. Real-time; suppression per `composite_id` / 1 hour. |
 | **Modeling Rule** — `SOCCrowdStrikeFalconModelingRules` | Maps raw EPP events to XDM for XSIAM analytics and identity stories. |
 
 ---

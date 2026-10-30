@@ -330,6 +330,17 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter files_written_names = arraymap(fwa, json_extract_scalar(to_json_string("@element"), "$.filename"))
 | alter remote_ips = arraymap(na, json_extract_scalar(to_json_string("@element"), "$.remote_address"))
 
+// File activity from the detection, so the assessment sees what the process touched.
+// Real-time safe: only functions this rule already uses (no array_length/arraystring/arrayrange).
+| alter faa = json_extract_array(to_json_string(files_accessed), "$")
+| alter files_accessed_paths = arraymap(faa, concat(json_extract_scalar(to_json_string("@element"), "$.filepath"), "|", json_extract_scalar(to_json_string("@element"), "$.filename")))
+| alter files_written_paths  = arraymap(fwa, concat(json_extract_scalar(to_json_string("@element"), "$.filepath"), "|", json_extract_scalar(to_json_string("@element"), "$.filename")))
+| alter file_activity_summary = concat(
+    if(to_json_string(files_accessed_paths) != null and to_json_string(files_accessed_paths) != "[]",
+       concat(" | Files accessed (folder|file): ", to_json_string(files_accessed_paths)), ""),
+    if(to_json_string(files_written_paths) != null and to_json_string(files_written_paths) != "[]",
+       concat(" | Files written (folder|file): ", to_json_string(files_written_paths)), ""))
+
 | alter alert_name = concat(
     "[Endpoint] ",
     coalesce(user_name, hostname, "Unknown"),
@@ -343,7 +354,8 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     coalesce(description, name),
     " | Host: ",  coalesce(hostname, "Unknown"),
     " | User: ",  coalesce(user_name, "Unknown"),
-    " | Severity: ", coalesce(severity_name, "Unknown")
+    " | Severity: ", coalesce(severity_name, "Unknown"),
+    coalesce(file_activity_summary, "")
   )
 
 | alter

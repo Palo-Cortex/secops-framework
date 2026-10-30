@@ -1,7 +1,7 @@
 # SOC CrowdStrike Falcon — Post-Installation Steps
 
-Complete these after installing the pack: three required (enable → migrate → verify) and one
-optional (CIE enrichment). Prerequisites are in the pack **README** (*Before you install*).
+Complete these after installing the pack: three required (enable → migrate → verify) and two
+optional (CIE enrichment, scheduled mode). Prerequisites are in the pack **README** (*Before you install*).
 
 ---
 
@@ -64,6 +64,30 @@ instead of the event alone.
 The overlay coalesces `socfw_identity_map` values **over** the flat identity — the alert-field
 mappings don't change, so nothing downstream is affected. Until the chain is live the join
 no-ops and the rule keeps running flat.
+
+---
+
+## Step 5 — *(Optional)* Run the rule on a schedule instead of real time
+
+The rule ships **Real Time**, so alerts are raised as detections are ingested. Run it on a
+schedule only if a tenant needs it (for example, to add stages a real-time rule can't run).
+For CIE enrichment, use Step 4 instead — it has its own schedule.
+
+1. **Detection & Threat Intel → Correlations** → edit **`SOC CrowdStrike Falcon - Endpoint All Alerts`**
+2. Set **Execution Mode** to **Scheduled**: crontab `*/10 * * * *`, schedule `10 minutes`,
+   search window `20 minutes`.
+3. Leave **suppression** on (`composite_id`, 1 hour). The window overlaps the schedule so
+   detections that ingest late are still picked up; suppression stops the overlap from
+   alerting the same detection twice.
+
+Alerts now arrive on the schedule, up to 10 minutes after ingestion, instead of immediately.
+
+> **If you edit the XQL while the rule is Real Time:** real-time rules accept only the
+> `dataset`, `filter`, `alter`, `fields` and `config` stages. Some functions also stop a
+> real-time rule from alerting **without raising an error**, even though the same XQL runs
+> fine in XQL Search — `array_length`, `arraystring`, `arrayrange`, `to_string` and `trim`
+> did on XSIAM 3.6. After any edit, send one test detection and confirm it alerts before
+> relying on the rule.
 
 ---
 
