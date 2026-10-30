@@ -533,37 +533,6 @@ TESTS = {
         ],
     },
 
-    "PM2": {
-        "name": "Pack Manager — sync-tags first run writes version",
-        "category": "happy",
-        "replay": None,
-        "wait_seconds": 30,
-        "checks": [
-            {
-                "id": "PM2-1",
-                "desc": "value_tags dataset has >= 50 rows after sync",
-                "query": "dataset = value_tags | comp count() as cnt | limit 1",
-                "assert": lambda r: assert_count_gte(r, "cnt", 50),
-            },
-        ],
-        "manual_prereq": "Run !SOCFWPackManager action=sync-tags before running this check.",
-    },
-
-    "PM3": {
-        "name": "Pack Manager — sync-tags second run detects up-to-date",
-        "category": "happy",
-        "replay": None,
-        "wait_seconds": 0,
-        "manual_test": True,
-        "steps": [
-            "1. Run: !SOCFWPackManager action=sync-tags",
-            "   Expected: 'value_tags is already up to date'",
-            "   Verify: version hash in output matches previous run",
-            "2. Run: !SOCFWPackManager action=sync-tags force=True",
-            "   Expected: 'value_tags force-refreshed' — rows uploaded again",
-        ],
-    },
-
     "PM4": {
         "name": "Pack Manager — configure re-runs integration instances",
         "category": "happy",

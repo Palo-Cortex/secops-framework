@@ -566,6 +566,41 @@ def tenant_shadow_override(tenant_config, action, raw_actor):
     return value
 
 
+def resolve_action_value(time_map, tenant_config, action):
+    """(time_minutes, action_category, source) for this action.
+
+    The customer's value lives in the tenant config as
+    {"value": {action: {"time_minutes": n, "action_category": c}}}, written by
+    setValueTags, because SOCActionTimeMap_V3 is a pack list the platform will
+    not let a script change. Each field set there wins over the shipped entry;
+    a field it does not set, or sets to something unusable, comes from
+    SOCActionTimeMap_V3. An action in neither records 0 minutes.
+    """
+    shipped = time_map.get(action) if isinstance(time_map, dict) else None
+    shipped = shipped if isinstance(shipped, dict) else {}
+    section = tenant_config.get("value") if isinstance(tenant_config, dict) else None
+    tenant = section.get(action) if isinstance(section, dict) else None
+    tenant = tenant if isinstance(tenant, dict) else {}
+
+    def _minutes(entry):
+        try:
+            n = int(str(entry.get("time_minutes")).strip())
+        except (TypeError, ValueError):
+            return None
+        return n if n >= 0 else None
+
+    minutes, source = _minutes(tenant), "tenant"
+    if "time_minutes" in tenant and minutes is None:
+        demisto.debug(f"SOCCommandWrapper: ignoring unusable tenant time_minutes for {action}: "
+                      f"{tenant.get('time_minutes')!r}")
+    if minutes is None:
+        minutes, source = _minutes(shipped), "shipped"
+    if minutes is None:
+        minutes, source = 0, "none"
+    category = str(tenant.get("action_category") or shipped.get("action_category") or "")
+    return minutes, category, source
+
+
 def resolve_shadow_mode(action_entry, raw_actor, tenant_override=None):
     """Whether this dispatch is simulated, for this caller.
 
@@ -1557,25 +1592,24 @@ def main():
         return_error(f"Action not found: {action}")
 
     # Load action time map — soft fail if list not present or action not listed.
-    # SOCActionTimeMap_V3 is customer-editable: one entry per SOC Framework
-    # action name with time_minutes and action_category fields.
+    # SOCActionTimeMap_V3 ships one entry per action (time_minutes,
+    # action_category); the tenant config's "value" section overrides it.
     # Both values are written to the dataset so dashboards need no join.
     _time_map_result = demisto.executeCommand("getList", {"listName": "SOCActionTimeMap_V3"})
     _time_map: dict = {}
     if _time_map_result and isinstance(_time_map_result, list) and "Contents" in _time_map_result[0]:
         _time_map = _try_json_loads(_time_map_result[0].get("Contents", "")) or {}
-    _time_entry = _time_map.get(action, {}) if isinstance(_time_map, dict) else {}
-    action_time_minutes = int(_time_entry.get("time_minutes", 0)) if isinstance(_time_entry, dict) else 0
-    action_time_category = str(_time_entry.get("action_category", "")) if isinstance(_time_entry, dict) else ""
+    tenant_config = load_tenant_config()
+    action_time_minutes, action_time_category, _value_from = resolve_action_value(
+        _time_map, tenant_config, action)
     demisto.debug(
         f"SOCActionTimeMap_V3: action={action} "
         f"time_minutes={action_time_minutes} "
-        f"action_category={action_time_category}"
+        f"action_category={action_time_category} from={_value_from}"
     )
 
     # Shadow: the tenant config's setting for this action and actor if it names
     # one, otherwise the shipped action entry.
-    tenant_config = load_tenant_config()
     shadow_mode = resolve_shadow_mode(
         action_entry, args.get("Action_Actor"),
         tenant_shadow_override(tenant_config, action, args.get("Action_Actor")))

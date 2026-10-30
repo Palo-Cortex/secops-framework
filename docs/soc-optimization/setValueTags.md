@@ -1,86 +1,65 @@
 # 🏷️ `setValueTags` Script Usage
 
-The `setValueTags` script manages the `value_tags` lookup table in Cortex XSIAM. This table powers dashboards that track how and where automation is delivering value in your SOC.
+`setValueTags` views and sets the value of each SOC Framework action: the analyst minutes the
+action saves and its category. `SOCCommandWrapper` writes both onto every row in
+`xsiam_socfw_ir_execution_raw`, and the value dashboards add those rows up.
 
----
+Where a value comes from, in order:
 
-## 📌 Purpose
+1. **This tenant** — `SOCFWTenantConfig` → `value` → `<action>`, written by `setValueTags`.
+2. **The pack** — `SOCActionTimeMap_V3`, shipped with `soc-optimization-unified`.
 
-Use this script to **add**, **update**, or **delete** individual records in the `value_tags` dataset. Each record represents either:
+**An action in neither records 0 minutes.** `SOCActionTimeMap_V3` is a pack list the platform does not
+let a script change, so `setValueTags` only writes the tenant value. Tenant values survive pack upgrades.
 
-- A **playbook** use case (category: `use_case`)
-- A **task** (enrichment, triage, remediation, etc.)
+> Replaces the `value_tags` lookup table and `setValueTags_V3`. Nothing needs syncing.
 
 ---
 
 ## 📋 Parameters
 
-| Parameter     | Required (Playbook) | Required (Task) | Description                              |
-|---------------|---------------------|------------------|------------------------------------------|
-| `action`      | ✅                  | ✅               | `add`, `update`, or `delete`             |
-| `tag`         | ✅                  | ✅               | Name of the use case or task label       |
-| `time`        | ✅                  | ✅               | Time value in seconds                    |
-| `playbookid`  | ✅                  |                  | ID of the playbook                       |
-| `scriptid`    |                     | ✅               | Script or command executed (e.g. `ip=8.8.8.8`) |
-| `taskname`    | optional            | optional         | Display name for the task or playbook    |
-| `product`     | optional            | optional         | Name of the product used in automation   |
-| `vendor`      | optional            | optional         | Vendor associated with the product       |
-| `category`    | fixed: `use_case`   | ✅               | Task category (e.g. enrichment, triage)  |
+| Parameter | Used by | Description |
+|---|---|---|
+| `action` | all | `list_all`, `list_by_type`, `list_by_tag_or_name`, `add`, `update`, `delete` |
+| `tag` | add, update, delete, list_by_tag_or_name | The action name, e.g. `soc-star-case` (or part of one, to search) |
+| `time` | add, update | Analyst minutes the action saves, a whole number |
+| `category` | add, list_by_type; optional on update | `comms`, `containment`, `enrichment`, `eradication`, `recovery`, `triage` |
+| `output_format` | lists | `markdown` (default), `table` or `json` |
 
 ---
 
 ## 🧠 Usage Examples
 
-### ➕ Add a Playbook Entry
 ```bash
-!setValueTags action=add tag=Malware_Hunt time=120 playbook_name="Hunting - Malware" product="XDR" vendor="Palo Alto"
-```
+# Every action's value and where it comes from (tenant or shipped), and the actions with none
+!setValueTags action=list_all
 
-### ➕ Add a Task Entry
-```bash
-!setValueTags action=add type=task category=enrichment tag=domain_lookup time=3 scriptid=DomainTools.V2
-```
+# Only containment actions
+!setValueTags action=list_by_type category=containment
 
-### ✏️ Update a Tag
-```bash
-!setValueTags action=update tag=Malware_Hunt time=150 vendor="Updated Vendor"
-```
+# Find by name
+!setValueTags action=list_by_tag_or_name tag=email
 
-### ❌ Delete a Tag
-```bash
-!setValueTags action=delete tag=Malware_Hunt
+# Give an action with no value one
+!setValueTags action=add tag=soc-star-case time=5 category=triage
+
+# Set this tenant's minutes, category or both (works on shipped actions too)
+!setValueTags action=update tag=soc-isolate-endpoint time=20
+
+# Remove this tenant's value and go back to the shipped one
+!setValueTags action=delete tag=soc-isolate-endpoint
+
+# Stop a shipped action counting
+!setValueTags action=update tag=soc-enrich-user time=0
 ```
 
 ---
 
-## ⚠️ Error Handling
+## ⚠️ Rules
 
-- `add`: Fails if required fields are missing
-- `update`: Only `tag` is required; all other fields are optional
-- `delete`: Requires only the `tag`
-
-The script will safely **exit without updating the table** if validation fails.
-
----
-
-## 📊 How It Powers Dashboards
-
-Dashboards rely on the `value_tags` lookup to:
-
-- Group metrics by use case
-- Track time savings across enrichment, triage, remediation
-- Show vendor/product utilization
-- Compare custom vs. built-in playbook usage
-
-This enables SOC leaders to quantify automation ROI and analyst workload impact.
-
----
-
-## 📁 File Location
-
-You can find the script in this repository under:
-
-```
-scripts/setValueTags.py
-```
-
+- `add` refuses an action that already has a value (use `update`), and needs both `time` and `category`.
+- `update` refuses an action that has no value (use `add`).
+- `delete` removes only this tenant's value; a shipped value cannot be removed — set `time=0` instead.
+- `time` must be a whole number of minutes, 0 or more.
+- The lookup-era arguments (`playbook_name`, `playbookid`, `scriptid`, `product`, `vendor`, `type`) are refused: value is per action now.
+- An unreadable `SOCFWTenantConfig` is never written over; creating it the first time needs the Core REST API integration.

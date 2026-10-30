@@ -51,28 +51,6 @@ Marketplace packs the installer ensures are present on the tenant.
 | `Unit42ThreatIntelligencebyPaloAltoNetworks` | Unit 42 Threat Intelligence by Palo Alto Networks | `latest` |
 | `Phishing` | Phishing | `latest` |
 
-## Lookup Datasets
-
-### `value_tags`
-
-| Field | Value |
-|---|---|
-| Type | `lookup` |
-| Source | [file](https://raw.githubusercontent.com/Palo-Cortex/secops-framework/refs/heads/main/Packs/soc-optimization-unified/Lookup/value_tags.json) |
-
-**Schema:**
-
-| Column | Type |
-|---|---|
-| `Product` | `text` |
-| `TaskName` | `text` |
-| `Time` | `text` |
-| `ScriptID` | `text` |
-| `Tag` | `text` |
-| `PlaybookID` | `text` |
-| `Category` | `text` |
-| `Vendor` | `text` |
-
 ## Integration Instances
 
 Integration brand instances the installer configures. Credentials and propagation labels are always tenant-specific — only the scaffolding ships in the pack.

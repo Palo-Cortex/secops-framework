@@ -59,7 +59,7 @@ Use the table below to align each value metric type to CIA pillars depending on 
 
 ## 🧠 How to Tag for CIA Visibility
 
-In your `value_tags` dataset, consider tagging tasks or playbooks with an additional `cia_focus` field (optional, internal use):
+The `value_tags` lookup is retired; value is per action in `SOCActionTimeMap_V3` (see [setValueTags](setValueTags.md)). The idea below still applies if you keep your own tagging: add a `cia_focus` field (optional, internal use):
 
 ```json
 {

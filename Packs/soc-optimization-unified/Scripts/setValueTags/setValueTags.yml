@@ -1,0 +1,87 @@
+commonfields:
+  id: setValueTags
+  version: -1
+name: setValueTags
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.12.6796194
+comment: >-
+  View and set the value of each SOC Framework action: the analyst minutes it
+  saves and its category. SOCCommandWrapper writes both onto every execution
+  row, which the value dashboards add up. Values set here go in
+  SOCFWTenantConfig (value section) and win over the pack's shipped values in
+  SOCActionTimeMap_V3, so they survive upgrades; an action in neither records
+  0 minutes. list_all also names the framework actions that have no value.
+enabled: true
+runas: DBotWeakRole
+fromversion: 6.10.0
+tags:
+  - SOC
+  - SOC_Framework_Unified
+args:
+  - name: action
+    required: true
+    auto: PREDEFINED
+    predefined:
+      - list_all
+      - list_by_type
+      - list_by_tag_or_name
+      - add
+      - update
+      - delete
+    description: >-
+      list_all shows every action's value and the actions with none.
+      list_by_type filters by category. list_by_tag_or_name matches all or part
+      of an action name. add gives an action with no value one; update sets
+      this tenant's value for an action; delete removes this tenant's value,
+      going back to the shipped one.
+  - name: tag
+    description: >-
+      The action name, for example soc-star-case. With list_by_tag_or_name,
+      all or part of a name.
+  - name: time
+    description: Analyst minutes the action saves, a whole number. Used by add and update.
+  - name: category
+    auto: PREDEFINED
+    predefined:
+      - comms
+      - containment
+      - enrichment
+      - eradication
+      - recovery
+      - triage
+    description: The action's category. Needed by add and list_by_type; optional on update.
+  - name: output_format
+    auto: PREDEFINED
+    predefined:
+      - markdown
+      - table
+      - json
+    defaultValue: markdown
+    description: How lists are shown.
+  - name: playbook_name
+    description: Retired with the value_tags lookup. Refused - value is set per action with tag, time and category.
+  - name: playbookid
+    description: Retired with the value_tags lookup. Refused - value is set per action with tag, time and category.
+  - name: scriptid
+    description: Retired with the value_tags lookup. Refused - value is set per action with tag, time and category.
+  - name: product
+    description: Retired with the value_tags lookup. Refused - value is set per action with tag, time and category.
+  - name: vendor
+    description: Retired with the value_tags lookup. Refused - value is set per action with tag, time and category.
+  - name: type
+    description: Retired with the value_tags lookup. Refused - value is set per action with tag, time and category.
+outputs:
+  - contextPath: SOCValueTags.Action
+    description: Action name.
+    type: String
+  - contextPath: SOCValueTags.Minutes
+    description: Analyst minutes the action saves.
+    type: Number
+  - contextPath: SOCValueTags.Category
+    description: The action's category.
+    type: String
+  - contextPath: SOCValueTags.From
+    description: tenant (set on this tenant), shipped (the pack) or none (records 0 minutes).
+    type: String
