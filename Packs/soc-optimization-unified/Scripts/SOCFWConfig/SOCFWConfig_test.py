@@ -987,3 +987,179 @@ def test_triage_arguments_are_declared_and_marked():
     assert "triage" in declared["command"]["predefined"]
     for name in module.COMMAND_ARGS["triage"]:
         assert declared[name]["description"].startswith("[triage]"), name
+
+
+def test_status_shows_auto_triage_settings():
+    t = triage_tenant({"triage": {"score_threshold": 100}})
+    r = run(t, command="status")
+    tri = r.outputs["triage"]
+    assert tri["score_threshold"]["effective"] == 100 and tri["score_threshold"]["from"] == "tenant"
+    assert tri["window_hours"]["effective"] == "6" and tri["window_hours"]["from"] == "shipped"
+    assert "### Auto Triage settings" in r.readable_output and "command=triage" in r.readable_output
+
+
+def test_status_reports_a_malformed_triage_section_without_failing():
+    r = run(triage_tenant({"triage": "100"}), command="status")
+    assert "Auto Triage settings unreadable" in r.readable_output and "triage" not in r.outputs
+
+
+# ── mode: named sets of settings from SOCFWConfigModes ──────────────────────
+
+MODES = json.load(open(os.path.join(HERE, "..", "..", "Lists", "SOCFWConfigModes", "SOCFWConfigModes_data.json")))
+SWITCHES = [(a, r) for a, actors in MODES["modes"]["pov"]["shadow"].items() for r in actors]
+
+
+def mode_tenant(cfg=None, owner=None, scheduled=False):
+    lists = {"SOCFWConfigModes": MODES}
+    if cfg is not None:
+        lists[NEW] = cfg
+    t = Tenant(**lists)
+    if owner is not None:
+        t.jobs["Auto Triage V3"]["owner"] = owner
+    t.jobs["Auto Triage V3"]["scheduled"] = scheduled
+    return t
+
+
+def shadow_of(t, action, actor):
+    return ((t.config() or {}).get("shadow") or {}).get(action, {}).get(actor)
+
+
+def test_modes_list_is_complete_and_every_mode_sets_every_switch():
+    names = set(MODES["modes"])
+    assert names == {"pov", "star_and_triage", "contain_identity_and_hosts", "contain_all"}
+    for name, m in MODES["modes"].items():
+        got = [(a, r) for a, actors in m["shadow"].items() for r in actors]
+        assert sorted(got) == sorted(SWITCHES), name
+        assert m["jobs"] == {"Auto Triage V3": "on"} and m["description"]
+    for action, actor in SWITCHES:
+        assert action in ACTIONS and ACTIONS[action]["phase"] not in ("enrichment", "investigation")
+
+
+def test_listing_shows_every_mode_and_that_a_fresh_tenant_matches_default():
+    r = run(mode_tenant(), command="mode")
+    assert r.outputs["current"] == "default"
+    for name in MODES["modes"]:
+        assert name in r.readable_output
+    assert "soc-star-case (automation)" in r.readable_output and "Auto Triage V3 JOB" in r.readable_output
+
+
+def test_mode_is_a_dry_run_by_default():
+    t = mode_tenant(owner="ana@example.com")
+    r = run(t, command="mode", mode="pov")
+    assert r.outputs["dry_run"] and r.outputs["changed"] and t.writes() == []
+    assert t.jobs["Auto Triage V3"]["scheduled"] is False
+
+
+def test_pov_with_owner_sets_every_switch_and_turns_auto_triage_on():
+    t = mode_tenant()
+    r = run(t, command="mode", mode="pov", owner="ana@example.com", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert shadow_of(t, "soc-star-case", "automation") is False
+    assert shadow_of(t, "soc-close-issue", "ai") is False
+    assert shadow_of(t, "soc-isolate-endpoint", "issue_emergency") is True
+    assert shadow_of(t, "soc-block-domain", "issue_emergency") is True
+    job = t.jobs["Auto Triage V3"]
+    assert job["scheduled"] is True and job["owner"] == "ana@example.com"
+    assert run(t, command="status").outputs["mode"] == "pov"
+
+
+def test_without_owner_a_placeholder_job_stays_off_and_the_rest_applies():
+    t = mode_tenant()
+    r = run(t, command="mode", mode="star_and_triage", apply="yes")
+    assert r.outputs["applied"] and shadow_of(t, "soc-star-case", "automation") is False
+    assert t.jobs["Auto Triage V3"]["scheduled"] is False
+    assert any("stays off" in n and "owner=<email>" in n for n in r.outputs["notes"])
+
+
+def test_without_owner_a_real_owner_is_kept_and_the_job_turns_on():
+    t = mode_tenant(owner="ana@example.com")
+    run(t, command="mode", mode="star_and_triage", apply="yes")
+    assert t.jobs["Auto Triage V3"]["scheduled"] is True and t.jobs["Auto Triage V3"]["owner"] == "ana@example.com"
+
+
+def test_switching_modes_leaves_nothing_behind_and_matches_the_new_mode():
+    t = mode_tenant(owner="ana@example.com")
+    run(t, command="mode", mode="contain_all", apply="yes")
+    assert shadow_of(t, "soc-retract-email", "issue_emergency") is False
+    run(t, command="mode", mode="star_and_triage", apply="yes")
+    for action, actor in SWITCHES:
+        assert shadow_of(t, action, actor) == MODES["modes"]["star_and_triage"]["shadow"][action][actor]
+    assert run(t, command="mode").outputs["current"] == "star_and_triage"
+
+
+def test_default_removes_mode_settings_keeps_others_and_turns_the_job_off():
+    keep = {"Zscaler": {"using": "z"}, "shadow": {"soc-isolate-endpoint": {"analyst": False}},
+            "triage": {"score_threshold": 100}}
+    t = mode_tenant(dict(keep), owner="ana@example.com")
+    run(t, command="mode", mode="contain_all", apply="yes")
+    run(t, command="mode", mode="default", apply="yes")
+    assert t.config() == keep
+    assert t.jobs["Auto Triage V3"]["scheduled"] is False
+    assert run(t, command="mode").outputs["current"] == "default"
+
+
+def test_a_hand_change_reads_as_custom():
+    t = mode_tenant(owner="ana@example.com")
+    run(t, command="mode", mode="pov", apply="yes")
+    # pov with one block live matches no mode.
+    run(t, command="shadow", action="soc-block-domain", actor=["issue_emergency"], value="off", apply="yes")
+    assert run(t, command="mode").outputs["current"] == "custom"
+    # pov with the AI close back in shadow is exactly star_and_triage, and is named so.
+    run(t, command="shadow", action="soc-block-domain", actor=["issue_emergency"], value="on", apply="yes")
+    run(t, command="shadow", action="soc-close-issue", actor=["ai"], value="on", apply="yes")
+    assert run(t, command="mode").outputs["current"] == "star_and_triage"
+
+
+def test_repeat_is_a_no_op():
+    t = mode_tenant(owner="ana@example.com")
+    run(t, command="mode", mode="pov", apply="yes")
+    before = len(t.writes())
+    r = run(t, command="mode", mode="pov", apply="yes")
+    assert not r.outputs["changed"] and len(t.writes()) == before and "nothing to change" in r.readable_output
+
+
+def test_mode_never_touches_the_triage_threshold_or_analyst_settings():
+    t = mode_tenant({"triage": {"window_hours": 2}, "shadow": {"soc-star-case": {"analyst": True}}},
+                    owner="ana@example.com")
+    run(t, command="mode", mode="contain_all", apply="yes")
+    assert t.config()["triage"] == {"window_hours": 2}
+    assert shadow_of(t, "soc-star-case", "analyst") is True
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"mode": "aggressive"}, "unknown mode aggressive"),
+    ({"mode": "pov", "owner": "ana"}, "owner is the email of a user"),
+    ({"mode": "pov", "owner": "bob@example.com"}, "bob@example.com is not a user on this tenant"),
+    ({"owner": "ana@example.com"}, "owner goes with a mode"),
+    ({"mode": "pov", "value": "on"}, "value is for command=job/set/shadow, not mode"),
+])
+def test_mode_bad_arguments_name_the_fix(args, message):
+    t = mode_tenant()
+    with pytest.raises(RuntimeError, match=message):
+        run(t, command="mode", apply="yes", **args)
+    assert t.writes() == []
+
+
+def test_mode_without_the_modes_list_names_the_fix():
+    with pytest.raises(RuntimeError, match="SOCFWConfigModes is missing"):
+        run(Tenant(), command="mode")
+    assert "Modes unreadable" in run(Tenant(), command="status").readable_output
+
+
+def test_mode_without_core_api_still_sets_the_shadow_switches():
+    t = mode_tenant()
+    t.core_api = False
+    t.lists[NEW] = json.dumps({})
+    r = run(t, command="mode", mode="pov", apply="yes")
+    assert shadow_of(t, "soc-star-case", "automation") is False
+    assert any("could not read the jobs" in n for n in r.outputs["notes"])
+
+
+def test_mode_argument_declared_with_every_mode():
+    import yaml
+    spec = yaml.safe_load(open(os.path.join(HERE, "SOCFWConfig.yml")))
+    declared = {a["name"]: a for a in spec["args"]}
+    assert "mode" in declared["command"]["predefined"]
+    assert set(declared["mode"]["predefined"]) == set(MODES["modes"]) | {"default"}
+    assert declared["mode"]["description"].startswith("[mode]")
+    assert declared["owner"]["description"].startswith("[owner, mode]")
