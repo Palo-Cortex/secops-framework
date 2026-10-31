@@ -202,3 +202,36 @@ def test_recent_assignments_unreadable_is_reported(monkeypatch):
     monkeypatch.setattr(a, "core_post", lambda uri, body: next(pend))
     ids, why = a.recent_assignments(sleep=lambda s: None)
     assert ids == set() and "did not finish" in why
+
+
+STARRED = {"field": "starred", "operator": "eq", "value": True}
+
+
+def test_cases_values_default_to_starred():
+    assert a.parse_cases("starred") == (True, None)
+    assert a.parse_cases(" ALL ") == (False, None)
+    assert a.parse_cases("") == (True, None)
+    assert a.parse_cases(None) == (True, None)
+    starred, note = a.parse_cases("everything")
+    assert starred and "assigning starred cases only" in note
+
+
+def test_starred_filter_on_the_unassigned_search_only(monkeypatch):
+    seen = []
+    monkeypatch.setattr(a, "search_cases", lambda filters, start=0, size=100: (seen.append(filters) or ([], 0)))
+    a.unassigned_cases(["Security"], 5)
+    assert STARRED in seen[-1]
+    a.unassigned_cases(["Security"], 5, starred_only=False)
+    assert STARRED not in seen[-1]
+    a.unassigned_cases(["Security"], 5, case_id="9")
+    assert STARRED not in seen[-1]
+    a.loads_of(["a@x.com"], ["Security"])
+    assert STARRED not in seen[-1]
+
+
+def test_yml_declares_cases_with_starred_default():
+    import os
+    import yaml
+    doc = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "SOCFWAnalystSelect.yml")))
+    arg = next(x for x in doc["args"] if x["name"] == "cases")
+    assert arg["defaultValue"] == "starred" and arg["predefined"] == ["starred", "all"]

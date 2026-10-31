@@ -245,3 +245,108 @@ def test_no_roster_yet_or_nobody_on_duty_warns():
 def test_no_roster_check_while_the_assignment_job_is_off():
     jobs = [dict(ASSIGN_ON[1], scheduled=False)]
     assert roster_check(rows=[], jobs=jobs) is None
+
+
+def named(instances, api_ok=True):
+    module, _ = load(Fake(config=status()))
+    return {c["check"].replace("Instance: ", ""): c for c in module.check_named_instances(instances, api_ok)}
+
+
+WRITER = "socfw_ir_execution_writer"
+
+
+def inst(name, brand="SOCFWDatasetWriter", enabled="true"):
+    return {"name": name, "brand": brand, "enabled": enabled}
+
+
+def test_named_instances_all_present_are_ok():
+    module, _ = load(Fake(config=status()))
+    all_ok = [inst(n, b) for n, (b, _) in module.REQUIRED_INSTANCES.items()]
+    assert all(c["status"] == "OK" for c in named(all_ok).values())
+
+
+def test_same_brand_under_another_name_fails_and_names_the_rename():
+    c = named([inst("SOCFWDatasetWriter_instance_1")])[WRITER]
+    assert c["status"] == "FAIL"
+    assert "SOCFWDatasetWriter_instance_1" in c["detail"] and f"rename one to {WRITER}" in c["detail"]
+
+
+def test_missing_brand_says_what_to_create():
+    c = named([])[WRITER]
+    assert c["status"] == "FAIL" and f"named exactly {WRITER}" in c["detail"]
+
+
+def test_disabled_named_instance_fails():
+    assert named([inst(WRITER, enabled="false")])[WRITER]["status"] == "FAIL"
+
+
+def test_unreadable_instances_warn():
+    assert all(c["status"] == "WARN" for c in named([], api_ok=False).values())
+
+
+def test_brand_check_leaves_named_brands_alone():
+    module, _ = load(Fake(config=status()))
+    cfg = [{"name": WRITER, "brand": "SOCFWDatasetWriter"}, {"name": "Whois_instance_SOCFW", "brand": "Whois"}]
+    checks = module.check_integration_instances_from_config(cfg, [inst("w", "Whois")], True)
+    assert [c["check"] for c in checks] == ["Integration: Whois"]
+
+
+def test_every_instance_called_by_name_is_required_and_shipped():
+    """Every using= name in the pack's scripts and action list is in REQUIRED_INSTANCES,
+    and xsoar_config.json ships each with the same brand."""
+    import glob
+    import json
+    import re
+    pack = os.path.abspath(os.path.join(HERE, "..", ".."))
+    called = set()
+    for path in glob.glob(os.path.join(pack, "Scripts", "*", "*.py")):
+        if "_test" in os.path.basename(path):
+            continue
+        src = open(path).read()
+        called |= set(re.findall(r'"using":\s*"([^"]+)"', src))
+        called |= set(re.findall(r'^(?:DATASET_INSTANCE|DATASET_WRITER_INSTANCE|DEFAULT_INSTANCE)\s*=\s*["\']([^"\']+)',
+                                 src, re.M))
+    actions = open(os.path.join(pack, "Lists", "SOCFrameworkActions_V3", "SOCFrameworkActions_V3_data.json")).read()
+    called |= {u for u in re.findall(r'"using":\s*"([^"]*)"', actions) if u}
+    module, _ = load(Fake(config=status()))
+    assert called == set(module.REQUIRED_INSTANCES), called ^ set(module.REQUIRED_INSTANCES)
+    shipped = {i["name"]: i["brand"] for i in json.load(open(os.path.join(pack, "xsoar_config.json")))["integration_instances"]}
+    for name, (brand, _) in module.REQUIRED_INSTANCES.items():
+        assert shipped.get(name) == brand, name
+
+
+PD = {"vendor": "PagerDuty v2", "arg": "schedule_ids", "required": True, "set": False}
+
+
+def values_check(enabled, values):
+    module, _ = load(Fake(config=status(values=values)))
+    keys = None if enabled is None else {module._vendor_key(b) for b in enabled}
+    return {c["check"]: c for c in module.check_configuration(keys)}["Customer values"]
+
+
+def test_required_value_for_a_vendor_the_tenant_does_not_have_is_not_a_warning():
+    c = values_check({"Core REST API"}, [PD])
+    assert c["status"] == "OK"
+    assert "every required value is set" in c["detail"] and "not needed, no enabled instance: PagerDuty v2" in c["detail"]
+
+
+def test_required_value_for_an_enabled_vendor_warns():
+    c = values_check({"PagerDuty v2"}, [PD])
+    assert c["status"] == "WARN" and "PagerDuty v2 schedule_ids" in c["detail"]
+
+
+def test_unreadable_instances_check_every_vendor_and_say_so():
+    c = values_check(None, [PD])
+    assert c["status"] == "WARN" and "instances unreadable" in c["detail"]
+
+
+def test_vendor_keys_match_brand_or_display_name_loosely():
+    module, _ = load(Fake(config=status()))
+    keys = module.enabled_vendor_keys(
+        [{"brand": "CrowdStrikeFalcon", "enabled": "true"}, {"brand": "PagerDuty v2", "enabled": "false"},
+         {"brand": "Zscaler", "enabled": "true"}],
+        [{"id": "CrowdstrikeFalcon", "display": "CrowdStrike Falcon"},
+         {"id": "Zscaler", "display": "Zscaler Internet Access"}])
+    for vendor in ("CrowdStrike Falcon", "Zscaler", "Zscaler Internet Access"):
+        assert module._vendor_key(vendor) in keys, vendor
+    assert module._vendor_key("PagerDuty v2") not in keys        # disabled is not in use
