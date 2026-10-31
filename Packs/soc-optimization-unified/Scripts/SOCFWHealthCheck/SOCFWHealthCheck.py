@@ -34,6 +34,16 @@ STATUS_FAIL = "FAIL"
 HEALTH_DATASET = "socfw_health_checks"
 
 ASSIGNMENT_JOB = "SOCFW Analyst Assignment"
+
+# Instances the framework calls by name (using=). A same-brand instance under any
+# other name does not satisfy these: the call fails, and for the dataset writer
+# every framework row (decisions, commands, assignments) is lost.
+REQUIRED_INSTANCES: Dict[str, Tuple[str, str]] = {
+    "socfw_ir_execution_writer": ("SOCFWDatasetWriter",
+                                  "every row to xsiam_socfw_ir_execution_raw"),
+    "socfw_case_ledger_writer": ("SOCFWDatasetWriter", "case ledger rows"),
+    "Unit_42_Intelligence_SOCFW": ("Unit 42 Intelligence", "the Unit 42 enrichment action"),
+}
 ROSTER_LOOKUP = "socfw_on_duty"
 ROLE_SOURCE = "xsiam_role"
 
@@ -298,6 +308,44 @@ def check_lists_from_config(
     return results
 
 
+def check_named_instances(
+        all_instances: List[Dict],
+        api_ok: bool,
+        required: Optional[Dict[str, Tuple[str, str]]] = None,
+) -> List[Dict[str, Any]]:
+    """One check per instance the framework calls by exact name.
+
+    Missing or disabled is FAIL. When the name is missing but the brand exists
+    under another name, the detail names that instance so the fix is a rename.
+    """
+    required = REQUIRED_INSTANCES if required is None else required
+    results = []
+    for name, (brand, purpose) in required.items():
+        check = f"Instance: {name}"
+        if not api_ok:
+            results.append(_check(check, STATUS_WARN, "Core REST API unreachable — cannot verify."))
+            continue
+        exact = [x for x in all_instances if x.get("name") == name]
+        if exact:
+            if any(x.get("enabled") == "true" for x in exact):
+                results.append(_check(check, STATUS_OK, f"enabled ({brand})"))
+            else:
+                results.append(_check(check, STATUS_FAIL,
+                                      f"exists but is disabled — {purpose} fails until it is enabled."))
+            continue
+        others = sorted(x.get("name", "?") for x in all_instances if x.get("brand") == brand)
+        if others:
+            results.append(_check(check, STATUS_FAIL,
+                                  f"missing — {purpose} calls it by this exact name. Found {brand} "
+                                  f"instance(s) named {', '.join(others)}: rename one to {name} "
+                                  "or create a new one with that name."))
+        else:
+            results.append(_check(check, STATUS_FAIL,
+                                  f"missing — create a {brand} instance named exactly {name} "
+                                  f"({purpose} calls it by name)."))
+    return results
+
+
 def check_integration_instances_from_config(
         instances_config: List[Dict],
         all_instances: List[Dict],
@@ -306,9 +354,11 @@ def check_integration_instances_from_config(
     """
     Verify each integration instance defined in xsoar_config.json is present
     and enabled.  Deduplicates by brand so we only report once per brand.
+    Brands of REQUIRED_INSTANCES are left to check_named_instances, which
+    checks them by exact name.
     """
     results = []
-    seen_brands = set()
+    seen_brands = {brand for brand, _ in REQUIRED_INSTANCES.values()}
 
     for inst in instances_config:
         brand = inst.get("brand", "")
@@ -937,6 +987,10 @@ def main():
     # ── 1. Always: configuration, from SOCFWConfig status ────
     checks.extend(check_configuration())
 
+    # ── 1b. Always: the instances the framework calls by exact name ──
+    api_ok, all_instances = _get_all_instances(using)
+    checks.extend(check_named_instances(all_instances, api_ok))
+
     # ── 2a. CONFIG-DRIVEN mode ────────────────────────────────
     if config_url:
         fetch_ok, config = fetch_xsoar_config(config_url)
@@ -964,9 +1018,6 @@ def main():
             })
 
         if config:
-            # Fetch instances once for all integration checks
-            api_ok, all_instances = _get_all_instances(using)
-
             # Lists
             checks.extend(check_lists_from_config(config.get("lists", [])))
 

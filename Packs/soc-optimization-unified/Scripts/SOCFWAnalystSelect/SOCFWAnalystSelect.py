@@ -183,6 +183,24 @@ def parse_window(raw, now=None):
     return int((now - int(m.group(1)) * WINDOW_UNITS[m.group(2)]) * 1000)
 
 
+CASE_SCOPES = ("starred", "all")
+
+
+def parse_cases(raw):
+    """Which cases get an owner: "starred" (the default) or "all".
+
+    Empty or unrecognised means starred, so a tenant whose detached
+    SOCOptimizationConfig_V3 lacks AssignmentCases, or has a typo in it, gets the
+    narrower shipped default rather than every open case. Returns (starred_only, note).
+    """
+    text = str(raw if raw is not None else "").strip().lower()
+    if text in CASE_SCOPES:
+        return text == "starred", None
+    if not text:
+        return True, None
+    return True, (f"AssignmentCases {raw!r} is not starred or all; assigning starred cases only.")
+
+
 def open_filters(domains):
     filters = [{"field": "status_progress", "operator": "in", "value": OPEN_STATUSES}]
     if domains:
@@ -210,10 +228,11 @@ def loads_of(emails, domains):
                       "load could not be counted, nothing assigned")
 
 
-def unassigned_cases(domains, limit, case_id=None, since=None):
+def unassigned_cases(domains, limit, case_id=None, since=None, starred_only=True):
     """Open cases with no owner created since `since` (epoch ms), oldest first, up to limit.
 
-    An explicit case_id is assigned whatever its age.
+    starred_only keeps to starred cases (the starred filter takes eq only; `in` is
+    rejected). An explicit case_id is assigned whatever its age or star.
     """
     if case_id:
         rows, _ = search_cases([{"field": "case_id", "operator": "in", "value": [int(case_id)]}], size=1)
@@ -224,6 +243,8 @@ def unassigned_cases(domains, limit, case_id=None, since=None):
         filters = open_filters(domains)
         if since is not None:
             filters.append({"field": "creation_time", "operator": "gte", "value": since})
+        if starred_only:
+            filters.append({"field": "starred", "operator": "eq", "value": True})
         rows, _ = search_cases(filters, start=page * PAGE)
         found += [r for r in rows if not r.get("assigned_user_mail")]
         if len(found) >= limit or len(rows) < PAGE:
@@ -374,7 +395,8 @@ def main():
         return_error(f"SOCFWAnalystSelect: {e}")
         return
     online_only = str(args.get("online_only") or "true").strip().lower() in ("true", "yes", "1")
-    notes, decisions, loads = [], [], {}
+    starred_only, scope_note = parse_cases(args.get("cases"))
+    notes, decisions, loads = ([scope_note] if scope_note else []), [], {}
     try:
         domains = parse_domains(args.get("domains"))
         since = parse_window(args.get("window"))
@@ -395,9 +417,10 @@ def main():
             if not on_duty:
                 notes.append("Nobody on duty is online. Nothing assigned; cases stay unassigned.")
         if on_duty:
-            cases = unassigned_cases(domains, limit, args.get("case_id"), since)
+            cases = unassigned_cases(domains, limit, args.get("case_id"), since, starred_only)
             if not cases:
-                notes.append("No unassigned open cases" + ("" if since is None or args.get("case_id")
+                kind = "starred " if starred_only and not args.get("case_id") else ""
+                notes.append(f"No unassigned open {kind}cases" + ("" if since is None or args.get("case_id")
                                                             else f" in the last {args.get('window') or '24 hours'}") + ".")
             loads = loads_of(on_duty, domains)
             recent = {"ids": set(), "at": None}
