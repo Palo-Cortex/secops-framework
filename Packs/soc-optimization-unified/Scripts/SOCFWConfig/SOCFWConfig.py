@@ -69,7 +69,7 @@ DATASET_INSTANCE = "socfw_ir_execution_writer"
 # JOBs the framework ships. The pack installs them off; the owner must be a
 # user on the customer's tenant or every run errors. The placeholder is treated
 # as no owner wherever it appears.
-JOBS = ("Auto Triage V3", "SOC Case Analysis")
+JOBS = ("Auto Triage V3", "SOC Case Analysis", "SOCFW Analyst Assignment")
 OWNER_PLACEHOLDER = "set-owner-with-SOCFWConfig"
 JOB_VALUES = {"on": True, "off": False}
 

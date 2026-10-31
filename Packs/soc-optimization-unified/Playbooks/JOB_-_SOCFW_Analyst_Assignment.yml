@@ -1,0 +1,356 @@
+adopted: true
+fromversion: 5.0.0
+id: JOB - SOCFW Analyst Assignment
+version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified (SOCFW)
+    itemVersion: 3.30.1
+    fromServerVersion: 5.0.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: JOB - SOCFW Analyst Assignment
+description: Refreshes the on-duty roster from the customer's schedule sources, then
+  gives unassigned open cases an owner from it, least loaded first. Assignment ships
+  shadowed. A failed roster sync leaves the last roster in place and assignment still
+  runs on it.
+tags:
+  - SOC
+  - SOC_Framework_Unified
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: f25c83e8-9918-4f36-8a98-f28b54bb6867
+    type: start
+    task:
+      id: f25c83e8-9918-4f36-8a98-f28b54bb6867
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: 0e62c9c1-9dad-48c8-9670-0fc5ea12fb9d
+    type: regular
+    task:
+      id: 0e62c9c1-9dad-48c8-9670-0fc5ea12fb9d
+      version: -1
+      name: Sync On-Duty Roster
+      description: Reads who is on duty from every configured schedule source and
+        updates the socfw_on_duty lookup.
+      script: SOCFWOnDutySync
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - "2"
+    scriptarguments:
+      groups:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Analyst Assignment JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: AssignmentGroups
+      roles:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Analyst Assignment JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: AssignmentRoles
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "2":
+    id: "2"
+    taskid: e1162a18-57f5-490d-a6a8-d34e46c88d32
+    type: regular
+    task:
+      id: e1162a18-57f5-490d-a6a8-d34e46c88d32
+      version: -1
+      name: Assign Unassigned Cases
+      description: Gives unassigned open cases an owner from the on-duty roster,
+        least loaded first, through soc-assign-case.
+      script: SOCFWAnalystSelect
+      type: regular
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - "3"
+    scriptarguments:
+      domains:
+        simple: ${inputs.domains}
+      max_per_analyst:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Analyst Assignment JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: AssignmentMaxPerAnalyst
+      window:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Analyst Assignment JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: AssignmentWindow
+      online_only:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Analyst Assignment JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: AssignmentOnlineOnly
+      method:
+        complex:
+          root: lists
+          accessor: SOCOptimizationConfig_V3
+          transformers:
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: Analyst Assignment JOB
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: fields
+            - operator: getField
+              args:
+                field:
+                  value:
+                    simple: AssignmentMethod
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 400
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: e15a2d52-c1d0-4327-93c8-dfb0a0be48df
+    type: regular
+    task:
+      id: e15a2d52-c1d0-4327-93c8-dfb0a0be48df
+      version: -1
+      name: Close Job
+      description: commands.local.cmd.close.inv
+      script: Builtin|||closeInvestigation
+      type: regular
+      iscommand: true
+      brand: Builtin
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+        - "4"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 580
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "4":
+    id: "4"
+    taskid: f6c815eb-6006-4f9e-a224-7c68a98c50c5
+    type: title
+    task:
+      id: f6c815eb-6006-4f9e-a224-7c68a98c50c5
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 760
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+system: true
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 770,
+        "width": 380,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: domains
+  value:
+    complex:
+      root: lists
+      accessor: SOCOptimizationConfig_V3
+      transformers:
+        - operator: getField
+          args:
+            field:
+              value:
+                simple: Analyst Assignment JOB
+        - operator: getField
+          args:
+            field:
+              value:
+                simple: fields
+        - operator: getField
+          args:
+            field:
+              value:
+                simple: AssignmentDomains
+  required: false
+  description: Case domain(s) this job assigns. Defaults to AssignmentDomains in
+    SOCOptimizationConfig_V3; override per job to run separate domain-scoped assignment
+    jobs. 'all' assigns every domain.
+  playbookInputQuery:
+outputs: []

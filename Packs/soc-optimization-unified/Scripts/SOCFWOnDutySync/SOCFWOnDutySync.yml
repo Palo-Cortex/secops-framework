@@ -1,0 +1,57 @@
+commonfields:
+  id: SOCFWOnDutySync
+  version: -1
+name: SOCFWOnDutySync
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.8.1983910
+comment: Keeps the socfw_on_duty lookup in step with who the customer's schedule
+  sources say is on duty. Runs soc-sync-on-duty through the Universal Command, so
+  every source with a configured integration answers, and replaces each answering
+  source's rows. A source that errors, is not configured or returns nobody changes
+  nothing. analysts= is the manual source for a tenant with no schedule system - those
+  people replace the manual rows and no other source is called. Creates the lookup
+  on first run. Emails that are not users on this tenant are reported and left out.
+  Each source's outcome is recorded to the execution dataset as an on_duty_sync row.
+tags:
+- socfw
+enabled: true
+scripttarget: 0
+runonce: false
+runas: DBotWeakRole
+fromversion: 6.10.0
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+system: false
+args:
+- name: analysts
+  description: Manual source. Emails of the analysts on duty now, comma-separated. They
+    replace the manual rows in the lookup; leave empty to sync from the configured sources.
+- name: roles
+  description: Fallback when no schedule source is set up - tenant users with any of these roles
+    are on duty, comma-separated. The job passes AssignmentRoles from SOCOptimizationConfig_V3.
+    Not used with analysts=, or when a source is set up but fails.
+  defaultValue: Instance Administrator,Account Admin
+- name: groups
+  description: Fallback like roles - tenant users in any of these user groups are on duty,
+    comma-separated. The job passes AssignmentGroups from SOCOptimizationConfig_V3. Empty
+    by default, since tenants have no user groups until someone creates them.
+outputs:
+- contextPath: SOCFramework.OnDuty.lookup
+  description: The lookup the roster is kept in.
+  type: String
+- contextPath: SOCFramework.OnDuty.created
+  description: True when this run created the lookup.
+  type: Boolean
+- contextPath: SOCFramework.OnDuty.sources
+  description: One row per source - source, status (synced, empty, superseded, not_configured, unavailable,
+    failed), on_duty, added, removed, not_tenant_users, reason.
+  type: Unknown
+- contextPath: SOCFramework.OnDuty.roster
+  description: Everyone in the lookup after this run - email, name, source, updated_at.
+  type: Unknown

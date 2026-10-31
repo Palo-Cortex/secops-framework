@@ -7,7 +7,8 @@ register_module_line('SOCFWHealthCheck', 'start', __line__())
 #   Configuration  what SOCFWConfig status reports: the tenant config list,
 #                  the mode the tenant matches, the framework JOBs (on/off and
 #                  whether the owner is a user), Auto Triage settings,
-#                  emergency response, and required customer values.
+#                  emergency response, and required customer values; with the
+#                  analyst assignment JOB on, who is on its roster.
 #   Installation   what is on the tenant. With config_url, the items named in
 #                  an xsoar_config.json (lists, integration instances, jobs,
 #                  lookup datasets, packs, correlation rules); without it,
@@ -31,6 +32,10 @@ STATUS_WARN = "WARN"
 STATUS_FAIL = "FAIL"
 
 HEALTH_DATASET = "socfw_health_checks"
+
+ASSIGNMENT_JOB = "SOCFW Analyst Assignment"
+ROSTER_LOOKUP = "socfw_on_duty"
+ROLE_SOURCE = "xsiam_role"
 
 # ── Fallback defaults (used when no config_url is provided) ──
 DEFAULT_ENTRY_POINT_PREFIXES: List[str] = [
@@ -141,6 +146,33 @@ def _triage_detail(view: Dict) -> Tuple[str, str]:
     return STATUS_OK, detail
 
 
+def check_roster() -> Dict[str, Any]:
+    """Who the on assignment job would assign to, from the socfw_on_duty lookup."""
+    name = "Analyst assignment roster"
+    fix = '!SOCFWOnDutySync analysts="<the customer\'s analyst emails>"'
+    ok, resp = _call_core_api("post", "/public_api/v1/xql/lookups/get_data",
+                              {"request_data": {"dataset_name": ROSTER_LOOKUP}})
+    if not ok:
+        if "not found" in str(resp).lower():
+            return _check(name, STATUS_WARN, f"no roster yet; the job builds one on its next run, or set "
+                                             f"the customer's analysts now: {fix}")
+        return _check(name, STATUS_WARN, f"{ROSTER_LOOKUP} unreadable: {str(resp)[:200]}")
+    rows = ((resp or {}).get("reply") or {}).get("data") or []
+    counts: Dict[str, int] = {}
+    for r in rows:
+        if isinstance(r, dict) and r.get("email"):
+            counts[r.get("source") or "?"] = counts.get(r.get("source") or "?", 0) + 1
+    if not counts:
+        return _check(name, STATUS_WARN, f"nobody on duty, so nothing is assigned: {fix}")
+    if set(counts) == {ROLE_SOURCE}:
+        return _check(name, STATUS_WARN,
+                      f"all {counts[ROLE_SOURCE]} on duty come from the role and group fallback (AssignmentRoles, AssignmentGroups); "
+                      "on a PoV tenant those roles usually include Palo Alto Networks staff, who would "
+                      f"get the customer's cases: {fix}")
+    return _check(name, STATUS_OK, f"{sum(counts.values())} on duty: "
+                  + ", ".join(f"{n} {src}" for src, n in sorted(counts.items())))
+
+
 def check_configuration() -> List[Dict[str, Any]]:
     status, why = _config_status()
     if status is None:
@@ -196,6 +228,9 @@ def check_configuration() -> List[Dict[str, Any]]:
         else:
             checks.append(_check(name, STATUS_OK,
                                  f"off, owner {owner}" + ("" if ok else f" (set one before turning it on: {fix})")))
+
+    if any(j.get("job") == ASSIGNMENT_JOB and j.get("installed") and j.get("scheduled") for j in jobs):
+        checks.append(check_roster())
 
     if "triage" in status:
         checks.append(_check("Auto Triage settings", *_triage_detail(status["triage"])))

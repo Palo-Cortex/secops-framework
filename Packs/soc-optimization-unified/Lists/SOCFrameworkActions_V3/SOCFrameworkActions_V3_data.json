@@ -1457,5 +1457,54 @@
     "sequence_rank": 21,
     "capability": "Network containment \u2014 block domain at DNS and web proxy",
     "dispatch": "all_applicable"
+  },
+  "soc-sync-on-duty": {
+    "responses": {
+      "PagerDuty v2": {
+        "command": "PagerDuty-get-users-on-call-now",
+        "required_args": [
+          "schedule_ids"
+        ],
+        "inline_args": {
+          "schedule_ids": "",
+          "limit": "100"
+        },
+        "output_map": {
+          "SOCFramework.OnDuty.Sources.PagerDuty": "PagerDutyUser"
+        },
+        "roster_fields": {
+          "email": "Email",
+          "name": "DisplayName"
+        }
+      }
+    },
+    "shadow_mode": false,
+    "phase": "enrichment",
+    "capability": "Enrichment \u2014 read who is on duty from the customer's schedule sources",
+    "dispatch": "all_applicable",
+    "note": "Run by SOCFWOnDutySync, which keeps the socfw_on_duty lookup. Every source with a configured integration answers. output_map names where a source's people are; roster_fields names which of their fields are the email and name. schedule_ids is the PagerDuty schedule that means working the queues: SOCFWConfig command=set vendor=\"PagerDuty v2\" arg=schedule_ids. Read-only, so it always runs: it reads the source, and the framework's own lookup is the only thing written."
+  },
+  "soc-assign-case": {
+    "responses": {
+      "Core REST API": {
+        "command": "core-api-post",
+        "target_arg": "body",
+        "inline_args": {
+          "uri": "/public_api/v1/incidents/update_incident",
+          "body": ""
+        }
+      }
+    },
+    "shadow_mode_by_actor": {
+      "analyst": true,
+      "ai": true,
+      "automation": true,
+      "issue_emergency": true
+    },
+    "phase": "triage",
+    "entity_scope": "case",
+    "capability": "Triage \u2014 assign a case to an on-duty analyst",
+    "dispatch": "all_applicable",
+    "note": "Called by SOCFWAnalystSelect with target set to the update_incident body naming the case and the analyst's email; the platform rejects an email that is not a user on the tenant. dispatch all_applicable because assignment does not depend on the issue's source vendor. Ships shadowed for every actor."
   }
 }
