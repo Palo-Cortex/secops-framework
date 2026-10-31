@@ -169,3 +169,74 @@ def test_an_endpoint_issue_reaches_every_enforcement_point():
     d = _run(target="176.59.15.33", action="soc-block-network-indicator", product=CS,
              tenant={"shadow": {"soc-block-network-indicator": {"analyst": False}}})
     assert [c["address"] for c in _calls(d, "pan-os-create-address")] == ["176.59.15.33"]
+
+
+# A JSON object is one target. soc-assign-case passes the update body - case and
+# analyst - as its target; split on its commas it arrived as fragments, each
+# dispatched on its own (two failed rows per assignment on a reference tenant, 30 Oct 2026).
+
+BODY = json.dumps({"request_data": {"incident_id": "51045",
+                                    "update_data": {"assigned_user_mail": "a@x.com"}}})
+
+
+def _parse(raw):
+    script, _ = load_script()
+    return script.parse_target_override(raw)
+
+
+def test_a_json_object_target_is_kept_whole():
+    assert _parse(BODY) == [BODY]
+    assert _parse("  " + BODY + "  ") == [BODY]
+
+
+def test_comma_lists_and_lists_still_split_as_before():
+    assert _parse("a.example, b.example,,a.example") == ["a.example", "b.example"]
+    assert _parse(["a.example", "b.example"]) == ["a.example", "b.example"]
+    assert _parse("critical") == ["critical"]
+
+
+def test_text_that_only_looks_like_json_still_splits():
+    assert _parse("{not json, at all}") == ["{not json", "at all}"]
+    assert _parse('["a.example", "b.example"]') == ['["a.example"', '"b.example"]']
+
+
+def _assign(target, actor="analyst", live=True):
+    script, demisto = load_script()
+    demisto._args = {"action": "soc-assign-case", "list_name": "SOCFrameworkActions_V3",
+                     "Action_Actor": actor, "target": target}
+    demisto._context = {"SOCFramework": {"RunID": "run-1"}}
+    cfg = {"shadow": {"soc-assign-case": {actor: False}}} if live else {}
+
+    def _route(args):
+        name = (args or {}).get("listName")
+        if name == "SOCFrameworkActions_V3":
+            return [{"Contents": json.dumps({"soc-assign-case": copy.deepcopy(ACTIONS["soc-assign-case"])})}]
+        if name == "SOCFWTenantConfig":
+            return [{"Contents": json.dumps(cfg)}]
+        return [{"Type": 4, "Contents": f" - Item not found (8) on list [{name}] (2609)"}]
+
+    demisto._command_responses = {
+        "getList": _route,
+        "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
+        "core-api-post": [{"Type": 1, "Contents": {"response": {}}}],
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+    }
+    script.main()
+    return demisto
+
+
+def test_assign_case_dispatches_the_whole_body_once():
+    d = _assign(BODY)
+    calls = _calls(d, "core-api-post")
+    assert len(calls) == 1
+    assert json.loads(calls[0]["body"]) == json.loads(BODY)
+    assert calls[0]["uri"] == "/public_api/v1/incidents/update_incident"
+    rows = [r for r in _rows(d) if r.get("universal_command") == "soc-assign-case"]
+    assert len(rows) == 1 and rows[0]["execution_mode"] == "production"
+
+
+def test_assign_case_is_shadowed_by_default_with_one_row():
+    d = _assign(BODY, actor="automation", live=False)
+    assert _calls(d, "core-api-post") == []
+    rows = [r for r in _rows(d) if r.get("universal_command") == "soc-assign-case"]
+    assert len(rows) == 1 and rows[0]["execution_mode"] == "shadow"

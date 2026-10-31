@@ -80,6 +80,17 @@ Automatically closes unstarred cases that exceed the configured age and score th
 | Schedule | every 10 minutes daily |
 | Owner | `abarone@paloaltonetworks.com` |
 
+### SOCFW Analyst Assignment
+
+Refreshes the on-duty roster from the customer's schedule sources, then assigns unassigned open cases to the least-loaded analyst on duty. Ships off; assignment ships shadowed. Set the owner and turn it on with SOCFWConfig.
+
+| Field | Value |
+|---|---|
+| Playbook | `JOB - SOCFW Analyst Assignment` |
+| Recurrent | ✓ |
+| Schedule | every 5 minutes daily |
+| Owner | `set-owner-with-SOCFWConfig` |
+
 ## Exported Playbooks
 
 Playbooks this pack exposes for use by other packs or directly from the tenant.

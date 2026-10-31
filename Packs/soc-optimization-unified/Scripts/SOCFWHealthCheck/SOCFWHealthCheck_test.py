@@ -200,3 +200,48 @@ def test_yml_declares_what_the_script_reads_and_writes():
     module, out = load(Fake(config=status()))
     module.main()
     assert {f"SOCFWHealthCheck.{k}" for k in out[0].outputs} == declared
+
+
+ASSIGN_ON = [{"job": "Auto Triage V3", "installed": True, "scheduled": True, "owner": "dc@example.com",
+              "owner_is_user": True},
+             {"job": "SOCFW Analyst Assignment", "installed": True, "scheduled": True, "owner": "dc@example.com",
+              "owner_is_user": True}]
+
+
+class RosterFake(Fake):
+    def __init__(self, rows=None, error=None, **kw):
+        super().__init__(**kw)
+        self.rows, self.error = rows, error
+
+    def execute(self, command, args, fail_on_error=False):
+        self.calls.append((command, args))
+        if "lookups/get_data" in str(args.get("uri")):
+            if self.error:
+                return False, self.error
+            return True, [{"response": {"reply": {"data": self.rows}}}]
+        return False, "no Core REST API in this test"
+
+
+def roster_check(rows=None, error=None, jobs=ASSIGN_ON):
+    module, _ = load(RosterFake(rows=rows, error=error, config=status(jobs=jobs)))
+    return {c["check"]: c for c in module.check_configuration()}.get("Analyst assignment roster")
+
+
+def test_roster_only_from_the_role_fallback_warns_with_the_fix():
+    c = roster_check(rows=[{"email": "dc@example.com", "source": "xsiam_role"}])
+    assert c["status"] == "WARN" and "SOCFWOnDutySync analysts=" in c["detail"]
+
+
+def test_roster_with_the_customer_analysts_is_ok():
+    c = roster_check(rows=[{"email": "a@x.com", "source": "manual"}, {"email": "b@x.com", "source": "xsiam_role"}])
+    assert c["status"] == "OK" and "1 manual" in c["detail"]
+
+
+def test_no_roster_yet_or_nobody_on_duty_warns():
+    assert roster_check(error="Dataset socfw_on_duty not found")["status"] == "WARN"
+    assert roster_check(rows=[])["status"] == "WARN"
+
+
+def test_no_roster_check_while_the_assignment_job_is_off():
+    jobs = [dict(ASSIGN_ON[1], scheduled=False)]
+    assert roster_check(rows=[], jobs=jobs) is None

@@ -1336,9 +1336,21 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
 
 
 def parse_target_override(raw):
-    """target= from the CLI: a comma-separated string or a list; blanks and repeats dropped."""
+    """target= from the CLI: a comma-separated string or a list; blanks and repeats dropped.
+
+    A string that parses as a JSON object is one target, kept whole: splitting
+    it on its commas would dispatch each fragment as a target of its own. The
+    platform joins a list argument into a comma string before the script sees
+    it, so a caller cannot protect a JSON target by wrapping it in a list.
+    """
     if raw in (None, "", []):
         return []
+    if isinstance(raw, str) and raw.strip().startswith("{"):
+        try:
+            if isinstance(json.loads(raw), dict):
+                return [raw.strip()]
+        except ValueError:
+            pass
     items = raw if isinstance(raw, list) else str(raw).split(",")
     out, seen = [], set()
     for item in items:

@@ -1,0 +1,83 @@
+commonfields:
+  id: SOCFWAnalystSelect
+  version: -1
+name: SOCFWAnalystSelect
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.8.1983910
+comment: Gives unassigned open cases an owner from the analysts on duty in socfw_on_duty,
+  least loaded first. Load is each analyst's count of open assigned cases, read from
+  the cases API and counted up as the run assigns. Each assignment goes through the
+  Universal Command as soc-assign-case, so shadow mode decides whether it happens,
+  and the case is read again right before so one that gained an owner is left alone.
+  Each decision is recorded to the execution dataset as an analyst_assignment row with
+  every on-duty analyst's load at that moment.
+tags:
+- socfw
+enabled: true
+scripttarget: 0
+timeout: 10m0s
+runonce: false
+runas: DBotWeakRole
+fromversion: 6.10.0
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+system: false
+args:
+- name: max_cases
+  description: Most cases to look at in one run, oldest first. The run also stops at its time
+    budget; whatever is left goes to the next run.
+  defaultValue: "50"
+- name: max_per_analyst
+  description: Most open cases one analyst may hold. An analyst at the limit is not picked, and
+    once everyone on duty is at it the rest stay unassigned. A whole number, or unlimited. The
+    job passes AssignmentMaxPerAnalyst from SOCOptimizationConfig_V3.
+  defaultValue: "20"
+- name: domains
+  description: Case domains to assign - security, posture, health, a DOMAIN_* value, a comma
+    list of these, or all. The job passes AssignmentDomains from SOCOptimizationConfig_V3.
+  defaultValue: security
+- name: window
+  description: Only assign cases created within this period - 24 hours, 7 days, 3 months or all.
+    The job passes AssignmentWindow from SOCOptimizationConfig_V3. Load counts every open case
+    regardless.
+  defaultValue: 24 hours
+- name: online_only
+  description: true to pick only on-duty analysts who are logged in to the tenant now. The job
+    passes AssignmentOnlineOnly from SOCOptimizationConfig_V3.
+  defaultValue: "true"
+  auto: PREDEFINED
+  predefined:
+  - "true"
+  - "false"
+- name: method
+  description: How the on-duty analysts are ranked. least_loaded is the only method today.
+  defaultValue: least_loaded
+  auto: PREDEFINED
+  predefined:
+  - least_loaded
+- name: case_id
+  description: Assign only this case, if it is open and unassigned.
+- name: actor
+  description: Passed to the wrapper as Action_Actor. Defaults to automation, which ships
+    shadowed.
+  defaultValue: automation
+outputs:
+- contextPath: SOCFramework.Assignment.on_duty
+  description: Emails of the analysts on duty this run.
+  type: Unknown
+- contextPath: SOCFramework.Assignment.loads
+  description: Open assigned cases per on-duty analyst when the run started.
+  type: Unknown
+- contextPath: SOCFramework.Assignment.decisions
+  description: One row per case - case_id, case_name, assignee, status (assigned, simulated,
+    skipped, failed), reason, note, loads.
+  type: Unknown
+- contextPath: SOCFramework.Assignment.notes
+  description: Why nothing was assigned, when that is the outcome.
+  type: Unknown

@@ -40,7 +40,7 @@ class Tenant:
         # As shipped: off, placeholder owner (jobs/search shape on deathstar, 27 Oct 2026).
         self.jobs = {n: {"id": f"id-{i}", "version": 1, "name": n, "owner": "set-owner-with-SOCFWConfig",
                          "scheduled": False, "playbookId": "JOB - " + n, "nextRunTime": "2026-10-27T13:23:48Z"}
-                     for i, n in enumerate(("Auto Triage V3", "SOC Case Analysis"))}
+                     for i, n in enumerate(("Auto Triage V3", "SOC Case Analysis", "SOCFW Analyst Assignment"))}
         self.users = [{"id": "ana@example.com", "username": "ana@example.com",
                        "email": "ana@example.com", "name": "Ana"}]
         self.jobs_ignore_writes = False
@@ -154,7 +154,8 @@ def test_status_shows_customer_values_and_what_is_missing():
     r = run(t, command="status")
     values = {(v["vendor"], v["arg"]): v for v in r.outputs["values"]}
     assert set(values) == {("Zscaler", "category-id"), ("Zscaler", "using"), ("ThreatStopv2", "list_id"),
-                           ("CrowdStrike Falcon", "using"), ("Okta v2", "using")}
+                           ("CrowdStrike Falcon", "using"), ("Okta v2", "using"),
+                           ("PagerDuty v2", "schedule_ids")}
     assert values[("Okta v2", "using")]["required"] is False
     assert "soc-clear-sessions" in values[("Okta v2", "using")]["used_by"]
     assert values[("Zscaler", "category-id")]["value"] == "CAT-1"
@@ -1030,7 +1031,8 @@ def test_modes_list_is_complete_and_every_mode_sets_every_switch():
     for name, m in MODES["modes"].items():
         got = [(a, r) for a, actors in m["shadow"].items() for r in actors]
         assert sorted(got) == sorted(SWITCHES), name
-        assert m["jobs"] == {"Auto Triage V3": "on"} and m["description"]
+        assert m["jobs"]["Auto Triage V3"] == "on" and m["description"]
+        assert set(m["jobs"]) == {"Auto Triage V3", "SOCFW Analyst Assignment"}, name
     for action, actor in SWITCHES:
         assert action in ACTIONS and ACTIONS[action]["phase"] not in ("enrichment", "investigation")
 
@@ -1107,6 +1109,7 @@ def test_a_hand_change_reads_as_custom():
     # pov with the AI close back in shadow is exactly star_and_triage, and is named so.
     run(t, command="shadow", action="soc-block-domain", actor=["issue_emergency"], value="on", apply="yes")
     run(t, command="shadow", action="soc-close-issue", actor=["ai"], value="on", apply="yes")
+    run(t, command="shadow", action="soc-assign-case", actor=["automation"], value="on", apply="yes")
     assert run(t, command="mode").outputs["current"] == "star_and_triage"
 
 
@@ -1163,3 +1166,24 @@ def test_mode_argument_declared_with_every_mode():
     assert set(declared["mode"]["predefined"]) == set(MODES["modes"]) | {"default"}
     assert declared["mode"]["description"].startswith("[mode]")
     assert declared["owner"]["description"].startswith("[owner, mode]")
+
+
+def test_pov_turns_on_live_assignment_and_star_and_triage_does_not():
+    pov, sat = MODES["modes"]["pov"], MODES["modes"]["star_and_triage"]
+    assert pov["shadow"]["soc-assign-case"] == {"automation": False}
+    assert pov["jobs"]["SOCFW Analyst Assignment"] == "on"
+    assert sat["shadow"]["soc-assign-case"] == {"automation": True}
+    assert sat["jobs"]["SOCFW Analyst Assignment"] == "off"
+    assert "SOCFWOnDutySync analysts=" in pov["description"]
+
+
+def test_pov_turns_the_assignment_job_on_with_the_owner():
+    # Without owner= a job still on the placeholder owner stays off; pov owner= sets every job's owner.
+    t = mode_tenant()
+    run(t, command="mode", mode="pov", owner="ana@example.com", apply="yes")
+    assert t.jobs["SOCFW Analyst Assignment"]["scheduled"] is True
+    assert t.jobs["SOCFW Analyst Assignment"]["owner"] == "ana@example.com"
+    assert shadow_of(t, "soc-assign-case", "automation") is False
+    run(t, command="mode", mode="star_and_triage", apply="yes")
+    assert t.jobs["SOCFW Analyst Assignment"]["scheduled"] is False
+    assert shadow_of(t, "soc-assign-case", "automation") is True
