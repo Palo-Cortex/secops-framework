@@ -183,7 +183,7 @@ def check_roster() -> Dict[str, Any]:
                   + ", ".join(f"{n} {src}" for src, n in sorted(counts.items())))
 
 
-def check_configuration() -> List[Dict[str, Any]]:
+def check_configuration(enabled_vendors: Optional[set] = None) -> List[Dict[str, Any]]:
     status, why = _config_status()
     if status is None:
         return [_check("Configuration (SOCFWConfig)", STATUS_FAIL,
@@ -207,13 +207,26 @@ def check_configuration() -> List[Dict[str, Any]]:
     else:
         checks.append(_check("Mode", STATUS_OK, f"matches {mode}; {live_text}"))
 
-    missing = [f"{v.get('vendor')} {v.get('arg')}" for v in status.get("values") or []
-               if v.get("required") and not v.get("set")]
-    checks.append(_check(
-        "Customer values", STATUS_WARN if missing else STATUS_OK,
-        ("required and not set: " + ", ".join(missing)
-         + " — !SOCFWConfig command=set vendor=<vendor> arg=<setting> value=<value>")
-        if missing else "every required value is set"))
+    # A value is required only for a vendor this tenant has an enabled instance of:
+    # an action ships branches for many vendors, and one the tenant does not use
+    # needs nothing. enabled_vendors (from enabled_vendor_keys) None means the
+    # instances were unreadable, so every vendor is checked.
+    unset = [v for v in status.get("values") or [] if v.get("required") and not v.get("set")]
+    if enabled_vendors is None:
+        missing, unused = unset, []
+    else:
+        missing = [v for v in unset if _vendor_key(v.get("vendor")) in enabled_vendors]
+        unused = sorted({str(v.get("vendor")) for v in unset
+                         if _vendor_key(v.get("vendor")) not in enabled_vendors})
+    names = [f"{v.get('vendor')} {v.get('arg')}" for v in missing]
+    detail = (("required and not set: " + ", ".join(names)
+               + " — !SOCFWConfig command=set vendor=<vendor> arg=<setting> value=<value>")
+              if names else "every required value is set")
+    if enabled_vendors is None and names:
+        detail += " (integration instances unreadable, so every vendor is checked)"
+    if unused:
+        detail += "; not needed, no enabled instance: " + ", ".join(unused)
+    checks.append(_check("Customer values", STATUS_WARN if names else STATUS_OK, detail))
 
     jobs = status.get("jobs") or []
     if not jobs:
@@ -262,19 +275,48 @@ def check_configuration() -> List[Dict[str, Any]]:
 # Config-driven checks
 # ============================================================
 
-def _get_all_instances(using: Optional[str]) -> Tuple[bool, List[Dict]]:
-    """Fetch all integration instances once and reuse."""
+def _search_integrations(using: Optional[str]) -> Tuple[bool, List[Dict], List[Dict]]:
+    """(ok, instances, configurations) from one integration search."""
     ok, response = _call_core_api(
         "post", "xsoar/public/v1/settings/integration/search",
         body={}, using=using
     )
     if not ok:
-        return False, []
+        return False, [], []
     if isinstance(response, dict):
-        return True, response.get("instances", [])
+        return True, response.get("instances", []), response.get("configurations", [])
     if isinstance(response, list):
-        return True, response
-    return True, []
+        return True, response, []
+    return True, [], []
+
+
+def _get_all_instances(using: Optional[str]) -> Tuple[bool, List[Dict]]:
+    """Fetch all integration instances once and reuse."""
+    ok, instances, _ = _search_integrations(using)
+    return ok, instances
+
+
+def _vendor_key(name: Any) -> str:
+    return "".join(ch for ch in str(name or "").lower() if ch.isalnum())
+
+
+def enabled_vendor_keys(instances: List[Dict], configurations: List[Dict]) -> set:
+    """Normalised names of every integration with an enabled instance.
+
+    Vendor keys in SOCFrameworkActions_V3 are not always the brand string
+    ("CrowdStrike Falcon" vs brand CrowdStrikeFalcon), so each enabled brand
+    is matched by its brand and by its configuration's display name, ignoring
+    case, spaces and punctuation.
+    """
+    display = {_vendor_key(c.get("id")): c.get("display") for c in configurations or []}
+    keys = set()
+    for x in instances or []:
+        if x.get("enabled") != "true":
+            continue
+        keys.add(_vendor_key(x.get("brand")))
+        keys.add(_vendor_key(display.get(_vendor_key(x.get("brand")))))
+    keys.discard("")
+    return keys
 
 
 def check_lists_from_config(
@@ -984,11 +1026,14 @@ def main():
 
     checks: List[Dict[str, Any]] = []
 
+    # Instances first: the configuration check needs to know which vendors are in use.
+    api_ok, all_instances, configurations = _search_integrations(using)
+    enabled_vendors = enabled_vendor_keys(all_instances, configurations) if api_ok else None
+
     # ── 1. Always: configuration, from SOCFWConfig status ────
-    checks.extend(check_configuration())
+    checks.extend(check_configuration(enabled_vendors))
 
     # ── 1b. Always: the instances the framework calls by exact name ──
-    api_ok, all_instances = _get_all_instances(using)
     checks.extend(check_named_instances(all_instances, api_ok))
 
     # ── 2a. CONFIG-DRIVEN mode ────────────────────────────────

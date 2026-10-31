@@ -313,3 +313,40 @@ def test_every_instance_called_by_name_is_required_and_shipped():
     shipped = {i["name"]: i["brand"] for i in json.load(open(os.path.join(pack, "xsoar_config.json")))["integration_instances"]}
     for name, (brand, _) in module.REQUIRED_INSTANCES.items():
         assert shipped.get(name) == brand, name
+
+
+PD = {"vendor": "PagerDuty v2", "arg": "schedule_ids", "required": True, "set": False}
+
+
+def values_check(enabled, values):
+    module, _ = load(Fake(config=status(values=values)))
+    keys = None if enabled is None else {module._vendor_key(b) for b in enabled}
+    return {c["check"]: c for c in module.check_configuration(keys)}["Customer values"]
+
+
+def test_required_value_for_a_vendor_the_tenant_does_not_have_is_not_a_warning():
+    c = values_check({"Core REST API"}, [PD])
+    assert c["status"] == "OK"
+    assert "every required value is set" in c["detail"] and "not needed, no enabled instance: PagerDuty v2" in c["detail"]
+
+
+def test_required_value_for_an_enabled_vendor_warns():
+    c = values_check({"PagerDuty v2"}, [PD])
+    assert c["status"] == "WARN" and "PagerDuty v2 schedule_ids" in c["detail"]
+
+
+def test_unreadable_instances_check_every_vendor_and_say_so():
+    c = values_check(None, [PD])
+    assert c["status"] == "WARN" and "instances unreadable" in c["detail"]
+
+
+def test_vendor_keys_match_brand_or_display_name_loosely():
+    module, _ = load(Fake(config=status()))
+    keys = module.enabled_vendor_keys(
+        [{"brand": "CrowdStrikeFalcon", "enabled": "true"}, {"brand": "PagerDuty v2", "enabled": "false"},
+         {"brand": "Zscaler", "enabled": "true"}],
+        [{"id": "CrowdstrikeFalcon", "display": "CrowdStrike Falcon"},
+         {"id": "Zscaler", "display": "Zscaler Internet Access"}])
+    for vendor in ("CrowdStrike Falcon", "Zscaler", "Zscaler Internet Access"):
+        assert module._vendor_key(vendor) in keys, vendor
+    assert module._vendor_key("PagerDuty v2") not in keys        # disabled is not in use
