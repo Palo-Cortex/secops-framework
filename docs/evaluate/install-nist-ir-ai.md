@@ -27,11 +27,10 @@ This delivers the scripts, the two layouts and their rule, the three dashboards,
 
 ## 2. Create the two AI Prompts
 
-Investigation & Response → Automation → **AI Prompts** → new prompt. Name each exactly as shown; the playbook tasks carry the same names, which is what makes step 4 unambiguous. The body of each prompt is in its recipe file in the pack; paste it verbatim. The recipe is the current copy of the prompt and its settings; if a value on this page and the recipe disagree, the recipe wins.
+Investigation & Response → Automation → **AI Prompts** → new prompt. Name each exactly as shown; the playbook tasks carry the same names, which is what makes step 4 unambiguous. The body and the input bindings of each prompt come from the prompt master distributed with the lifecycle (Palo Alto Networks internal; not published in this repository); paste the body verbatim and bind every input it lists. If a value on this page and the prompt master disagree, the master wins.
 
 | Setting | `SOCFWIssueAssessment` | `SOCFWCaseAnalysis` |
 |---|---|---|
-| Recipe | `SOCFWIssueAssessment.prompt.md` | `SOCFWCaseAnalysis.prompt.md` |
 | Model | Flash tier | Thinking tier |
 | Temperature | `0` | `0` |
 | Max output tokens | `16000` | `16000` |
@@ -39,30 +38,7 @@ Investigation & Response → Automation → **AI Prompts** → new prompt. Name 
 | Output context path | `Assessment.AI` | `Analysis.AI` |
 | Use structured output | off | off |
 
-Inputs for `SOCFWIssueAssessment`, each bound through `SetIfEmpty` with default `no content`:
-
-| Variable | Context path |
-|---|---|
-| `product_category` | `SOCFramework.Product.category` |
-| `product_key` | `SOCFramework.Product.key` |
-| `issue_contract` | `SOCFramework` |
-| `intel` | `Assessment.Intel` |
-| `risk_score` | `SOCFramework.Investigation.RiskScore` |
-| `linked_count` | `SOCFramework.Investigation.LinkedCount` |
-| `alert_name` | `alert.name` |
-| `alert_description` | `issue.details` |
-
-Inputs for `SOCFWCaseAnalysis`, all bound to `CaseIter.*` (never to `inputs.Case.*`, which accumulates across iterations and produces duplicate verdicts):
-
-| Variable | Context path |
-|---|---|
-| `case_id` | `CaseIter.ID` |
-| `issue_count` | `CaseIter.IssueCount` |
-| `categories` | `CaseIter.Categories` |
-| `case_window` | `CaseIter.Window` |
-| `shape_coverage` | `CaseIter.ShapeCoverage` |
-| `case_payload` | `CaseIter.Payload` |
-| `prior_verdict` | `CaseIter.PriorVerdict` |
+Every `SOCFWIssueAssessment` input is bound through `SetIfEmpty` with default `no content`, so the model sees a value it can read rather than a missing variable. Every `SOCFWCaseAnalysis` input is bound to `CaseIter.*`, never to `inputs.Case.*`, which accumulates across iterations and produces duplicate verdicts.
 
 > Do not lower the token ceilings. A reply that exceeds the ceiling is cut mid-string and arrives as unparseable JSON; both prompts have truncated at lower settings, and on the Thinking tier the model's reasoning draws on the same budget as its output. 16000 is the default for both. Structured output stays off because the schema is described in the prompt body.
 

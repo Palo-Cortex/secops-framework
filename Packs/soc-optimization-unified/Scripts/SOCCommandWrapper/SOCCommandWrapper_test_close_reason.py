@@ -82,8 +82,13 @@ def test_a_shadowed_close_records_the_platforms_wording():
 
 def test_every_ai_closure_reason_is_mapped():
     """Every reason the assessment prompts can return has a wording."""
-    root = os.path.join(os.path.dirname(__file__), "..", "..", "..", "soc-framework-nist-ir-ai")
+    # The prompt recipes live in the private socfw-nist-ir-ai repo; point
+    # SOCFW_PROMPTS_DIR at its prompts/ folder to run this check.
     import re
+    import pytest
+    root = os.environ.get("SOCFW_PROMPTS_DIR")
+    if not root:
+        pytest.skip("SOCFW_PROMPTS_DIR not set; prompt recipes are not in this repo")
     reasons = set()
     for f in ("SOCFWIssueAssessment.prompt.md", "SOCFWCaseAnalysis.prompt.md"):
         reasons |= set(re.findall(r'"(RESOLVED_[A-Z_]+)"', open(os.path.join(root, f)).read()))
