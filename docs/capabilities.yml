@@ -1,0 +1,95 @@
+# Capability catalog: one row per capability, by pack. Rendered by
+# tools/generate_capability_catalog.py into the Reference landing page and
+# each pack README between the capabilities:begin / capabilities:end markers.
+#   name: the capability as the page names it
+#   does: one sentence, what it does and the outcome (framework terms on
+#         SOC Framework rows; phase terms only on lifecycle rows)
+#   page: docs path of its capability page; omit while the page is pending
+
+soc-optimization-unified:
+  title: SOC Framework
+  capabilities:
+    - name: "Universal Command"
+      does: "Every vendor action goes through one wrapper that resolves the vendor from the action registry and product map, applies Shadow Mode, executes or simulates, and writes one execution row per action."
+      page: soc-optimization-unified/universal-command.md
+    - name: "Shadow Mode"
+      does: "A changing action prints its intent and writes its execution row but does not call the vendor until its flag is flipped, per action and per actor. Fails closed: an unreadable flag means simulated."
+      page: soc-optimization-unified/shadow-mode.md
+    - name: "Tenant configuration"
+      does: "One command (`!SOCFWConfig`) to view and flip shadow flags per actor, set customer values, turn jobs on and off, set owners and thresholds, and apply a mode. Dry run unless `apply=yes`; writes survive pack upgrades."
+      page: soc-optimization-unified/tenant-configuration.md
+    - name: "Deployment modes"
+      does: "Apply a coherent set of shadow switches and job states in one step (`pov`, `star_and_triage`, `contain_identity_and_hosts`, `contain_all`); `mode=default` reverts."
+      page: soc-optimization-unified/deployment-modes.md
+    - name: "Foundation chain"
+      does: "Runs on every alert before any lifecycle logic: data integrity, product classification, indicator extraction, normalization, enrichment, case status note, case ledger write. Only Foundation reads `issue.*`."
+    - name: "Product classification"
+      does: "Resolves `SOCFramework.Product.*` from the alert's data-source tag via `SOCProductCategoryMap_V3`, with sub-product override and field-shape fallback."
+    - name: "Normalization"
+      does: "Maps raw `issue.*` fields into `SOCFramework.Artifacts.*` per lifecycle and category from a schema list; no per-category playbook branches."
+    - name: "Enrichment lanes"
+      does: "Fires reputation commands (`ip`, `file`, `domain`, `url`) and action lanes (`identity`, `device`) only when the artifact paths resolve."
+    - name: "Identity resolution"
+      does: "Resolves a bare account name to email and provider facets from the asset inventory; fail-open. The scheduled CIE rule builds `socfw_identity_map` for vendor-pack overlays."
+    - name: "Case ledger"
+      does: "Writes one queryable row per issue carrying the Foundation contract to `xsiam_socfw_case_ledger_raw`, and a \"being worked\" note per case."
+    - name: "Dedup"
+      does: "Fingerprints similar alerts in a window, keeps the lowest alert id as canonical; duplicates self-close and write a dedup row. An action fingerprint stops the same action running twice on one case."
+    - name: "Auto Triage"
+      does: "Scheduled close of low-signal cases: new, unstarred, no manual score, score at or below the threshold, older than the window."
+    - name: "Analyst assignment"
+      does: "Syncs who is on duty into `socfw_on_duty` (PagerDuty, roles and groups, or a manual list) and assigns open cases least-loaded through `soc-assign-case`."
+    - name: "Emergency response"
+      does: "Acts on a high-confidence malicious issue without waiting for the case, per policy; guarded by role and protection tiers; escalates when blocked."
+    - name: "Elevate case"
+      does: "Stars the case, and optionally raises severity, when the lifecycle's assessment says so at high confidence."
+    - name: "Phase plan and executor"
+      does: "Builds a per-phase action plan from the contract without a model, then applies environment tiers, policy authority, vendor reachability and ledger dedup before dispatch; non-dispatched steps still produce a row."
+    - name: "Health check"
+      does: "Read-only tenant check (`!SOCFWHealthCheck`): configuration, jobs and owners, customer values, named instances, presence of lists, rules, dashboards and packs."
+    - name: "Contract coverage report"
+      does: "Samples tenant issues and reports, per source, whether each normalization-contract field is satisfied, candidate or absent."
+    - name: "Value accounting"
+      does: "Every execution row carries `time_minutes` and `action_category` from `SOCActionTimeMap_V3` (tenant override wins); the dashboards sum them."
+    - name: "Execution dataset writer"
+      does: "Posts events to an HTTP Collector through a named integration instance; never blocks a playbook."
+    - name: "Health dashboard"
+      does: "Command error rate, failed commands, minutes credited to failures, failure reasons, write failures."
+    - name: "Branch execution"
+      does: "`SOCExecutionList_V3` selects which branch of each Workflow playbook runs."
+    - name: "Feature flags"
+      does: "`SOCFWFeatureFlags` gates optional analysis features."
+
+soc-framework-nist-ir-ai:
+  title: NIST IR AI
+  capabilities:
+    - name: "NIST IR AI"
+      does: "The lifecycle in one picture: issue assessment on every issue, scheduled case analysis, and which framework actions each phase calls."
+      page: soc-framework-nist-ir-ai/nist-ir-ai.md
+    - name: "AI Entry Point"
+      does: "Stamps the lifecycle, runs the Foundation chain, collects intel, runs the issue-assessment prompt and renders the verdict; then emergency response, elevate and close by policy."
+      page: soc-framework-nist-ir-ai/entry-point.md
+    - name: "Issue Assessment"
+      does: "Disposition prompt per issue: verdict, confidence, exposure, whether already contained, whether to escalate, whether it may close; promoted into the contract."
+      page: soc-framework-nist-ir-ai/issue-assessment.md
+    - name: "AI Close Decision"
+      does: "Decides whether the assessment may close the issue; hard guards (starred, assigned, truncated, true positive) and a confidence bar per category."
+      page: soc-framework-nist-ir-ai/close-decision.md
+    - name: "Case analysis job"
+      does: "Selects settled cases, collapses each to distinct alert shapes and entities, runs the case-analysis prompt and reports one verdict per case."
+    - name: "Case verdict report"
+      does: "One War Room entry per case tagged socfw-case-verdict; earlier ones marked superseded."
+    - name: "Case containment job"
+      does: "Same selection as case analysis, then runs the deterministic phase plan and executor over every candidate case."
+    - name: "Issue and case layouts"
+      does: "Two-tab issue layout (assessment, buttons, feedback, work plan, notes, export) and a Case Analysis tab on the case."
+    - name: "Analyst feedback"
+      does: "Correct, wrong or missing-context against the verdict as it stood, with an optional note."
+    - name: "Containment options from the layout"
+      does: "Computes at click time which actions the tenant can run for this issue and offers them as buttons."
+    - name: "War Room export"
+      does: "Exports the issue War Room verbatim to a printable HTML file attached to the issue."
+    - name: "Value Driver and Value Metrics dashboards"
+      does: "MTTD, MTTI, MTTC, cases eradicated and recovered, alerts by source, ingestion lag, cases auto-triaged, time saved by category."
+    - name: "Phase contract"
+      does: "Declares per-phase reads, writes and routing for the lifecycle; consumers validate and build rows from it."

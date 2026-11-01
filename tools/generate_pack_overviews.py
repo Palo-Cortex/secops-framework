@@ -41,6 +41,15 @@ GENERATED_BANNER = (
     "Run `python tools/generate_pack_overviews.py` to regenerate. -->"
 )
 
+# Packs whose README.md is written in the capability-catalog shape and is
+# included at the top of the overview page (pymdownx.snippets, path relative
+# to the repo root). A pack joins this set when its README is rewritten to
+# that shape; until then the overview keeps its own title and manifest only.
+README_INCLUDED_PACKS = {"soc-optimization-unified"}
+
+# Top-level keys in a list's ``_data.json`` that are metadata, not settings.
+LIST_META_KEYS = {"id", "name", "version", "description", "note", "_note"}
+
 
 # ---------------------------------------------------------------------------
 # Markdown helpers (kept local; refactor to shared module if a third tool grows)
@@ -292,18 +301,115 @@ SECTION_ORDER: list[tuple[str, Any]] = [
 
 
 # ---------------------------------------------------------------------------
+# Lists — one table per ``Lists/<name>/<name>_data.json``
+# ---------------------------------------------------------------------------
+
+def _list_default(value: Any) -> str:
+    """One cell summarising a top-level list entry's shipped value.
+
+    Lists have no common shape, so this reads the keys that carry the
+    tunable in each known shape and falls back to a key count.
+    """
+    if not isinstance(value, dict):
+        return md_code(_plain(value))
+    if "enabled" in value:
+        return md_code(_plain(value["enabled"]))
+    if "shadow_mode_by_actor" in value:
+        by_actor = value["shadow_mode_by_actor"]
+        shadowed = [a for a, flag in by_actor.items() if flag]
+        live = [a for a, flag in by_actor.items() if not flag]
+        return md_code("shadow: " + (", ".join(shadowed) or "none")
+                       + ("; live: " + ", ".join(live) if live else ""))
+    if "shadow_mode" in value:
+        return md_code(f"shadow_mode={_plain(value['shadow_mode'])}")
+    if "execute_branch" in value:
+        return md_code(value["execute_branch"])
+    if "time_minutes" in value:
+        cat = value.get("action_category")
+        return md_code(f"{value['time_minutes']} min" + (f", {cat}" if cat else ""))
+    if "category" in value:
+        return md_code(value["category"])
+    if "fields" in value and isinstance(value["fields"], dict):
+        fields = ", ".join(f"{k}={_plain(v)}" for k, v in value["fields"].items())
+        return f"`{md_escape_cell(fields, max_len=200)}`"
+    return f"{len(value)} keys"
+
+
+def _plain(value: Any) -> str:
+    """Booleans as the JSON words, not the ✓ the manifest tables use."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return value
+
+
+def _list_description(value: Any) -> str:
+    if isinstance(value, dict):
+        text = (value.get("description") or value.get("capability")
+                or value.get("_note") or value.get("note"))
+        return md_escape_cell(text, max_len=160)
+    return ""
+
+
+def _render_lists_section(pack_dir: Path) -> list[str]:
+    lists_dir = pack_dir / "Lists"
+    if not lists_dir.is_dir():
+        return []
+    out = ["## Lists", "",
+           "Shipped defaults, read from each list's `_data.json`. Change them on the "
+           "tenant with `!SOCFWConfig`, never by editing the pack.", ""]
+    rendered = 0
+    for data_path in sorted(lists_dir.glob("*/*_data.json")):
+        list_name = data_path.name[: -len("_data.json")]
+        try:
+            data = json.loads(data_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        rows = [[md_code(k), _list_default(v), _list_description(v)]
+                for k, v in data.items() if k not in LIST_META_KEYS]
+        if not rows:
+            continue
+        purpose = md_escape_cell(data.get("description") or data.get("note"), max_len=200)
+        out.append(f'??? note "`{list_name}` — {len(rows)} keys"')
+        out.append("")
+        if purpose:
+            out.append(f"    {purpose}")
+            out.append("")
+        out.extend("    " + line if line else ""
+                   for line in md_table(["Key", "Shipped default", "Description"], rows))
+        rendered += 1
+    return out if rendered else []
+
+
+# ---------------------------------------------------------------------------
 # Per-pack overview rendering
 # ---------------------------------------------------------------------------
 
 def render_overview(pack_entry: dict, xsoar_config: dict, source_rel: str,
-                    schemas: list[tuple[str, str]] | None = None) -> str:
+                    schemas: list[tuple[str, str]] | None = None,
+                    pack_dir: Path | None = None) -> str:
     out: list[str] = []
 
-    title = pack_entry.get("display_name") or pack_entry.get("id", "Pack")
-    out.append(f"# {title} — Overview")
-    out.append("")
-    out.append(GENERATED_BANNER)
-    out.append("")
+    pack_id = pack_entry.get("id", "Pack")
+    readme = (pack_dir / "README.md") if pack_dir else None
+    include_readme = pack_id in README_INCLUDED_PACKS and readme is not None and readme.is_file()
+
+    if include_readme:
+        # The README carries the page title and the capability catalog; the
+        # manifest tables below it are the generated half of the page.
+        out.append(GENERATED_BANNER)
+        out.append("")
+        out.append(f'--8<-- "{_safe_rel(readme, REPO_ROOT)}"')
+        out.append("")
+        out.append("## Manifest")
+        out.append("")
+    else:
+        title = pack_entry.get("display_name") or pack_id
+        out.append(f"# {title} — Overview")
+        out.append("")
+        out.append(GENERATED_BANNER)
+        out.append("")
 
     rows = [
         ["ID",            md_code(pack_entry.get("id"))],
@@ -338,6 +444,9 @@ def render_overview(pack_entry: dict, xsoar_config: dict, source_rel: str,
     if not rendered_any:
         out.append("_This pack's `xsoar_config.json` declares no installable items._")
         out.append("")
+
+    if include_readme:
+        out.extend(_render_lists_section(pack_dir))
 
     return "\n".join(out)
 
@@ -414,7 +523,8 @@ def process_pack(pack_entry: dict, *, repo_root: Path, docs_root: Path,
     rel_out = _safe_rel(out_path, repo_root)
 
     rendered = render_overview(pack_entry, xsoar_config, rel_in,
-                                schemas=_discover_schemas_for_pack(docs_dir))
+                                schemas=_discover_schemas_for_pack(docs_dir),
+                                pack_dir=pack_dir)
     if not rendered.endswith("\n"):
         rendered += "\n"
 

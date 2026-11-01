@@ -10,6 +10,10 @@ on:
       - "schemas/**"
       - "pack_catalog.json"
       - "Packs/**/xsoar_config.json"
+      - "Packs/**/README.md"
+      - "Packs/**/POST_CONFIG_README.md"
+      - "Packs/**/Lists/**"
+      - "tools/generate_capability_catalog.py"
       - "tools/generate_schema_docs.py"
       - "tools/generate_pack_overviews.py"
       - "tools/generate_home_page.py"
@@ -40,15 +44,20 @@ jobs:
       - name: Install dependencies
         run: pip install mkdocs-material pymdown-extensions pyyaml mkdocs-exclude
 
-      # Run generators in dependency order:
-      #   1. schema docs    — writes docs/<pack>/<schema>.md
-      #   2. pack overviews — writes docs/<pack>/overview.md
-      #   3. home page      — writes docs/index.md
-      #   4. mkdocs nav     — reads catalog + docs/, writes mkdocs.yml
+      # Run generators in dependency order (the same order as tools/prep_docs.py):
+      #   1. capability catalog — splices docs/capabilities.yml into
+      #                           docs/reference/index.md and pack READMEs
+      #   2. schema docs        — writes docs/<pack>/<schema>.md
+      #   3. pack overviews     — writes docs/<pack>/overview.md
+      #   4. home page          — writes docs/index.md
+      #   5. mkdocs nav         — reads catalog + docs/nav.yml, writes mkdocs.yml
       #
       # Each generator prunes its own orphan files (matched by GENERATED banner).
       # Output lives only in the runner's filesystem — `mkdocs build` consumes
       # it directly. We never commit it back, so version bumps don't loop.
+      - name: Regenerate capability catalog
+        run: python tools/generate_capability_catalog.py
+
       - name: Regenerate schema docs
         run: python tools/generate_schema_docs.py
 
@@ -62,11 +71,8 @@ jobs:
         run: python tools/generate_mkdocs_nav.py
 
       - name: Build site
-        # NOTE: --strict is deliberately disabled for the initial launch.
-        # Existing hand-authored docs have broken cross-links and missing
-        # image references. Curate those (or remove stale docs like
-        # BRANCH_NAMING.md, CIA_*.md), then re-enable: `mkdocs build --strict`.
-        run: mkdocs build
+        # Strict: a broken link or a page missing from docs/nav.yml fails the build.
+        run: mkdocs build --strict
 
       - uses: actions/configure-pages@v5
 

@@ -1,60 +1,14 @@
-# SOC Framework
+# Architecture
 
-Opinionated, modular SOC content for Cortex XSIAM. Auditable end-to-end. Safe by default via Shadow Mode.
+How an alert moves through the framework and the lifecycle on top of it: the alert flow, Upon Trigger, entry points, Auto Triage, the universal command with Shadow Mode, and the value metrics every action feeds.
 
-The SOC Framework provides a structured, contract-driven layer over XSIAM that
-turns ad-hoc SecOps automation into something composable, testable, and
-upgradable. Built on NIST IR 800-61, every alert flows through the same
-lifecycle (Analysis → Containment → Eradication → Recovery), every action is
-gated by Shadow Mode by default, and every pack inherits the same contracts.
+These pages predate the capability reference and describe the mechanisms end to end; for the switch, the steps and the verify block of one capability, use [Reference](../reference/index.md).
 
-## Install & Setup
-
-**[→ SOC Framework Install & Setup](getting-started.md)**
-
-Step-by-step tenant configuration: install the SOC Framework Package Manager,
-deploy `soc-optimization-unified`, run `!SOCFWHealthCheck`, enable Auto Triage,
-wire the automation trigger. This is the same canonical doc referenced by
-`xsiam-pov-automation` and the package manager — single source of truth for
-getting a tenant ready.
-
-## Three core values
-
-- **Auditable** — every framework action writes to a dataset; every phase
-  surface is contractually defined; every value driver maps to a metric.
-- **Modular** — vendor packs are interchangeable. Drop in a new EDR or email
-  source and the lifecycle adapts.
-- **Safe** — Shadow Mode is the default for every action. Flip a flag to go
-  to production. No surprises.
-
-## Learn the framework
-
-<div class="grid cards" markdown>
-
--   **Architecture**
-
-    ---
-
-    Concepts, the alert flow, the lifecycle. Read this first.
-
-    [Architecture →](architecture/index.md)
-
--   **Foundation**
-
-    ---
-
-    The two packs that define the framework: the contract layer and the
-    NIST IR lifecycle.
-
-    [Foundation →](foundation/index.md)
-
--   **Packs**
-
-    ---
-
-    Vendor coverage — endpoint, email, identity, network. One reference page
-    per data source.
-
-    [Packs →](packs/index.md)
-
-</div>
+- [Alert flow](alert-flow.md): ingest to lifecycle, step by step.
+- [Upon Trigger](upon-trigger.md): the Foundation chain that runs on every alert.
+- [Entry points](entry-points.md): how a lifecycle is started.
+- [Auto Triage](auto-triage.md): the scheduled close of low-signal cases.
+- [NIST IR lifecycle](nist-ir-lifecycle.md): the phases and what each reads and writes.
+- [Universal Command and Shadow Mode](universal-command-shadow-mode.md): one interface for every vendor action.
+- [Value metrics](value-metrics.md): what the execution dataset measures.
+- [Cross-lifecycle surfaces](cross-lifecycle-surfaces.md): what the framework and a lifecycle share, tiered by blast radius.

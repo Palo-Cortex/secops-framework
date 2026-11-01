@@ -8,12 +8,15 @@ Install: [Install the SOC Framework](https://palo-cortex.github.io/secops-framew
 
 One page per capability on the site, in the same shape every time: what it does, where the switch lives, how to turn it on, how to verify it, what it feeds.
 
+<!-- capabilities:begin -->
+<!-- generated from docs/capabilities.yml by tools/generate_capability_catalog.py; edit the yml -->
+
 | Capability | What it does | Page |
 |---|---|---|
 | Universal Command | Every vendor action goes through one wrapper that resolves the vendor from the action registry and product map, applies Shadow Mode, executes or simulates, and writes one execution row per action. | [Universal Command](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/universal-command/) |
 | Shadow Mode | A changing action prints its intent and writes its execution row but does not call the vendor until its flag is flipped, per action and per actor. Fails closed: an unreadable flag means simulated. | [Shadow Mode](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/shadow-mode/) |
-| Tenant configuration | One command (`!SOCFWConfig`) to view and flip shadow flags per actor, set customer values, turn jobs on and off, set owners and thresholds, and apply a mode. Dry run unless `apply=yes`; writes survive pack upgrades. | [Tenant Configuration](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/tenant-configuration/) |
-| Deployment modes | Apply a coherent set of shadow switches and job states in one step (`pov`, `star_and_triage`, `contain_identity_and_hosts`, `contain_all`); `mode=default` reverts. | [Deployment Modes](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/deployment-modes/) |
+| Tenant configuration | One command (`!SOCFWConfig`) to view and flip shadow flags per actor, set customer values, turn jobs on and off, set owners and thresholds, and apply a mode. Dry run unless `apply=yes`; writes survive pack upgrades. | [Tenant configuration](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/tenant-configuration/) |
+| Deployment modes | Apply a coherent set of shadow switches and job states in one step (`pov`, `star_and_triage`, `contain_identity_and_hosts`, `contain_all`); `mode=default` reverts. | [Deployment modes](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/deployment-modes/) |
 | Foundation chain | Runs on every alert before any lifecycle logic: data integrity, product classification, indicator extraction, normalization, enrichment, case status note, case ledger write. Only Foundation reads `issue.*`. | page pending |
 | Product classification | Resolves `SOCFramework.Product.*` from the alert's data-source tag via `SOCProductCategoryMap_V3`, with sub-product override and field-shape fallback. | page pending |
 | Normalization | Maps raw `issue.*` fields into `SOCFramework.Artifacts.*` per lifecycle and category from a schema list; no per-category playbook branches. | page pending |
@@ -33,6 +36,8 @@ One page per capability on the site, in the same shape every time: what it does,
 | Health dashboard | Command error rate, failed commands, minutes credited to failures, failure reasons, write failures. | page pending |
 | Branch execution | `SOCExecutionList_V3` selects which branch of each Workflow playbook runs. | page pending |
 | Feature flags | `SOCFWFeatureFlags` gates optional analysis features. | page pending |
+
+<!-- capabilities:end -->
 
 ## Lists
 
