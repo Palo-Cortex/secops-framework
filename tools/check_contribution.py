@@ -483,6 +483,24 @@ def main() -> None:
             ),
         ))
 
+        # ── Step 5b: docs coverage ────────────────────────────────────────────
+        # A script, list or list key added to a pack must be mentioned in the
+        # pack's README, docs/capabilities.yml, or a hand-authored page under
+        # docs/<pack>/. Only packs whose README carries the capabilities
+        # markers are gated; the script skips the rest.
+        results.append(run_step(
+            f"check_readme_coverage — {pack.name}",
+            [sys.executable, "tools/check_readme_coverage.py", str(pack)],
+            args.ci,
+            remediation=(
+                "Something this branch adds to the pack is not documented.\n"
+                "The output above names it. Add it to the capability page it\n"
+                "belongs to (docs/<pack>/*.md), to docs/capabilities.yml, or to\n"
+                "the pack README, then re-run:\n"
+                f"  python3 tools/check_readme_coverage.py {pack}"
+            ),
+        ))
+
     # ── Step 6: validate_shadow_mode (once, --all) ────────────────────────────
     # Always runs across the entire framework — shadow mode consistency is a
     # global property, not per-pack. One broken action affects every playbook.

@@ -84,7 +84,7 @@ Two consequences of the test:
 
 </div>
 
-**[→ Install & Setup](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-optimization-unified/POST_CONFIG_README.md)**
+**[→ Install the SOC Framework](evaluate/install.md)** · about 30 minutes
 
 ---
 

@@ -63,18 +63,25 @@ def load_install_doc(pack_config_path: Path) -> dict:
     return first
 
 
+INSTALL_PAGE = "evaluate/install.md"
+
+
 def render_install_block(install_doc: dict) -> str:
     """Render the install link as a single-line Markdown link.
 
-    The home page surfaces this prominently — readers click it and land on
-    the canonical install README in the pack folder on GitHub. The label
-    is "Install & Setup" rather than the JSON's ``name`` field, because
-    the JSON's name is tuned for the per-pack overview page where it
-    reads as "<pack> - Manual Steps". On the home page that phrasing is
-    confusing; "Install & Setup" matches the section header above it.
+    The link goes to the site's own install page, which includes the pack's
+    ``POST_CONFIG_README.md`` by snippet — the same file the manifest's
+    ``post_config_docs`` entry points at on GitHub. ``install_doc`` is only
+    checked, not rendered: if the pack stops declaring it, the home page
+    generator fails rather than quietly linking to an install page whose
+    source is gone.
     """
-    url = install_doc["url"]
-    return f"**[→ Install & Setup]({url})**\n"
+    if "POST_CONFIG_README.md" not in install_doc["url"]:
+        raise ValueError(
+            f"first post_config_docs entry is not POST_CONFIG_README.md "
+            f"({install_doc['url']}); {INSTALL_PAGE} includes that file."
+        )
+    return f"**[→ Install the SOC Framework]({INSTALL_PAGE})** · about 30 minutes\n"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -98,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        install_doc = load_install_doc(config_path)
+        install_block = render_install_block(load_install_doc(config_path))
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -108,8 +115,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: template is missing the '{MARKER}' marker.",
               file=sys.stderr)
         return 2
-
-    install_block = render_install_block(install_doc)
 
     # Match the marker line preserving its leading whitespace, replace with
     # the install block at the same indent.
