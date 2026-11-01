@@ -1,195 +1,59 @@
-# SOC Framework — Foundation Pack
+# SOC Framework
 
-Foundation layer for the Palo Alto Networks XSIAM SOC Framework. Provides the
-shared infrastructure every Framework deployment depends on: Universal Command,
-Shadow Mode, the Upon Trigger Foundation chain, Auto-Triage, the execution
-dataset, and the Value Metrics dashboards.
+The operating layer for security operations on Cortex XSIAM. It makes any lifecycle vendor-agnostic, safe to run and measurable: every vendor action goes through one command, every changing action ships simulated until it is switched on, and every action writes one row with the analyst minutes it stands for. The framework knows nothing about phases or verdicts; a lifecycle such as NIST IR AI installs on top and calls its actions by name.
 
-This pack is the base. Vendor lifecycle packs (SOC CrowdStrike Falcon, SOC Microsoft
-Defender, SOC Trend Micro, SOC Proofpoint TAP, etc.) install on top of it.
+Install: [Install the SOC Framework](https://palo-cortex.github.io/secops-framework/evaluate/install/) (about 30 minutes). Read first: [Framework and Lifecycle](https://palo-cortex.github.io/secops-framework/).
 
----
+## Capabilities
 
-## Components
+One page per capability on the site, in the same shape every time: what it does, where the switch lives, how to turn it on, how to verify it, what it feeds.
 
-### Universal Command
+| Capability | What it does | Page |
+|---|---|---|
+| Universal Command | Every vendor action goes through one wrapper that resolves the vendor from the action registry and product map, applies Shadow Mode, executes or simulates, and writes one execution row per action. | [Universal Command](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/universal-command/) |
+| Shadow Mode | A changing action prints its intent and writes its execution row but does not call the vendor until its flag is flipped, per action and per actor. Fails closed: an unreadable flag means simulated. | [Shadow Mode](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/shadow-mode/) |
+| Tenant configuration | One command (`!SOCFWConfig`) to view and flip shadow flags per actor, set customer values, turn jobs on and off, set owners and thresholds, and apply a mode. Dry run unless `apply=yes`; writes survive pack upgrades. | [Tenant Configuration](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/tenant-configuration/) |
+| Deployment modes | Apply a coherent set of shadow switches and job states in one step (`pov`, `star_and_triage`, `contain_identity_and_hosts`, `contain_all`); `mode=default` reverts. | [Deployment Modes](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/deployment-modes/) |
+| Foundation chain | Runs on every alert before any lifecycle logic: data integrity, product classification, indicator extraction, normalization, enrichment, case status note, case ledger write. Only Foundation reads `issue.*`. | page pending |
+| Product classification | Resolves `SOCFramework.Product.*` from the alert's data-source tag via `SOCProductCategoryMap_V3`, with sub-product override and field-shape fallback. | page pending |
+| Normalization | Maps raw `issue.*` fields into `SOCFramework.Artifacts.*` per lifecycle and category from a schema list; no per-category playbook branches. | page pending |
+| Enrichment lanes | Fires reputation commands (`ip`, `file`, `domain`, `url`) and action lanes (`identity`, `device`) only when the artifact paths resolve. | page pending |
+| Identity resolution | Resolves a bare account name to email and provider facets from the asset inventory; fail-open. The scheduled CIE rule builds `socfw_identity_map` for vendor-pack overlays. | page pending |
+| Case ledger | Writes one queryable row per issue carrying the Foundation contract to `xsiam_socfw_case_ledger_raw`, and a "being worked" note per case. | page pending |
+| Dedup | Fingerprints similar alerts in a window, keeps the lowest alert id as canonical; duplicates self-close and write a dedup row. An action fingerprint stops the same action running twice on one case. | page pending |
+| Auto Triage | Scheduled close of low-signal cases: new, unstarred, no manual score, score at or below the threshold, older than the window. | page pending |
+| Analyst assignment | Syncs who is on duty into `socfw_on_duty` (PagerDuty, roles and groups, or a manual list) and assigns open cases least-loaded through `soc-assign-case`. | page pending |
+| Emergency response | Acts on a high-confidence malicious issue without waiting for the case, per policy; guarded by role and protection tiers; escalates when blocked. | page pending |
+| Elevate case | Stars the case, and optionally raises severity, when the lifecycle's assessment says so at high confidence. | page pending |
+| Phase plan and executor | Builds a per-phase action plan from the contract without a model, then applies environment tiers, policy authority, vendor reachability and ledger dedup before dispatch; non-dispatched steps still produce a row. | page pending |
+| Health check | Read-only tenant check (`!SOCFWHealthCheck`): configuration, jobs and owners, customer values, named instances, presence of lists, rules, dashboards and packs. | page pending |
+| Contract coverage report | Samples tenant issues and reports, per source, whether each normalization-contract field is satisfied, candidate or absent. | page pending |
+| Value accounting | Every execution row carries `time_minutes` and `action_category` from `SOCActionTimeMap_V3` (tenant override wins); the dashboards sum them. | page pending |
+| Execution dataset writer | Posts events to an HTTP Collector through a named integration instance; never blocks a playbook. | page pending |
+| Health dashboard | Command error rate, failed commands, minutes credited to failures, failure reasons, write failures. | page pending |
+| Branch execution | `SOCExecutionList_V3` selects which branch of each Workflow playbook runs. | page pending |
+| Feature flags | `SOCFWFeatureFlags` gates optional analysis features. | page pending |
 
-`SOCCommandWrapper` is the single interface every action goes through. Action
-playbooks never call a vendor integration directly — they call the wrapper,
-which resolves the action, applies Shadow Mode, executes or simulates, and
-writes one execution record per action.
+## Lists
 
-This is what makes the Framework vendor-agnostic: swapping CrowdStrike for
-SentinelOne changes a registration in `SOCFrameworkActions_V3`, not a playbook.
+Runtime-tunable on the tenant without editing content. Edit them with `!SOCFWConfig` so the change survives upgrades.
 
-### Shadow Mode
-
-Per-action `shadow_mode` flag in `SOCFrameworkActions_V3`, read by
-`SOCCommandWrapper`. When set, the action prints its intent to the war room and
-writes its execution record, but does not call the vendor.
-
-Containment, eradication, and recovery become visible without touching
-production. Flipping a single flag per action moves it to live execution — the
-same content runs in a PoV and in production.
-
-### Foundation chain
-
-Runs on every alert regardless of lifecycle, before any lifecycle logic.
-
-| Playbook | Role |
+| List | What it decides |
 |---|---|
-| `Foundation_-_Upon_Trigger_V3` | Entry into the chain. Must never stop. |
-| `Foundation_-_Product_Classification_V3` | Resolves the product category via `SOCProductCategoryMap_V3` |
-| `Foundation_-_Normalize_Artifacts_V3` | Maps vendor fields into `SOCFramework.Artifacts.*` |
-| `Foundation_-_Enrichment_V3` | Indicator and asset enrichment |
-| `Foundation_-_Dedup_V3` | Duplicate suppression, canonical-case selection |
-| `Foundation_-_Data_Integrity_V3` | Contract validation |
-| `Foundation_-_Environment_Detection` | Shadow vs production mode resolution |
-| `Foundation_-_Error_Handling` | Shared failure path |
-| `Foundation_-_Case_Sync`, `Foundation_-_Escalation`, `Foundation_-_Assessment`, `Foundation_-_Performance_Capture` | Case state, escalation, scoring support |
+| `SOCFrameworkActions_V3` | The action registry: vendor command bindings per action, shadow flags per actor, entity scope, sequencing. |
+| `SOCActionClassMap_V3` | Action name to class (`endpoint`, `identity`, `email`, `indicator`, `comms`), so the wrapper knows which vendor responses apply. |
+| `SOCActionTimeMap_V3` | Analyst minutes and category per action, written onto every execution row. |
+| `SOCProductCategoryMap_V3` | Data source to category, type, confidence and responding vendors. |
+| `SOCExecutionList_V3` | Which branch each Workflow playbook runs. |
+| `SOCFWConfigModes` | The named bundles of switches that `!SOCFWConfig command=mode` applies. |
+| `SOCFrameworkEnvironment_V3` | Asset and identity tiers with deny and require-approval action lists. |
+| `SOCFrameworkPhasePolicy_V3` | Per-phase authority and mode, elevate rules, emergency policies, ticketing policy. |
+| `SOCOptimizationConfig_V3` | Runtime tunables for the jobs and dedup. |
+| `SOCFWFeatureFlags` | Optional analysis features. |
 
-Only Foundation reads `issue.*` fields. Downstream lifecycle playbooks consume
-`SOCFramework.*` keys.
+## Datasets
 
-### Auto-Triage
-
-`JOB_-_Auto_Triage_V3` runs on schedule and auto-closes low-signal cases —
-by default those with case risk score ≤ 40, scoped by domain and age window.
-Configuration lives in `SOCOptimizationConfig_V3`. Hours saved feed the Value
-Metrics dashboards.
-
-### Execution dataset
-
-`SOCFWDatasetWriter` posts execution records to an XSIAM HTTP Collector,
-producing `xsiam_socfw_ir_execution_raw`. Every writer — Universal Command,
-Dedup, Auto-Triage, and the NIST IR analysis anchor — addresses the
-`socfw_ir_execution_writer` instance by name.
-
-Writes are non-blocking. A missing or unconfigured instance is recorded and
-the run continues; no playbook stops because a metrics write failed.
-
-### Configuration lists
-
-Runtime-tunable by PS and customers without editing content.
-
-| List | Controls |
-|---|---|
-| `SOCFrameworkActions_V3` | Action registry, vendor bindings, per-action `shadow_mode` |
-| `SOCExecutionList_V3` | Which branch each Workflow playbook runs |
-| `SOCProductCategoryMap_V3` | Source → product category routing |
-| `SOCActionTimeMap_V3` | Analyst-minutes per action, the time-saved source |
-| `SOCActionClassMap_V3` | Action classification |
-| `SOCOptimizationConfig_V3` | Auto-Triage, Dedup, and Shadow Mode settings |
-| `SOCFWFeatureFlags` | Feature gating |
-
-### Identity resolution
-
-`SOC IdentityResolve` correlation rule plus the CIE identity overlay pattern
-used by vendor packs to join alerts to canonical identities.
-
-### Value Metrics
-
-Three dashboards driven by `xsiam_socfw_ir_execution_raw`. See
-*Reading the metrics* below.
-
----
-
-## Content
-
-Marketplace → search **"SOC"** for the full set of installable Framework packs
-(Foundation, NIST IR Lifecycle, Pack Manager, vendor packs).
-
----
-
-## What's required
-
-- An XSIAM tenant
-- **Case Risk Scores** *and / or* **Starred Issues** enabled — Auto-Triage uses one
-  of these to gate case auto-closure
-- A Standard XSIAM API Key
-    - Security Level: **Standard**
-    - Role: **Instance Administrator**
-- A credential entry on the tenant
-    - API Key
-    - API ID
-    - Name: **`Standard XSIAM API Key`**
-
----
-
-## Installing
-
-Install and post-install configuration — Pack Manager, correlation rules, the
-HTTP Collectors, and the Dataset Writer instances — are covered
-in [POST_CONFIG_README.md](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-optimization-unified/POST_CONFIG_README.md).
-
----
-
-## How to run
-
-### Default
-
-Once setup is complete, no further action is required:
-
-- Auto-Triage runs on schedule
-- NIST IR runs on every Medium+ alert
-- Value Metrics dashboards populate (MTTD, MTTI, MTTC, MTTE, MTTR)
-
-### Show an attack
-
-Optional — for live-fire demonstrations:
-
-- **MITRE Turla Carbon Attack Lab**
-    - Configure XDR agent policies for **logging only**
-    - Install the XDR agent in a BYOS environment
-    - Run the Turla Carbon scenario; the Value Metrics dashboards light up
-      end-to-end through the lifecycle
-
----
-
-## Reading the metrics
-
-Three dashboards, each scoped to a different view of the same execution data.
-
-### XSIAM SOC Value Driver Metrics V3
-
-Top-level operational KPIs.
-
-- Total Cases
-- Total Starred Manual Cases
-- Critical & High Alerts
-- Security Tools Integration
-- Cases Auto Resolved
-- Total Manual Cases
-- Total Alerts by Source
-- Critical Alerts by Source
-- Average Alert Ingestion Lag
-- Top 20 Slowest Data Sources
-- MTTD (sec) — Mean Time To Detect
-- MTTI (min) — Mean Time To Investigate
-- MTTC (min) — Mean Time To Contain
-- MTTE (min) — Mean Time To Eradicate
-- MTTR (min) — Mean Time To Recovery
-
-### XSIAM SOC Value Metrics — Full Run
-
-Production-mode automation impact. Filtered to `execution_mode = "production"`.
-
-- Time Saved by Category
-- Time Saved by XSIAM per Task
-- XSIAM Vendor Usage
-- Tools Used by XSIAM by Hour
-- Total SOC Hours Worked by XSIAM
-- Analysts Required without XSIAM (Events Per Hour 8–13)
-- Analysts Required with XSIAM (EPH 8–13)
-- Total Alerts by Data Source
-- Total Alerts by Source — Total Alerts
-- Total Cases
-- Cases Auto Resolved
-- Total Manual Cases
-- Total Starred Manual Cases
-
-### XSIAM SOC Value Metrics — Shadow Mode
-
-Same widget set as Full Run, filtered to `execution_mode = "shadow"`. Use this
-to show what the lifecycle *would* do in production while running safely in
-shadow.
+| Dataset | Written by | Read by |
+|---|---|---|
+| `xsiam_socfw_ir_execution_raw` | every action, through the dataset writer instance `socfw_ir_execution_writer` | the Value Metrics and health dashboards |
+| `xsiam_socfw_case_ledger_raw` | the case ledger, through `socfw_case_ledger_writer` | case-scoped analysis |
