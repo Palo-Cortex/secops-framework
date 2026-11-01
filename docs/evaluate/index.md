@@ -69,8 +69,8 @@ Evidence: each connected source producing `ai_reasoning` rows; the Identity & De
 ## 4. Prove (the evaluation window, typically two to three weeks)
 
 - Run the scenario and walk the customer through one case: the issue verdicts, the case verdict, the shadowed containment in the War Room with the vendor it would have used. Two ways to run it:
-  - **Replay** (the default, and the only route open to partners and customers): send a recorded attack's events through HTTP collectors into the tenant. No endpoints, no agents, repeatable in minutes; the replay must stamp current time. The collectors are created by hand for the evaluation and removed at the end: a collector left behind is an open door into the same datasets the customer's SOC reads.
-  - **Live emulation** (Palo Alto Networks only; needs the emulation tooling partners and customers do not have): run the MITRE adversary-emulation plan against endpoints with the XDR agent installed, so detections come from the platform's own engines. Rehearse it on your own lab endpoints first, without the customer, and only then on theirs.
+  - **Replay** (the default): send a recorded attack's events through HTTP collectors into the tenant. No endpoints, no agents, repeatable in minutes; the replay must stamp current time. The collectors are created by hand for the evaluation and removed at the end: a collector left behind is an open door into the same datasets the customer's SOC reads.
+  - **Live emulation** (needs the adversary-emulation tooling and endpoints with the XDR agent installed): run the MITRE emulation plan so detections come from the platform's own engines. Rehearse it on lab endpoints first, and only then on the estate.
 - Let live issues flow for the window. Analysts star what they would work and use the feedback buttons on verdicts.
 - Read the dashboards weekly against the success criteria. The shadow dashboard is the evaluation's story: what would have been contained, how fast, with how many analyst minutes returned.
 - Tune only what the customer asks for, through `!SOCFWConfig`, so every change is recorded and reversible.
