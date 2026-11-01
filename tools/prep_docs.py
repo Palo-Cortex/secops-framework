@@ -5,10 +5,11 @@ A single entry point for contributors and CI. Replaces the manual sequence
 of running four generators in the right order before each docs commit::
 
     1. generate_capability_catalog.py
-    2. generate_pack_overviews.py
-    3. generate_schema_docs.py
-    4. generate_mkdocs_nav.py
-    5. generate_home_page.py
+    2. generate_tools_reference.py
+    3. generate_pack_overviews.py
+    4. generate_schema_docs.py
+    5. generate_mkdocs_nav.py
+    6. generate_home_page.py
 
 Order matters: ``generate_mkdocs_nav.py`` discovers per-pack pages from
 each pack's ``docs_path``, so pack overviews and schema docs must land on
@@ -50,6 +51,7 @@ TOOLS_DIR = REPO_ROOT / "tools"
 # runs last so the site config is fully assembled before final render.
 GENERATORS: list[tuple[str, str]] = [
     ("generate_capability_catalog.py", "Capability catalog (reference landing + pack READMEs)"),
+    ("generate_tools_reference.py",    "Tools reference from docstrings"),
     ("generate_pack_overviews.py", "Per-pack overview pages"),
     ("generate_schema_docs.py",    "Per-pack schema documentation"),
     ("generate_mkdocs_nav.py",     "mkdocs.yml navigation"),

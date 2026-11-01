@@ -1,45 +1,36 @@
 # Contributing
 
-How the framework is structured for safe, auditable contribution.
+How a change gets from your editor to a tenant: author it, run the gate, open a pull request, merge, release. Every step is a command in `tools/`, and the gate tells you which one to run when it fails.
 
-## The contribution model
+## The flow
 
-The framework uses a **contract-driven** approach: schemas define what each
-layer reads and writes, and the build pipeline enforces those contracts.
-Adding a new vendor pack, modifying a phase, or extending the Foundation
-all flow through the same checkpoints:
+1. **Branch** from `main`, one concern per branch. A change that spans two packs is still one branch and one PR; per-pack commits are good hygiene, not a rule.
+2. **Author** the change. Generated content is never edited by hand: a list emitted from a schema under `schemas/` is changed by editing the schema and re-emitting; a page with a generated banner is changed by editing what it is generated from.
+3. **Gate** with `python3 tools/check_contribution.py` from the repo root. It runs, per changed pack: contribution normalization, correlation-rule preflight, playbook condition lint, `pack_prep` (rule ids, JSON validity, dependency versions, manifest preflight, `demisto-sdk validate`), `check_contracts`, and the docs coverage check; then framework-wide: `validate_shadow_mode --all` and `prep_docs --check`; then it uploads the pack to the tenant in `.env` and verifies the content landed. A failure prints what to fix and the command to re-run.
+4. **Test on the tenant**, happy and unhappy paths, before opening the PR. The gate proves the content is well-formed; only a run proves it works.
+5. **Pull request** against `main`, with exactly one of `version:patch`, `version:minor`, `version:major` when the change should cut a release, and `[skip release]` in the merge commit subject when it should not (the usual case while a release is being collected). No label means patch.
+6. **Merge** by squash or rebase; merge commits are rejected. Merging to `main` with a version label cuts an immutable GitHub Release per changed pack and rebuilds `pack_catalog.json`; tenants install releases through the SOC Framework Pack Manager.
 
-1. **Author the schema** — every vendor pack and contract gets a YAML
-   schema under `schemas/`. The schema declares the pack's raw data shape,
-   modeling rule, and correlation rules. See
-   [`CONTRACT_DESCRIPTIONS.md`](https://github.com/Palo-Cortex/secops-framework/blob/main/CONTRACT_DESCRIPTIONS.md)
-   for adding `description:` fields to contract entries.
-2. **Generate the pack content** — `tools/` runs the contract generators
-   that turn schema YAML into deployable XSIAM content.
-3. **Validate** — `check_contracts.py`, `check_contribution.py`, and
-   `validate_shadow_mode.py` enforce the gates.
-4. **Submit** — one commit per pack, one PR per pack.
+## What is gated, and why
 
-## Where to look
+| Gate | Fails when | Why it exists |
+|---|---|---|
+| `normalize_contribution.py` | A tenant export carries `_copy` suffixes, UUID ids, a non-standard version | Exports are not pack files until normalized |
+| `correlation_rule_preflight.py` | A rule would be rejected by the platform with an uninformative error | The platform's `101704` says nothing; this says which field |
+| `pack_prep.py` → `demisto-sdk validate --marketplace marketplacev2` | Content breaks the SDK schema | The default marketplace silently skips XSIAM content |
+| `check_contracts.py` | A Workflow playbook calls `setIssue`/`setIncident`, or writes another layer's namespace | Layer contracts are what keep lifecycles vendor-generic |
+| `check_readme_coverage.py` | A pack adds a script, list or list key that no page or README mentions | Capabilities nobody can find do not exist |
+| `validate_shadow_mode.py --all` | A changing action ships live outside the documented policy | Shadow Mode is the safety contract |
+| `prep_docs.py --check` | A generated page is stale | The site is built from the repo; drift is a lie on the site |
 
-Until contributor docs are migrated into this section, the source-of-truth
-references live at the repo root:
+The CI PR gate repeats the scan for customer data, the version-label check, JSON integrity, shadow mode and SDK validation. It does not deploy anywhere: content reaches a tenant from your gate run, and production from a release.
 
-- **`CONTRIBUTING.md`** — high-level contribution flow
-- **`PIPELINE_TOOLS.md`** — what each generator does
-- **`PLAYBOOK_VALIDATION.md`** — how content is validated
-- **`TOOLING.md`** — the full toolchain reference
-- **`CONTRACT_DESCRIPTIONS.md`** — adding descriptions to schema entries
+## Describing contract entries
 
-These will land here progressively as the docs migration completes.
+The lifecycle contracts under `schemas/soc-framework/` (`SOCFrameworkPhaseContract_V3`, the per-lifecycle normalize maps) render into the site's contract pages. Any entry may carry a `description:`; when present it appears as a column in the rendered table. Adding descriptions to the entries that lack them is the most useful small docs change there is, and needs no generator change: edit the YAML, re-emit, run `prep_docs.py`.
 
-## Drift gates
+## Pages in this section
 
-Three gates protect the framework from unintended drift:
-
-- **`check_contracts.py`** — schemas must match generated artifacts
-- **CI doc generation** — `git diff` fails the build if generated docs are
-  stale; run the three doc generators locally before committing
-- **`validate_shadow_mode.py`** — pre-commit hook enforcing safe-by-default
-
-If a gate fails, the message tells you which generator to run. No magic.
+- [Tools reference](tools.md): every script under `tools/`, generated from its docstring.
+- [Editing vendor contracts](editing-vendor-contracts.md): the per-data-source YAML a vendor pack is generated from.
+- [CONTRIBUTING.md](https://github.com/Palo-Cortex/secops-framework/blob/main/CONTRIBUTING.md) on GitHub: contributing content exported from a tenant through the GitHub web UI, with no terminal.
