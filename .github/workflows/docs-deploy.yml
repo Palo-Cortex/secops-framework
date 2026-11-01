@@ -14,6 +14,9 @@ on:
       - "Packs/**/POST_CONFIG_README.md"
       - "Packs/**/Lists/**"
       - "tools/generate_capability_catalog.py"
+      - "tools/generate_tools_reference.py"
+      - "tools/*.py"
+      - "tools/*.sh"
       - "tools/generate_schema_docs.py"
       - "tools/generate_pack_overviews.py"
       - "tools/generate_home_page.py"
@@ -47,16 +50,20 @@ jobs:
       # Run generators in dependency order (the same order as tools/prep_docs.py):
       #   1. capability catalog — splices docs/capabilities.yml into
       #                           docs/reference/index.md and pack READMEs
-      #   2. schema docs        — writes docs/<pack>/<schema>.md
-      #   3. pack overviews     — writes docs/<pack>/overview.md
-      #   4. home page          — writes docs/index.md
-      #   5. mkdocs nav         — reads catalog + docs/nav.yml, writes mkdocs.yml
+      #   2. tools reference    — writes docs/contributing/tools.md from docstrings
+      #   3. schema docs        — writes docs/<pack>/<schema>.md
+      #   4. pack overviews     — writes docs/<pack>/overview.md
+      #   5. home page          — writes docs/index.md
+      #   6. mkdocs nav         — reads catalog + docs/nav.yml, writes mkdocs.yml
       #
       # Each generator prunes its own orphan files (matched by GENERATED banner).
       # Output lives only in the runner's filesystem — `mkdocs build` consumes
       # it directly. We never commit it back, so version bumps don't loop.
       - name: Regenerate capability catalog
         run: python tools/generate_capability_catalog.py
+
+      - name: Regenerate tools reference
+        run: python tools/generate_tools_reference.py
 
       - name: Regenerate schema docs
         run: python tools/generate_schema_docs.py

@@ -32,18 +32,14 @@
   Not sure? Check the box for "I need help routing this" at the bottom.
 -->
 
-**SOC Framework Core** — shared infrastructure, all customers
+**SOC Framework** — shared by every tenant regardless of vendor or lifecycle
 - [ ] `soc-optimization-unified`
 
-**Lifecycle** — NIST IR 800-61 response phases
-- [ ] `soc-framework-nist-ir`
+**NIST IR AI** — the lifecycle: assessment, close decision, case analysis, its layouts
+- [ ] `soc-framework-nist-ir-ai`
 
-**Product Enhancements** — vendor-specific, check the matching vendor
-- [ ] `SocFrameworkCrowdstrikeFalcon` — CrowdStrike Falcon
-- [ ] `SocFrameworkProofPointTap` — Proofpoint TAP
-- [ ] `soc-microsoft-defender` — Microsoft Defender / Defender for Endpoint
-- [ ] `soc-microsoft-defender-email` — Microsoft Defender for Office 365
-- [ ] `SocFrameworkTrendMicroVisionOne` — Trend Micro Vision One
+**Vendor pack** — only makes sense with one vendor's integration
+- [ ] `Packs/` id: `______________` (the current set is in `pack_catalog.json`)
 - [ ] New pack needed (describe below)
 
 ## Integration instances required (REQUIRED if applicable)
@@ -76,11 +72,12 @@
 
 ## Shadow mode (REQUIRED for playbooks and scripts with actions)
 <!--
-  Containment, Eradication, and Recovery actions must be shadow_mode: true
-  in SOCFrameworkActions_V3 so they print to the war room but do not
-  execute during a PoV. Analysis/enrichment actions should be shadow_mode: false.
+  Every changing action (isolate, revoke, block, retract, close, star,
+  assign) ships shadowed for every actor in SOCFrameworkActions_V3, so it
+  prints to the War Room and writes its execution row but does not call the
+  vendor until it is switched on. Read-only actions ship live.
 -->
-- [ ] All containment / eradication / recovery actions are `shadow_mode: true`
+- [ ] Every changing action this content adds or calls ships shadowed for every actor
 - [ ] This content has no actions that affect shadow mode
 - [ ] I am not sure — please review
 
