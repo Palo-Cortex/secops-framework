@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Generate mkdocs.yml from mkdocs.yml.template by injecting auto-generated
-``Foundation`` and ``Packs`` nav sections.
+"""Generate mkdocs.yml from mkdocs.yml.template and docs/nav.yml.
 
-For every visible pack in ``pack_catalog.json``:
-  - looks at the pack's ``docs_path`` for an ``overview.md``
-  - looks for any other ``*.md`` files with the schema-doc generated banner
-  - builds a sub-nav: Overview first, schema docs alphabetical
+``docs/nav.yml`` is the hand-curated site map: the five tabs and every
+hand-authored page, in order. It carries placeholders that this script
+expands from ``pack_catalog.json``:
 
-Packs are bucketed by their ``tier`` field:
-  - ``tier: foundation``  →  Foundation section (framework-tier packs)
-  - anything else / unset →  Packs section (vendor / data-source packs)
+  ``"{{PACK:<id>}}"``        the generated pages of one pack (Overview first,
+                             then schema docs alphabetical), inlined where
+                             the placeholder sits.
+  ``"{{PACKS:vendor}}"``     every visible pack without ``tier: foundation``
+                             that no ``{{PACK:...}}`` placed, one group each.
+  ``"{{PACKS:foundation}}"`` every visible ``tier: foundation`` pack that no
+                             ``{{PACK:...}}`` placed, one group each.
 
-The template carries two markers that get substituted:
-  ``# {{AUTO_FOUNDATION}}``  and  ``# {{AUTO_PACKS}}``
+For every pack the script looks at the catalog's ``docs_path`` for an
+``overview.md`` and for ``*.md`` files carrying the schema-doc generated
+banner. Hand-authored files under a pack's docs folder are ignored here;
+list them in ``docs/nav.yml`` instead.
+
+The expanded nav replaces the ``# {{AUTO_NAV}}`` marker in the template.
 
 Usage::
 
@@ -28,17 +34,22 @@ import re
 import sys
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = REPO_ROOT / "pack_catalog.json"
 DOCS_DIR     = REPO_ROOT / "docs"
+NAV_PATH     = DOCS_DIR / "nav.yml"
 TEMPLATE     = REPO_ROOT / "mkdocs.yml.template"
 OUTPUT       = REPO_ROOT / "mkdocs.yml"
 
-MARKER_FOUNDATION = "# {{AUTO_FOUNDATION}}"
-MARKER_PACKS      = "# {{AUTO_PACKS}}"
+MARKER_NAV = "# {{AUTO_NAV}}"
 
-# Banner fragments stamped by the schema generator. We use these to discover
-# what each generator produced — anything else under a pack's docs_path is
+PACK_RE  = re.compile(r"^\{\{PACK:([A-Za-z0-9._-]+)\}\}$")
+PACKS_RE = re.compile(r"^\{\{PACKS:(vendor|foundation)\}\}$")
+
+# Banner fragment stamped by the schema generator. We use it to discover
+# what the generator produced — anything else under a pack's docs_path is
 # hand-authored and gets ignored by the nav generator.
 SCHEMA_BANNER  = "tools/generate_schema_docs.py"
 OVERVIEW_NAME  = "overview.md"
@@ -69,8 +80,6 @@ def discover_pack_pages(docs_path: Path, repo_root: Path) -> list[tuple[str, str
     """Return ``[(label, mkdocs-relative-path), ...]`` for one pack.
 
     Overview always first; schema docs alphabetical by their first H1 label.
-    Hand-authored .md files in the same folder are NOT included — only
-    generator output appears in the auto Packs section.
     """
     if not docs_path.exists():
         return []
@@ -97,7 +106,6 @@ def discover_pack_pages(docs_path: Path, repo_root: Path) -> list[tuple[str, str
 
     pages.sort(key=lambda x: x[0])
 
-    # Convert to mkdocs-relative paths (relative to docs_dir, which is docs/)
     out: list[tuple[str, str]] = []
     for _, label, path in pages:
         rel_to_docs = path.resolve().relative_to((repo_root / "docs").resolve())
@@ -105,64 +113,126 @@ def discover_pack_pages(docs_path: Path, repo_root: Path) -> list[tuple[str, str
     return out
 
 
-def render_packs_section(packs: list[dict], repo_root: Path,
-                         indent: str) -> str:
-    """Render YAML lines for one nav section's pack list.
+def pack_docs_path(entry: dict, repo_root: Path) -> Path:
+    docs_path_str = entry.get("docs_path") or f"docs/{entry.get('id')}"
+    return (repo_root / docs_path_str).resolve()
 
-    Lines are emitted at the supplied indent (no parent header). The
-    caller wraps these inside a parent tab in the template — the nav
-    generator just produces the pack-list children.
 
-    Returns a multi-line string with no leading or trailing newline.
-    Returns an empty string if there are no packs to render so the section
-    cleanly degrades to just its index.md.
+def pack_items(entry: dict, repo_root: Path) -> list[dict]:
+    """Nav items for one pack: ``[{label: path}, ...]``."""
+    return [{label: rel}
+            for label, rel in discover_pack_pages(pack_docs_path(entry, repo_root), repo_root)]
+
+
+def pack_groups(packs: list[dict], repo_root: Path) -> list[dict]:
+    """One nav group per pack, labelled by pack id, sorted by id.
+
+    Packs with no generated pages are skipped so the section degrades
+    cleanly to whatever hand-authored pages sit beside the placeholder.
     """
-    enriched: list[tuple[str, dict, list[tuple[str, str]]]] = []
+    groups: list[tuple[str, list[dict]]] = []
     for entry in packs:
-        docs_path_str = entry.get("docs_path") or f"docs/{entry.get('id')}"
-        docs_path = (repo_root / docs_path_str).resolve()
-        pages = discover_pack_pages(docs_path, repo_root)
-        if not pages:
+        items = pack_items(entry, repo_root)
+        if not items:
             continue
-        # Use pack id (slug) for nav label — display_name from pack_metadata
-        # is often verbose ("SOC CrowdStrike Falcon Integration Enhancement
-        # for Cortex XSIAM2") and wraps badly in the left rail. The id is
-        # short, stable, and matches what authors recognize.
-        display = entry.get("id") or entry.get("display_name") or "(unnamed)"
-        enriched.append((display, entry, pages))
+        # The pack id is short, stable, and what authors recognise; the
+        # catalog's display_name is often verbose and wraps in the rail.
+        groups.append((entry.get("id") or entry.get("display_name") or "(unnamed)", items))
+    groups.sort(key=lambda g: g[0].lower())
+    return [{name: items} for name, items in groups]
 
-    enriched.sort(key=lambda x: x[0].lower())
 
-    if not enriched:
-        return ""
+class NavExpander:
+    def __init__(self, packs: list[dict], repo_root: Path) -> None:
+        self.by_id = {p.get("id"): p for p in packs}
+        self.repo_root = repo_root
+        self.placed: set[str] = set()
+        self.errors: list[str] = []
 
-    lines: list[str] = []
-    for display, _entry, pages in enriched:
-        lines.append(f'{indent}- "{display}":')
-        for label, rel in pages:
-            safe_label = f'"{label}"' if any(c in label for c in ":#&*?!|>%@") else label
-            lines.append(f'{indent}    - {safe_label}: {rel}')
-    return "\n".join(lines)
+    def _scan_placed(self, node) -> None:
+        """First pass: record every {{PACK:id}} so bucket placeholders skip them."""
+        if isinstance(node, str):
+            m = PACK_RE.match(node)
+            if m:
+                self.placed.add(m.group(1))
+        elif isinstance(node, list):
+            for item in node:
+                self._scan_placed(item)
+        elif isinstance(node, dict):
+            for value in node.values():
+                self._scan_placed(value)
+
+    def _bucket(self, kind: str) -> list[dict]:
+        want_foundation = kind == "foundation"
+        packs = [
+            p for pid, p in self.by_id.items()
+            if pid not in self.placed
+            and ((p.get("tier") or "").lower() == "foundation") is want_foundation
+        ]
+        return pack_groups(packs, self.repo_root)
+
+    def expand_list(self, items: list) -> list:
+        out: list = []
+        for item in items:
+            if isinstance(item, str):
+                m = PACK_RE.match(item)
+                if m:
+                    pid = m.group(1)
+                    entry = self.by_id.get(pid)
+                    if entry is None:
+                        self.errors.append(
+                            f"{{{{PACK:{pid}}}}}: no visible pack with that id in pack_catalog.json")
+                        continue
+                    out.extend(pack_items(entry, self.repo_root))
+                    continue
+                m = PACKS_RE.match(item)
+                if m:
+                    out.extend(self._bucket(m.group(1)))
+                    continue
+                out.append(item)          # a bare page path
+            elif isinstance(item, dict):
+                out.append({k: self.expand(v) for k, v in item.items()})
+            else:
+                out.append(item)
+        return out
+
+    def expand(self, node):
+        if isinstance(node, list):
+            return self.expand_list(node)
+        return node
+
+    def run(self, nav: list) -> list:
+        self._scan_placed(nav)
+        return self.expand(nav)
+
+
+def render_nav(nav: list) -> str:
+    text = yaml.safe_dump(nav, sort_keys=False, allow_unicode=True,
+                          default_flow_style=False, width=1000)
+    return text.rstrip("\n")
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Generate mkdocs.yml from template + catalog.")
+    p = argparse.ArgumentParser(description="Generate mkdocs.yml from template + docs/nav.yml + catalog.")
     p.add_argument("--check", action="store_true",
                    help="CI mode — exit 1 if mkdocs.yml would change")
     p.add_argument("--catalog",   default=str(CATALOG_PATH))
+    p.add_argument("--nav",       default=str(NAV_PATH))
     p.add_argument("--template",  default=str(TEMPLATE))
     p.add_argument("--output",    default=str(OUTPUT))
     p.add_argument("--repo-root", default=str(REPO_ROOT))
     args = p.parse_args(argv)
 
     template_path = Path(args.template).resolve()
+    nav_path      = Path(args.nav).resolve()
     output_path   = Path(args.output).resolve()
     repo_root     = Path(args.repo_root).resolve()
     catalog_path  = Path(args.catalog).resolve()
 
-    if not template_path.exists():
-        print(f"ERROR: template not found at {template_path}", file=sys.stderr)
-        return 2
+    for label, path in (("template", template_path), ("nav", nav_path)):
+        if not path.exists():
+            print(f"ERROR: {label} not found at {path}", file=sys.stderr)
+            return 2
 
     try:
         packs = load_visible_packs(catalog_path)
@@ -170,32 +240,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
+    try:
+        nav = yaml.safe_load(nav_path.read_text())
+    except yaml.YAMLError as exc:
+        print(f"ERROR: {nav_path} is not valid YAML: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(nav, list):
+        print(f"ERROR: {nav_path} must be a YAML list (the mkdocs nav shape).", file=sys.stderr)
+        return 2
+
+    expander = NavExpander(packs, repo_root)
+    expanded = expander.run(nav)
+    if expander.errors:
+        for err in expander.errors:
+            print(f"ERROR: {err}", file=sys.stderr)
+        return 2
+
     template_text = template_path.read_text()
-
-    # Bucket visible packs by tier
-    foundation_packs = [p for p in packs if (p.get("tier") or "").lower() == "foundation"]
-    vendor_packs     = [p for p in packs if (p.get("tier") or "").lower() != "foundation"]
-
-    # Substitute each marker, preserving whatever indent the template carries.
-    # If a bucket is empty, the marker line is simply removed — the section's
-    # index.md still appears in nav but no pack children are listed.
-    rendered = template_text
-    for marker, bucket in [
-        (MARKER_FOUNDATION, foundation_packs),
-        (MARKER_PACKS,      vendor_packs),
-    ]:
-        pattern = re.compile(r"^(\s*)" + re.escape(marker) + r"\s*\n",
-                             re.MULTILINE)
-        match = pattern.search(rendered)
-        if not match:
-            print(f"ERROR: template is missing the '{marker}' marker.",
-                  file=sys.stderr)
-            return 2
-        indent = match.group(1)
-        block = render_packs_section(bucket, repo_root, indent)
-        replacement = (block + "\n") if block else ""
-        rendered = pattern.sub(lambda m: replacement, rendered, count=1)
-
+    pattern = re.compile(r"^(\s*)" + re.escape(MARKER_NAV) + r"\s*\n", re.MULTILINE)
+    match = pattern.search(template_text)
+    if not match:
+        print(f"ERROR: template is missing the '{MARKER_NAV}' marker.", file=sys.stderr)
+        return 2
+    indent = match.group(1)
+    block = "\n".join(indent + line if line else line
+                      for line in render_nav(expanded).splitlines())
+    rendered = pattern.sub(lambda m: block + "\n", template_text, count=1)
     if not rendered.endswith("\n"):
         rendered += "\n"
 
