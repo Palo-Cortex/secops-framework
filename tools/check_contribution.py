@@ -501,6 +501,20 @@ def main() -> None:
             ),
         ))
 
+    # ── Step 5c: private content (once, whole tree) ───────────────────────────
+    # The AI Prompt recipes live in the private socfw-nist-ir-ai repo. Fail
+    # before anything else if a recipe path or a prompt fingerprint is here.
+    results.append(run_step(
+        "check_private_content",
+        [sys.executable, "tools/check_private_content.py"],
+        args.ci,
+        remediation=(
+            "Private content (an AI Prompt recipe, AI_PROMPTS.md, or a file carrying a\n"
+            "prompt fingerprint) is in the public tree. Remove it; the recipes belong in\n"
+            "Palo-Cortex/socfw-nist-ir-ai. Patterns: policies/private_content.json."
+        ),
+    ))
+
     # ── Step 6: validate_shadow_mode (once, --all) ────────────────────────────
     # Always runs across the entire framework — shadow mode consistency is a
     # global property, not per-pack. One broken action affects every playbook.
