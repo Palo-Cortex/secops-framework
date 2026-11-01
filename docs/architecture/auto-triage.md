@@ -142,11 +142,10 @@ average analyst triage time = hours saved per week. The Value Metrics
 dashboard surfaces this as the "Cases Auto-Resolved %" widget,
 filtered by `execution_mode` and date range.
 
-A typical PoV reports auto-triage closure rates in the 20–50% range
-depending on how noisy the source detections are. That number is the
-framework's strongest single VD3 talking point — analyst time freed
-from triage shows up immediately and is easy to quantify against the
-customer's pre-framework baseline.
+The closure rate depends on how noisy the source detections are, so
+read it from the widget on the tenant rather than from a typical figure.
+Analyst time freed from triage shows up immediately and is easy to
+quantify against the baseline measured before the framework was installed.
 
 ## What Auto Triage is NOT
 

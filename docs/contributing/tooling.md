@@ -171,9 +171,9 @@ python3 tools/validate_playbooks.py --pack Packs/<pack-name>
 Verifies every action playbook respects the Shadow Mode contract. Reads
 `SOCFrameworkActions_V3` and confirms each action has the right
 `shadow_mode` flag, that `SOCCommandWrapper` is invoked correctly, and
-that no action bypasses the wrapper. **This is the most important PoV
-safety check** — a mis-flagged action will execute a real vendor command
-during a Shadow Mode demo.
+that no action bypasses the wrapper. **This is the most important safety check
+for an evaluation** — a mis-flagged action will execute a real vendor command
+while everything is meant to be in Shadow Mode.
 
 ```bash
 python3 tools/validate_shadow_mode.py
@@ -267,7 +267,7 @@ verifies expected result shapes. Used for L2 smoke tests after upload —
 confirms entry point fires, chain runs, terminal status is correct.
 
 ```bash
-python3 tools/run_tests.py --tenant brumxdr
+python3 tools/run_tests.py --tenant <tenant>
 ```
 
 Reads tenant credentials from `.env`.
@@ -284,18 +284,18 @@ python3 tools/sdk_classify.py
 
 ---
 
-### 3. Replay & Test Data — PoV Scenario Generation
+### 3. Replay & Test Data — Scenario Generation
 
 #### `replay_scenario.py` — XSIAM attack scenario replay
 
 The canonical replay tool. Reads a manifest YAML from `scenarios/<name>.yml`
 that lists per-vendor TSV files, and posts events to the appropriate
-HTTP Collector URLs. Drives PoV demos and end-to-end testing.
+HTTP Collector URLs. Drives evaluation walkthroughs and end-to-end testing.
 
 ```bash
 python3 tools/replay_scenario.py \
   --manifest scenarios/turla-carbon.yml \
-  --tenant brumxdr
+  --tenant <tenant>
 ```
 
 HTTP Collector URLs are per-vendor and live in `SOCFWPoVConfig` on the
@@ -314,7 +314,7 @@ the rules can fail upload with 101704 (XQL references a field not in the
 dataset schema).
 
 ```bash
-python3 tools/send_test_events.py --vendor crowdstrike --tenant brumxdr
+python3 tools/send_test_events.py --vendor crowdstrike --tenant <tenant>
 ```
 
 #### `build_campaign_from_tsv.py` — Multi-product campaign builder
@@ -333,7 +333,7 @@ python3 tools/build_campaign_from_tsv.py \
 
 Generates 6 realistic Proofpoint TAP TSV scenario files covering the
 common phishing patterns (delivered + clicked, blocked + retroactive
-discovery, etc.). Useful when you need TAP volume for a PoV without
+discovery, etc.). Useful when you need TAP volume for an evaluation without
 hand-crafting events.
 
 ```bash
@@ -678,7 +678,7 @@ variables already set by the caller (CI / GitHub Secrets).
 
 | Variable | Required for | Notes |
 |---|---|---|
-| `DEMISTO_BASE_URL` | Every upload | XSIAM tenant URL (e.g., `https://api-brumxdr.xdr.us.paloaltonetworks.com`) |
+| `DEMISTO_BASE_URL` | Every upload | XSIAM tenant URL (e.g., `https://api-<tenant>.xdr.us.paloaltonetworks.com`) |
 | `DEMISTO_API_KEY` | Every upload | Tenant API key (from Settings → API Keys) |
 | `XSIAM_AUTH_ID` | Every upload | API key ID (the `x-xdr-auth-id` header value) |
 | `HTTP_COLLECTOR_URL_*` | Replay scenarios | Per-vendor URLs in `SOCFWPoVConfig`; used by `SOCFWPoVSend` |

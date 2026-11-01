@@ -23,7 +23,7 @@ model swap out the IR pack while keeping the Foundation.
 
 ## When to read these
 
-- **Adding a new vendor pack** — read `SOCFrameworkNormalizeMap_V3` to know
+- **Adding a new vendor pack** — read the lifecycle's normalize map (`SOCFrameworkNormalizeMap_NIST_IR` for NIST IR) to know
   what fields your pack must populate and where they go.
 - **Modifying a phase** — read `SOCFrameworkPhaseContract_V3` to see what
   every phase reads and writes. Don't break the contract.

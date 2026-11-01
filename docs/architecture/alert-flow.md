@@ -64,7 +64,7 @@ first stop inside the framework. Three things happen:
 - **Normalization** — pack-specific Normalize playbooks read the alert's
   raw fields and write them into the framework namespace
   (`SOCFramework.Artifacts.*`). What gets written for each category is
-  defined by [`SOCFrameworkNormalizeMap_V3`](../soc-optimization-unified/SOCFrameworkNormalizeMap_V3.md).
+  defined by the lifecycle's normalize map, `SOCFrameworkNormalizeMap_<LIFECYCLE>` (for NIST IR, [`SOCFrameworkNormalizeMap_NIST_IR`](../soc-framework-nist-ir/SOCFrameworkNormalizeMap_NIST_IR.md)).
 - **Routing** — Foundation hands off to the entry-point playbook
   (`EP_IR_NIST (800-61)_V3`) which kicks off the lifecycle.
 
@@ -170,14 +170,18 @@ doing work XSIAM already does — map to the native equivalent.
 
 The split is roughly half-and-half. The native half lights up XSIAM's
 incident enrichment for free. The `socfw*` half captures concepts the
-platform doesn't model. Both halves are read by
-`Foundation_-_Normalize_Email_V3` from `issue.*` — the namespace just
+platform doesn't model. Both halves are read from `issue.*` by the
+email section of the lifecycle's normalize map — the namespace just
 differs.
 
 ### The Endpoint normalizer model
 
-`Foundation_-_Normalize_Endpoint_V3` is the canonical pattern. It
-reads native `issue.*` fields directly:
+The endpoint section of
+[`SOCFrameworkNormalizeMap_NIST_IR`](../soc-framework-nist-ir/SOCFrameworkNormalizeMap_NIST_IR.md)
+is the canonical pattern. `Foundation_-_Normalize_Artifacts_V3` hands the
+alert's category and lifecycle to `SOCNormalizeFromList`, which applies that
+section; there is no per-category playbook. It reads native `issue.*`
+fields directly:
 
 ```
 issue.initiatorsha256[0]   → SOCFramework.Artifacts.Process.SHA256
@@ -192,7 +196,7 @@ There is no `socfwendpointhostname`. There is no
 third-party EDR packs (CrowdStrike, SentinelOne, Defender) carry the
 same shape via their modeling rules.
 
-Email is mid-migration — it currently mixes native (`fw_email_sender`)
-and custom (`socfwemailthreatstatus`). Identity, Network, Cloud, and
-Generic normalizers haven't started the structured `Artifacts.*`
-migration yet. When they do, they follow the Endpoint pattern.
+Email mixes native (`fw_email_sender`) and custom
+(`socfwemailthreatstatus`) fields. What each category writes into
+`SOCFramework.Artifacts.*` is exactly its section of the normalize map;
+read the map page for the current coverage rather than this one.

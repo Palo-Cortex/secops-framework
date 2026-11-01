@@ -4,12 +4,12 @@ Something did not behave. Find the symptom, read the surfaces in the order the f
 
 <div class="grid cards" markdown>
 
--   **Read the result surfaces first**
+-   **A job ran but produced no verdict**
 
     ---
 
-    The places the framework writes, in the order to read them, before building any diagnostic.
+    The four surfaces to read, in order, and the causes seen so far.
 
-    [Read the result surfaces first →](../diagnosis-read-the-result-surfaces-first.md)
+    [No verdict →](no-verdict.md)
 
 </div>
