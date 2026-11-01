@@ -49,7 +49,7 @@ The deployment modes set these flags as a bundle: `pov` leaves every emergency a
 | Emergency policies and guards | `SOCFrameworkPhasePolicy_V3 → phases.triage.emergency`; `!SOCFWConfig command=emergency` | `enabled=true`, `containable_roles=[workstation]`, verdict malicious at high confidence | shipped | protect list and roles set for this estate |
 | Elevate rules | `SOCFrameworkPhasePolicy_V3 → phases.triage.elevate` | star on malicious at high confidence with `escalate_recommended`; never unstar | shipped | shipped |
 | Closure bar | `SOCFWClosurePolicy` | `min_closure_confidence=low`, `require_no_blockers=true` | shipped | per customer |
-| Prompt bodies and model settings | the two `.prompt.md` recipes in the pack | per recipe | per recipe | per recipe |
+| Prompt bodies and model settings | the prompt master, distributed with the lifecycle | per master | per master | per master |
 
 ## 5. Verify
 

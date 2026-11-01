@@ -28,7 +28,7 @@ Two rules the prompt is built around, because they are where analysts' hand-clos
 | Where | Key | Shipped default | Evaluation | Production |
 |---|---|---|---|---|
 | AI Prompt `SOCFWIssueAssessment` (tenant) | model settings | Flash tier · temperature 0 · max output tokens 16000 · timeout 120s · output `Assessment.AI` · structured output off | as shipped | as shipped; raise the tier only on a measured agreement number |
-| AI Prompt `SOCFWIssueAssessment` (tenant) | eight inputs, each `SetIfEmpty` → `no content` | per the recipe `SOCFWIssueAssessment.prompt.md` | as recipe | as recipe |
+| AI Prompt `SOCFWIssueAssessment` (tenant) | eight inputs, each `SetIfEmpty` → `no content` | per the prompt master | as master | as master |
 | `EP_IR_NIST - AI` | the aiTask named `SOCFWIssueAssessment` → `aiTaskId` | authoring tenant's id | bound at install | re-bound after upgrade |
 | `SOCOptimizationConfig_V3` | `Case Analysis JOB.fields.CaseIntelRoots` (shared with the case job) | `DBotScore,File,IP,Domain,URL,WildFire,AttackPattern,Tactic` | as shipped | add a provider root (for example a new reputation feed) here and both prompts see it |
 
@@ -65,4 +65,4 @@ config timeframe = 7d
 
 ---
 
-Verified against **soc-framework-nist-ir-ai 1.6.0** source (`SOCFWIssueAssessment.prompt.md`, `SOCFWPromoteAssessment`, `SOCFWRenderAssessment`) and the prompt master page · Tenant run: **pending** · Internal mapping: Notion, AI › Issue Assessment
+Verified against **soc-framework-nist-ir-ai 1.6.0** source (`SOCFWPromoteAssessment`, `SOCFWRenderAssessment`) and the prompt master page · Tenant run: **pending** · Internal mapping: Notion, AI › Issue Assessment

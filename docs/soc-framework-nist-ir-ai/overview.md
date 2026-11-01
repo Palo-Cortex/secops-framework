@@ -17,7 +17,6 @@
 Documented post-install steps required to finish configuration.
 
 - [SOC Framework NIST IR - AI Analysis - Install & Settings](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/README.md)
-- [SOCFWCaseAnalysis - AI Prompt configuration and body](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/SOCFWCaseAnalysis.prompt.md)
 
 ## Custom Packs Installed
 

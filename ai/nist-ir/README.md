@@ -59,8 +59,8 @@ the AI pack, `SOCFWCaseIterationSetup` and `SOCFWCaseVerdictReport` from
 
 **Investigation & Response → Automation → AI Prompts**
 
-Create one prompt per row in the table above, using the definitions in
-`Packs/soc-framework-nist-ir-ai/AI_PROMPTS.md`. Name them exactly as written —
+Create one prompt per row in the table above, using the bodies and input bindings in
+the prompt master distributed with the lifecycle (Palo Alto Networks internal; not published in this repository). Name them exactly as written —
 the playbook task names match the prompt names, which is what makes the binding
 in step 4 obvious.
 

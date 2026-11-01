@@ -6,7 +6,7 @@ Where both have run on the same issue, the case verdict wins — it sees what no
 
 **Install this pack only on AI-capable tenants.** It does nothing without its AI Prompts, which are not packageable content items and must be created by hand.
 
-New to building these? Start with [AI_PROMPTS.md](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/AI_PROMPTS.md) — the platform constraints and framework conventions behind both recipes.
+The two AI Prompts the lifecycle binds to are not in this repository: their bodies, input bindings and authoring notes are in the prompt master distributed with the lifecycle (Palo Alto Networks internal; not published in this repository).
 
 Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the supporting scripts, the phase contract and the configuration list.
 
@@ -26,8 +26,8 @@ Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the
 | `SOCFWAssessmentFeedback` | Records an analyst's judgement of the assessment to the dataset |
 | `SOCFWFeedbackWrong`, `SOCFWFeedbackMissingContext` | Layout button handlers |
 | `SOCFramework NIST IR AI` layout rule | Serves the AI layout to issues that ran the AI entry point |
-| [SOCFWIssueAssessment prompt](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/SOCFWIssueAssessment.prompt.md) | Issue-scope AI Prompt — configuration and full body. Not installed by the pack |
-| [SOCFWCaseAnalysis prompt](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/SOCFWCaseAnalysis.prompt.md) | Case-scope AI Prompt — configuration and full body. Not installed by the pack |
+| AI Prompt `SOCFWIssueAssessment` | Issue-scope prompt; created on the tenant from the prompt master. Not installed by the pack |
+| AI Prompt `SOCFWCaseAnalysis` | Case-scope prompt; created on the tenant from the prompt master. Not installed by the pack |
 
 **Two playbooks are not in this pack.** `EP_IR_NIST - AI` and `SOC Case Analysis Phase` carry `aiTask` tasks, and an `aiTask` holds an `aiTaskId` bound to an AI Prompt on one specific tenant. A pack shipping them cannot install cleanly anywhere else, so they live at [`ai/nist-ir/`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) — still in this repo, as a peer of `Packs/` — and are uploaded through the UI. That README covers uploading them, rebinding each `aiTask`, and the automation rule that triggers the lifecycle.
 
@@ -41,59 +41,35 @@ The supporting scripts come from `soc-framework-nist-ir`: `SOCFWCaseSelect`, `SO
 
 **1. Install this pack.** The automations, layout and JOB playbook arrive. The two `aiTask` playbooks do not — upload those per [`ai/nist-ir/README.md`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md), which also covers rebinding and the automation rule. Neither AI step produces a verdict until its prompt exists and is bound.
 
-**2. Create the issue assessment prompt.** Follow [SOCFWIssueAssessment.prompt.md](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/SOCFWIssueAssessment.prompt.md).
+**2. Create the issue assessment prompt.** Name it `SOCFWIssueAssessment`. Paste the body and bind the inputs from the prompt master distributed with the lifecycle (Palo Alto Networks internal; not published in this repository). Settings:
 
 | Setting | Value |
 | --- | --- |
 | Model | Flash tier |
 | Temperature | `0` |
-| Max output tokens | `2500` |
-| Timeout | `45s` |
+| Max output tokens | `16000` |
+| Timeout | `120s` |
 | Output context path | `Assessment.AI` |
 | Use structured output | **off** — the schema is described in the body |
 
-Seven inputs, each bound through `SetIfEmpty` with default `no content`:
-
-| Variable | Context path |
-| --- | --- |
-| `product_category` | `SOCFramework.Product.category` |
-| `product_key` | `SOCFramework.Product.key` |
-| `issue_contract` | `SOCFramework.Artifacts` |
-| `intel` | `Assessment.Intel` |
-| `risk_score` | `SOCFramework.Investigation.RiskScore` |
-| `linked_count` | `SOCFramework.Investigation.LinkedCount` |
-| `alert_name` | `alert.name` |
-
-`no content` has to arrive as a value the model can read rather than as a missing variable — a sparse category leaves most of the contract empty, and the prompt distinguishes "asked and got nothing" from "never asked". Do not raise the token ceiling below 2500: at 1200 a real endpoint contract truncated mid-reply.
+Every input is bound through `SetIfEmpty` with default `no content`: the model has to see a value it can read rather than a missing variable, because the prompt distinguishes "asked and got nothing" from "never asked". Do not lower the token ceiling; a reply that exceeds it is cut mid-string and arrives as unparseable JSON.
 
 **3. Bind it.** Open `EP_IR_NIST - AI`, task `9002` — *SOCFWIssueAssessment* — and point its `aiTaskId` at the prompt created in step 2.
 
 **Prompt ids are tenant-local.** The id shipped in the pack belongs to the tenant the content was authored on and will not resolve anywhere else, so this binding is required on every tenant and after every pack upgrade.
 
-**4. Create the case analysis prompt.** Follow [SOCFWCaseAnalysis.prompt.md](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir-ai/SOCFWCaseAnalysis.prompt.md).
+**4. Create the case analysis prompt.** Name it `SOCFWCaseAnalysis`. Paste the body and bind the inputs from the prompt master distributed with the lifecycle (Palo Alto Networks internal; not published in this repository). Settings:
 
 | Setting | Value |
 | --- | --- |
 | Model | Thinking tier |
 | Temperature | `0` |
-| Max output tokens | `4000` |
+| Max output tokens | `16000` |
 | Timeout | `120s` |
 | Output context path | `Analysis.AI` |
 | Use structured output | **off** — the schema is described in the body |
 
-Seven inputs, all written once per case by `SOCFWCaseIterationSetup`:
-
-| Variable | Context path |
-| --- | --- |
-| `case_id` | `CaseIter.ID` |
-| `issue_count` | `CaseIter.IssueCount` |
-| `categories` | `CaseIter.Categories` |
-| `case_window` | `CaseIter.Window` |
-| `shape_coverage` | `CaseIter.ShapeCoverage` |
-| `case_payload` | `CaseIter.Payload` |
-| `prior_verdict` | `CaseIter.PriorVerdict` |
-
-**Bind to `CaseIter.*`, never to `inputs.Case.*`.** XSIAM runs a task once per element when an argument resolves to an array, and the sub-playbook input accumulates across forEach iterations — binding to it fires every task once per case seen so far, producing duplicate verdicts and rendering one case's reasoning under another's header. A `Stringify` transformer does not fix it.
+Its inputs are written once per case by `SOCFWCaseIterationSetup` into `CaseIter.*`. **Bind to `CaseIter.*`, never to `inputs.Case.*`:** XSIAM runs a task once per element when an argument resolves to an array, and the sub-playbook input accumulates across forEach iterations, producing duplicate verdicts. On the Thinking tier the model's reasoning draws on the same token budget as its output, so the ceiling stays at 16000.
 
 Create this before binding in step 5.
 
