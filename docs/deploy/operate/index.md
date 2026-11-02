@@ -10,6 +10,7 @@ Every `!SOCFWConfig` change is a dry run until you add `apply=yes`, so run it on
 
 ## Cases
 
+- [Where every case is handled](where-every-case-is-handled.md): person, AI or Auto Triage, by state and age, and the one state nobody handles until a setting changes.
 - [Let Auto Triage close a case](let-auto-triage-close.md): unstar it.
 - [Keep a case for a person](keep-a-case.md): star it, or assign it.
 - [Act from the issue layout](issue-layout.md): the Contain button, the feedback buttons, Print War Room.
