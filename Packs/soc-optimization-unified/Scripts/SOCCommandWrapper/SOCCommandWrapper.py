@@ -510,6 +510,34 @@ def brand_available(brand):
     return any(m.get("state") == "active" for m in registered)
 
 
+def command_served(command):
+    """Whether an enabled instance on this tenant serves this command.
+
+    getAllSupportedCommands is keyed by instance name and lists only the
+    commands of enabled instances, so it answers by exact command name — no
+    brand-label matching. Used on the shadow path to tell "would run" from
+    "would need an integration the tenant doesn't have", so a simulated row
+    never credits time to a product that isn't installed.
+
+    Returns True, False, or None when the registry cannot be read. None is
+    "unknown": callers treat it as served, so a checker that fails is never
+    the reason a row changes shape.
+    """
+    try:
+        supported = demisto.getAllSupportedCommands() or {}
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper: getAllSupportedCommands unavailable ({e}); assuming served.")
+        return None
+    if not isinstance(supported, dict) or not supported:
+        return None
+    for cmds in supported.values():
+        for c in cmds or []:
+            name = c.get("name") if isinstance(c, dict) else c
+            if name == command:
+                return True
+    return False
+
+
 # Actions in these phases only read. Every other action can change something.
 READ_ONLY_PHASES = ("enrichment", "investigation")
 
@@ -976,7 +1004,7 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
     target cannot kill the rest of the fan-out.
 
     Returns {"vendor", "target", "outcome", "reason"} with outcome one of
-    simulated | success | failed | skipped_no_artifact | integration_unavailable.
+    simulated | no_instance | success | failed | skipped_no_artifact | integration_unavailable.
     """
     action = shared["action"]
     args = shared["args"]
@@ -1014,6 +1042,13 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
     )
 
     if shadow_mode:
+        # A shadow row says "this would have run". When no enabled instance
+        # serves the command it would not have: the row is kept so the tenant
+        # can see which integration the action needs, but it earns no time.
+        no_instance = command_served(command) is False
+        status = "no_instance" if no_instance else "simulated"
+        credited_minutes = 0 if no_instance else action_time_minutes
+
         record = {
             "run_id": run_id,
             "action": action,
@@ -1025,6 +1060,8 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
             "tags": tags,
             "timestamp": timestamp
         }
+        if no_instance:
+            record["no_instance"] = True
         if target is not None:
             record["target"] = target
 
@@ -1040,7 +1077,7 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
             "action": action,
             "vendor": vendor,
             "command": command,
-            "action_status": "simulated",
+            "action_status": status,
             "action_actor": normalize_action_actor(args.get("Action_Actor"), True),
             "execution_mode": "shadow",
             "shadow_mode_state": "collected",
@@ -1050,7 +1087,7 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
             "has_error": False,
             "error_type": "",
             "error_message": "",
-            "action_time_minutes": action_time_minutes,
+            "action_time_minutes": credited_minutes,
             "action_time_category": action_time_category
         }
         if target is not None:
@@ -1065,15 +1102,18 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
         apply_output_map(output_map, fresh_ctx, shadow_mode=True)
 
         warroom_log(
-            "SOC Framework - SHADOW MODE (Command Not Executed)",
+            "SOC Framework - SHADOW MODE (No Instance - Command Not Executed)" if no_instance
+            else "SOC Framework - SHADOW MODE (Command Not Executed)",
             record,
             tags,
             footer=shadow_footer(action, args.get("Action_Actor"))
         )
 
         if terminal:
-            return_results("Shadow Mode: command not executed")
-        return {"vendor": vendor, "target": target, "outcome": "simulated"}
+            return_results(
+                f"Shadow Mode: command not executed — no enabled instance serves {command}"
+                if no_instance else "Shadow Mode: command not executed")
+        return {"vendor": vendor, "target": target, "outcome": status}
 
     try:
         # Drop args that failed context resolution — sending empty values
