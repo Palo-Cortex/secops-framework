@@ -4,7 +4,7 @@ title: "Tenant Configuration"
 
 # Tenant Configuration
 
-One command, `!SOCFWConfig`, is how the framework is configured on a tenant after install: what is live or simulated for each actor, the customer values the vendor integrations need, which jobs run and who owns them, the emergency-response policies, the Auto Triage limits, and the deployment mode. Every change is a dry run until you add `apply=yes`, and every applied change is written to the tenant override list, so it survives pack upgrades and is recorded in the execution dataset.
+One command, `!SOCFWConfig`, is how the framework is configured on a tenant after install: what is live or simulated for each actor, the customer values the vendor integrations need, which jobs run and who owns them, the emergency-response policies, the Auto Triage limits, the analyst assignment settings, and the deployment mode. Every change is a dry run until you add `apply=yes`, and every applied change is written to the tenant override list, so it survives pack upgrades and is recorded in the execution dataset.
 
 ## 1. What it does
 
@@ -19,6 +19,7 @@ One command, `!SOCFWConfig`, is how the framework is configured on a tenant afte
 | `owner` | Set the user who owns a job; a job cannot run without one |
 | `emergency` | List, edit or add issue-level emergency response policies and their guards |
 | `triage` | Show or set Auto Triage's score threshold and age window |
+| `assignment` | Show or set the analyst assignment settings: the roles and groups on duty when no schedule source is set up, which cases get an owner, the window, the per-analyst cap, online-only; see [Analyst Assignment](analyst-assignment.md) |
 | `mode` | Apply a deployment mode; see [Deployment Modes](deployment-modes.md) |
 
 ## 2. Where the switch lives
@@ -27,7 +28,7 @@ One command, `!SOCFWConfig`, is how the framework is configured on a tenant afte
 |---|---|---|---|---|
 | Command | `command=` | `status` | as needed | as needed |
 | Command | `apply=` | `no` (dry run) | `yes` only after reading the dry run | same |
-| List `SOCFWTenantConfig` | `shadow.<action>.<actor>`, `value`, jobs, emergency, triage, mode | does not exist until the first `apply=yes` | created on the first write | the one list that carries this customer's choices; back it up before a tenant rebuild |
+| List `SOCFWTenantConfig` | `shadow.<action>.<actor>`, `value`, jobs, emergency, triage, assignment, mode | does not exist until the first `apply=yes` | created on the first write | the one list that carries this customer's choices; back it up before a tenant rebuild |
 | Shipped lists | read only through this command | pack values | never edited on the tenant | never edited on the tenant |
 
 > Edit the shipped lists on a tenant only if you want the change gone on the next upgrade. Everything a customer decides goes through `!SOCFWConfig` so it lands in the override.
@@ -47,6 +48,7 @@ Three examples:
 !SOCFWConfig command=owner job="Auto Triage V3" owner=analyst@customer.example apply=yes
 !SOCFWConfig command=set vendor=Zscaler arg=category-id value=12345 apply=yes
 !SOCFWConfig command=triage score_threshold=30 window_hours=12 apply=yes
+!SOCFWConfig command=assignment groups="SOC Analysts" roles=none apply=yes
 ```
 
 ## 4. Verify
@@ -59,17 +61,17 @@ config timeframe = 7d
 | sort desc _time
 ```
 
-**Expected:** one row per applied change, with `action_taken` showing the before and after. `!SOCFWHealthCheck` reads the same override and grades **Configuration (SOCFWConfig)**, **Customer values**, the **JOB:** rows and **Auto Triage settings** from it.
+**Expected:** one row per applied change, with `action_taken` showing the before and after. `!SOCFWHealthCheck` reads the same override and grades **Configuration (SOCFWConfig)**, **Customer values**, the **JOB:** rows, **Auto Triage settings** and the assignment roster from it.
 
 ## 5. What it feeds
 
 | Surface | What you see |
 |---|---|
-| `!SOCFWHealthCheck` | Configuration, customer values, jobs, triage and emergency sections are all read through this command's status |
+| `!SOCFWHealthCheck` | Configuration, customer values, jobs, triage, assignment and emergency sections are all read through this command's status |
 | Dataset `xsiam_socfw_ir_execution_raw` | `config_change` rows: a dated, attributable history of every switch flipped on the tenant |
 | List `SOCFWTenantConfig` | The single place a customer's framework choices live |
 | Universal command | Reads the override on every call, so a change here is live on the next action |
 
 ---
 
-Verified against **soc-optimization-unified 3.31.1** source (`SOCFWConfig` arguments and row writer) · Tenant run: **pending** · Internal mapping: Notion, Capability Reference row *Tenant configuration CLI*
+Verified against **soc-optimization-unified 3.31.2** source (`SOCFWConfig` arguments and row writer) · Tenant run: **2026-11-03** · Internal mapping: Notion, Capability Reference row *Tenant configuration CLI*

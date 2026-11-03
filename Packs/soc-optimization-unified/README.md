@@ -25,7 +25,7 @@ One page per capability on the site, in the same shape every time: what it does,
 | Case ledger | Writes one queryable row per issue carrying the Foundation contract to `xsiam_socfw_case_ledger_raw`, and a "being worked" note per case. | page pending |
 | Dedup | Fingerprints similar alerts in a window, keeps the lowest alert id as canonical; duplicates self-close and write a dedup row. An action fingerprint stops the same action running twice on one case. | page pending |
 | Auto Triage | Scheduled close of low-signal cases: new, unstarred, no manual score, score at or below the threshold, older than the window. | page pending |
-| Analyst assignment | Syncs who is on duty into `socfw_on_duty` (PagerDuty, roles and groups, or a manual list) and assigns open cases least-loaded through `soc-assign-case`. | page pending |
+| Analyst assignment | Syncs who is on duty into `socfw_on_duty` (PagerDuty, roles and groups, or a manual list) and assigns open cases least-loaded through `soc-assign-case`. | [Analyst assignment](https://palo-cortex.github.io/secops-framework/soc-optimization-unified/analyst-assignment/) |
 | Emergency response | Acts on a high-confidence malicious issue without waiting for the case, per policy; guarded by role and protection tiers; escalates when blocked. | page pending |
 | Elevate case | Stars the case, and optionally raises severity, when the lifecycle's assessment says so at high confidence. | page pending |
 | Phase plan and executor | Builds a per-phase action plan from the contract without a model, then applies environment tiers, policy authority, vendor reachability and ledger dedup before dispatch; non-dispatched steps still produce a row. | page pending |
