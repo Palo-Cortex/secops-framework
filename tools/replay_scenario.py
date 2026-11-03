@@ -30,6 +30,7 @@ import csv
 import json
 import re
 import argparse
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -280,6 +281,14 @@ def parse_duration(spec: str) -> timedelta:
     return timedelta(seconds=total)
 
 
+def parse_pace(spec: str) -> Tuple[int, timedelta]:
+    """Parse 'N/DURATION' (e.g. '20/3m') into (batch size, gap between batches)."""
+    m = re.fullmatch(r"\s*(\d+)\s*/\s*(\S+)\s*", spec)
+    if not m or int(m.group(1)) < 1:
+        raise ValueError(f"Invalid pace: {spec!r} (expected N/DURATION, e.g. 20/3m)")
+    return int(m.group(1)), parse_duration(m.group(2))
+
+
 # ── Time rebasing ─────────────────────────────────────────────────────────────
 
 def time_range(events: List[Dict[str, Any]], field: str) -> Tuple[Optional[datetime], Optional[datetime]]:
@@ -430,7 +439,18 @@ def main():
             "so the correlation rule sees them as 'now' regardless of timezone."
         )
     )
+    parser.add_argument(
+        "--pace", default=None,
+        metavar="N/DURATION",
+        help=(
+            "Send at most N events per interval, e.g. '20/3m'. A burst of "
+            "detections overruns the tenant playbook queue and silently drops "
+            "runs; pacing keeps every issue inside a slot."
+        )
+    )
     args = parser.parse_args()
+
+    pace_size, pace_gap = parse_pace(args.pace) if args.pace else (None, None)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     manifest_dir = os.path.dirname(os.path.abspath(args.manifest))
@@ -529,6 +549,9 @@ def main():
 
     # ── Send each source to its own endpoint ──
     print()
+    if pace_size is not None:
+        print(f"[*] Pacing: {pace_size} events every {int(pace_gap.total_seconds())}s\n")
+    batches_sent = 0
     for src in sources:
         name = src["name"]
         events = src["events"]
@@ -551,7 +574,18 @@ def main():
             continue
 
         print(f"[*] {name}: sending {len(events)} events → {url}")
-        send_test_events.send_events(events, api_url=url, api_key=key)
+        if pace_size is None:
+            send_test_events.send_events(events, api_url=url, api_key=key)
+        else:
+            # Batches continue across sources so the gap is global, not per source.
+            for start in range(0, len(events), pace_size):
+                if batches_sent:
+                    print(f"    pacing: sleeping {int(pace_gap.total_seconds())}s")
+                    time.sleep(pace_gap.total_seconds())
+                batch = events[start:start + pace_size]
+                print(f"    batch {start + 1}-{start + len(batch)} of {len(events)}")
+                send_test_events.send_events(batch, api_url=url, api_key=key)
+                batches_sent += 1
         print()
 
     print("[*] Replay complete.")
