@@ -11,7 +11,7 @@ Star a case and automation leaves it alone: Auto Triage will not close it, the A
 1. Open the case and star it. If the issue layout offers it, the same star is set when an assessment elevates the case.
 2. To hand it to a specific person instead of the roster, assign it. An assigned issue is also never closed by the AI close decision.
 
-**Expected:** on the next **SOCFW Analyst Assignment** run the case shows an owner from the on-duty roster (the job assigns unassigned open cases least-loaded first; with the shipped setting `AssignmentCases: starred` in `SOCOptimizationConfig_V3`, starred ones). Auto Triage runs report the case under `skipped` with the reason `starred guard`.
+**Expected:** on the next **SOCFW Analyst Assignment** run the case shows an owner from the on-duty roster (the job assigns unassigned open cases least-loaded first; with the shipped setting `cases: starred`, starred ones). Auto Triage runs report the case under `skipped` with the reason `starred guard`.
 
 ## Why it works this way
 
