@@ -1187,3 +1187,84 @@ def test_pov_turns_the_assignment_job_on_with_the_owner():
     run(t, command="mode", mode="star_and_triage", apply="yes")
     assert t.jobs["SOCFW Analyst Assignment"]["scheduled"] is False
     assert shadow_of(t, "soc-assign-case", "automation") is True
+
+
+# ── assignment ───────────────────────────────────────────────────────────────
+
+def test_assignment_lists_shipped_values_when_nothing_is_set():
+    r = run(triage_tenant(), command="assignment")
+    s = r.outputs["settings"]
+    assert s["roles"] == {"shipped": "Instance Administrator,Account Admin", "tenant": None,
+                          "effective": "Instance Administrator,Account Admin", "from": "shipped"}
+    assert s["cases"]["effective"] == "starred" and s["max_per_analyst"]["effective"] == "20"
+    assert "command=assignment" in r.readable_output
+
+
+def test_assignment_is_a_dry_run_by_default():
+    t = triage_tenant()
+    r = run(t, command="assignment", groups="SOC Analysts, SOC Leads")
+    assert r.outputs["dry_run"] and r.outputs["changed"] and t.writes() == []
+    assert r.outputs["apply_command"] == '!SOCFWConfig command=assignment groups="SOC Analysts, SOC Leads" apply=yes'
+
+
+def test_assignment_apply_writes_the_tenant_list_records_and_wins_over_shipped():
+    t = triage_tenant({})
+    r = run(t, command="assignment", groups="SOC Analysts", roles="none", cases="all",
+            max_per_analyst="unlimited", online_only="false", window="7 days", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.config()["assignment"] == {"groups": "SOC Analysts", "roles": "none", "cases": "all",
+                                        "max_per_analyst": "unlimited", "online_only": False,
+                                        "window": "7 days"}
+    assert r.outputs["settings"]["groups"]["from"] == "tenant"
+    rows = [x for x in t.rows if x["event_type"] == "config_change"]
+    assert len(rows) == 6 and all("incident_id" not in x and "phase" not in x for x in rows)
+    assert all(x["universal_command"] == "analyst_assignment" for x in rows)
+    assert json.loads(t.lists["SOCOptimizationConfig_V3"]) == OPT
+    assert "fallback" in r.readable_output
+
+
+def test_assignment_default_removes_one_setting_then_the_section():
+    t = triage_tenant({"assignment": {"groups": "SOC Analysts", "cases": "all"}, "triage": {"window_hours": 3}})
+    run(t, command="assignment", groups="default", apply="yes")
+    assert t.config()["assignment"] == {"cases": "all"}
+    run(t, command="assignment", cases="default", apply="yes")
+    assert "assignment" not in t.config() and t.config()["triage"] == {"window_hours": 3}
+
+
+def test_assignment_repeat_is_a_no_op():
+    t = triage_tenant({"assignment": {"cases": "all"}})
+    r = run(t, command="assignment", cases="all", apply="yes")
+    assert not r.outputs["changed"] and not r.outputs["applied"] and t.writes() == []
+
+
+@pytest.mark.parametrize("args,message", [
+    ({"cases": "everything"}, "cases must be starred, all or default"),
+    ({"window": "forever"}, "window must be"),
+    ({"max_per_analyst": "ten"}, "max_per_analyst must be"),
+    ({"online_only": "maybe"}, "online_only must be"),
+    ({"domains": "cloud"}, "domains must be"),
+])
+def test_assignment_bad_values_name_the_fix(args, message):
+    with pytest.raises(RuntimeError, match=message):
+        run(triage_tenant({}), command="assignment", apply="yes", **args)
+
+
+def test_assignment_values_are_normalised():
+    t = triage_tenant({})
+    run(t, command="assignment", max_per_analyst="0", window="24 hour", domains="DOMAIN_SECURITY, posture",
+        online_only="yes", apply="yes")
+    assert t.config()["assignment"] == {"max_per_analyst": "unlimited", "window": "24 hours",
+                                        "domains": "domain_security,posture", "online_only": True}
+
+
+def test_status_shows_assignment_settings_with_source():
+    t = triage_tenant({"assignment": {"groups": "SOC Analysts"}})
+    r = run(t, command="status")
+    a = r.outputs["assignment"]
+    assert a["groups"]["from"] == "tenant" and a["roles"]["from"] == "shipped"
+    assert "Analyst assignment settings" in r.readable_output
+
+
+def test_assignment_arg_on_another_command_is_refused():
+    with pytest.raises(RuntimeError, match="assignment"):
+        run(triage_tenant({}), command="triage", groups="SOC Analysts", apply="yes")

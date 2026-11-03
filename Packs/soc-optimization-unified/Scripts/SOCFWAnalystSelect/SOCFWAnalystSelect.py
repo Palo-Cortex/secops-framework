@@ -260,6 +260,52 @@ def current_owner(case_id):
 DEFAULT_CAP = 20
 
 
+TENANT_CONFIG_LIST = "SOCFWTenantConfig"
+# Tenant keys that override the matching JOB argument. Set with
+# !SOCFWConfig command=assignment; they live in the tenant's own list, so a pack
+# upgrade that rewrites SOCOptimizationConfig_V3 cannot undo them.
+TENANT_ASSIGNMENT_KEYS = ("cases", "domains", "window", "max_per_analyst", "online_only")
+
+
+def tenant_assignment():
+    """The 'assignment' overrides in SOCFWTenantConfig, or {} when there are none.
+
+    Read with demisto.executeCommand rather than execute_command: a tenant that
+    never created the list is the normal case, not an error.
+    """
+    try:
+        res = demisto.executeCommand("getList", {"listName": TENANT_CONFIG_LIST})
+    except Exception as e:  # noqa: BLE001
+        demisto.debug(f"{TENANT_CONFIG_LIST} unreadable, using the JOB values: {e}")
+        return {}
+    entry = res[0] if isinstance(res, list) and res and isinstance(res[0], dict) else {}
+    raw = entry.get("Contents")
+    if entry.get("Type") == 4 or not raw:
+        return {}
+    try:
+        doc = raw if isinstance(raw, dict) else json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    section = doc.get("assignment") if isinstance(doc, dict) else None
+    return section if isinstance(section, dict) else {}
+
+
+def apply_tenant_overrides(args, overrides):
+    """JOB arguments with the tenant's assignment settings on top. Returns
+    (args, [keys taken from the tenant]). "none" for roles/groups means empty."""
+    merged = dict(args)
+    taken = []
+    for key in TENANT_ASSIGNMENT_KEYS:
+        value = overrides.get(key)
+        if value in (None, ""):
+            continue
+        if key in ("roles", "groups") and str(value).strip().lower() == "none":
+            value = ""
+        merged[key] = str(value).lower() if isinstance(value, bool) else str(value)
+        taken.append(key)
+    return merged, taken
+
+
 def parse_cap(raw):
     """Most open cases one analyst may hold, or None for no limit ("unlimited" or "0").
 
@@ -381,7 +427,7 @@ def render(decisions, on_duty, loads, notes):
 
 def main():
     started = time.monotonic()
-    args = demisto.args() or {}
+    args, tenant_keys = apply_tenant_overrides(demisto.args() or {}, tenant_assignment())
     actor = (args.get("actor") or "automation").strip()
     method = (args.get("method") or "least_loaded").strip().lower()
     if method not in METHODS:
@@ -397,6 +443,8 @@ def main():
     online_only = str(args.get("online_only") or "true").strip().lower() in ("true", "yes", "1")
     starred_only, scope_note = parse_cases(args.get("cases"))
     notes, decisions, loads = ([scope_note] if scope_note else []), [], {}
+    if tenant_keys:
+        notes.append("Settings from SOCFWTenantConfig (SOCFWConfig command=assignment): " + ", ".join(tenant_keys))
     try:
         domains = parse_domains(args.get("domains"))
         since = parse_window(args.get("window"))

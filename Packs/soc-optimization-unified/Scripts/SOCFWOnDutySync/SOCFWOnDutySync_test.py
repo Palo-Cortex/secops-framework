@@ -1,3 +1,4 @@
+import pytest
 import sys
 import types
 
@@ -142,11 +143,14 @@ def test_nothing_superseded_when_there_were_no_role_rows(monkeypatch):
     assert s.ROLE_SOURCE not in g
 
 
-def test_role_fallback_with_nobody_in_the_roles_changes_nothing(monkeypatch):
+def test_role_fallback_with_nobody_matching_removes_its_rows(monkeypatch):
+    """Zero matches is the tenant's answer: a group that matches no one must not leave
+    the previous fallback roster (e.g. the admin roles) in place."""
     _role_users(monkeypatch, people=[])
     g = {"PagerDuty v2": {"status": "unavailable", "reason": "", "people": []}}
-    s.add_role_fallback(g, ["Analyst"], [])
-    assert g[s.ROLE_SOURCE]["status"] == "empty"
+    s.add_role_fallback(g, ["Analyst"], [{"email": "admin@x.com", "source": s.ROLE_SOURCE}], ["SOC Analysts"])
+    assert g[s.ROLE_SOURCE]["status"] == "answered" and g[s.ROLE_SOURCE]["people"] == []
+    assert "nobody on duty" in g[s.ROLE_SOURCE]["reason"]
 
 
 def test_parse_roles():
@@ -186,3 +190,25 @@ def test_role_users_matches_a_role_or_a_group(monkeypatch):
     monkeypatch.setattr(s, "core_post", lambda uri, body: (True, reply))
     assert [p["email"] for p in s.role_users(["account admin"], ["soc analysts"])] == ["a@x.com", "b@x.com"]
     assert [p["email"] for p in s.role_users([], ["SOC Analysts"])] == ["b@x.com"]
+
+
+def test_tenant_roles_and_groups_override_the_job_and_none_means_empty():
+    args, taken = s.apply_tenant_overrides({"roles": "Instance Administrator,Account Admin", "groups": ""},
+                                           {"roles": "none", "groups": "SOC Analysts, SOC Leads"})
+    assert args == {"roles": "", "groups": "SOC Analysts, SOC Leads"} and taken == ["roles", "groups"]
+    assert s.parse_roles(args["roles"]) == [] and s.parse_roles(args["groups"]) == ["SOC Analysts", "SOC Leads"]
+
+
+def test_lookup_write_retries_once_then_reports(monkeypatch):
+    calls = []
+
+    def flaky(uri, body):
+        calls.append(uri)
+        return (False, "HTTP 500") if len(calls) == 1 else (True, {})
+
+    monkeypatch.setattr(s, "core_post", flaky)
+    s.lookup_write("/x", {}, "update", sleep=lambda n: None)
+    assert len(calls) == 2
+    monkeypatch.setattr(s, "core_post", lambda uri, body: (False, "HTTP 500"))
+    with pytest.raises(s.SyncError, match="could not update"):
+        s.lookup_write("/x", {}, "update", sleep=lambda n: None)

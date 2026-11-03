@@ -25,9 +25,56 @@ on_duty_sync row with no incident_id or phase, so the value dashboards skip it.
 """
 
 import json
+import time
 from datetime import datetime, timezone
 
 LOOKUP = "socfw_on_duty"
+
+
+TENANT_CONFIG_LIST = "SOCFWTenantConfig"
+# Tenant keys that override the matching JOB argument. Set with
+# !SOCFWConfig command=assignment; they live in the tenant's own list, so a pack
+# upgrade that rewrites SOCOptimizationConfig_V3 cannot undo them.
+TENANT_ASSIGNMENT_KEYS = ("roles", "groups")
+
+
+def tenant_assignment():
+    """The 'assignment' overrides in SOCFWTenantConfig, or {} when there are none.
+
+    Read with demisto.executeCommand rather than execute_command: a tenant that
+    never created the list is the normal case, not an error.
+    """
+    try:
+        res = demisto.executeCommand("getList", {"listName": TENANT_CONFIG_LIST})
+    except Exception as e:  # noqa: BLE001
+        demisto.debug(f"{TENANT_CONFIG_LIST} unreadable, using the JOB values: {e}")
+        return {}
+    entry = res[0] if isinstance(res, list) and res and isinstance(res[0], dict) else {}
+    raw = entry.get("Contents")
+    if entry.get("Type") == 4 or not raw:
+        return {}
+    try:
+        doc = raw if isinstance(raw, dict) else json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    section = doc.get("assignment") if isinstance(doc, dict) else None
+    return section if isinstance(section, dict) else {}
+
+
+def apply_tenant_overrides(args, overrides):
+    """JOB arguments with the tenant's assignment settings on top. Returns
+    (args, [keys taken from the tenant]). "none" for roles/groups means empty."""
+    merged = dict(args)
+    taken = []
+    for key in TENANT_ASSIGNMENT_KEYS:
+        value = overrides.get(key)
+        if value in (None, ""):
+            continue
+        if key in ("roles", "groups") and str(value).strip().lower() == "none":
+            value = ""
+        merged[key] = str(value).lower() if isinstance(value, bool) else str(value)
+        taken.append(key)
+    return merged, taken
 SCHEMA = {"email": "text", "name": "text", "source": "text", "updated_at": "text"}
 ACTION = "soc-sync-on-duty"
 ACTIONS_LIST = "SOCFrameworkActions_V3"
@@ -85,24 +132,40 @@ def create_lookup():
         raise SyncError(f"could not create {LOOKUP}: {resp}")
 
 
+WRITE_RETRY_SECONDS = 5
+
+
+def lookup_write(uri, body, what, sleep=time.sleep):
+    """One lookup write with a single retry.
+
+    The lookup has one writer by design, but a manual !SOCFWOnDutySync can overlap
+    the JOB's own sync, and the platform answers the loser with HTTP 500 (dev
+    tenant, 3 Nov 2026). Both writes are idempotent, so one retry after a pause
+    is safe; a second failure is reported.
+    """
+    ok, resp = core_post(uri, body)
+    if not ok:
+        demisto.debug(f"SOCFWOnDutySync: {what} failed once, retrying: {str(resp)[:200]}")
+        sleep(WRITE_RETRY_SECONDS)
+        ok, resp = core_post(uri, body)
+    if not ok:
+        raise SyncError(f"could not {what} {LOOKUP}: {resp}")
+
+
 def upsert(rows):
     if not rows:
         return
     # Full rows only: add_data sets any field a row leaves out to empty.
-    ok, resp = core_post("/public_api/v1/xql/lookups/add_data", {"request_data": {
+    lookup_write("/public_api/v1/xql/lookups/add_data", {"request_data": {
         "dataset_name": LOOKUP, "key_fields": ["email"],
-        "data": [{k: r.get(k, "") for k in SCHEMA} for r in rows]}})
-    if not ok:
-        raise SyncError(f"could not update {LOOKUP}: {resp}")
+        "data": [{k: r.get(k, "") for k in SCHEMA} for r in rows]}}, "update")
 
 
 def remove(emails):
     if not emails:
         return
-    ok, resp = core_post("/public_api/v1/xql/lookups/remove_data", {"request_data": {
-        "dataset_name": LOOKUP, "filters": [{"email": e} for e in emails]}})
-    if not ok:
-        raise SyncError(f"could not remove rows from {LOOKUP}: {resp}")
+    lookup_write("/public_api/v1/xql/lookups/remove_data", {"request_data": {
+        "dataset_name": LOOKUP, "filters": [{"email": e} for e in emails]}}, "remove rows from")
 
 
 # ── Sources ──────────────────────────────────────────────────────────────────
@@ -240,10 +303,14 @@ def add_role_fallback(gathered, roles, existing, groups=()):
         people = role_users(roles, groups)
         what = "; ".join(x for x in ("roles " + ", ".join(roles) if roles else "",
                                      "groups " + ", ".join(groups) if groups else "") if x)
+        # Zero matches is the tenant's answer (a failed read raises above), so the
+        # role source claims its rows with nobody: a group that matches no one must
+        # not leave the previous fallback roster in place.
         gathered[ROLE_SOURCE] = (
             {"status": "answered", "reason": "no schedule source set up; " + what, "people": people}
             if people else
-            {"status": "empty", "people": [], "reason": "no tenant user matches " + what})
+            {"status": "answered", "people": [],
+             "reason": "no tenant user matches " + what + "; fallback rows removed, nobody on duty"})
 
 
 def parse_analysts(raw):
@@ -338,10 +405,12 @@ def record(rows):
             demisto.debug(f"SOCFWOnDutySync: row not recorded: {e}")
 
 
-def render(sources, roster, created):
+def render(sources, roster, created, tenant_keys=()):
     lines = [f"### On-duty sync - {LOOKUP}"]
     if created:
         lines.append(f"Created {LOOKUP} on this run.")
+    if tenant_keys:
+        lines.append("Settings from SOCFWTenantConfig (SOCFWConfig command=assignment): " + ", ".join(tenant_keys))
     lines.append("| Source | Outcome | On duty | Added | Removed | Not tenant users | Note |")
     lines.append("|---|---|---|---|---|---|---|")
     for s in sources:
@@ -353,7 +422,7 @@ def render(sources, roster, created):
 
 
 def main():
-    args = demisto.args() or {}
+    args, tenant_keys = apply_tenant_overrides(demisto.args() or {}, tenant_assignment())
     analysts = parse_analysts(args.get("analysts"))
     try:
         existing = read_lookup()
@@ -401,7 +470,7 @@ def main():
 
     roster = roster_after(existing, upserts, removals)
     return_results(CommandResults(
-        readable_output=render(sources, roster, created),
+        readable_output=render(sources, roster, created, tenant_keys),
         outputs_prefix="SOCFramework.OnDuty",
         outputs={"lookup": LOOKUP, "created": created, "sources": sources, "roster": roster},
         replace_existing=True,
