@@ -176,7 +176,8 @@ def check_roster() -> Dict[str, Any]:
         return _check(name, STATUS_WARN, f"nobody on duty, so nothing is assigned: {fix}")
     if set(counts) == {ROLE_SOURCE}:
         return _check(name, STATUS_WARN,
-                      f"all {counts[ROLE_SOURCE]} on duty come from the role and group fallback (AssignmentRoles, AssignmentGroups); "
+                      f"all {counts[ROLE_SOURCE]} on duty come from the role and group fallback (set the analyst group with "
+                      f"!SOCFWConfig command=assignment groups=<group>, or roles=); "
                       "on a PoV tenant those roles usually include Palo Alto Networks staff, who would "
                       f"get the customer's cases: {fix}")
     return _check(name, STATUS_OK, f"{sum(counts.values())} on duty: "

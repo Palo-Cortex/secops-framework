@@ -32,7 +32,7 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default), shadow, set, job, owner, emergency, triage or mode. Each
+  description: status (default), shadow, set, job, owner, emergency, triage, assignment or mode. Each
     command takes only the arguments marked with it; one marked for another command is refused.
   defaultValue: status
   auto: PREDEFINED
@@ -44,6 +44,7 @@ args:
   - owner
   - emergency
   - triage
+  - assignment
   - mode
 - name: action
   description: "[status, shadow, emergency] The action, e.g. soc-star-case. Required for
@@ -168,6 +169,39 @@ args:
 - name: window_hours
   description: "[triage] Auto Triage never closes a case younger than this many hours (more
     than 0). default returns to the value in SOCOptimizationConfig_V3."
+- name: roles
+  description: "[assignment] Comma list of tenant roles whose users are on duty when no schedule
+    source is set up. none turns the role fallback off. default returns to the value in
+    SOCOptimizationConfig_V3 (Instance Administrator, Account Admin)."
+- name: groups
+  description: "[assignment] Comma list of user groups whose members are on duty when no schedule
+    source is set up; most customers set their analyst group here. none turns it off. default
+    returns to the value in SOCOptimizationConfig_V3."
+- name: cases
+  description: "[assignment] starred assigns only starred cases; all assigns every open case.
+    default returns to the value in SOCOptimizationConfig_V3 (starred)."
+  auto: PREDEFINED
+  predefined:
+  - starred
+  - all
+  - default
+- name: domains
+  description: "[assignment] Case domains to assign - security, posture, health, a comma list, or
+    all. default returns to the value in SOCOptimizationConfig_V3 (security)."
+- name: window
+  description: "[assignment] Only cases created within this period are assigned - 24 hours, 7 days,
+    3 months or all. default returns to the value in SOCOptimizationConfig_V3."
+- name: max_per_analyst
+  description: "[assignment] Most open cases one analyst may hold, or unlimited. default returns to
+    the value in SOCOptimizationConfig_V3 (20)."
+- name: online_only
+  description: "[assignment] true assigns only to on-duty analysts logged in now. default returns to
+    the value in SOCOptimizationConfig_V3 (true)."
+  auto: PREDEFINED
+  predefined:
+  - "true"
+  - "false"
+  - default
 - name: mode
   description: "[mode] The mode to apply from SOCFWConfigModes - pov, star_and_triage,
     contain_identity_and_hosts or contain_all - or default to remove the mode settings and turn
@@ -297,6 +331,10 @@ outputs:
   description: Auto Triage score_threshold and window_hours, each with shipped, tenant, effective
     and from.
   type: Unknown
+- contextPath: SOCFWConfig.Status.assignment
+  description: Analyst assignment roles, groups, cases, domains, window, max_per_analyst and
+    online_only, each with shipped, tenant, effective and from.
+  type: Unknown
 - contextPath: SOCFWConfig.Triage.settings
   description: score_threshold and window_hours, each with shipped (SOCOptimizationConfig_V3),
     tenant (SOCFWTenantConfig), effective (what Auto Triage uses) and from (shipped or
@@ -320,6 +358,26 @@ outputs:
 - contextPath: SOCFWConfig.Status.mode
   description: The mode this tenant's settings match, default, or custom.
   type: String
+- contextPath: SOCFWConfig.Assignment.settings
+  description: roles, groups, cases, domains, window, max_per_analyst and online_only, each with
+    shipped (SOCOptimizationConfig_V3), tenant (SOCFWTenantConfig), effective (what the
+    assignment JOB uses) and from (shipped or tenant).
+  type: Unknown
+- contextPath: SOCFWConfig.Assignment.changes
+  description: One row per setting given - setting, from, to, from_source, to_source, changed.
+  type: Unknown
+- contextPath: SOCFWConfig.Assignment.applied
+  description: True when the change was written and read back.
+  type: Boolean
+- contextPath: SOCFWConfig.Assignment.dry_run
+  description: True when nothing was written.
+  type: Boolean
+- contextPath: SOCFWConfig.Assignment.apply_command
+  description: The command that writes this change.
+  type: String
+- contextPath: SOCFWConfig.Assignment.contract_version
+  description: Version of this output's keys.
+  type: Number
 - contextPath: SOCFWConfig.Mode.current
   description: Listing only - the mode this tenant matches, default, or custom.
   type: String

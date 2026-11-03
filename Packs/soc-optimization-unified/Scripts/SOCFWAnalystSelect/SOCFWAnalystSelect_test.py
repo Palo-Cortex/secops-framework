@@ -235,3 +235,23 @@ def test_yml_declares_cases_with_starred_default():
     doc = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "SOCFWAnalystSelect.yml")))
     arg = next(x for x in doc["args"] if x["name"] == "cases")
     assert arg["defaultValue"] == "starred" and arg["predefined"] == ["starred", "all"]
+
+
+def test_tenant_assignment_overrides_the_job_arguments():
+    over = {"cases": "all", "max_per_analyst": "unlimited", "online_only": False, "window": "7 days"}
+    args, taken = a.apply_tenant_overrides({"cases": "starred", "max_per_analyst": "20", "domains": "security"}, over)
+    assert args == {"cases": "all", "max_per_analyst": "unlimited", "online_only": "false",
+                    "window": "7 days", "domains": "security"}
+    assert taken == ["cases", "window", "max_per_analyst", "online_only"]
+    assert a.parse_cases(args["cases"]) == (False, None) and a.parse_cap(args["max_per_analyst"]) is None
+
+
+def test_tenant_assignment_is_empty_when_the_list_is_missing_or_broken(monkeypatch):
+    monkeypatch.setattr(a.demisto, "executeCommand",
+                        lambda cmd, args: [{"Type": 4, "Contents": "Item not found (8)"}])
+    assert a.tenant_assignment() == {}
+    monkeypatch.setattr(a.demisto, "executeCommand", lambda cmd, args: [{"Type": 1, "Contents": "not json"}])
+    assert a.tenant_assignment() == {}
+    monkeypatch.setattr(a.demisto, "executeCommand",
+                        lambda cmd, args: [{"Type": 1, "Contents": json.dumps({"assignment": {"cases": "all"}, "triage": {}})}])
+    assert a.tenant_assignment() == {"cases": "all"}

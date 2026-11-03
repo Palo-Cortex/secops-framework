@@ -40,9 +40,13 @@ SOCFWEmergencyResponse reads:
   {"emergency": {"policies": {label: {field: value}}}}
 SOCAutoTriageScoreFilter reads:
   {"triage": {"score_threshold": number or "off", "window_hours": number}}
+SOCFWAnalystSelect and SOCFWOnDutySync read:
+  {"assignment": {"roles": "a, b", "groups": "g", "cases": "starred"|"all", "domains": ...,
+                  "window": "24 hours", "max_per_analyst": number or "unlimited", "online_only": bool}}
 """
 
 import json
+import re
 
 CONTRACT_VERSION = 2
 
@@ -369,6 +373,13 @@ def status(args):
                    "window_hours=<n|default>` — add `apply=yes` to write."]
     except ConfigError as e:
         md += ["", f"Auto Triage settings unreadable: {e}"]
+    try:
+        assignment_view = _assignment_view(cfg, shipped_assignment())
+        outputs["assignment"] = assignment_view
+        md += ["", "### Analyst assignment settings", ""] + _assignment_table(assignment_view) + [
+               "", ASSIGNMENT_USAGE]
+    except ConfigError as e:
+        md += ["", f"Analyst assignment settings unreadable: {e}"]
     try:
         section = load_emergency_section()
         policies = merge_policies(section, cfg)
@@ -1331,6 +1342,183 @@ def triage(args):
                           outputs=outputs)
 
 
+# ── assignment ───────────────────────────────────────────────────────────────
+
+ASSIGNMENT_JOB_SECTION = "Analyst Assignment JOB"
+# Tenant key -> the field the JOB passes from SOCOptimizationConfig_V3. The tenant
+# value wins in SOCFWAnalystSelect and SOCFWOnDutySync, so a pack upgrade that
+# rewrites the shipped list cannot undo it, and nobody detaches the list.
+ASSIGNMENT_FIELDS = {"roles": "AssignmentRoles", "groups": "AssignmentGroups",
+                     "cases": "AssignmentCases", "domains": "AssignmentDomains",
+                     "window": "AssignmentWindow", "max_per_analyst": "AssignmentMaxPerAnalyst",
+                     "online_only": "AssignmentOnlineOnly"}
+ASSIGNMENT_DOMAINS = ("security", "posture", "health")
+
+
+def shipped_assignment():
+    """The values SOCOptimizationConfig_V3 hands the assignment JOB, or None each."""
+    try:
+        _, doc = _read_list(OPTIMIZATION_LIST)
+    except ConfigError:
+        doc = None
+    fields = (((doc or {}).get(ASSIGNMENT_JOB_SECTION) or {}).get("fields") or {})
+    return {key: fields.get(field) for key, field in ASSIGNMENT_FIELDS.items()}
+
+
+def assignment_value(key, raw):
+    """What to store for key, or None to remove. Same checks the scripts make, so a
+    value that would stop the JOB is refused here instead."""
+    text = str(raw).strip()
+    low = text.lower()
+    if low == "default":
+        return None
+    if key in ("roles", "groups"):
+        items = [x.strip() for x in text.split(",") if x.strip()]
+        if not items and low not in ("none", ""):
+            raise ConfigError(f"{key} must be a comma list of names, none (no {key}) or default")
+        return ", ".join(items) if items else "none"
+    if key == "cases":
+        if low not in ("starred", "all"):
+            raise ConfigError("cases must be starred, all or default")
+        return low
+    if key == "domains":
+        if low == "all":
+            return "all"
+        items = [x.strip().lower() for x in text.split(",") if x.strip()]
+        bad = [x for x in items if x.removeprefix("domain_") not in ASSIGNMENT_DOMAINS]
+        if not items or bad:
+            raise ConfigError("domains must be all, or a comma list of " + ", ".join(ASSIGNMENT_DOMAINS)
+                              + ", or default")
+        return ",".join(items)
+    if key == "window":
+        if low in ("all", "all time"):
+            return "all"
+        m = re.fullmatch(r"(\d+)\s*(hour|day|month)s?", low)
+        if not m or int(m.group(1)) < 1:
+            raise ConfigError("window must be a number of hours, days or months (24 hours, 7 days, "
+                              "3 months), all or default")
+        return f"{m.group(1)} {m.group(2)}s"
+    if key == "max_per_analyst":
+        if low in ("0", "unlimited", "none", "no limit"):
+            return "unlimited"
+        if not low.isdigit():
+            raise ConfigError("max_per_analyst must be a whole number, unlimited or default")
+        return int(low)
+    if key == "online_only":
+        if low in ("true", "yes", "1"):
+            return True
+        if low in ("false", "no", "0"):
+            return False
+        raise ConfigError("online_only must be true, false or default")
+    raise ConfigError(f"unknown assignment setting {key}")
+
+
+def _assignment_section(cfg):
+    section = cfg.get("assignment", {})
+    if not isinstance(section, dict):
+        raise ConfigError(f"'assignment' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    return section
+
+
+def _assignment_view(cfg, shipped):
+    section = _assignment_section(cfg)
+    view = {}
+    for key in ASSIGNMENT_FIELDS:
+        tenant = section.get(key)
+        set_here = tenant not in (None, "")
+        view[key] = {"shipped": shipped.get(key), "tenant": tenant,
+                     "effective": tenant if set_here else shipped.get(key),
+                     "from": "tenant" if set_here else "shipped"}
+    return view
+
+
+def _assignment_table(view):
+    md = ["| Setting | Shipped | This tenant | Assignment uses |", "|---|---|---|---|"]
+    for key, v in view.items():
+        md.append(f"| {key} | {_shown(v['shipped'])} | {_shown(v['tenant'])} | "
+                  f"{_shown(v['effective'])} |")
+    return md
+
+
+ASSIGNMENT_HELP = ("roles / groups: tenant roles and user groups that are on duty when no schedule "
+                   "source is set up (none = no fallback). cases: starred or all. domains: security, "
+                   "posture, health or all. window: how recent a case must be. max_per_analyst: open "
+                   "cases one analyst may hold, or unlimited. online_only: only analysts logged in now.")
+ASSIGNMENT_USAGE = ("Change one: `!SOCFWConfig command=assignment groups=<a,b> roles=<x,y> "
+                    "cases=<starred|all> window=<24 hours> max_per_analyst=<n|unlimited> "
+                    "online_only=<true|false> domains=<...>` — any subset, `default` removes one, "
+                    "add `apply=yes` to write.")
+
+
+def assignment(args):
+    given = {k: args.get(k) for k in ASSIGNMENT_FIELDS
+             if str(args.get(k) if args.get(k) is not None else "").strip()}
+    apply = _yes(args.get("apply"))
+    cfg, exists = load_tenant_config()
+    shipped = shipped_assignment()
+    before = _assignment_view(cfg, shipped)
+
+    if not given:
+        md = ["### Analyst assignment settings", ""] + _assignment_table(before) + [
+              "", f"Shipped values come from `{OPTIMIZATION_LIST}` → `{ASSIGNMENT_JOB_SECTION}`; a value "
+              f"set here is kept in `{TENANT_CONFIG_LIST}` and survives pack upgrades.",
+              ASSIGNMENT_HELP, "", ASSIGNMENT_USAGE]
+        return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Assignment",
+                              outputs={"contract_version": CONTRACT_VERSION, "command": "assignment",
+                                       "settings": before, "dry_run": True, "applied": False})
+
+    new_cfg = json.loads(json.dumps(cfg))
+    section = _assignment_section(new_cfg)
+    for key, raw in given.items():
+        value = assignment_value(key, raw)
+        if value is None:
+            section.pop(key, None)
+        else:
+            section[key] = value
+    if section:
+        new_cfg["assignment"] = section
+    else:
+        new_cfg.pop("assignment", None)
+    after = _assignment_view(new_cfg, shipped)
+
+    changes = [{"setting": k, "from": before[k]["effective"], "to": after[k]["effective"],
+                "from_source": before[k]["from"], "to_source": after[k]["from"],
+                "changed": before[k]["tenant"] != after[k]["tenant"]} for k in given]
+    changed = any(c["changed"] for c in changes)
+    apply_args = " ".join(f'{k}="{str(v).strip()}"' if "," in str(v) or " " in str(v).strip()
+                          else f"{k}={str(v).strip()}" for k, v in given.items())
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "assignment",
+               "dry_run": not apply, "applied": False, "changed": changed, "changes": changes,
+               "settings": after, "tenant_config_list": TENANT_CONFIG_LIST,
+               "creates_list": False, "recorded": False,
+               "apply_command": f"!SOCFWConfig command=assignment {apply_args} apply=yes"}
+
+    if changed:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([
+                {"universal_command": "analyst_assignment", "action_status": f"set {c['setting']}",
+                 "action_taken": f"{c['setting']}: {_plain(c['from'])} ({c['from_source']}) -> "
+                                 f"{_plain(c['to'])} ({c['to_source']})"}
+                for c in changes if c["changed"]])
+
+    md = ["### Analyst assignment settings: " + ("nothing to change" if not changed else
+                                                 "applied" if outputs["applied"]
+                                                 else "dry run, nothing written"), ""]
+    md += ["| Setting | Now | After |", "|---|---|---|"]
+    md += [f"| {c['setting']} | {_shown(c['from'])} ({c['from_source']}) | "
+           f"{_shown(c['to'])} ({c['to_source']}) |" for c in changes]
+    if any(c["setting"] in ("roles", "groups") and c["changed"] for c in changes):
+        md += ["", "The role and group fallback only fills the roster while no schedule source "
+                   "(PagerDuty) is set up. The next JOB run replaces the fallback rows."]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Assignment",
+                          outputs=outputs)
+
+
 # ── mode ─────────────────────────────────────────────────────────────────────
 
 MODES_LIST = "SOCFWConfigModes"
@@ -1561,6 +1749,7 @@ COMMAND_ARGS = {
                   "confidence", "exposure", "action", "enabled", "protect", "containable_hosts",
                   "containable_roles", "role", "escalate_severity"},
     "triage": {"score_threshold", "window_hours"},
+    "assignment": set(ASSIGNMENT_FIELDS),
     "mode": {"mode", "owner"},
 }
 ALWAYS_ARGS = {"command", "apply"}
@@ -1589,7 +1778,7 @@ def _yes(value):
 
 
 COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner,
-            "emergency": emergency, "triage": triage,
+            "emergency": emergency, "triage": triage, "assignment": assignment,
             "mode": mode}
 
 
