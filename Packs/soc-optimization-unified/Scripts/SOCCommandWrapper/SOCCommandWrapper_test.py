@@ -69,6 +69,17 @@ def load_script():
     demisto_mock.incidents = lambda: demisto_mock._incidents
     demisto_mock.results = lambda x: demisto_mock._results.append(x)
     demisto_mock.debug = lambda x: None
+    # Enabled-instance command registry, keyed by instance name like the
+    # platform. None = the registry can't be read (the wrapper fails open);
+    # set a dict to make command_served answer.
+    demisto_mock._supported_commands = None
+
+    def _all_supported_commands():
+        if demisto_mock._supported_commands is None:
+            raise RuntimeError("registry unavailable")
+        return demisto_mock._supported_commands
+
+    demisto_mock.getAllSupportedCommands = _all_supported_commands
 
     sys.modules["demistomock"] = demisto_mock
 
