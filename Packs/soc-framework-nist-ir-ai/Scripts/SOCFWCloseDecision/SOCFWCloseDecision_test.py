@@ -137,3 +137,18 @@ def test_benign_exemption_does_not_bypass_confidence():
     ok, reason = decide(a, {}, POLICY, "endpoint")
     assert not ok
     assert "below" in reason
+
+
+def test_reasoning_flattens_story_and_blockers():
+    from SOCFWCloseDecision import reasoning
+    a = {"story": ["WHAT FIRED: x", " ", "VERDICT: y"],
+         "closure_blockers": ["retract the message", ""]}
+    assert reasoning(a) == {"story": "WHAT FIRED: x | VERDICT: y",
+                            "closure_blockers": "retract the message"}
+
+
+def test_reasoning_writes_nothing_when_absent():
+    from SOCFWCloseDecision import reasoning
+    assert reasoning({}) == {}
+    assert reasoning({"story": [], "closure_blockers": "not a list"}) == {}
+    assert reasoning(None) == {}
