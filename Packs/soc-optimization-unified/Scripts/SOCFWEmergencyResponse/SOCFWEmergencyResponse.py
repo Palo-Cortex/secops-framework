@@ -600,9 +600,34 @@ def escalate(incident, target, reasons):
     return star, sev, f"case {cid} {current} -> {target} ({why})"
 
 
+def reasoning(assessment):
+    """The assessment's own reasoning, flattened for the dataset.
+
+    story is the four labelled lines the analyst reads (WHAT FIRED, EXPOSURE,
+    VERDICT, NEXT CHECK); closure_blockers is what a human still has to verify.
+    Both arrive as lists and are written as one string each, so every decision
+    row can carry the why alongside the what.
+    """
+    out = {}
+    if not isinstance(assessment, dict):
+        return out
+    story = assessment.get("story")
+    if isinstance(story, list):
+        lines = [str(s).strip() for s in story if str(s).strip()]
+        if lines:
+            out["story"] = " | ".join(lines)
+    blockers = assessment.get("closure_blockers")
+    if isinstance(blockers, list):
+        items = [str(b).strip() for b in blockers if str(b).strip()]
+        if items:
+            out["closure_blockers"] = "; ".join(items)
+    return out
+
+
 def _row(**kw):
     row = {"event_type": "emergency_decision", "phase": "triage", "action_actor": ACTOR,
            "decided_at": datetime.now(timezone.utc).isoformat()}
+    row.update(reasoning(kw.pop("assessment", None)))
     row.update({k: v for k, v in kw.items() if v not in ABSENT})
     try:
         demisto.executeCommand("socfw-post-to-dataset",
@@ -640,7 +665,7 @@ def main():
 
     def stop(status, reason, extra=""):
         _row(incident_id=issue_id, status=status, decision_reason=reason,
-             verdict=f["verdict"], confidence=f["confidence"])
+             verdict=f["verdict"], confidence=f["confidence"], assessment=assessment)
         return_results(CommandResults(readable_output=f"⚪ **No emergency response** — {reason}.{extra}"))
 
     if section.get("enabled") is not True:
@@ -728,7 +753,7 @@ def main():
          decision_reason=close_why or f"closed through {CLOSE_ACTION}",
          verdict=f["verdict"], confidence=f["confidence"], exposure=f["exposure"],
          entity_type=f["entity_type"], rule_id=f["rule_id"],
-         entity_value=",".join(f["hostnames"]) or None)
+         entity_value=",".join(f["hostnames"]) or None, assessment=assessment)
 
     demisto.setContext("SOCFramework.Emergency.policies", [p["policy"] for p in matched])
     demisto.setContext("SOCFramework.Emergency.contained", contained)

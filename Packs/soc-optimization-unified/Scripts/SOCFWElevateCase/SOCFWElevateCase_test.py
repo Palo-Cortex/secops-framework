@@ -302,3 +302,28 @@ def test_shipped_rule_still_needs_malicious_at_high_confidence(assessment):
 def test_the_no_analyst_case_explains_itself():
     matched, detail = evaluate(_shipped_rules()[0], dict(BAD, escalate_recommended=False))
     assert matched is False and "escalate_recommended" in detail
+
+
+def test_decision_row_carries_the_assessment_reasoning(monkeypatch):
+    import json
+    import SOCFWElevateCase as mod
+    written = []
+    monkeypatch.setattr(mod.demisto, "executeCommand",
+                        lambda name, args: written.append(json.loads(args["JSON"])))
+    mod._row(incident_id="1", status="no_match", decision_reason="no rule matched",
+             assessment={"story": ["WHAT FIRED: x", "VERDICT: y"],
+                         "closure_blockers": ["retract the message"]})
+    row = written[0]
+    assert row["story"] == "WHAT FIRED: x | VERDICT: y"
+    assert row["closure_blockers"] == "retract the message"
+    assert "assessment" not in row
+
+
+def test_decision_row_without_assessment_has_no_reasoning(monkeypatch):
+    import json
+    import SOCFWElevateCase as mod
+    written = []
+    monkeypatch.setattr(mod.demisto, "executeCommand",
+                        lambda name, args: written.append(json.loads(args["JSON"])))
+    mod._row(incident_id="1", status="unavailable", decision_reason="no assessment", assessment={})
+    assert "story" not in written[0] and "closure_blockers" not in written[0]
