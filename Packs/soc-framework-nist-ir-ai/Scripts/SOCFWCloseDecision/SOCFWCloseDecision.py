@@ -67,6 +67,30 @@ def _is_truncated(a):
     return bool(a.get("truncated") or a.get("_truncated"))
 
 
+def reasoning(assessment):
+    """The assessment's own reasoning, flattened for the dataset.
+
+    story is the four labelled lines the analyst reads (WHAT FIRED, EXPOSURE,
+    VERDICT, NEXT CHECK); closure_blockers is what a human still has to verify.
+    Both arrive as lists and are written as one string each, so every decision
+    row can carry the why alongside the what.
+    """
+    out = {}
+    if not isinstance(assessment, dict):
+        return out
+    story = assessment.get("story")
+    if isinstance(story, list):
+        lines = [str(s).strip() for s in story if str(s).strip()]
+        if lines:
+            out["story"] = " | ".join(lines)
+    blockers = assessment.get("closure_blockers")
+    if isinstance(blockers, list):
+        items = [str(b).strip() for b in blockers if str(b).strip()]
+        if items:
+            out["closure_blockers"] = "; ".join(items)
+    return out
+
+
 def decide(a, incident, policy, category):
     """Return (may_close, reason). Recorded whichever way it goes."""
     if not a:
@@ -151,6 +175,7 @@ def main():
         "truncated": _is_truncated(a),
         "decided_at": datetime.now(timezone.utc).isoformat(),
     }
+    row.update(reasoning(a))
     try:
         demisto.executeCommand("socfw-post-to-dataset",
                                {"using": "socfw_ir_execution_writer", "JSON": json.dumps(row)})

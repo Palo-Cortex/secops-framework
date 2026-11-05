@@ -17,8 +17,9 @@ from datetime import datetime, timezone
 import demistomock as demisto
 from CommonServerPython import *
 
-# Structured verdict fields only. The story stays out of the dataset — it is
-# large, the layout already renders it, and nobody queries on it.
+# Structured verdict fields, plus the reasoning that explains them. The story
+# and the blockers are flattened to one string each (see reasoning()) so a
+# review list can show why the AI decided what it did without opening the issue.
 VERDICT_FIELDS = (
     "verdict",
     "confidence",
@@ -33,7 +34,36 @@ VERDICT_FIELDS = (
     "mitre_tactic",
     "mitre_technique_id",
     "truncated",
+    "story",
+    "closure_blockers",
 )
+
+# Written by reasoning(), not copied verbatim: they are lists in the contract.
+REASONING_FIELDS = ("story", "closure_blockers")
+
+
+def reasoning(assessment):
+    """The assessment's own reasoning, flattened for the dataset.
+
+    story is the four labelled lines the analyst reads (WHAT FIRED, EXPOSURE,
+    VERDICT, NEXT CHECK); closure_blockers is what a human still has to verify.
+    Both arrive as lists and are written as one string each, so every decision
+    row can carry the why alongside the what.
+    """
+    out = {}
+    if not isinstance(assessment, dict):
+        return out
+    story = assessment.get("story")
+    if isinstance(story, list):
+        lines = [str(s).strip() for s in story if str(s).strip()]
+        if lines:
+            out["story"] = " | ".join(lines)
+    blockers = assessment.get("closure_blockers")
+    if isinstance(blockers, list):
+        items = [str(b).strip() for b in blockers if str(b).strip()]
+        if items:
+            out["closure_blockers"] = "; ".join(items)
+    return out
 
 
 # Set when a reply only parsed after repairing invalid escapes, so the war-room
@@ -146,8 +176,11 @@ def _emit_reasoning_row(status, obj, source_key, phase, error=None, raw_prefix=N
         "emitted_at": datetime.now(timezone.utc).isoformat(),
     }
     for f in VERDICT_FIELDS:
+        if f in REASONING_FIELDS:
+            continue
         if isinstance(obj, dict) and obj.get(f) not in (None, "", [], {}):
             payload[f] = obj[f]
+    payload.update(reasoning(obj))
     payload["verdict_field_count"] = sum(1 for f in VERDICT_FIELDS if f in payload)
     # A failed parse carries no fields, so the reason is the only thing that makes
     # the row useful; the prefix distinguishes a fence from a preamble.
