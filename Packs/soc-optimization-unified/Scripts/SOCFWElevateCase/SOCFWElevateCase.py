@@ -218,6 +218,30 @@ def read_case(case_id):
     return None, None
 
 
+def reasoning(assessment):
+    """The assessment's own reasoning, flattened for the dataset.
+
+    story is the four labelled lines the analyst reads (WHAT FIRED, EXPOSURE,
+    VERDICT, NEXT CHECK); closure_blockers is what a human still has to verify.
+    Both arrive as lists and are written as one string each, so every decision
+    row can carry the why alongside the what.
+    """
+    out = {}
+    if not isinstance(assessment, dict):
+        return out
+    story = assessment.get("story")
+    if isinstance(story, list):
+        lines = [str(s).strip() for s in story if str(s).strip()]
+        if lines:
+            out["story"] = " | ".join(lines)
+    blockers = assessment.get("closure_blockers")
+    if isinstance(blockers, list):
+        items = [str(b).strip() for b in blockers if str(b).strip()]
+        if items:
+            out["closure_blockers"] = "; ".join(items)
+    return out
+
+
 def _row(**kw):
     row = {
         "event_type": "elevate_decision",
@@ -225,6 +249,7 @@ def _row(**kw):
         "action_actor": kw.pop("actor", "automation"),
         "decided_at": datetime.now(timezone.utc).isoformat(),
     }
+    row.update(reasoning(kw.pop("assessment", None)))
     row.update({k: v for k, v in kw.items() if v not in ABSENT})
     try:
         demisto.executeCommand("socfw-post-to-dataset",
@@ -248,7 +273,7 @@ def main():
 
     def stop(status, reason, icon="⚪", extra=""):
         _row(incident_id=issue_id, status=status, decision_reason=reason,
-             verdict=assessment.get("verdict"))
+             verdict=assessment.get("verdict"), assessment=assessment)
         return_results(CommandResults(readable_output=f"{icon} **Not elevating** — {reason}.{extra}"))
 
     if not policy.get("enabled"):
@@ -278,7 +303,8 @@ def main():
     case_id, source = resolve_case_id(args, ctx, incident)
     if not case_id:
         _row(incident_id=issue_id, status="unavailable", capability=why,
-             decision_reason=f"elevation warranted but {source}", verdict=assessment.get("verdict"))
+             decision_reason=f"elevation warranted but {source}", verdict=assessment.get("verdict"),
+             assessment=assessment)
         return_results(CommandResults(readable_output=(
             f"🟡 **Elevation warranted but not applied** — {why}, however {source}. "
             f"Elevation is case-level; this issue is not attached to a case yet.{trail}")))
@@ -307,7 +333,8 @@ def main():
         # it. So an unreadable severity stops the raise and nothing else.
         _row(incident_id=issue_id, case_id=case_id, status="star_only", capability=why,
              action=ACTION_STAR,
-             decision_reason=f"{star_note}; severity unreadable — not raising blind")
+             decision_reason=f"{star_note}; severity unreadable — not raising blind",
+             assessment=assessment)
         return_results(CommandResults(readable_output=(
             f"⭐ **Case {case_id}: {star_note}** — {why}.  Severity left alone: could "
             f"not read the current value, and raising blind risks lowering it.{trail}")))
@@ -319,7 +346,7 @@ def main():
     if not policy.get("raise_severity", False):
         _row(incident_id=issue_id, case_id=case_id, status="star_only", capability=why,
              action=ACTION_STAR,
-             decision_reason=star_note, verdict=assessment.get("verdict"))
+             decision_reason=star_note, verdict=assessment.get("verdict"), assessment=assessment)
         return_results(CommandResults(readable_output=(
             f"⭐ **Case {case_id}: {star_note}** — {why}.  "
             f"Severity raising is off in policy.{trail}")))
@@ -332,7 +359,7 @@ def main():
          decision_reason=f"{reason}; {star_note}", capability=why,
          severity=target, verdict=assessment.get("verdict"),
          escalate_recommended=assessment.get("escalate_recommended"),
-         already_contained=assessment.get("already_contained"))
+         already_contained=assessment.get("already_contained"), assessment=assessment)
 
     if not go:
         icon = "⭐" if star_done else "⚪"
