@@ -32,7 +32,7 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default), shadow, set, job, owner, emergency, triage, assignment or mode. Each
+  description: status (default), shadow, set, job, owner, emergency, triage, assignment, case or mode. Each
     command takes only the arguments marked with it; one marked for another command is refused.
   defaultValue: status
   auto: PREDEFINED
@@ -45,6 +45,7 @@ args:
   - emergency
   - triage
   - assignment
+  - case
   - mode
 - name: action
   description: "[status, shadow, emergency] The action, e.g. soc-star-case. Required for
@@ -168,7 +169,11 @@ args:
     returns to the value in SOCOptimizationConfig_V3."
 - name: window_hours
   description: "[triage] Auto Triage never closes a case younger than this many hours (more
-    than 0). default returns to the value in SOCOptimizationConfig_V3."
+    than 0). [case] Case Analysis looks only at cases changed within this many hours (a whole
+    number). default returns to the value in SOCOptimizationConfig_V3."
+- name: max_analyses
+  description: "[case] Analysis passes per case - 1 analyses a case once; more re-analyses it only
+    when it has changed. default returns to the value in SOCOptimizationConfig_V3."
 - name: roles
   description: "[assignment] Comma list of tenant roles whose users are on duty when no schedule
     source is set up. none turns the role fallback off. default returns to the value in
@@ -179,10 +184,12 @@ args:
     returns to the value in SOCOptimizationConfig_V3."
 - name: cases
   description: "[assignment] starred assigns only starred cases; all assigns every open case.
-    default returns to the value in SOCOptimizationConfig_V3 (starred)."
+    [case] unstarred analyses only cases no analyst owns yet; all analyses every case. default
+    returns to the value in SOCOptimizationConfig_V3."
   auto: PREDEFINED
   predefined:
   - starred
+  - unstarred
   - all
   - default
 - name: domains

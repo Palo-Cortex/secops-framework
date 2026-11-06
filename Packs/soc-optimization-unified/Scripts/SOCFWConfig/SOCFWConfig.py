@@ -22,6 +22,9 @@ Commands
   triage   Show or set Auto Triage's score threshold and age window for this
            tenant, or return either to what SOCOptimizationConfig_V3 ships with
            default. Dry run unless apply=yes.
+  case     Show or set which cases Case Analysis looks at: the window, the passes
+           per case (1 = one pass, more = re-pass only on change) and whether
+           starred cases are left to analysts. Dry run unless apply=yes.
   mode     List the modes in SOCFWConfigModes against this tenant, or apply one:
            the shadow settings it names and the Auto Triage JOB (owner=<email>
            optional). mode=default removes them and turns the JOB off.
@@ -43,6 +46,8 @@ SOCAutoTriageScoreFilter reads:
 SOCFWAnalystSelect and SOCFWOnDutySync read:
   {"assignment": {"roles": "a, b", "groups": "g", "cases": "starred"|"all", "domains": ...,
                   "window": "24 hours", "max_per_analyst": number or "unlimited", "online_only": bool}}
+SOCFWCaseSelect reads:
+  {"case": {"window_hours": number, "max_analyses": number, "cases": "unstarred"|"all"}}
 """
 
 import json
@@ -380,6 +385,12 @@ def status(args):
                "", ASSIGNMENT_USAGE]
     except ConfigError as e:
         md += ["", f"Analyst assignment settings unreadable: {e}"]
+    try:
+        case_view = _case_view(cfg, shipped_case())
+        outputs["case"] = case_view
+        md += ["", "### Case Analysis settings", ""] + _case_table(case_view) + ["", CASE_USAGE]
+    except ConfigError as e:
+        md += ["", f"Case Analysis settings unreadable: {e}"]
     try:
         section = load_emergency_section()
         policies = merge_policies(section, cfg)
@@ -1519,6 +1530,140 @@ def assignment(args):
                           outputs=outputs)
 
 
+# ── case ─────────────────────────────────────────────────────────────────────
+
+CASE_JOB_SECTION = "Case Analysis JOB"
+# Tenant key -> the field the Case Analysis JOB passes from SOCOptimizationConfig_V3.
+# The tenant value wins in the case selector, so a pack upgrade cannot undo it.
+# max_analyses is also the re-pass setting: 1 analyses a case once, more re-analyses
+# it only when it has changed since the last pass.
+CASE_FIELDS = {"window_hours": "CaseWindowHours", "max_analyses": "CaseMaxAnalyses",
+               "cases": "CaseCases"}
+
+
+def shipped_case():
+    """The values SOCOptimizationConfig_V3 hands the Case Analysis JOB, or None each."""
+    try:
+        _, doc = _read_list(OPTIMIZATION_LIST)
+    except ConfigError:
+        doc = None
+    fields = (((doc or {}).get(CASE_JOB_SECTION) or {}).get("fields") or {})
+    return {key: fields.get(field) for key, field in CASE_FIELDS.items()}
+
+
+def case_value(key, raw):
+    """What to store for key, or None to remove. Whole numbers only: the selector reads them as int."""
+    text = str(raw).strip().lower()
+    if text == "default":
+        return None
+    if key == "cases":
+        if text not in ("unstarred", "all"):
+            raise ConfigError("cases must be unstarred, all or default")
+        return text
+    if not text.isdigit() or int(text) < 1:
+        raise ConfigError(f"{key} must be a whole number of 1 or more, or default")
+    return int(text)
+
+
+def _case_section(cfg):
+    section = cfg.get("case", {})
+    if not isinstance(section, dict):
+        raise ConfigError(f"'case' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    return section
+
+
+def _case_view(cfg, shipped):
+    section = _case_section(cfg)
+    view = {}
+    for key in CASE_FIELDS:
+        tenant = section.get(key)
+        set_here = tenant not in (None, "")
+        view[key] = {"shipped": shipped.get(key), "tenant": tenant,
+                     "effective": tenant if set_here else shipped.get(key),
+                     "from": "tenant" if set_here else "shipped"}
+    return view
+
+
+def _case_table(view):
+    md = ["| Setting | Shipped | This tenant | Case Analysis uses |", "|---|---|---|---|"]
+    for key, v in view.items():
+        md.append(f"| {key} | {_shown(v['shipped'])} | {_shown(v['tenant'])} | "
+                  f"{_shown(v['effective'])} |")
+    return md
+
+
+CASE_HELP = ("window_hours: only cases changed within this many hours are analysed. max_analyses: "
+             "passes per case - 1 is one pass, more re-analyses a case only when it has changed. "
+             "cases: unstarred leaves the cases analysts already own to them; all analyses every case.")
+CASE_USAGE = ("Change one: `!SOCFWConfig command=case window_hours=<n> max_analyses=<n> "
+              "cases=<unstarred|all>` — any subset, `default` removes one, add `apply=yes` to write.")
+
+
+def case(args):
+    given = {k: args.get(k) for k in CASE_FIELDS
+             if str(args.get(k) if args.get(k) is not None else "").strip()}
+    apply = _yes(args.get("apply"))
+    cfg, exists = load_tenant_config()
+    shipped = shipped_case()
+    before = _case_view(cfg, shipped)
+
+    if not given:
+        md = ["### Case Analysis settings", ""] + _case_table(before) + [
+              "", f"Shipped values come from `{OPTIMIZATION_LIST}` → `{CASE_JOB_SECTION}`; a value "
+              f"set here is kept in `{TENANT_CONFIG_LIST}` and survives pack upgrades.",
+              CASE_HELP, "", CASE_USAGE]
+        return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Case",
+                              outputs={"contract_version": CONTRACT_VERSION, "command": "case",
+                                       "settings": before, "dry_run": True, "applied": False})
+
+    new_cfg = json.loads(json.dumps(cfg))
+    section = _case_section(new_cfg)
+    for key, raw in given.items():
+        value = case_value(key, raw)
+        if value is None:
+            section.pop(key, None)
+        else:
+            section[key] = value
+    if section:
+        new_cfg["case"] = section
+    else:
+        new_cfg.pop("case", None)
+    after = _case_view(new_cfg, shipped)
+
+    changes = [{"setting": k, "from": before[k]["effective"], "to": after[k]["effective"],
+                "from_source": before[k]["from"], "to_source": after[k]["from"],
+                "changed": before[k]["tenant"] != after[k]["tenant"]} for k in given]
+    changed = any(c["changed"] for c in changes)
+    apply_args = " ".join(f"{k}={str(v).strip()}" for k, v in given.items())
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "case",
+               "dry_run": not apply, "applied": False, "changed": changed, "changes": changes,
+               "settings": after, "tenant_config_list": TENANT_CONFIG_LIST,
+               "creates_list": False, "recorded": False,
+               "apply_command": f"!SOCFWConfig command=case {apply_args} apply=yes"}
+
+    if changed:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([
+                {"universal_command": "case_analysis", "action_status": f"set {c['setting']}",
+                 "action_taken": f"{c['setting']}: {_plain(c['from'])} ({c['from_source']}) -> "
+                                 f"{_plain(c['to'])} ({c['to_source']})"}
+                for c in changes if c["changed"]])
+
+    md = ["### Case Analysis settings: " + ("nothing to change" if not changed else
+                                            "applied" if outputs["applied"]
+                                            else "dry run, nothing written"), ""]
+    md += ["| Setting | Now | After |", "|---|---|---|"]
+    md += [f"| {c['setting']} | {_shown(c['from'])} ({c['from_source']}) | "
+           f"{_shown(c['to'])} ({c['to_source']}) |" for c in changes]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Case",
+                          outputs=outputs)
+
+
 # ── mode ─────────────────────────────────────────────────────────────────────
 
 MODES_LIST = "SOCFWConfigModes"
@@ -1750,6 +1895,7 @@ COMMAND_ARGS = {
                   "containable_roles", "role", "escalate_severity"},
     "triage": {"score_threshold", "window_hours"},
     "assignment": set(ASSIGNMENT_FIELDS),
+    "case": set(CASE_FIELDS),
     "mode": {"mode", "owner"},
 }
 ALWAYS_ARGS = {"command", "apply"}
@@ -1779,7 +1925,7 @@ def _yes(value):
 
 COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner,
             "emergency": emergency, "triage": triage, "assignment": assignment,
-            "mode": mode}
+            "case": case, "mode": mode}
 
 
 def main():

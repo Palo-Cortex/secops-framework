@@ -1268,3 +1268,90 @@ def test_status_shows_assignment_settings_with_source():
 def test_assignment_arg_on_another_command_is_refused():
     with pytest.raises(RuntimeError, match="assignment"):
         run(triage_tenant({}), command="triage", groups="SOC Analysts", apply="yes")
+
+
+# ── case ─────────────────────────────────────────────────────────────────────
+
+def test_case_lists_shipped_values_when_nothing_is_set():
+    r = run(triage_tenant(), command="case")
+    s = r.outputs["settings"]
+    assert s["window_hours"] == {"shipped": "6", "tenant": None, "effective": "6", "from": "shipped"}
+    assert s["max_analyses"]["effective"] == "2"
+    assert s["cases"]["effective"] == "unstarred"
+    assert r.outputs["dry_run"] and "command=case" in r.readable_output
+
+
+def test_case_is_a_dry_run_by_default():
+    t = triage_tenant({})
+    r = run(t, command="case", window_hours="72")
+    assert r.outputs["dry_run"] and r.outputs["changed"] and t.writes() == []
+    assert r.outputs["apply_command"] == "!SOCFWConfig command=case window_hours=72 apply=yes"
+
+
+def test_case_apply_writes_the_tenant_list_records_and_wins_over_shipped():
+    t = triage_tenant({"triage": {"window_hours": 12}})
+    r = run(t, command="case", window_hours="72", max_analyses="1", cases="all", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.config()["case"] == {"window_hours": 72, "max_analyses": 1, "cases": "all"}
+    # Same argument name as triage, its own section: triage is untouched.
+    assert t.config()["triage"] == {"window_hours": 12}
+    assert r.outputs["settings"]["window_hours"]["from"] == "tenant"
+    rows = [x for x in t.rows if x["event_type"] == "config_change"]
+    assert len(rows) == 3 and all("incident_id" not in x and "phase" not in x for x in rows)
+    assert json.loads(t.lists["SOCOptimizationConfig_V3"]) == OPT
+
+
+def test_case_first_write_creates_a_json_list():
+    t = triage_tenant()
+    run(t, command="case", cases="all", apply="yes")
+    assert t.types[NEW] == "json" and t.config() == {"case": {"cases": "all"}}
+
+
+def test_case_default_removes_one_setting_then_the_section():
+    t = triage_tenant({"case": {"window_hours": 72, "cases": "all"}, "Zscaler": {"using": "z"}})
+    run(t, command="case", window_hours="default", apply="yes")
+    assert t.config()["case"] == {"cases": "all"}
+    run(t, command="case", cases="default", apply="yes")
+    assert "case" not in t.config() and t.config()["Zscaler"] == {"using": "z"}
+
+
+def test_case_repeat_is_a_no_op():
+    t = triage_tenant({"case": {"max_analyses": 1}})
+    r = run(t, command="case", max_analyses="1", apply="yes")
+    assert not r.outputs["changed"] and t.writes() == []
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"window_hours": "0"}, "window_hours must be a whole number of 1 or more"),
+    ({"window_hours": "1.5"}, "window_hours must be a whole number of 1 or more"),
+    ({"max_analyses": "none"}, "max_analyses must be a whole number of 1 or more"),
+    ({"cases": "starred"}, "cases must be unstarred, all or default"),
+])
+def test_case_bad_values_name_the_fix(args, message):
+    t = triage_tenant({})
+    with pytest.raises(RuntimeError, match=message):
+        run(t, command="case", apply="yes", **args)
+    assert t.writes() == []
+
+
+def test_case_arguments_are_refused_on_other_commands():
+    with pytest.raises(RuntimeError, match="max_analyses is for command=case"):
+        run(triage_tenant({}), command="triage", max_analyses="1")
+
+
+def test_assignment_still_refuses_unstarred():
+    with pytest.raises(RuntimeError, match="cases must be starred, all or default"):
+        run(triage_tenant({}), command="assignment", cases="unstarred", apply="yes")
+
+
+def test_case_malformed_section_is_never_overwritten():
+    t = triage_tenant({"case": "72"})
+    with pytest.raises(RuntimeError, match="'case' in SOCFWTenantConfig is not an object"):
+        run(t, command="case", window_hours="6", apply="yes")
+    assert t.config() == {"case": "72"}
+
+
+def test_status_shows_the_case_settings():
+    r = run(triage_tenant({"case": {"window_hours": 72}}), command="status")
+    assert r.outputs["case"]["window_hours"]["effective"] == 72
+    assert "Case Analysis settings" in r.readable_output
