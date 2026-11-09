@@ -28,7 +28,7 @@ Promote runs before the three decisions on purpose: each decision reads `Assessm
 
 | Where | Key | Shipped default | Evaluation | Production |
 |---|---|---|---|---|
-| Automation rule | `WHEN issue is created … THEN EP_IR_NIST - AI` | none | the three-branch rule from [Install NIST IR AI](../evaluate/install-nist-ir-ai.md) | same, sized per tenant; rollback is pointing the rule at another playbook |
+| Automation rule | `WHEN issue is created … THEN EP_IR_NIST - AI` | none | the two-branch rule from [Install NIST IR AI](../evaluate/install-nist-ir-ai.md) | same, sized per tenant; rollback is pointing the rule at another playbook |
 | Playbook file `ai/nist-ir/EP_IR_NIST_-_AI.yml` | aiTask named `SOCFWIssueAssessment` → `aiTaskId` | the authoring tenant's id; resolves nowhere else | bound to this tenant's prompt at install | re-bound after every upgrade |
 | Context | `SOCFramework.lifecycle`, `SOCFramework.lifecycle_version` | `NIST_IR`, `3` | as shipped | as shipped |
 

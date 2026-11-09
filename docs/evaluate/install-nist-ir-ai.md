@@ -66,36 +66,32 @@ Find the task by its name, not its number. Each playbook has exactly one aiTask,
 
 Investigation & Response → Automation → **Automation Rules**. Four platform behaviours shape how this rule is placed: rules run in order and only the first match runs for each issue; a manually created rule lands at the bottom of the table, below every recommended rule, so move it above any enrichment rule whose conditions overlap it; rules fire on initial ingestion only, so a later severity change or enrichment never re-triggers; and legacy XDR 3.x rules under **XDR Automation** still fire and do not appear in this table.
 
-The rule as it runs today, name `NIST IR (800-61)`:
+The rule, name `NIST IR (800-61)`:
 
 ```
 WHEN  issue is created
 IF    ( issue domain = Security
         AND observation time in last 24H
         AND starred = True )
-   OR ( detection method in (XDR Analytics BIOC, XDR BIOC, XDR IOC,
-                             XDR Analytics, XDR Agent)
-        AND issue domain = Security
-        AND name doesn't contain "Spam Bot Traffic"
-        AND observation time in last 24H )
    OR ( severity in (Medium, High, Critical)
         AND issue domain = Security
         AND observation time in last 24H )
 THEN  EP_IR_NIST - AI
 ```
 
-Three branches, each for a reason:
+Two branches, each for a reason:
 
 | Branch | Why |
 |---|---|
-| Starred | A person flagged the issue, at any severity. The only way in for anything the other branches exclude. |
-| Detection method | Platform-engine issues are mostly Low, and the platform starts automation on Low Analytic issues and on Low ABIOC issues tagged Identity or Cloud. This branch is what lets them in; without it a severity gate would drop impossible-traveller, brute-force and suspicious-download detections. It does not override the platform floor below. |
-| Severity | Vendor sources, where Medium and above is the fidelity signal. |
+| Starred | A person or the starring policy flagged the issue, at any severity. The way in for a Low detection that needs assessment one issue at a time. |
+| Severity | Medium and above is the fidelity signal. Unstarred Low issues, including platform analytics, reach the lifecycle through the case they group into, where Case Analysis judges them with the rest of the case. |
 
-Two parts of the rule are situational:
+A third branch on detection method (XDR Analytics BIOC, XDR BIOC, XDR IOC, XDR Analytics, XDR Agent) admits Low platform analytics one issue at a time. Add it only on a tenant whose playbook starts per hour stay well under its throughput with the branch in place, and remove it when a new data source raises the volume (see below).
+
+Two conditions need a decision per tenant:
 
 - **`observation time in last 24H`** on every branch is a guard against a platform re-run that processes issues back in time and starts the playbook against a whole backlog. It is a rare failure with a large blast radius, so it is cheap insurance, and it stays in. It also means a scenario replay must stamp events with the current time: a replay that carries the original event timestamps never matches this rule and nothing enters the lifecycle. The framework's replay tooling is being updated to send current timestamps; until a replay does, drop the bound on an evaluation tenant and put it back before handover.
-- **`name doesn't contain "Spam Bot Traffic"`** works around a defect in native Check Point ingestion that makes one detector most of the analytics volume. Include it only on a tenant ingesting Check Point natively.
+- **`name doesn't contain "Spam Bot Traffic"`** belongs on the detection-method branch, if you add it, on a tenant ingesting Check Point natively: a defect in that ingestion makes one detector most of the analytics volume.
 
 Size the rule on this tenant before saving it:
 
@@ -108,6 +104,19 @@ config timeframe = 30d
 ```
 
 The platform applies its own floor underneath any rule. Automation rules act on Medium and higher severity issues, on Low severity Analytic issues (`MAGNIFIER` in the `issues` dataset), and on Low severity ABIOC issues (`ANALYTICS_BIOC`) tagged Identity or Cloud. A Low issue raised by a correlation rule never starts a playbook, however the rule is written. If a Low issue you expected is missing from the lifecycle, check its detection method and category before touching the rule.
+
+Keep the rule under the tenant's playbook throughput. Each matching issue starts its own run, and runs above what the tenant processes per hour wait in a queue, delaying every issue behind them. Volume grows without warning when a data source is connected: a new identity source fires new-baseline analytics (new country, new operating system) for every user until profiles settle. With the detection-method branch in place, every one of those Low Analytic issues starts its own run. After connecting a source, watch how many issues actually start the playbook each hour:
+
+```
+dataset = issues
+| filter timestamp_diff(current_time(), _insert_time, "HOUR") <= 24
+| filter playbook_run_status != null
+| bin _insert_time span = 1h
+| comp count() as issues_with_playbook by _insert_time
+| sort asc _insert_time
+```
+
+If that count stays above the tenant's throughput, remove the detection-method branch if you added it, and check what else drives the count. See [The playbook queue is backing up](../support/queue-backlog.md).
 
 ## 6. Turn on the Case Analysis job
 
