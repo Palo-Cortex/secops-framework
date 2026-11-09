@@ -12,4 +12,12 @@ Something did not behave. Find the symptom, read the surfaces in the order the f
 
     [No verdict →](no-verdict.md)
 
+-   **The playbook queue is backing up**
+
+    ---
+
+    Issues wait hours before the lifecycle starts on them.
+
+    [Queue backlog →](queue-backlog.md)
+
 </div>
