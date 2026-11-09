@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime
 
 CTX_REF_RE = re.compile(r"^\$\{(.+?)\}$")
+EMBEDDED_REF_RE = re.compile(r"\$\{([^}]+)\}")
 
 
 def utc_now():
@@ -91,7 +92,20 @@ def _resolve_ctx_string(s, ctx):
     ):
         return _resolve_ctx_path(ctx, s)
 
+    # A reference inside a longer string - a runscript's path, a ticket title -
+    # is replaced by its value. Left as written, CrowdStrike would have been
+    # told to remove the file literally named ${SOCFramework.Artifacts.FilePath}.
+    if "${" in s:
+        return EMBEDDED_REF_RE.sub(lambda m: _embedded_value(_resolve_ctx_path(ctx, m.group(1))), s)
+
     return s
+
+
+def _embedded_value(value):
+    """A resolved value as text inside a string: a list's first item, nothing for empty."""
+    if isinstance(value, list):
+        value = next((v for v in value if v not in (None, "")), "")
+    return "" if value in (None, {}, []) else str(value)
 
 
 def _is_ctx_template(raw):
@@ -1007,8 +1021,12 @@ def target_key(target, inline_args, template):
     constants stay out, so the same host is the same target for every vendor."""
     if target is not None:
         return str(target)
+    # A reference inside a longer argument counts too: CrowdStrike's delete-file
+    # carries the path inside full_command, and keyed on the agent alone the
+    # second file on a host read as a repeat of the first.
     values = [str(inline_args.get(k)) for k, raw in sorted(template.items())
-              if _is_ctx_template(raw) and inline_args.get(k) not in (None, "", [], {})]
+              if (_is_ctx_template(raw) or (isinstance(raw, str) and "${" in raw))
+              and inline_args.get(k) not in (None, "", [], {})]
     return "|".join(values)
 
 

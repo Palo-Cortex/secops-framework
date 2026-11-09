@@ -195,3 +195,36 @@ def test_an_unreadable_ledger_does_not_stop_the_response():
     case.get_context = boom
     d = run("soc-isolate-endpoint", case)
     assert rows(d)[0]["action_status"] == "simulated"
+
+
+DELETE = {
+    "soc-delete-file": {
+        "phase": "eradication", "entity_scope": "host", "shadow_mode": True,
+        "responses": {"EDR": {"command": "edr-get", "inline_args": {
+            "host": "${SOCFramework.Artifacts.Endpoint.AgentID}",
+            "full_command": "runscript -Raw=```Remove-Item -Path '${SOCFramework.Artifacts.FilePath}'```"}}},
+    },
+}
+
+
+def _file_ctx(path):
+    return {"SOCFramework": {"Artifacts": {"Endpoint": {"AgentID": "agent-1"}, "FilePath": path},
+                             "Product": {"response": "EDR", "category": "Endpoint"}, "RunID": "run-1"}}
+
+
+def test_two_files_on_one_host_are_two_targets():
+    # The path sits inside full_command; the key must still tell the files apart.
+    case = Case()
+    run("soc-delete-file", case, action_map=DELETE, ctx=_file_ctx("C:\\a.exe"))
+    d = run("soc-delete-file", case, action_map=DELETE, ctx=_file_ctx("C:\\b.exe"), issue="101")
+    assert rows(d)[0]["action_status"] == "simulated"
+    d = run("soc-delete-file", case, action_map=DELETE, ctx=_file_ctx("C:\\a.exe"), issue="102")
+    assert rows(d)[0]["action_status"] == "duplicate"
+    assert len(case.ledger) == 2
+
+
+def test_a_reference_inside_a_longer_argument_is_resolved():
+    case = Case()
+    d = run("soc-delete-file", case, action_map=DELETE, ctx=_file_ctx("C:\\x.exe"))
+    t = json.loads(case.ledger[0])["t"]
+    assert "C:\\x.exe" in t and "${" not in t
