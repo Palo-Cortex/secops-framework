@@ -993,6 +993,119 @@ def post_dataset_payload(payload, tags=None):
 
 
 
+LEDGER_KEY = "SOCFramework.Performed"
+# A containment or eradication action is taken once per target per case,
+# whichever path asks for it - the issue-level emergency, an analyst's button
+# or the case driver. Recovery actions are not limited; they only reopen the
+# action they reverse.
+ONCE_PHASES = ("containment", "eradication")
+
+
+def target_key(target, inline_args, template):
+    """What the action is aimed at: the fan-out target, else every evidence-bound
+    argument's resolved value (the agent id, the hash, the account). Vendor
+    constants stay out, so the same host is the same target for every vendor."""
+    if target is not None:
+        return str(target)
+    values = [str(inline_args.get(k)) for k, raw in sorted(template.items())
+              if _is_ctx_template(raw) and inline_args.get(k) not in (None, "", [], {})]
+    return "|".join(values)
+
+
+def _ledger_entries(raw):
+    """The ledger as a list of dicts. Each write appends one JSON string."""
+    if raw is None:
+        return []
+    items = raw if isinstance(raw, list) else [raw]
+    out = []
+    for item in items:
+        if isinstance(item, str):
+            item = _try_json_loads(item)
+        if isinstance(item, dict):
+            out.append(item)
+    return out
+
+
+def read_ledger(issue, ctx):
+    """What this case has already done. Read from the case, so every issue of
+    the case and every path sees the same record; an issue not yet in a case
+    keeps its own."""
+    parent = str((issue or {}).get("parentXDRIncident") or "").strip()
+    if not parent:
+        return _ledger_entries(demisto.get(ctx, LEDGER_KEY))
+    try:
+        res = demisto.executeCommand("getContext", {"id": parent})
+        entry = res[0] if isinstance(res, list) and res else res
+        raw = entry.get("Contents") if isinstance(entry, dict) else entry
+        doc = _try_json_loads(raw) if isinstance(raw, str) else raw
+        if isinstance(doc, dict) and isinstance(doc.get("context"), dict):
+            doc = doc["context"]
+        return _ledger_entries(demisto.get(doc or {}, LEDGER_KEY))
+    except Exception as e:
+        # An unreadable ledger must not stop a response: act, and say so.
+        demisto.debug(f"SOCCommandWrapper: case ledger unreadable ({e}); acting without it")
+        return []
+
+
+def ledger_prior(entries, action, key, vendor=None):
+    """The last ledger entry for this action and target, or None if there is
+    none or the last one was reversed. vendor is set for actions that fan out
+    to every enforcement point, where each point is its own action."""
+    last = None
+    for e in entries:
+        if e.get("a") == action and e.get("t") == key and e.get("v") == vendor:
+            last = e
+    return None if not last or last.get("reversed") else last
+
+
+def write_ledger(issue, entry):
+    parent = str((issue or {}).get("parentXDRIncident") or "").strip()
+    value = json.dumps(entry, separators=(",", ":"))
+    try:
+        if parent:
+            demisto.executeCommand("setParentIncidentContext", {"key": LEDGER_KEY, "value": value})
+        else:
+            demisto.executeCommand("Set", {"key": LEDGER_KEY, "value": value, "append": "true"})
+    except Exception as e:
+        demisto.debug(f"SOCCommandWrapper: case ledger write failed ({e})")
+
+
+def reversed_actions(action, action_map):
+    """The actions this one undoes - de-isolate undoes isolate."""
+    return [name for name, e in (action_map or {}).items()
+            if isinstance(e, dict) and e.get("reversed_by") == action]
+
+
+def _record_duplicate(shared, vendor, command, inline_args, key, prior, terminal):
+    """The action already ran on this target in this case: record the attempt, run nothing, credit nothing."""
+    args, tags, ctx = shared["args"], shared["tags"], shared["ctx"]
+    shadow_mode = shared["shadow_mode"]
+    action = shared["action"]
+    note = "already {} by {} at {}".format(
+        "simulated" if prior.get("m") == "shadow" else "done", prior.get("by") or "unknown", prior.get("at") or "unknown")
+    record = {"run_id": shared["run_id"], "action": action, "vendor": vendor, "command": command,
+              "args": inline_args, "shadow_mode": shadow_mode, "success": False, "duplicate": True,
+              "duplicate_of": prior, "target": key, "tags": tags, "timestamp": shared["timestamp"]}
+    if shared["output_key"]:
+        append_context(shared["output_key"], record)
+    wrapper_values = {
+        "timestamp": shared["timestamp"], "event_type": "command", "run_id": shared["run_id"],
+        "action": action, "vendor": vendor, "command": command, "action_status": "duplicate",
+        "action_actor": normalize_action_actor(args.get("Action_Actor"), shadow_mode),
+        "execution_mode": "shadow" if shadow_mode else "production",
+        "shadow_mode_state": "collected" if shadow_mode else "not_applicable",
+        "has_error": False, "error_type": "", "error_message": note,
+        "action_time_minutes": 0, "action_time_category": shared["action_time_category"],
+        "action_target": key,
+    }
+    base_payload = resolve_schema_payload(shared["schema_entries"], ctx)
+    post_dataset_payload(enrich_payload(base_payload, ctx, shared["issue"], wrapper_values, args), tags)
+    warroom_log(f"SOC Framework - {action}: not run ({note})", record, tags)
+    if terminal:
+        return_results(f"{action} not run - {note}")
+    return {"vendor": vendor, "target": key, "outcome": "duplicate", "reason": note}
+
+
 def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, terminal):
     """Dispatch one (vendor, target) pair: shadow or execute, record, dataset row.
 
@@ -1004,7 +1117,8 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
     target cannot kill the rest of the fan-out.
 
     Returns {"vendor", "target", "outcome", "reason"} with outcome one of
-    simulated | no_instance | success | failed | skipped_no_artifact | integration_unavailable.
+    simulated | no_instance | success | failed | skipped_no_artifact | integration_unavailable;
+    the per-target loop adds duplicate for an action already taken on that target in the case.
     """
     action = shared["action"]
     args = shared["args"]
@@ -1092,6 +1206,8 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
         }
         if target is not None:
             wrapper_values["action_target"] = target
+        elif shared.get("target_key"):
+            wrapper_values["action_target"] = shared["target_key"]
 
         dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
         post_dataset_payload(dataset_payload, tags)
@@ -1202,6 +1318,8 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
             }
             if target is not None:
                 wrapper_values["action_target"] = target
+            elif shared.get("target_key"):
+                wrapper_values["action_target"] = shared["target_key"]
 
             dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
             post_dataset_payload(dataset_payload, tags)
@@ -1295,6 +1413,8 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
         }
         if target is not None:
             wrapper_values["action_target"] = target
+        elif shared.get("target_key"):
+            wrapper_values["action_target"] = shared["target_key"]
 
         dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
         post_dataset_payload(dataset_payload, tags)
@@ -1354,6 +1474,8 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
             }
             if target is not None:
                 wrapper_values["action_target"] = target
+            elif shared.get("target_key"):
+                wrapper_values["action_target"] = shared["target_key"]
 
             dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
             post_dataset_payload(dataset_payload, tags)
@@ -1590,9 +1712,34 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
             for k, raw in followers.items():
                 call_args[k] = _resolve_templates({k: raw.replace(target_ref, str(t))}, ctx).get(k)
         terminal = single_vendor and len(targets) == 1
-        results.append(
-            _dispatch_one(shared, vendor, vendor_data, command, call_args, t, terminal)
-        )
+        key = target_key(t, call_args, _inline_args_template)
+        shared["target_key"] = key
+        entry = shared.get("action_entry") or {}
+        once = str(entry.get("phase") or "").strip().lower() in ONCE_PHASES
+        per_vendor = vendor if str(entry.get("dispatch") or "").strip().lower() == "all_applicable" else None
+        if once and key:
+            if "ledger" not in shared:
+                shared["ledger"] = read_ledger(shared["issue"], ctx)
+            prior = ledger_prior(shared["ledger"], action, key, per_vendor)
+            # A simulation never blocks a real action: a case worked in shadow
+            # can still be contained for real once the action goes live.
+            if prior and (prior.get("m") == "live" or shadow_mode):
+                results.append(_record_duplicate(shared, vendor, command, call_args, key, prior, terminal))
+                continue
+        outcome = _dispatch_one(shared, vendor, vendor_data, command, call_args, t, terminal)
+        results.append(outcome)
+        if key and outcome.get("outcome") in ("simulated", "success"):
+            done = {"m": "shadow" if shadow_mode else "live",
+                    "by": normalize_action_actor(shared["args"].get("Action_Actor"), shadow_mode),
+                    "at": shared["timestamp"]}
+            if once:
+                mark = dict(done, a=action, t=key)
+                if per_vendor:
+                    mark["v"] = per_vendor
+                write_ledger(shared["issue"], mark)
+                shared.setdefault("ledger", []).append(mark)
+            for undone in reversed_actions(action, shared.get("action_map")):
+                write_ledger(shared["issue"], dict(done, a=undone, t=key, reversed=True))
     return results
 
 
@@ -1880,6 +2027,8 @@ def main():
         "action_time_category": action_time_category,
         "tenant_config": tenant_config,
         "target_override": target_override,
+        "action_entry": action_entry,
+        "action_map": action_map,
     }
 
     single_vendor = len(plan) == 1
