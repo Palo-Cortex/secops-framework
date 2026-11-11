@@ -242,16 +242,14 @@ tasks:
   "23":
     id: "23"
     taskid: db2b5b40-227a-43f3-a1ed-34278b0f6f76
-    type: playbook
+    type: regular
     task:
       id: db2b5b40-227a-43f3-a1ed-34278b0f6f76
       version: -1
-      name: Foundation - Enrichment_V3
-      description: |
-        Identifies the core fields present and starts tailored enrichment pipelines
-        Generates threat flags based on findings (ex: if we identify a domain controller or admin account)
-      playbookName: Foundation - Enrichment_V3
-      type: playbook
+      name: Enrich from contract
+      description: Runs the enrichment lanes whose artifact paths resolve.
+      script: SOCEnrichFromList
+      type: regular
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
@@ -260,24 +258,11 @@ tasks:
       '#none#':
       - "6"
     scriptarguments:
-      CategoryType:
-        complex:
-          root: SOCFramework.Product
-          accessor: category
-          transformers:
-          - operator: toLowerCase
-      Lifecycle:
+      lifecycle:
         simple: ${SOCFramework.lifecycle}
-      Remote_IP:
-        simple: ${inputs.Remote_IP}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
-    loop:
-      iscommand: false
-      exitCondition: ""
-      wait: 1
-      max: 100
     view: |-
       {
         "position": {
@@ -295,17 +280,14 @@ tasks:
   "28":
     id: "28"
     taskid: f611e5ee-70fb-4913-8ee3-dc6fe456527c
-    type: playbook
+    type: regular
     task:
       id: f611e5ee-70fb-4913-8ee3-dc6fe456527c
       version: -1
-      name: Foundation - Data Integrity_V3
-      description: |
-        Core fields are evaluated
-        Unpopulated core fields refer to alternatives for values
-        Field values are evaluated for formatting and syntax
-      playbookName: Foundation - Data Integrity_V3
-      type: playbook
+      name: Classify product
+      description: Resolves SOCFramework.Product from the issue's DS tag and SOCProductCategoryMap_V3.
+      script: SOCFWClassifyProduct
+      type: regular
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
@@ -313,14 +295,16 @@ tasks:
     nexttasks:
       '#none#':
       - "36"
+    scriptarguments:
+      tags:
+        simple: ${issue.tags}
+      product:
+        simple: ${issue._product}
+      lifecycle:
+        simple: ${SOCFramework.lifecycle}
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
-    loop:
-      iscommand: false
-      exitCondition: ""
-      wait: 1
-      max: 100
     view: |-
       {
         "position": {
@@ -370,13 +354,14 @@ tasks:
   "39":
     id: "39"
     taskid: 7c41b9a2-05de-4f38-b6a1-8d2c3f5019ab
-    type: playbook
+    type: regular
     task:
       id: 7c41b9a2-05de-4f38-b6a1-8d2c3f5019ab
       version: -1
-      name: Foundation - Case Sync_V3
-      playbookName: Foundation - Case Sync_V3
-      type: playbook
+      name: Write case ledger row
+      description: Writes this issue's Foundation contract to the case ledger dataset.
+      script: SOCFWCaseLedgerWrite
+      type: regular
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
@@ -384,6 +369,11 @@ tasks:
     nexttasks:
       '#none#':
       - "38"
+    scriptarguments:
+      phase:
+        simple: foundation
+      contract_path:
+        simple: SOCFramework
     separatecontext: false
     continueonerror: true
     continueonerrortype: ""
@@ -436,13 +426,14 @@ tasks:
   "37":
     id: "37"
     taskid: 12dcb2df-c8af-476a-8d4c-34e5cbb505fb
-    type: playbook
+    type: regular
     task:
       id: 12dcb2df-c8af-476a-8d4c-34e5cbb505fb
       version: -1
-      name: Foundation - Normalize Artifacts
-      playbookName: Foundation - Normalize Artifacts_V3
-      type: playbook
+      name: Normalize from contract
+      description: Maps issue fields into SOCFramework.* from the lifecycle's normalize contract.
+      script: SOCNormalizeFromList
+      type: regular
       iscommand: false
       brand: ""
       playbooktaskmissingcomponent: null
@@ -450,7 +441,14 @@ tasks:
     nexttasks:
       '#none#':
       - "5"
-    separatecontext: true
+    scriptarguments:
+      category:
+        simple: ${SOCFramework.Product.category}
+      lifecycle:
+        simple: ${SOCFramework.lifecycle}
+      case_fields:
+        simple: ${parentIncidentFields}
+    separatecontext: false
     continueonerror: true
     continueonerrortype: ""
     view: |-
