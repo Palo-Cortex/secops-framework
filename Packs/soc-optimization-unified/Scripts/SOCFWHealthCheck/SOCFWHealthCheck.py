@@ -2,7 +2,7 @@ register_module_line('SOCFWHealthCheck', 'start', __line__())
 # ============================================================
 # SOCFWHealthCheck
 # ============================================================
-# Read-only. Grades a tenant for SOC Framework work in two parts:
+# Read-only. Grades a tenant for SOC Framework work in three parts:
 #
 #   Configuration  what SOCFWConfig status reports: the tenant config list,
 #                  the mode the tenant matches, the framework JOBs (on/off and
@@ -13,6 +13,8 @@ register_module_line('SOCFWHealthCheck', 'start', __line__())
 #                  an xsoar_config.json (lists, integration instances, jobs,
 #                  lookup datasets, packs, correlation rules); without it,
 #                  prefix matching on playbooks and jobs.
+#   Failures       vendor calls that errored in the last 24 hours, per vendor
+#                  and command, from the execution dataset.
 #
 # Usage:
 #   !SOCFWHealthCheck
@@ -20,8 +22,9 @@ register_module_line('SOCFWHealthCheck', 'start', __line__())
 # ============================================================
 
 import json
+import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 SCRIPT_VERSION = "2.0.0"
@@ -973,6 +976,80 @@ def write_health_to_dataset(checks: List[Dict], using: Optional[str]) -> str:
 # Markdown output
 # ============================================================
 
+EXECUTION_DATASET = "xsiam_socfw_ir_execution_raw"
+FAILURE_WINDOW_HOURS = 24
+XQL_POLLS = 30
+
+
+def _run_xql(query: str, hours: int, using: Optional[str], sleep=time.sleep) -> Tuple[Optional[List[Dict]], str]:
+    """Rows of an XQL query, or (None, why). xdr-xql-generic-query only answers
+    "still running" to a script, so this starts the query and polls for it."""
+    ok, resp = _call_core_api("post", "/public_api/v1/xql/start_xql_query", {"request_data": {
+        "query": query, "timeframe": {"relativeTime": hours * 3600 * 1000}}}, using)
+    query_id = (resp or {}).get("reply") if ok and isinstance(resp, dict) else None
+    if not query_id:
+        return None, f"query did not start: {str(resp)[:200]}"
+    for _ in range(XQL_POLLS):
+        ok, resp = _call_core_api("post", "/public_api/v1/xql/get_query_results", {"request_data": {
+            "query_id": query_id, "pending_flag": True, "limit": 100, "format": "json"}}, using)
+        reply = (resp or {}).get("reply") if ok and isinstance(resp, dict) else None
+        if not isinstance(reply, dict):
+            return None, f"query failed: {str(resp)[:200]}"
+        if reply.get("status") == "PENDING":
+            sleep(1)
+            continue
+        if reply.get("status") != "SUCCESS":
+            return None, f"query ended {reply.get('status')}"
+        results = reply.get("results") or {}
+        rows = results.get("data") if isinstance(results, dict) else results
+        return [r for r in rows or [] if isinstance(r, dict)], ""
+    return None, f"query did not finish in {XQL_POLLS}s"
+
+
+def _when(ms: Any) -> str:
+    try:
+        return datetime.fromtimestamp(int(ms) / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    except (TypeError, ValueError):
+        return "?"
+
+
+def check_integration_failures(using: Optional[str], sleep=time.sleep) -> List[Dict[str, Any]]:
+    """Vendor calls that failed in the last day, one line per vendor and command.
+
+    Every Universal Command call that errors lands in the execution dataset with
+    has_error = true, but nothing surfaced it: a broken instance (expired key,
+    staging tenant, wrong org) fails on every issue, and each failure costs the
+    playbook run its wait. A failed call is a FAIL; a command no enabled
+    instance serves is a WARN, since it costs nothing until an instance exists.
+    """
+    name = "Integration failures"
+    query = (f"dataset = {EXECUTION_DATASET} | filter has_error = true"
+             " | comp count() as failures, max(_time) as last_seen, latest(error_message) as last_error"
+             " by vendor, vendor_command, action_status"
+             " | sort desc failures | limit 20")
+    rows, why = _run_xql(query, FAILURE_WINDOW_HOURS, using, sleep)
+    if rows is None:
+        return [_check(name, STATUS_WARN, f"{EXECUTION_DATASET} unreadable, so failures are unknown: {why}")]
+    if not rows:
+        return [_check(name, STATUS_OK, f"no failed vendor calls in the last {FAILURE_WINDOW_HOURS}h")]
+
+    checks = []
+    for r in rows:
+        vendor = r.get("vendor") or "-"
+        command = r.get("vendor_command") or "-"
+        error = " ".join(str(r.get("last_error") or "").split())[:160]
+        head = f"{r.get('failures')} failed in {FAILURE_WINDOW_HOURS}h, last {_when(r.get('last_seen'))}: {error}"
+        if r.get("action_status") == "integration_unavailable":
+            checks.append(_check(f"{name}: {vendor} {command}", STATUS_WARN,
+                                 f"{head}. No enabled instance serves it; enable one, or leave it if this "
+                                 "tenant has no such product."))
+        else:
+            checks.append(_check(f"{name}: {vendor} {command}", STATUS_FAIL,
+                                 f"{head}. Fix the instance (credentials, URL, permissions), or disable it "
+                                 "if it is not the production instance; every call waits for this error."))
+    return checks
+
+
 def _icon(s: str) -> str:
     return {"OK": "✅", "WARN": "⚠️", "FAIL": "❌"}.get(s, "❓")
 
@@ -1036,6 +1113,9 @@ def main():
 
     # ── 1b. Always: the instances the framework calls by exact name ──
     checks.extend(check_named_instances(all_instances, api_ok))
+
+    # ── 1c. Always: vendor calls that are failing ─────────────
+    checks.extend(check_integration_failures(using))
 
     # ── 2a. CONFIG-DRIVEN mode ────────────────────────────────
     if config_url:
