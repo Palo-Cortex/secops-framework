@@ -76,9 +76,9 @@ For CIE enrichment, use Step 4 instead — it has its own schedule.
 1. **Detection & Threat Intel → Correlations** → edit **`SOC CrowdStrike Falcon - Endpoint All Alerts`**
 2. Set **Execution Mode** to **Scheduled**: crontab `*/10 * * * *`, schedule `10 minutes`,
    search window `20 minutes`.
-3. Leave **suppression** on (`composite_id`, 1 hour). The window overlaps the schedule so
+3. Leave **suppression** on (`aggregate_id`, 1 hour). The window overlaps the schedule so
    detections that ingest late are still picked up; suppression stops the overlap from
-   alerting the same detection twice.
+   alerting the same process tree twice.
 
 Alerts now arrive on the schedule, up to 10 minutes after ingestion, instead of immediately.
 

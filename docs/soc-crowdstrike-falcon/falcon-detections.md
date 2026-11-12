@@ -154,7 +154,7 @@ Creates a single XSIAM alert for each CrowdStrike Falcon Endpoint Detection even
 |---|---|
 | enabled | `✓` |
 | duration | `1 hours` |
-| fields | `composite_id` |
+| fields | `aggregate_id` |
 
 #### Alert Fields
 
