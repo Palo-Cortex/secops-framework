@@ -1,0 +1,74 @@
+commonfields:
+  id: SOCFWClassifyProduct
+  version: -1
+name: SOCFWClassifyProduct
+script: ''
+type: python
+subtype: python3
+fromversion: 6.10.0
+dockerimage: demisto/python3:3.12.13.8927230
+runas: DBotWeakRole
+runonce: false
+enabled: true
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+sourcescripid: SOCFWClassifyProduct
+pswd: ''
+signature: ''
+scripttarget: 0
+comment: |
+  Resolves SOCFramework.Product (key, category, type, confidence, response,
+  responses) from the issue's DS: tag and SOCProductCategoryMap_V3 in one task.
+  When the key has no category in the map, it runs SOCFWInferProductCategory.
+  Called by Foundation - Product Classification_V3.
+args:
+  - name: tags
+    description: The issue's tags (issue.tags). The DS:<data source> tag selects the map entry.
+    required: false
+    isArray: true
+    supportedModules: []
+  - name: product
+    description: The issue's product (issue._product). Selects a per-product category from the entry's product_map.
+    required: false
+    supportedModules: []
+  - name: lifecycle
+    description: Lifecycle token passed to SOCFWInferProductCategory when the map gives no category (default nist_ir).
+    required: false
+    defaultValue: nist_ir
+    supportedModules: []
+outputs:
+  - contextPath: SOCFramework.Product.key
+    description: Canonical resolved product key.
+    type: string
+  - contextPath: SOCFramework.Product.category
+    description: Product category used for routing (e.g. Endpoint, Identity, Email, Network).
+    type: string
+  - contextPath: SOCFramework.Product.type
+    description: More specific product type (e.g. EDR, NGFW, IDP).
+    type: string
+  - contextPath: SOCFramework.Product.confidence
+    description: Classification confidence from the map, or 'inferred'.
+    type: string
+  - contextPath: SOCFramework.Product.response
+    description: Single response brand from the map entry (legacy).
+    type: string
+  - contextPath: SOCFramework.Product.responses
+    description: Response brand per action class from the map entry.
+    type: unknown
+tags:
+  - SOC
+  - SOC_Framework
+  - Foundation
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-optimization-unified
+    packName: SOC Framework Unified
+    itemVersion: 3.14.1
+    fromServerVersion: 6.10.0
+    toServerVersion: ''
+    definitionid: ''
+    prevname: ''
+    isoverridable: false
+    supportedModules: []
+system: true

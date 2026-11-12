@@ -350,3 +350,63 @@ def test_vendor_keys_match_brand_or_display_name_loosely():
     for vendor in ("CrowdStrike Falcon", "Zscaler", "Zscaler Internet Access"):
         assert module._vendor_key(vendor) in keys, vendor
     assert module._vendor_key("PagerDuty v2") not in keys        # disabled is not in use
+
+
+# ── Integration failures ─────────────────────────────────────
+
+class XqlFake(Fake):
+    """Answers the two XQL calls: start, then PENDING once, then the rows."""
+
+    def __init__(self, rows=None, start_fails=False):
+        super().__init__(config=status())
+        self.rows, self.start_fails, self.polls = rows or [], start_fails, 0
+
+    def execute(self, command, args, fail_on_error=False):
+        self.calls.append((command, args))
+        uri = str(args.get("uri"))
+        if uri.endswith("start_xql_query"):
+            if self.start_fails:
+                return False, "403 Forbidden"
+            assert "has_error = true" in args["body"]["request_data"]["query"]
+            return True, {"response": {"reply": "q-1"}}
+        if uri.endswith("get_query_results"):
+            self.polls += 1
+            if self.polls == 1:
+                return True, {"response": {"reply": {"status": "PENDING"}}}
+            return True, {"response": {"reply": {"status": "SUCCESS", "results": {"data": self.rows}}}}
+        return super().execute(command, args, fail_on_error)
+
+
+def failure_checks(fake):
+    module, _ = load(fake)
+    return module.check_integration_failures(None, sleep=lambda s: None)
+
+
+def test_no_failed_calls_is_ok():
+    checks = failure_checks(XqlFake(rows=[]))
+    assert [c["status"] for c in checks] == ["OK"]
+
+
+def test_a_failing_instance_fails_and_names_vendor_command_count_and_error():
+    checks = failure_checks(XqlFake(rows=[{
+        "vendor": "CrowdStrike Falcon", "vendor_command": "cs-falcon-search-device",
+        "action_status": "failed", "failures": 119, "last_seen": 1793996128000,
+        "last_error": "Error in API call to CrowdStrike Falcon:\n code: 401 - reason: Unauthorized"}]))
+    assert len(checks) == 1 and checks[0]["status"] == "FAIL"
+    assert "CrowdStrike Falcon cs-falcon-search-device" in checks[0]["check"]
+    assert "119 failed" in checks[0]["detail"] and "401 - reason: Unauthorized" in checks[0]["detail"]
+    assert "\n" not in checks[0]["detail"]        # one table row, whatever the vendor error looks like
+
+
+def test_a_command_no_instance_serves_only_warns():
+    checks = failure_checks(XqlFake(rows=[{
+        "vendor": "Okta v2", "vendor_command": "okta-get-user",
+        "action_status": "integration_unavailable", "failures": 3, "last_seen": 1793996128000,
+        "last_error": "Unsupported Command"}]))
+    assert checks[0]["status"] == "WARN"
+
+
+def test_an_unreadable_dataset_warns_instead_of_failing_the_run():
+    checks = failure_checks(XqlFake(start_fails=True))
+    assert [c["status"] for c in checks] == ["WARN"]
+    assert "unknown" in checks[0]["detail"]
