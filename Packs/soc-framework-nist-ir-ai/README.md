@@ -16,7 +16,10 @@ Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the
 | --- | --- |
 | `EP_IR_NIST - AI` | Entry point. Builds the contract at Upon Trigger, then runs the issue assessment aiTask. **Not in this pack** — see [ai/nist-ir](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) |
 | `JOB - SOC Case Analysis` | The JOB playbook. Selects cases, collapses them, builds payloads |
+| `JOB - SOC Case Containment` | The JOB playbook for case response. Runs the containment, eradication and recovery plans from each case's Analysis contract through `SOCFWCaseResponse` |
 | `SOC Case Analysis Phase` | Sub-playbook, once per case. **Not in this pack** — see [ai/nist-ir](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) |
+| `SOCFWCaseResponse` | Runs a case's response plan step by step through the framework executor, so shadowed steps are recorded; writes each phase's contract |
+| `SOCFWCaseContractWrite` | Writes a phase's declared contract to the case |
 | `SOCFWCollectIntel` | Gathers the reputation context roots into one key for the issue prompt |
 | `SOCFWRenderAssessment` | Renders the issue verdict as a War Room entry |
 | `SOCFramework NIST IR AI Layout` | Issue layout for the AI lifecycle |
@@ -29,9 +32,9 @@ Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the
 | AI Prompt `SOCFWIssueAssessment` | Issue-scope prompt; created on the tenant from the prompt master. Not installed by the pack |
 | AI Prompt `SOCFWCaseAnalysis` | Case-scope prompt; created on the tenant from the prompt master. Not installed by the pack |
 
-**Two playbooks are not in this pack.** `EP_IR_NIST - AI` and `SOC Case Analysis Phase` carry `aiTask` tasks, and an `aiTask` holds an `aiTaskId` bound to an AI Prompt on one specific tenant. A pack shipping them cannot install cleanly anywhere else, so they live at [`ai/nist-ir/`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) — still in this repo, as a peer of `Packs/` — and are uploaded through the UI. That README covers uploading them, rebinding each `aiTask`, and the automation rule that triggers the lifecycle.
+**Two playbooks are not in this pack.** `EP_IR_NIST - AI` and `SOC Case Analysis Phase` carry `aiTask` tasks, and an `aiTask` holds an `aiTaskId` bound to an AI Prompt on one specific tenant. A pack shipping them cannot install cleanly anywhere else, so they are installed with the AI content (povkit uploads them and walks the DC through the prompts). [`ai/nist-ir/`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) covers uploading them by hand, rebinding each `aiTask`, and the automation rule that triggers the lifecycle.
 
-`JOB - SOC Case Analysis` has no `aiTask` and does ship here — but it calls `SOC Case Analysis Phase`, so the JOB cannot resolve its sub-playbook until that upload is done.
+`JOB - SOC Case Analysis` and `JOB - SOC Case Containment` have no `aiTask` and ship here. `JOB - SOC Case Analysis` calls `SOC Case Analysis Phase`, so it cannot resolve its sub-playbook until that upload is done.
 
 **Installing this pack changes nothing on its own.** The content side-loads alongside `soc-framework-nist-ir`; the existing `EP_IR_NIST (800-61)_V3` keeps its inline lifecycle and keeps running. Nothing switches over until the automation trigger is pointed at `EP_IR_NIST - AI`, and pointing it back is the rollback.
 
@@ -197,14 +200,15 @@ Auto-close is **not** built yet — the assessment writes a verdict and does not
 
 ## Settings
 
-`SOCOptimizationConfig_V3` → `Case Analysis JOB` → `fields`
+`SOCOptimizationConfig_V3` → `Case Analysis JOB` → `fields`. The window, passes and starred setting are set per tenant with `!SOCFWConfig command=case`, which wins over these.
 
 ### Which cases get analysed
 
 | Field | Default | Effect |
 | --- | --- | --- |
 | `CaseDomain` | DOMAIN_SECURITY | Lifecycle scope. Posture cases have their own lifecycle |
-| `CaseWindowHours` | 72 | Only consider cases modified within this window |
+| `CaseWindowHours` | 6 | Only consider cases modified within this window |
+| `CaseCases` | unstarred | `unstarred` leaves cases an analyst owns to them; `all` analyses every case |
 | `CaseMinIssues` | 2 | Single-issue cases go to the per-category prompts instead |
 | `CaseMinShapes` | 2 | Repetition is not a chain |
 | `CaseCampaignIssues` | 20 | Above this, a single-shape case is a campaign and is analysed |
@@ -216,7 +220,7 @@ Auto-close is **not** built yet — the assessment writes a verdict and does not
 | --- | --- | --- |
 | `CaseSettleMinutes` | 15 | Wait for a case to stop changing. Analysing once, late, beats three times, early |
 | `CaseMaxWaitMinutes` | 120 | Analyse anyway past this age, so an always-active case still gets a verdict |
-| `CaseMaxAnalyses` | 2 | Re-analyses per case before it stops being reselected |
+| `CaseMaxAnalyses` | 2 | Passes per case. 1 is one pass; more re-analyses a case only when it has changed |
 
 ### How much evidence travels
 

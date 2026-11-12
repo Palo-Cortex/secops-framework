@@ -16,7 +16,7 @@
     "analysis": {
       "orchestrator": "SOC_Analysis_V3",
       "requires_phase": null,
-      "purpose": "Determine verdict, confidence, scope, and recommended response from raw alerts and SOCFramework artifacts."
+      "purpose": "Read the Assessment contract on every issue in the case and write the Analysis contract the later phases execute: verdict, who owns the case, the entities in scope and the ordered containment, eradication and recovery plans with the issues that justify each step."
     },
     "containment": {
       "orchestrator": "SOC_Containment_V3",
@@ -463,6 +463,21 @@
         "from_phase": "analysis",
         "source": "Analysis.verdict",
         "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.needs_analyst",
+        "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.scope",
+        "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.containment_plan",
+        "role": "canonical"
       }
     ],
     "eradication": [
@@ -520,6 +535,16 @@
         "from_phase": "containment",
         "source": "Containment.required",
         "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.scope",
+        "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.eradication_plan",
+        "role": "canonical"
       }
     ],
     "recovery": [
@@ -566,6 +591,21 @@
       {
         "from_phase": "containment",
         "source": "Containment.required",
+        "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.scope",
+        "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.recovery_plan",
+        "role": "canonical"
+      },
+      {
+        "from_phase": "analysis",
+        "source": "Analysis.verify_by_human",
         "role": "canonical"
       }
     ]
@@ -733,6 +773,48 @@
         "type": "string",
         "init": "",
         "role": "ai"
+      },
+      {
+        "target": "Analysis.needs_analyst",
+        "type": "boolean",
+        "init": false,
+        "role": "ai",
+        "notes": "Star the case: a person has to own it."
+      },
+      {
+        "target": "Analysis.scope",
+        "type": "array",
+        "init": [],
+        "role": "ai",
+        "notes": "Rows of scope_entity."
+      },
+      {
+        "target": "Analysis.containment_plan",
+        "type": "array",
+        "init": [],
+        "role": "ai",
+        "notes": "Rows of plan_step, ordered. Containment runs these."
+      },
+      {
+        "target": "Analysis.eradication_plan",
+        "type": "array",
+        "init": [],
+        "role": "ai",
+        "notes": "Rows of plan_step, ordered. Eradication runs these."
+      },
+      {
+        "target": "Analysis.recovery_plan",
+        "type": "array",
+        "init": [],
+        "role": "ai",
+        "notes": "Rows of plan_step, ordered. Recovery runs these; includes reversal of shadow containment and monitoring."
+      },
+      {
+        "target": "Analysis.verify_by_human",
+        "type": "array",
+        "init": [],
+        "role": "ai",
+        "notes": "What a person must confirm before closure."
       }
     ],
     "containment": [
@@ -781,6 +863,13 @@
     ],
     "eradication": [
       {
+        "target": "Eradication.Execution",
+        "type": "object",
+        "init": {},
+        "role": "canonical",
+        "notes": "Per-step record of the last pass: {steps, ran, outstanding, gaps, by_step[{step, action, target, status, issue, vendor, shadow}], updated_at}. The next pass reads it so a step that ran, or was skipped for want of an implementation, is not sent again."
+      },
+      {
         "target": "Eradication.success",
         "type": "boolean",
         "init": false,
@@ -821,6 +910,13 @@
         "type": "array",
         "init": [],
         "role": "canonical"
+      },
+      {
+        "target": "Eradication.artifacts",
+        "type": "array",
+        "init": [],
+        "role": "canonical",
+        "notes": "One row per artifact an eradication step acted on: {type, value, action, status}."
       }
     ],
     "recovery": [
@@ -859,6 +955,27 @@
         "type": "string",
         "init": "",
         "role": "canonical"
+      },
+      {
+        "target": "Recovery.monitor",
+        "type": "array",
+        "init": [],
+        "role": "canonical",
+        "notes": "One row per artifact to watch after recovery: {type, value, why}. Every scope artifact, plus any eradication could not act on."
+      },
+      {
+        "target": "Recovery.telemetry",
+        "type": "string",
+        "init": "",
+        "role": "canonical",
+        "notes": "The sources the case's issues came from; eradication and monitoring cover only what these show."
+      },
+      {
+        "target": "Recovery.Execution",
+        "type": "object",
+        "init": {},
+        "role": "canonical",
+        "notes": "Per-step record of the last pass: {steps, ran, outstanding, gaps, by_step[{step, action, target, status, issue, vendor, shadow}], updated_at}. The next pass reads it so a step that ran, or was skipped for want of an implementation, is not sent again."
       }
     ]
   },
@@ -1448,5 +1565,26 @@
     ]
   },
   "id": "SOCFrameworkPhaseContract_V3",
-  "name": "SOCFrameworkPhaseContract_V3"
+  "name": "SOCFrameworkPhaseContract_V3",
+  "plan_step": {
+    "description": "One row of Analysis.containment_plan, eradication_plan or recovery_plan. The phase executes rows in step order through the Universal Command; a row it cannot run is recorded, never re-decided.",
+    "fields": {
+      "step": "number - order within the plan",
+      "action": "string - Universal Command action name (soc-*)",
+      "target": "string - id of the Analysis.scope row the action applies to",
+      "why": "string - one line, from the evidence",
+      "evidence_refs": "array - issue ids that justify the step",
+      "requires_human": "boolean - true when a person must approve or do this step"
+    }
+  },
+  "scope_entity": {
+    "description": "One row of Analysis.scope: an entity the response touches.",
+    "fields": {
+      "id": "string - stable id used by plan rows as target",
+      "type": "string - host | identity | email | domain | file | ip",
+      "name": "string - hostname, user, address, sha256, domain",
+      "role": "string - origin | victim | lateral | artifact",
+      "evidence_refs": "array - issue ids that put the entity in scope"
+    }
+  }
 }

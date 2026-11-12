@@ -48,7 +48,8 @@ args:
   description: Maximum pages fetched per run. Cases per run is batch_size x max_batches.
   defaultValue: "20"
 - name: window_hours
-  description: Only consider cases modified within this many hours. Modification
+  description: Only consider cases modified within this many hours (a value set with
+    !SOCFWConfig command=case wins). Modification
     rather than creation, or a long-lived case still receiving issues drops out of
     scope while it is still active.
   defaultValue: "24"
@@ -79,9 +80,14 @@ args:
     auto-close window or the closure veto never applies.
   defaultValue: "120"
 - name: max_analyses
-  description: Analyses per case before it stops being re-selected. Low because the
-    settle window makes re-analysis the exception rather than the norm.
+  description: Analyses per case before it stops being re-selected; 1 is one pass, more
+    re-analyses a case only when it has changed. A value set with !SOCFWConfig command=case
+    wins over this argument.
   defaultValue: "2"
+- name: cases
+  description: unstarred (default) leaves cases an analyst already owns to them; all analyses
+    every case. A value set with !SOCFWConfig command=case wins over this argument.
+  defaultValue: unstarred
 - name: domain
   description: Case domain this lifecycle owns. Posture cases never run the NIST IR
     entry point and carry no contract by design, so they are skipped here rather than
@@ -124,6 +130,12 @@ outputs:
 - contextPath: SOCFramework.Case.SelectStats.skipped_settling
   description: Cases skipped because they are still changing and not yet at the age cap.
   type: Number
+- contextPath: SOCFramework.Case.SelectStats.skipped_starred
+  description: Cases skipped because they are starred and cases is unstarred.
+  type: Number
+- contextPath: SOCFramework.Case.SelectStats.settings_from_tenant
+  description: The settings taken from SOCFWTenantConfig rather than the JOB's arguments.
+  type: String
 - contextPath: SOCFramework.Case.SelectStats.skipped_max_analyses
   description: Cases skipped for having been analysed max_analyses times.
   type: Number
