@@ -247,11 +247,33 @@ def fetch_page(search_from, batch_size, cutoff_ms):
     return incidents or []
 
 
+def tenant_case_settings():
+    """The case section of SOCFWTenantConfig, written by !SOCFWConfig command=case.
+
+    Read here rather than passed by the JOB because the shipped list is a system
+    item a script cannot change; the tenant value goes in the tenant list and wins
+    over the JOB's arguments. A missing or unreadable list means no tenant values.
+    """
+    try:
+        res = demisto.executeCommand('getList', {'listName': 'SOCFWTenantConfig'})
+        entry = res[0] if isinstance(res, list) and res else {}
+        if not isinstance(entry, dict) or entry.get('Type') == entryTypes['error']:
+            return {}
+        raw = entry.get('Contents')
+        doc = json.loads(raw) if isinstance(raw, str) else (raw or {})
+        section = doc.get('case') if isinstance(doc, dict) else None
+        return section if isinstance(section, dict) else {}
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseSelect: SOCFWTenantConfig unreadable, using JOB values: {e}')
+        return {}
+
+
 def main():
     args = demisto.args()
+    tenant = tenant_case_settings()
     batch_size = min(int(args.get('batch_size') or 100), MAX_PAGE)
     max_batches = int(args.get('max_batches') or 20)
-    window_hours = int(args.get('window_hours') or 24)
+    window_hours = int(tenant.get('window_hours') or args.get('window_hours') or 6)
     domain = (args.get('domain') or DEFAULT_DOMAIN).strip()
     # A single-issue case is per-issue analysis wearing a case label, and the
     # per-category prompts already do that job. On one production window 32,466
@@ -263,7 +285,7 @@ def main():
     # run for as long as it grows. Past this many analyses the verdict is
     # unlikely to move on volume alone, so stop paying for it - the case is still
     # visible, still open, and a human can reopen the question.
-    max_analyses = int(args.get('max_analyses') or 2)
+    max_analyses = int(tenant.get('max_analyses') or args.get('max_analyses') or 2)
     # Wait for a case to stop moving before analysing it. A case analysed while
     # still filling produces a partial verdict and then needs re-analysing, so
     # early analysis costs more runs and returns a worse contract. Analysing once,
@@ -274,6 +296,11 @@ def main():
     # continuously active case still gets a verdict - and well inside the six-hour
     # auto-close window, or the closure veto never applies.
     max_wait_minutes = int(args.get('max_wait_minutes') or 120)
+    # A starred case belongs to an analyst. Analysing it anyway overlaps their
+    # work and can contradict it, so by default the AI lane takes only the cases
+    # nobody owns yet. Anything but an explicit "all" reads as unstarred.
+    cases = str(tenant.get('cases') or args.get('cases') or 'unstarred').strip().lower()
+    unstarred_only = cases != 'all'
     sibling_window_minutes = int(args.get('sibling_window_minutes')
                                  or DEFAULT_SIBLING_WINDOW_MINUTES)
 
@@ -292,6 +319,7 @@ def main():
     skipped_max_analyses = 0
     skipped_max_attempts = 0
     skipped_settling = 0
+    skipped_starred = 0
     recheck_coverage = 0
     search_from = 0
 
@@ -330,6 +358,10 @@ def main():
                     'creation_time': inc.get('creation_time'),
                     'modification_time': inc.get('modification_time'),
                 })
+
+                if unstarred_only and inc.get('starred') is True:
+                    skipped_starred += 1
+                    continue
 
                 if status not in ELIGIBLE_STATUSES:
                     skipped_status += 1
@@ -436,6 +468,12 @@ def main():
         'skipped_max_analyses': skipped_max_analyses,
         'skipped_max_attempts': skipped_max_attempts,
         'skipped_settling': skipped_settling,
+        'skipped_starred': skipped_starred,
+        'cases': 'unstarred' if unstarred_only else 'all',
+        'window_hours': window_hours,
+        'max_analyses': max_analyses,
+        'settings_from_tenant': ', '.join(sorted(k for k in ('window_hours', 'max_analyses', 'cases')
+                                                 if tenant.get(k) not in (None, ''))) or None,
         'reselected_for_coverage': recheck_coverage,
         'watermark_cases': len(watermark),
         'watermark_note': watermark_note or None,
@@ -452,6 +490,9 @@ def main():
     demisto.setContext('SOCFramework.Case.Candidates', candidates)
     demisto.setContext('SOCFramework.Case.CandidateFilter', candidate_filter)
     demisto.setContext('SOCFramework.Case.SelectStats', stats)
+    # The JOB's aggregate queries size their time frame from this key. A tenant
+    # window would otherwise select cases those queries cannot see.
+    demisto.setContext('SOCFramework.Case.Config.CaseWindowHours', str(window_hours))
 
     return_results(CommandResults(
         readable_output=tableToMarkdown('Case selection', [stats]),

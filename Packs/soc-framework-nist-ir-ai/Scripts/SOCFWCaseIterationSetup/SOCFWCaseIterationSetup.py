@@ -73,6 +73,50 @@ def read_prior_verdict(case_id):
         return {}
 
 
+PLAN_PHASES = ('containment', 'eradication', 'recovery')
+
+
+def action_catalogue():
+    """The response actions the plans may name, from SOCFrameworkActions_V3.
+
+    The prompt plans against this catalogue and nothing else, so a plan step can
+    only ever name an action the Universal Command knows how to run on this
+    tenant. It rides inside the payload rather than as a prompt input, so adding
+    or removing an action changes nothing in the prompt configuration.
+    """
+    try:
+        res = demisto.executeCommand('getList', {'listName': 'SOCFrameworkActions_V3'})
+        raw = res[0].get('Contents') if isinstance(res, list) and res else res
+        actions = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseIterationSetup: action catalogue unavailable: {e}')
+        return []
+    out = []
+    for name, row in actions.items():
+        if not isinstance(row, dict) or row.get('phase') not in PLAN_PHASES:
+            continue
+        entry = {'action': name, 'phase': row['phase'],
+                 'entity_scope': row.get('entity_scope') or ''}
+        for flag in ('destroys_evidence', 'reversed_by'):
+            if row.get(flag):
+                entry[flag] = row[flag]
+        out.append(entry)
+    return sorted(out, key=lambda a: (a['phase'], a['action']))
+
+
+def with_catalogue(payload):
+    """Add available_actions to the payload JSON string, leaving it untouched on any failure."""
+    try:
+        obj = json.loads(payload or '{}')
+        if not isinstance(obj, dict):
+            return payload
+        obj['available_actions'] = action_catalogue()
+        return json.dumps(obj, separators=(',', ':'))
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseIterationSetup: payload left without catalogue: {e}')
+        return payload
+
+
 def main():
     case = current_case(demisto.args().get('case'))
 
@@ -88,6 +132,8 @@ def main():
         value = case.get(f)
         if isinstance(value, (dict, list)):
             value = json.dumps(value, separators=(',', ':'))
+        if f == 'Payload':
+            value = with_catalogue(value)
         demisto.setContext(f'CaseIter.{f}', value if value is not None else '')
 
     # Comma-joined scalar, deliberately. An array argument makes XSIAM run the

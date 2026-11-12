@@ -1,0 +1,56 @@
+commonfields:
+  id: SOCFWCaseContractWrite
+  version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir-ai
+    packName: SOC Framework NIST IR (800-61) - AI Analysis
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOCFWCaseContractWrite
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+comment: |-
+  Writes a whole case contract to the parent case in one execution.
+
+  Run from a member issue of the case: setParentIncidentContext is the only route
+  that writes case context, and it stores every value as a string, so the
+  contract goes up leaf by leaf. This script makes those writes in-process, so
+  the JOB spends one call per case instead of one per leaf.
+args:
+- name: contract
+  required: true
+  description: The contract as a JSON object of leaf name to value. Arrays and
+    objects are stored as JSON strings.
+- name: root
+  description: Context root the leaves are written under.
+  defaultValue: SOCFramework.Analysis.AI
+outputs:
+- contextPath: SOCFramework.CaseContractWrite.written
+  description: Leaves written.
+  type: Number
+- contextPath: SOCFramework.CaseContractWrite.failed
+  description: Leaves that failed to write.
+  type: Number
+scripttarget: 0
+timeout: 5m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWCaseContractWrite
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: false
