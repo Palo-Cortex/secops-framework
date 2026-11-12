@@ -200,6 +200,16 @@ def normalize_events(events: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[
                 if domain:
                     ev["user_name"] = f"{user_name}@{domain.upper()}"
 
+        # CrowdStrike: the rule suppresses on aggregate_id (one issue per
+        # process tree) for 1 hour. The TSV carries fixed ids, so a rerun
+        # within the hour would raise nothing; a run-unique suffix keeps each
+        # run's trees distinct while detections in one tree still share it.
+        if "crowdstrike" in source_name or "falcon" in source_name:
+            for id_field in ("aggregate_id", "composite_id"):
+                val = ev.get(id_field, "")
+                if val:
+                    ev[id_field] = f"{val}-{_run_id}"
+
         # Microsoft Defender for Endpoint (via Graph API):
         # Randomize providerAlertId and id to bypass suppression on repeated
         # replays. The rule suppresses on providerAlertId for 1 hour — appending
