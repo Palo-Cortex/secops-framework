@@ -45,7 +45,7 @@ The deployment modes set these flags as a bundle: `pov` leaves every emergency a
 | What | Where | Shipped default | Evaluation | Production |
 |---|---|---|---|---|
 | Which issues enter the lifecycle | automation rule → `EP_IR_NIST - AI` | none; the rule is created at install | the three-branch rule on [Install NIST IR AI](../evaluate/install-nist-ir-ai.md) | same, sized on the tenant |
-| Case job on/off and thresholds | `!SOCFWConfig command=job job="SOC Case Analysis"`; `SOCOptimizationConfig_V3 → Case Analysis JOB.fields` | off; `CaseMinIssues=2`, `CaseMinShapes=2`, `CaseCampaignIssues=20`, `CaseWindowHours=72` | on, shipped thresholds | on, thresholds tuned to case volume |
+| Case job on/off and thresholds | `!SOCFWConfig command=job job="SOC Case Analysis"`; `!SOCFWConfig command=case` (window, passes, unstarred only); `SOCOptimizationConfig_V3 → Case Analysis JOB.fields` | off; `CaseMinIssues=2`, `CaseMinShapes=2`, `CaseCampaignIssues=20`, `CaseWindowHours=6`, `CaseCases=unstarred` | on, shipped thresholds | on, thresholds tuned to case volume |
 | Emergency policies and guards | `SOCFrameworkPhasePolicy_V3 → phases.triage.emergency`; `!SOCFWConfig command=emergency` | `enabled=true`, `containable_roles=[workstation]`, verdict malicious at high confidence | shipped | protect list and roles set for this estate |
 | Elevate rules | `SOCFrameworkPhasePolicy_V3 → phases.triage.elevate` | star on malicious at high confidence with `escalate_recommended`; never unstar | shipped | shipped |
 | Closure bar | `SOCFWClosurePolicy` | `min_closure_confidence=low`, `require_no_blockers=true` | shipped | per customer |

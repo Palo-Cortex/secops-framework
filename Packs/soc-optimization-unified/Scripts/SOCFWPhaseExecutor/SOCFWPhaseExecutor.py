@@ -16,6 +16,11 @@ from CommonServerPython import *  # noqa: F401,F403
 ACTIONS_LIST = "SOCFrameworkActions_V3"
 ENV_LIST = "SOCFrameworkEnvironment_V3"
 POLICY_LIST = "SOCFrameworkPhasePolicy_V3"
+TENANT_CONFIG_LIST = "SOCFWTenantConfig"
+# The executor dispatches as this actor, so this is the actor whose shadow
+# setting decides whether a step would really run.
+ACTOR = "automation"
+READ_ONLY_PHASES = ("enrichment", "investigation")
 
 # Strictness order. Two sources may both have an opinion about a step; the
 # stricter one wins, so a permissive phase policy can never loosen an
@@ -39,6 +44,35 @@ def get_list(name):
     except Exception as e:
         demisto.debug("SOCFWPhaseExecutor: cannot read {} ({})".format(name, e))
         return {}
+
+
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    return text == "true" if text in ("true", "false") else None
+
+
+def would_simulate(action_name, entry, tenant_config):
+    """Whether SOCCommandWrapper would simulate this action for the automation actor.
+
+    The same answer the wrapper gives (resolve_shadow_mode with the tenant
+    override first), held to it by a test over every shipped action. Fails
+    closed: an action that can change something is simulated unless a setting
+    deliberately says false.
+    """
+    section = (tenant_config or {}).get("shadow") if isinstance(tenant_config, dict) else None
+    per_action = section.get(action_name) if isinstance(section, dict) else None
+    if isinstance(per_action, dict) and _as_bool(per_action.get(ACTOR)) is not None:
+        return _as_bool(per_action[ACTOR])
+    default = _as_bool(entry.get("shadow_mode"))
+    if default is None:
+        default = str(entry.get("phase") or "").strip().lower() not in READ_ONLY_PHASES
+    by_actor = entry.get("shadow_mode_by_actor")
+    if not isinstance(by_actor, dict):
+        return default
+    value = _as_bool(by_actor.get(ACTOR)) if ACTOR in by_actor else None
+    return default if value is None else value
 
 
 def resolve_path(ctx, path):
@@ -182,13 +216,18 @@ def post_row(payload):
         demisto.debug("SOCFWPhaseExecutor: dataset post failed ({})".format(e))
 
 
-def decide(step, actions, env, policy, brands, ctx, ledger):
+def decide(step, actions, env, policy, brands, ctx, ledger, tenant_config=None):
     """One step, one verdict. Order of checks is the order of authority.
 
     Ledger first (already done is a fact), then environment deny (customer
     prohibition), then contract, then reachability, then authority. Anything
     that is not 'dispatch' still produces a row, because a step that did not run
     is the finding.
+
+    Mode and authority gate a live run only. When the wrapper would simulate the
+    action anyway, nothing can change, so the step goes to the wrapper and its
+    shadow record carries the action and its time - which is what a PoV measures.
+    Approval and directions-only apply again the moment the action goes live.
     """
     name = step.get("action")
     entry = actions.get(name) or {}
@@ -251,7 +290,13 @@ def decide(step, actions, env, policy, brands, ctx, ledger):
     authority = stricter(
         (phase_cfg.get("authority_by_scope") or {}).get(scope),
         ruling if ruling in AUTHORITY_RANK else None)
+    if str(step.get("requires_human")).lower() == "true":
+        authority = stricter(authority, "approve")
     out["authority"] = authority
+
+    if would_simulate(name, entry, tenant_config):
+        out.update(status="dispatch", shadow=True)
+        return out
 
     if phase_cfg.get("mode") != "execute":
         out.update(status="direction", reason="phase runs in {} mode".format(
@@ -305,6 +350,7 @@ def main():
                if isinstance(v, dict)}
     env = get_list(ENV_LIST) or {}
     policy = get_list(POLICY_LIST) or {}
+    tenant_config = get_list(TENANT_CONFIG_LIST) or {}
     brands = active_brands()
 
     for step in plan:
@@ -316,7 +362,7 @@ def main():
     run_id = "{}-{}".format(case_id or "nocase", utc_now())
 
     for idx, step in enumerate(ordered, 1):
-        verdict = decide(step, actions, env, policy, brands, ctx, ledger)
+        verdict = decide(step, actions, env, policy, brands, ctx, ledger, tenant_config)
         verdict["step"] = idx
         if verdict["status"] == "dispatch":
             entry = actions.get(verdict["action"]) or {}
