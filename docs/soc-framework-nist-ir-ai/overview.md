@@ -40,3 +40,14 @@ Runs NIST IR Detection & Analysis once per case instead of once per issue. Selec
 | Recurrent | ✓ |
 | Schedule | every 10 minutes daily |
 | Owner | `abarone@paloaltonetworks.com` |
+
+### SOC Case Response
+
+Runs each analysed case's response plan: containment, eradication and recovery from its Analysis contract, step by step through the framework executor, so shadowed steps are recorded. Off until turned on.
+
+| Field | Value |
+|---|---|
+| Playbook | `JOB - SOC Case Containment` |
+| Recurrent | ✓ |
+| Schedule | every 10 minutes daily |
+| Owner | `abarone@paloaltonetworks.com` |

@@ -1,0 +1,61 @@
+commonfields:
+  id: SOCFWCaseResponse
+  version: -1
+contentitemexportablefields:
+  contentitemfields:
+    packID: soc-framework-nist-ir-ai
+    packName: SOC Framework NIST IR (800-61) - AI Analysis
+    fromServerVersion: 6.10.0
+    toServerVersion: ""
+    definitionid: ""
+    prevname: ""
+    isoverridable: false
+    supportedModules: []
+name: SOCFWCaseResponse
+script: ''
+type: python
+tags:
+- SOC
+- SOC_Framework_Unified
+- NIST 800-61
+comment: |-
+  Runs the case's containment, eradication and recovery plans from the Analysis
+  contract, in that order. Each remaining step is handed to SOCFWPhaseExecutor
+  inside the issue that evidences it, so the issue's contract supplies the
+  vendor arguments and every policy, environment and shadow-mode check applies.
+  Steps that need a person are recorded as awaiting and never dispatched; the
+  analyst runs them from the issue layout and the next pass counts them done.
+args:
+- name: cases
+  description: JSON list of {case_id} (or case ids). Read from cases_key in
+    context when omitted, so an array never reaches a task argument.
+- name: cases_query
+  description: query_name of the XQL task whose result set holds the candidate cases.
+  defaultValue: socfw_response_candidates
+- name: ledger
+  description: JSON list of execution-dataset rows for these cases. Read from
+    the ledger_query result set in context when omitted.
+- name: ledger_query
+  description: query_name of the XQL task whose result set holds the ledger rows.
+  defaultValue: socfw_response_ledger
+- name: max_cases
+  description: Cases handled per run; the rest wait for the next pass.
+  defaultValue: "3"
+outputs:
+- contextPath: SOCFramework.Response.Results
+  description: Per-case phase states.
+  type: Unknown
+scripttarget: 0
+timeout: 5m0s
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.13.7444307
+runas: DBotWeakRole
+sourcescripid: SOCFWCaseResponse
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
+fromversion: 6.10.0
+system: false
