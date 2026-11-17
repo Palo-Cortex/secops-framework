@@ -35,6 +35,10 @@ Fields available in the raw ingest dataset.
 | `type` | `string` |  | confirmed |  |
 | `threatStatus` | `string` |  | confirmed |  |
 | `url` | `string` |  | confirmed |  |
+| `policyRoutes` | `string` |  | confirmed |  |
+| `completelyRewritten` | `string` |  | confirmed |  |
+| `classification` | `string` |  | confirmed |  |
+| `threatID` | `string` |  | confirmed |  |
 | `campaignId` | `string` |  | confirmed |  |
 | `phishScore` | `int` |  | confirmed |  |
 | `malwareScore` | `int` |  | confirmed |  |
@@ -236,7 +240,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
 | alter
-    alert_severity    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.severity"), "SEV_030_MEDIUM"),
     alert_category    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.alert_category"), "Email Security"),
     alert_name = if(
         type = "clicks permitted",
@@ -256,7 +259,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
     type = "clicks blocked",     "click_blocked",
     type
 )
-| alter direction = "inbound"
 
 // Every threat on the message, flattened for the analyst. Parallel lists --
 // position N in each describes the same threat.
@@ -272,6 +274,14 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // fallback a click produces no URL artifact, so the one event that proves the
 // user actually engaged contributes nothing to grouping.
 | alter threat_urls = coalesce(if(threat_urls_tim != "", threat_urls_tim, null), url)
+
+// The same gap for the other per-threat lists: a click carries its threat as
+// top-level columns. A click is always a URL threat.
+| alter
+    classification_all = coalesce(if(classification_all != "", classification_all, null), classification),
+    threat_ids         = coalesce(if(threat_ids != "", threat_ids, null), threatID),
+    threat_statuses    = coalesce(if(threat_statuses != "", threat_statuses, null), threatStatus),
+    threat_types       = coalesce(if(threat_types != "", threat_types, null), if(type = "clicks permitted", "url", null))
 
 // Attachment hashes and names across all message parts.
 | alter
@@ -291,6 +301,48 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // One URL for every downstream derivation. threatsInfoMap on message events,
 // the top-level url on click events.
 | alter effective_threat_url = coalesce(first_threat_url, url)
+
+// Direction is stated only when it can be proven: the default_inbound policy
+// route marks inbound mail, and a click is always on inbound mail. Anything
+// else is left empty rather than guessed.
+| alter routes_str = to_string(policyRoutes)
+| alter direction = if(
+    type = "clicks permitted" or arrayindex(regextract(routes_str, "default_inbound"), 0) != null,
+    "inbound",
+    null
+  )
+
+// Severity follows exposure. A permitted click is the only High: the user
+// reached the threat. Delivered mail is Medium when the threat is live in the
+// mailbox (an attachment, message text, or an inbound URL that URL Defense did
+// not fully rewrite) and Low otherwise. Delivered mail is never High.
+| alter alert_severity = if(
+    type = "clicks permitted", "SEV_040_HIGH",
+    arrayindex(regextract(threat_types, "attachment|messageText"), 0) != null, "SEV_030_MEDIUM",
+    first_threat_type = "url" and direction = "inbound" and to_string(completelyRewritten) = "false", "SEV_030_MEDIUM",
+    "SEV_020_LOW"
+  )
+
+// Hash of the attachment Proofpoint judged malicious, which is the only hash
+// worth grouping on. messageParts lists every part including the body, so its
+// first hash is usually not the threat. Mixed url + attachment messages carry
+// the attachment in either of the first two positions.
+| alter threat_attachment_sha256 = coalesce(
+    if(json_extract_scalar(threatsInfoMap_str, "$[0].threatType") = "attachment", json_extract_scalar(threatsInfoMap_str, "$[0].threat"), null),
+    if(json_extract_scalar(threatsInfoMap_str, "$[1].threatType") = "attachment", json_extract_scalar(threatsInfoMap_str, "$[1].threat"), null)
+  )
+
+// What the threat is, for the description, so the analyst can judge the alert
+// without opening the raw event.
+| alter clean_subject = replex(coalesce(subject, "No Subject"), "[\r\n]+", " ")
+| alter threat_summary = concat(
+    " | Classification: ", coalesce(classification_all, ""),
+    " | Threat type: ", coalesce(threat_types, ""),
+    " | From: ", coalesce(sender, "Unknown"),
+    " | Subject: ", clean_subject,
+    " | Indicator: ", coalesce(threat_urls, ""),
+    " | URL rewritten: ", coalesce(to_string(completelyRewritten), "")
+  )
 
 // Feeds fw_url_domain and dns_query_name, which XSIAM turns into grouping
 // artifacts. Both take the same value so a single alert cannot contribute two
@@ -354,7 +406,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
 | alter display_name = coalesce(idr_display_name, recipient_first)
 
-| alter description = concat("Proofpoint TAP threat detected: ", type," | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
+| alter description = concat("Proofpoint TAP threat detected: ", type, threat_summary, " | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
 
 // The 29 canonical core columns every vendor pack exposes. Column names match
 // the issue field names in alert_fields; Foundation, Universal Command and the
@@ -392,7 +444,7 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         causality_actor_process_image_sha256 = null,
         action_file_name                    = proofpointfilename,
         action_file_path                    = null,
-        action_file_sha256                  = proofpointsha256,
+        action_file_sha256                  = threat_attachment_sha256,
         action_local_ip                     = clickIP,
         action_remote_ip                    = null
 
@@ -400,7 +452,4 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 // CrowdStrike's user_principal.
 | alter user_principal = coalesce(idr_upn, recipient_first)
 | alter user_name      = actor_effective_username
-
-| alter tmp_severity = if(proofpointfilename in ("*.jpeg", "*.jpg",
-"*.png", "*.html", "text.txt"), "SEV_030_LOW", alert_severity)
 ```
