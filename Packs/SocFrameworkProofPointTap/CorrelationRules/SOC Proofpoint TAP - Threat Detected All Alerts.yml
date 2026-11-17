@@ -149,7 +149,6 @@ xql_query: |
   | alter recipient_first = arrayindex(regextract(to_string(recipient), "([\w.%+-]+@[\w.-]+)"), 0)
 
   | alter
-      alert_severity    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.severity"), "SEV_030_MEDIUM"),
       alert_category    = coalesce(json_extract_scalar(to_json_string(_raw_json), "$._alert_data.alert_category"), "Email Security"),
       alert_name = if(
           type = "clicks permitted",
@@ -169,7 +168,6 @@ xql_query: |
       type = "clicks blocked",     "click_blocked",
       type
   )
-  | alter direction = "inbound"
 
   | alter
       threat_ids         = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threatID")), ", "),
@@ -179,6 +177,12 @@ xql_query: |
       threat_urls_tim    = arraystring(arraymap(json_extract_array(threatsInfoMap_str, "$."), json_extract_scalar("@element", "$.threat")), ", ")
 
   | alter threat_urls = coalesce(if(threat_urls_tim != "", threat_urls_tim, null), url)
+
+  | alter
+      classification_all = coalesce(if(classification_all != "", classification_all, null), classification),
+      threat_ids         = coalesce(if(threat_ids != "", threat_ids, null), threatID),
+      threat_statuses    = coalesce(if(threat_statuses != "", threat_statuses, null), threatStatus),
+      threat_types       = coalesce(if(threat_types != "", threat_types, null), if(type = "clicks permitted", "url", null))
 
   | alter
       proofpointsha256   = arraystring(arraymap(json_extract_array(messageParts, "$."), json_extract_scalar("@element", "$.sha256")), ", "),
@@ -193,6 +197,35 @@ xql_query: |
       )
 
   | alter effective_threat_url = coalesce(first_threat_url, url)
+
+  | alter routes_str = to_string(policyRoutes)
+  | alter direction = if(
+      type = "clicks permitted" or arrayindex(regextract(routes_str, "default_inbound"), 0) != null,
+      "inbound",
+      null
+    )
+
+  | alter alert_severity = if(
+      type = "clicks permitted", "SEV_040_HIGH",
+      arrayindex(regextract(threat_types, "attachment|messageText"), 0) != null, "SEV_030_MEDIUM",
+      first_threat_type = "url" and direction = "inbound" and to_string(completelyRewritten) = "false", "SEV_030_MEDIUM",
+      "SEV_020_LOW"
+    )
+
+  | alter threat_attachment_sha256 = coalesce(
+      if(json_extract_scalar(threatsInfoMap_str, "$[0].threatType") = "attachment", json_extract_scalar(threatsInfoMap_str, "$[0].threat"), null),
+      if(json_extract_scalar(threatsInfoMap_str, "$[1].threatType") = "attachment", json_extract_scalar(threatsInfoMap_str, "$[1].threat"), null)
+    )
+
+  | alter clean_subject = replex(coalesce(subject, "No Subject"), "[\r\n]+", " ")
+  | alter threat_summary = concat(
+      " | Classification: ", coalesce(classification_all, ""),
+      " | Threat type: ", coalesce(threat_types, ""),
+      " | From: ", coalesce(sender, "Unknown"),
+      " | Subject: ", clean_subject,
+      " | Indicator: ", coalesce(threat_urls, ""),
+      " | URL rewritten: ", coalesce(to_string(completelyRewritten), "")
+    )
 
   | alter url_domain = extract_url_host(effective_threat_url)
   | alter domain     = url_domain,
@@ -226,7 +259,7 @@ xql_query: |
   | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
   | alter display_name = coalesce(idr_display_name, recipient_first)
 
-  | alter description = concat("Proofpoint TAP threat detected: ", type," | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
+  | alter description = concat("Proofpoint TAP threat detected: ", type, threat_summary, " | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
 
   | alter
           vendor                              = vendor_name,
@@ -254,15 +287,12 @@ xql_query: |
           causality_actor_process_image_sha256 = null,
           action_file_name                    = proofpointfilename,
           action_file_path                    = null,
-          action_file_sha256                  = proofpointsha256,
+          action_file_sha256                  = threat_attachment_sha256,
           action_local_ip                     = clickIP,
           action_remote_ip                    = null
 
   | alter user_principal = coalesce(idr_upn, recipient_first)
   | alter user_name      = actor_effective_username
-
-  | alter tmp_severity = if(proofpointfilename in ("*.jpeg", "*.jpg",
-  "*.png", "*.html", "text.txt"), "SEV_030_LOW", alert_severity)
 
   // ============== CIE ENRICHMENT (optional, OFF by default) ==============
   // Cloud Identity Engine enrichment is disabled. To enable it:
@@ -319,7 +349,7 @@ xql_query: |
   | alter actor_effective_username = lowercase(coalesce(idr_email, idr_upn, idr_netbios, recipient_first))
   | alter display_name = coalesce(idr_display_name, recipient_first)
 
-  | alter description = concat("Proofpoint TAP threat detected: ", type," | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
+  | alter description = concat("Proofpoint TAP threat detected: ", type, threat_summary, " | Recipient: ", coalesce(recipient_first, "Unknown")," | User: ", coalesce(actor_effective_username, "")," | Display Name: ", coalesce(display_name, "")," | Email: ", coalesce(idr_email, "")," | UPN: ", coalesce(idr_upn, "")," | Domain: ", coalesce(idr_domain_name, "")," | SAM: ", coalesce(idr_sam_account_name, "")," | SID: ", coalesce(idr_sid, "")," | On-Prem SID: ", coalesce(idr_on_prem_sid, "")," | NetBIOS: ", coalesce(idr_netbios, "")," -- GUID: ", GUID)
 
   | alter alert_description = description,
           user_principal    = coalesce(idr_upn, recipient_first),
