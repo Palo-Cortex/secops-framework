@@ -1,0 +1,39 @@
+commonfields:
+  id: SOCFWCloseWithoutAssessment
+  version: -1
+name: SOCFWCloseWithoutAssessment
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.8.1983910
+comment: Decides whether an issue should be closed without an assessment, from the
+  reasons the tenant set with SOCFWConfig command=close. The first reason is mail
+  delivered to a listed abuse/report mailbox; a click is always assessed. On a match
+  it sets SOCFramework.CloseWithoutAssessment so the entry playbook skips the assessment
+  and closes the issue as its last step with soc-close-issue-unassessed, which ships
+  in shadow. The case is never closed. With nothing set it does nothing. Records a
+  close_without_assessment row when a reason applies.
+tags:
+- socfw
+enabled: true
+scripttarget: 0
+runonce: false
+runas: DBotWeakRole
+fromversion: 6.10.0
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+system: false
+outputs:
+- contextPath: SOCFramework.CloseWithoutAssessment.close
+  description: true when the issue is to be closed without an assessment. Not set otherwise.
+  type: String
+- contextPath: SOCFramework.CloseWithoutAssessment.reason
+  description: The reason that matched, e.g. report_mailbox.
+  type: String
+- contextPath: SOCFramework.CloseWithoutAssessment.note
+  description: The note the close carries - what matched, then the tenant's comment if set.
+  type: String

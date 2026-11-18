@@ -1,12 +1,12 @@
 """
-SOCFWReportMailboxCheck_test.py
+SOCFWCloseWithoutAssessment_test.py
 
-Mail delivered to a listed report mailbox is not assessed and a close of that
-issue is requested through the Universal Command; everything else is assessed:
-an empty or missing list, a recipient that is not listed, a click to a listed
-mailbox, several recipients where one is a person, and any failure.
+Mail delivered to a listed report mailbox is marked to close without an
+assessment; everything else is assessed: nothing set, a recipient that is not
+listed, a click to a listed mailbox, several recipients where one is a person,
+and any failure. The script only decides - it never calls the close itself.
 
-Run: pytest Scripts/SOCFWReportMailboxCheck/SOCFWReportMailboxCheck_test.py -v
+Run: pytest Scripts/SOCFWCloseWithoutAssessment/SOCFWCloseWithoutAssessment_test.py -v
 """
 
 import importlib
@@ -18,7 +18,8 @@ import types
 import pytest
 
 HERE = os.path.dirname(__file__)
-LISTED = {"report_mailboxes": ["abuse@example.com", "phish@example.com"]}
+LISTED = {"close": {"report_mailboxes": ["abuse@example.com", "phish@example.com"]}}
+KEY = "SOCFramework.CloseWithoutAssessment"
 
 
 class Results:
@@ -30,7 +31,7 @@ class Issue:
     """One issue: its context, the tenant list, and everything the script wrote."""
 
     def __init__(self, tenant_config=LISTED, recipient="abuse@example.com", click_time=None,
-                 click_ip=None, case="INCIDENT-4242", to=None, list_error=False, wrapper_error=False):
+                 click_ip=None, case="INCIDENT-4242", to=None, list_error=False):
         email = {"recipient": recipient, "click_time": click_time, "click_ip": click_ip}
         self.ctx = {"SOCFramework": {"lifecycle": "NIST_IR",
                                      "Email": {k: v for k, v in email.items() if v is not None}}}
@@ -38,7 +39,6 @@ class Issue:
             self.ctx["SOCFramework"]["Artifacts"] = {"Email": {"To": to}}
         self.tenant_config, self.case, self.list_error = tenant_config, case, list_error
         self.rows, self.context_writes, self.commands = [], {}, []
-        self.wrapper_calls, self.wrapper_error = [], wrapper_error
 
     def execute(self, command, args):
         self.commands.append(command)
@@ -53,11 +53,7 @@ class Issue:
         if command == "socfw-post-to-dataset":
             self.rows.append(json.loads(args["JSON"]))
             return [{"Type": 1, "Contents": "ok"}]
-        if command == "SOCCommandWrapper":
-            self.wrapper_calls.append(dict(args))
-            if self.wrapper_error:
-                raise RuntimeError("wrapper blew up")
-            return [{"Type": 1, "Contents": {"action": args["action"], "shadow_mode": True}}]
+        # Closing from inside this script strands the playbook run; the close is the playbook's job.
         raise AssertionError(f"unexpected command {command}")
 
 
@@ -81,85 +77,90 @@ def run(issue):
     csp.return_results = out.append
     sys.modules["demistomock"], sys.modules["CommonServerPython"] = demisto, csp
     sys.path.insert(0, HERE)
-    module = importlib.import_module("SOCFWReportMailboxCheck")
+    module = importlib.import_module("SOCFWCloseWithoutAssessment")
     importlib.reload(module)
     module.main()
     return out[0]
 
 
-SKIP = "SOCFramework.ReportMailbox.skip"
-NOTES = "SOCFramework.ReportMailbox.close_notes"
-CLOSE = {"action": "soc-close-issue-report-mailbox", "Phase": "triage", "Action_Actor": "automation",
-         "LifeCycle": "NIST_IR"}
-
-
-def skipped(issue):
-    """Skip set, close notes written, and exactly one close asked of the wrapper."""
-    return (issue.context_writes.get(SKIP) == "true" and NOTES in issue.context_writes
-            and issue.wrapper_calls == [CLOSE])
+def closes(issue, reason="report_mailbox"):
+    d = issue.context_writes.get(KEY) or {}
+    return d.get("close") == "true" and d.get("reason") == reason and bool(d.get("note"))
 
 
 # ── happy path ───────────────────────────────────────────────────────────────
 
-def test_mail_to_a_listed_mailbox_is_not_assessed_and_a_close_is_requested():
+def test_mail_to_a_listed_mailbox_is_marked_to_close_and_recorded():
     i = Issue()
     r = run(i)
-    assert skipped(i)
-    assert "abuse@example.com is a report mailbox" in i.context_writes[NOTES]
-    assert "not assessed" in r.readable_output and "soc-close-issue-report-mailbox" in r.readable_output
-    assert i.rows == [{"event_type": "report_mailbox_decision", "status": "not_assessed",
-                       "incident_id": "777", "case_id": "4242", "parent_xdr_incident": "4242",
-                       "recipient": "abuse@example.com", "lifecycle": "NIST_IR",
-                       "decided_at": i.rows[0]["decided_at"]}]
+    assert closes(i)
+    assert i.context_writes[KEY]["note"] == (
+        "Closed by SOC Framework without assessment (report_mailbox): Recipient abuse@example.com "
+        "is a report mailbox on this tenant (SOCFWConfig command=close).")
+    assert "not assessed" in r.readable_output and "soc-close-issue-unassessed" in r.readable_output
+    assert i.rows == [{"event_type": "close_without_assessment", "reason": "report_mailbox",
+                       "status": "close", "incident_id": "777", "case_id": "4242",
+                       "parent_xdr_incident": "4242", "subject": "abuse@example.com",
+                       "lifecycle": "NIST_IR", "decided_at": i.rows[0]["decided_at"]}]
     # No phase: the value dashboards select rows by phase and must not pick this up.
     assert "phase" not in i.rows[0]
+
+
+def test_the_tenant_comment_is_added_to_the_close_note():
+    i = Issue(tenant_config={"close": {"report_mailboxes": ["abuse@example.com"],
+                                       "comment": "Per SOC policy 12, user-reported mail is handled by the abuse team."}})
+    run(i)
+    assert i.context_writes[KEY]["note"].endswith(
+        "(SOCFWConfig command=close). Per SOC policy 12, user-reported mail is handled by the abuse team.")
 
 
 def test_match_ignores_case_and_display_names():
     i = Issue(recipient='"Abuse Desk" <ABUSE@Example.com>')
     run(i)
-    assert skipped(i)
+    assert closes(i)
 
 
 def test_recipient_falls_back_to_the_mirrored_key():
     i = Issue(recipient=None, to="phish@example.com")
     run(i)
-    assert skipped(i)
+    assert closes(i)
 
 
 def test_an_issue_with_no_case_yet_is_handled_the_same():
     i = Issue(case=None)
     run(i)
-    assert skipped(i) and "case_id" not in i.rows[0]
+    assert closes(i) and "case_id" not in i.rows[0]
 
 
-def test_a_wrapper_failure_leaves_the_issue_skipped_and_open():
-    i = Issue(wrapper_error=True)
-    r = run(i)
-    assert i.context_writes.get(SKIP) == "true" and len(i.wrapper_calls) == 1
-    assert "not assessed" in r.readable_output
+def test_the_script_never_closes_anything_itself():
+    i = Issue()
+    run(i)
+    assert set(i.commands) == {"getList", "socfw-post-to-dataset"}
 
 
-# ── a click is never skipped ─────────────────────────────────────────────────
+# ── a click is never closed this way ─────────────────────────────────────────
 
 @pytest.mark.parametrize("click", [{"click_time": "2026-11-18T12:00:00Z"}, {"click_ip": "203.0.113.9"}])
 def test_a_click_to_a_listed_mailbox_is_assessed(click):
     i = Issue(**click)
     r = run(i)
-    assert i.context_writes == {} and i.wrapper_calls == []
-    assert [row["status"] for row in i.rows] == ["assessed_click"]
+    assert i.context_writes == {}
+    assert [(row["reason"], row["status"]) for row in i.rows] == [("report_mailbox", "assessed_click")]
     assert "assessed as usual" in r.readable_output
 
 
-# ── an empty list changes nothing ────────────────────────────────────────────
+# ── nothing set changes nothing ──────────────────────────────────────────────
 
-@pytest.mark.parametrize("config", [None, {}, {"report_mailboxes": []}, {"triage": {"window_hours": 6}},
-                                    {"report_mailboxes": "abuse@example.com"}, "not json"])
-def test_no_listed_mailbox_writes_nothing_at_all(config):
+@pytest.mark.parametrize("config", [None, {}, {"close": {}}, {"close": {"report_mailboxes": []}},
+                                    {"triage": {"window_hours": 6}}, {"close": "abuse@example.com"},
+                                    {"close": {"report_mailboxes": "abuse@example.com"}},
+                                    {"close": {"comment": "only a comment"}},
+                                    {"report_mailboxes": ["abuse@example.com"]}, "not json"])
+def test_no_reason_set_writes_nothing_at_all(config):
     i = Issue(tenant_config=config)
     r = run(i)
     assert i.context_writes == {} and i.rows == [] and r.readable_output == ""
-    assert i.commands == ["getList"] and i.wrapper_calls == []
+    assert i.commands == ["getList"]
 
 
 # ── everything else is assessed ──────────────────────────────────────────────
@@ -169,17 +170,17 @@ def test_no_listed_mailbox_writes_nothing_at_all(config):
 def test_a_recipient_that_is_not_listed_is_assessed_with_no_row(recipient):
     i = Issue(recipient=recipient)
     r = run(i)
-    assert i.context_writes == {} and i.rows == [] and r.readable_output == "" and i.wrapper_calls == []
+    assert i.context_writes == {} and i.rows == [] and r.readable_output == ""
 
 
-def test_several_recipients_are_skipped_only_when_all_are_listed():
+def test_several_recipients_close_only_when_all_are_listed():
     mixed = Issue(recipient="abuse@example.com, ana@example.com")
     run(mixed)
-    assert mixed.context_writes == {} and mixed.rows == [] and mixed.wrapper_calls == []
+    assert mixed.context_writes == {} and mixed.rows == []
     both = Issue(recipient=["abuse@example.com", "phish@example.com"])
     run(both)
-    assert skipped(both)
-    assert both.rows[0]["recipient"] == "abuse@example.com, phish@example.com"
+    assert closes(both)
+    assert both.rows[0]["subject"] == "abuse@example.com, phish@example.com"
 
 
 def test_a_failure_reading_the_list_means_the_issue_is_assessed():

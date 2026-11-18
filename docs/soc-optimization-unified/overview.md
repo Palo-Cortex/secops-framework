@@ -238,7 +238,7 @@ Shipped defaults, read from each list's `_data.json`. Change them on the tenant 
     | Key | Shipped default | Description |
     |---|---|---|
     | `soc-close-issue` | `shadow_mode=true` | Triage — close issue |
-    | `soc-close-issue-report-mailbox` | `shadow: analyst, ai, automation` | Triage — close issue sent to a report mailbox |
+    | `soc-close-issue-unassessed` | `shadow: analyst, ai, automation` | Triage — close issue without assessment |
     | `soc-close-issue-contained` | `shadow: analyst, ai, automation` | Triage — close issue as true positive, contained |
     | `soc-star-case` | `shadow: ai, automation, issue_emergency; live: analyst` | Triage — star case for analyst attention |
     | `soc-raise-case-severity` | `shadow: analyst, ai, automation` | Triage — raise case severity |
