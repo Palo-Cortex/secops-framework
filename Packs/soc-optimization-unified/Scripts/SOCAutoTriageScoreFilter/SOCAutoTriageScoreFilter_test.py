@@ -30,12 +30,10 @@ class Results:
 class Fake:
     """getList for SOCFWTenantConfig, one get_incidents page, closes and dataset rows."""
 
-    def __init__(self, tenant_config=None, cases=(), mailbox_cases=(), xql="SUCCESS"):
+    def __init__(self, tenant_config=None, cases=()):
         self.tenant_config = tenant_config
         self.cases = list(cases)
         self.closed, self.rows = [], []
-        self.mailbox_cases, self.xql = list(mailbox_cases), xql
-        self.comments, self.queries = {}, []
 
     def raw(self, command, args):
         if command == "getList":
@@ -51,17 +49,7 @@ class Fake:
             if args["uri"].endswith("get_incidents"):
                 page = self.cases[body["search_from"]:body["search_to"]]
                 return [{"response": {"reply": {"incidents": page}}}]
-            if args["uri"].endswith("start_xql_query"):
-                self.queries.append(body["query"])
-                if self.xql == "RAISE":
-                    raise RuntimeError("xql api down")
-                return [{"response": {"reply": "q-1"}}]
-            if args["uri"].endswith("get_query_results"):
-                return [{"response": {"reply": {
-                    "status": self.xql,
-                    "results": {"data": [{"case_id": c} for c in self.mailbox_cases]}}}}]
             self.closed.append(body["incident_id"])
-            self.comments[body["incident_id"]] = body["update_data"]["resolve_comment"]
             return [{"response": {"reply": True}}]
         if command == "socfw-post-to-dataset":
             self.rows += json.loads(args["JSON"])
@@ -221,47 +209,3 @@ def test_unusable_tenant_value_closes_nothing():
     r, errors = run(f, score_threshold="40", window_hours="6")
     assert r is None and f.closed == []
     assert "SOCFWTenantConfig" in errors[0]
-
-
-# ── report mailboxes in the closing comment ──────────────────────────────────
-
-MAILBOXES = {"report_mailboxes": ["abuse@example.com"]}
-
-
-def test_no_listed_mailbox_runs_no_query_and_keeps_the_usual_comment():
-    for config in (None, {}, {"report_mailboxes": []}, {"triage": {"window_hours": 6}}):
-        f = Fake(tenant_config=config, cases=CASES, mailbox_cases=["1"])
-        run(f, score_threshold="40", window_hours="6")
-        module, _, _ = load(Fake(), {})
-        assert f.queries == [] and f.comments == {"1": module.RESOLVE_COMMENT}
-        r, _ = run(Fake(tenant_config=config, cases=CASES), score_threshold="40", window_hours="6")
-        assert "report_mailbox_cases" not in r.outputs
-
-
-def test_a_case_with_left_alone_mail_says_so_in_its_closing_comment():
-    f = Fake(tenant_config=dict(MAILBOXES, triage={"score_threshold": 100}), cases=CASES,
-             mailbox_cases=["2", "999"])
-    r, errors = run(f, score_threshold="40", window_hours="6")
-    module, _, _ = load(Fake(), {})
-    assert not errors and f.closed == ["1", "2", "3"]
-    assert f.comments["2"] == module.RESOLVE_COMMENT + module.REPORT_MAILBOX_COMMENT
-    assert f.comments["1"] == f.comments["3"] == module.RESOLVE_COMMENT
-    assert len(f.queries) == 1 and 'status = "left_alone"' in f.queries[0]
-    assert r.outputs["report_mailbox_cases"] == 2 and r.outputs["report_mailbox_lookup_error"] == ""
-
-
-def test_a_listed_mailbox_closes_nothing_the_guards_would_not():
-    f = Fake(tenant_config=MAILBOXES, cases=CASES, mailbox_cases=["2", "4", "5", "6"])
-    run(f, score_threshold="40", window_hours="6")
-    assert f.closed == ["1"]
-
-
-@pytest.mark.parametrize("xql", ["FAIL", "RAISE", "PENDING"])
-def test_a_failed_lookup_still_closes_with_the_usual_comment(xql):
-    f = Fake(tenant_config=MAILBOXES, cases=CASES, mailbox_cases=["1"], xql=xql)
-    module, out, errors = load(f, {"score_threshold": "40", "window_hours": "6"})
-    module.XQL_POLLS = 2
-    module.time.sleep = lambda s: None
-    module.report_mailbox_cases.__defaults__ = (lambda s: None,)
-    module.main()
-    assert not errors and f.closed == ["1"] and f.comments == {"1": module.RESOLVE_COMMENT}

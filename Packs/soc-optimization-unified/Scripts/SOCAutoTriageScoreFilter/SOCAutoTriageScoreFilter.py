@@ -18,14 +18,6 @@ RESOLVE_STATUS = 'resolved_other'
 RESOLVE_COMMENT = ('SOC Framework Auto Triage: case exceeded age threshold, '
                    'aggregated_score below threshold, no analyst activity '
                    'detected. Auto-closed by JOB.')
-# Added to the closing comment of a case that holds mail sent to one of the
-# tenant's report mailboxes (SOCFWConfig command=mailboxes). That mail is left
-# unassessed on purpose, and the comment is the one place that says so.
-REPORT_MAILBOX_COMMENT = (' This case includes mail sent to a report mailbox, which this '
-                          'tenant leaves unassessed (SOCFWConfig command=mailboxes).')
-EXECUTION_DATASET = 'xsiam_socfw_ir_execution_raw'
-REPORT_MAILBOX_LOOKBACK_DAYS = 7
-XQL_POLLS = 30
 API_URI = GET_INCIDENTS_URI  # back-compat alias
 # Per-run wall-clock budget. Two O(n) costs share it: offset pagination during
 # fetch (deep search_from makes get_incidents progressively slower) and the
@@ -138,7 +130,7 @@ def domain_allowed(incident_domain, match_all, allowed):
     return _norm_domain(incident_domain) in allowed_norm
 
 
-def close_case(incident_id, comment=RESOLVE_COMMENT):
+def close_case(incident_id):
     """Close one case via update_incident (single incident_id — the API rejects
     incident_id_list). Returns (success: bool, error_message: str). Never raises;
     one failed close must not abort the rest of the batch."""
@@ -147,7 +139,7 @@ def close_case(incident_id, comment=RESOLVE_COMMENT):
             'incident_id': str(incident_id),
             'update_data': {
                 'status': RESOLVE_STATUS,
-                'resolve_comment': comment
+                'resolve_comment': RESOLVE_COMMENT
             }
         }
     })
@@ -186,11 +178,13 @@ def _is_unstarred(value):
 TENANT_CONFIG_LIST = 'SOCFWTenantConfig'
 
 
-def tenant_config():
-    """SOCFWTenantConfig as a dict, or {} when it is missing or unreadable.
+def tenant_triage():
+    """The 'triage' overrides in SOCFWTenantConfig, or {} when there are none.
 
-    Read with demisto.executeCommand rather than execute_command: a tenant that
-    never created the list is the normal case, not an error.
+    Set with !SOCFWConfig command=triage. They live in the tenant's own list, so a
+    pack upgrade that rewrites SOCOptimizationConfig_V3 cannot undo them. Read
+    with demisto.executeCommand rather than execute_command: a tenant that never
+    created the list is the normal case, not an error.
     """
     try:
         res = demisto.executeCommand('getList', {'listName': TENANT_CONFIG_LIST})
@@ -205,66 +199,8 @@ def tenant_config():
         doc = raw if isinstance(raw, dict) else json.loads(raw)
     except (ValueError, TypeError):
         return {}
-    return doc if isinstance(doc, dict) else {}
-
-
-def tenant_triage(doc=None):
-    """The 'triage' overrides in SOCFWTenantConfig, or {} when there are none.
-
-    Set with !SOCFWConfig command=triage. They live in the tenant's own list, so a
-    pack upgrade that rewrites SOCOptimizationConfig_V3 cannot undo them.
-    """
-    section = (tenant_config() if doc is None else doc).get('triage')
+    section = doc.get('triage') if isinstance(doc, dict) else None
     return section if isinstance(section, dict) else {}
-
-
-def report_mailbox_cases(doc, sleep=time.sleep):
-    """Ids of cases holding mail that was left alone because it went to a report mailbox.
-
-    Only asked when the tenant lists a report mailbox, so a tenant without one
-    runs no query. Read from the report_mailbox_decision rows the entry playbook
-    writes. Returns (ids, None), or (set(), why) when the rows cannot be read:
-    the cases then close with the usual comment.
-    """
-    listed = doc.get('report_mailboxes')
-    if not isinstance(listed, list) or not listed:
-        return set(), None
-    query = (f'dataset = {EXECUTION_DATASET}'
-             ' | filter event_type = "report_mailbox_decision" and status = "left_alone"'
-             ' | fields case_id | dedup case_id | limit 1000')
-    start = json.dumps({'request_data': {
-        'query': query,
-        'timeframe': {'relativeTime': REPORT_MAILBOX_LOOKBACK_DAYS * 24 * 3600 * 1000}}})
-    try:
-        resp = execute_command('core-api-post',
-                               {'uri': '/public_api/v1/xql/start_xql_query', 'body': start})
-        if isinstance(resp, list):
-            resp = resp[0] if resp else {}
-        query_id = demisto.get(resp, 'response.reply')
-        if not query_id:
-            return set(), f'report-mailbox lookup failed to start: {str(resp)[:200]}'
-        body = json.dumps({'request_data': {'query_id': query_id, 'pending_flag': True,
-                                            'limit': 1000, 'format': 'json'}})
-        for _ in range(XQL_POLLS):
-            resp = execute_command('core-api-post',
-                                   {'uri': '/public_api/v1/xql/get_query_results', 'body': body})
-            if isinstance(resp, list):
-                resp = resp[0] if resp else {}
-            reply = demisto.get(resp, 'response.reply')
-            if not isinstance(reply, dict):
-                return set(), f'report-mailbox lookup failed: {str(resp)[:200]}'
-            if reply.get('status') == 'PENDING':
-                sleep(1)
-                continue
-            if reply.get('status') != 'SUCCESS':
-                return set(), f"report-mailbox lookup ended {reply.get('status')}"
-            results = reply.get('results') or {}
-            data = results.get('data') if isinstance(results, dict) else results
-            return {str(r['case_id']) for r in data or []
-                    if isinstance(r, dict) and r.get('case_id') not in (None, '')}, None
-    except Exception as e:  # noqa: BLE001 - the comment is a courtesy, the close is the job
-        return set(), f'report-mailbox lookup failed: {e}'
-    return set(), f'report-mailbox lookup did not finish in {XQL_POLLS}s'
 
 
 def resolve_settings(args, overrides):
@@ -341,14 +277,10 @@ def main():
     # passes both from SOCOptimizationConfig_V3; a tenant value set with
     # SOCFWConfig command=triage wins over either.
     try:
-        tenant_doc = tenant_config()
-        threshold, window_hours, sources = resolve_settings(args, tenant_triage(tenant_doc))
+        threshold, window_hours, sources = resolve_settings(args, tenant_triage())
     except ValueError as e:
         return_error(str(e))
         return
-    mailbox_cases, mailbox_note = report_mailbox_cases(tenant_doc)
-    if mailbox_note:
-        demisto.debug(f'{mailbox_note}; closing with the usual comment.')
     threshold_label = 'off' if threshold is None else threshold
     if sources['score_threshold'] != 'argument':
         threshold_label = f'{threshold_label} ({sources["score_threshold"]})'
@@ -435,10 +367,7 @@ def main():
                     demisto.debug(f'Runtime budget hit during close after '
                                   f'{len(closed_ok)} closes; stopping with partial progress.')
                     return True
-                comment = RESOLVE_COMMENT
-                if incident_id in mailbox_cases:
-                    comment += REPORT_MAILBOX_COMMENT
-                success, err = close_case(incident_id, comment)
+                success, err = close_case(incident_id)
 
             if success:
                 closed_ok.append(incident_id)
@@ -657,11 +586,6 @@ def main():
         'budget_hit': budget_hit,
         'dataset_write_error': dataset_write_error
     }
-    # Reported only when the tenant lists a report mailbox, so a tenant without
-    # one sees the same outputs as before.
-    if tenant_doc.get('report_mailboxes'):
-        outputs['report_mailbox_cases'] = len(mailbox_cases)
-        outputs['report_mailbox_lookup_error'] = mailbox_note or ''
     if dry_run:
         outputs['would_close_count'] = len(passed)
         outputs['would_close_ids'] = closed_ok[:500]

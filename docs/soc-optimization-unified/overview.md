@@ -233,11 +233,12 @@ Shipped defaults, read from each list's `_data.json`. Change them on the tenant 
     | `email_indicator_hunting` | `false` | Cross-platform indicator hunting for phishing IOCs. Enable when a hunting-capable platform is connected (e.g., Microsoft Defender 365). Expensive — runs per ... |
     | `email_phishing_ml` | `false` | ML-based phishing content scoring via Phishing - Machine Learning Analysis. Enable after deploying a Phishing ML model. Requires email body content from emai... |
 
-??? note "`SOCFrameworkActions_V3` — 52 keys"
+??? note "`SOCFrameworkActions_V3` — 53 keys"
 
     | Key | Shipped default | Description |
     |---|---|---|
     | `soc-close-issue` | `shadow_mode=true` | Triage — close issue |
+    | `soc-close-issue-report-mailbox` | `shadow: analyst, ai, automation` | Triage — close issue sent to a report mailbox |
     | `soc-close-issue-contained` | `shadow: analyst, ai, automation` | Triage — close issue as true positive, contained |
     | `soc-star-case` | `shadow: ai, automation, issue_emergency; live: analyst` | Triage — star case for analyst attention |
     | `soc-raise-case-severity` | `shadow: analyst, ai, automation` | Triage — raise case severity |

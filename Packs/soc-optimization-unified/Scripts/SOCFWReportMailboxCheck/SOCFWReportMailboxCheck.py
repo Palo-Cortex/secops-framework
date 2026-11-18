@@ -1,11 +1,15 @@
-"""Leave mail sent to an abuse/report mailbox alone, before anything is spent on it.
+"""Close mail sent to an abuse/report mailbox at the issue, before anything is spent on it.
 
 A tenant lists its report mailboxes with !SOCFWConfig command=mailboxes. Mail
 delivered to one of them is an employee forwarding something suspicious, not a
-user at risk, so the entry playbook skips the assessment for it: the issue is
-not assessed and not closed, and Auto Triage sweeps the case later.
+user at risk, so the entry playbook skips the assessment for it and this script
+asks the Universal Command to close that one issue with a note saying why.
 
-Skips only when all three hold:
+The close is the action soc-close-issue-report-mailbox. It ships in shadow, so
+until a tenant turns it on the close is recorded and the issue stays open. The
+case is never closed.
+
+Acts only when all three hold:
   - the tenant has listed at least one report mailbox
   - every recipient on the issue is a listed mailbox
   - the issue carries no click (a permitted click is always assessed)
@@ -25,6 +29,9 @@ from CommonServerPython import *  # noqa: F401,F403
 TENANT_CONFIG_LIST = "SOCFWTenantConfig"
 MAILBOXES_KEY = "report_mailboxes"
 SKIP_KEY = "SOCFramework.ReportMailbox.skip"
+NOTES_KEY = "SOCFramework.ReportMailbox.close_notes"
+CLOSE_ACTION = "soc-close-issue-report-mailbox"
+ACTOR = "automation"
 RECIPIENT_KEYS = ("SOCFramework.Email.recipient", "SOCFramework.Artifacts.Email.To")
 CLICK_KEYS = ("SOCFramework.Email.click_time", "SOCFramework.Email.click_ip")
 ADDRESS = re.compile(r"[\w.%+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -66,10 +73,10 @@ def has_click(ctx):
 
 
 def decide(listed, to, click):
-    """left_alone, assessed_click, or None when the recipient is not a report mailbox."""
+    """not_assessed, assessed_click, or None when the recipient is not a report mailbox."""
     if not listed or not to or not to <= listed:
         return None
-    return "assessed_click" if click else "left_alone"
+    return "assessed_click" if click else "not_assessed"
 
 
 def case_id(incident):
@@ -100,6 +107,24 @@ def record(status, incident, ctx, to):
         demisto.debug(f"SOCFWReportMailboxCheck: report_mailbox_decision row not written: {e}")
 
 
+def close_issue(ctx, to):
+    """Ask the Universal Command to close this issue. Shadow mode on the action decides whether it does.
+
+    A wrapper that cannot be called leaves the issue open and nothing else changes.
+    """
+    demisto.setContext(NOTES_KEY, (
+        f"Closed by SOC Framework: recipient {', '.join(sorted(to))} is a report mailbox on this "
+        "tenant (SOCFWConfig command=mailboxes). Mail to a report mailbox is not assessed."))
+    args = {"action": CLOSE_ACTION, "Phase": "triage", "Action_Actor": ACTOR}
+    lifecycle = demisto.get(ctx, "SOCFramework.lifecycle")
+    if lifecycle not in ABSENT:
+        args["LifeCycle"] = lifecycle
+    try:
+        demisto.executeCommand("SOCCommandWrapper", args)
+    except Exception as e:  # noqa: BLE001 - a failed close leaves the issue open, nothing more
+        demisto.debug(f"SOCFWReportMailboxCheck: {CLOSE_ACTION} not dispatched: {e}")
+
+
 def main():
     try:
         listed = report_mailboxes()
@@ -119,15 +144,18 @@ def main():
         return
 
     record(status, demisto.incident(), ctx, to)
-    if status == "left_alone":
-        demisto.setContext(SKIP_KEY, "true")
+    if status == "assessed_click":
         return_results(CommandResults(
-            readable_output=f"Recipient {', '.join(sorted(to))} is a report mailbox: not assessed, "
-                            "left for Auto Triage."))
+            readable_output=f"Recipient {', '.join(sorted(to))} is a report mailbox, but the issue "
+                            "carries a click: assessed as usual."))
         return
+
+    demisto.setContext(SKIP_KEY, "true")
+    close_issue(ctx, to)
     return_results(CommandResults(
-        readable_output=f"Recipient {', '.join(sorted(to))} is a report mailbox, but the issue "
-                        "carries a click: assessed as usual."))
+        readable_output=f"Recipient {', '.join(sorted(to))} is a report mailbox: not assessed. "
+                        f"Close requested through {CLOSE_ACTION}; whether the issue closes depends "
+                        "on shadow mode for that action."))
 
 
 if __name__ in ("__main__", "__builtin__", "builtins"):

@@ -1,9 +1,10 @@
 """
 SOCFWReportMailboxCheck_test.py
 
-Mail delivered to a listed report mailbox is skipped; everything else is
-assessed: an empty or missing list, a recipient that is not listed, a click to a
-listed mailbox, several recipients where one is a person, and any failure.
+Mail delivered to a listed report mailbox is not assessed and a close of that
+issue is requested through the Universal Command; everything else is assessed:
+an empty or missing list, a recipient that is not listed, a click to a listed
+mailbox, several recipients where one is a person, and any failure.
 
 Run: pytest Scripts/SOCFWReportMailboxCheck/SOCFWReportMailboxCheck_test.py -v
 """
@@ -29,7 +30,7 @@ class Issue:
     """One issue: its context, the tenant list, and everything the script wrote."""
 
     def __init__(self, tenant_config=LISTED, recipient="abuse@example.com", click_time=None,
-                 click_ip=None, case="INCIDENT-4242", to=None, list_error=False):
+                 click_ip=None, case="INCIDENT-4242", to=None, list_error=False, wrapper_error=False):
         email = {"recipient": recipient, "click_time": click_time, "click_ip": click_ip}
         self.ctx = {"SOCFramework": {"lifecycle": "NIST_IR",
                                      "Email": {k: v for k, v in email.items() if v is not None}}}
@@ -37,6 +38,7 @@ class Issue:
             self.ctx["SOCFramework"]["Artifacts"] = {"Email": {"To": to}}
         self.tenant_config, self.case, self.list_error = tenant_config, case, list_error
         self.rows, self.context_writes, self.commands = [], {}, []
+        self.wrapper_calls, self.wrapper_error = [], wrapper_error
 
     def execute(self, command, args):
         self.commands.append(command)
@@ -51,6 +53,11 @@ class Issue:
         if command == "socfw-post-to-dataset":
             self.rows.append(json.loads(args["JSON"]))
             return [{"Type": 1, "Contents": "ok"}]
+        if command == "SOCCommandWrapper":
+            self.wrapper_calls.append(dict(args))
+            if self.wrapper_error:
+                raise RuntimeError("wrapper blew up")
+            return [{"Type": 1, "Contents": {"action": args["action"], "shadow_mode": True}}]
         raise AssertionError(f"unexpected command {command}")
 
 
@@ -81,16 +88,26 @@ def run(issue):
 
 
 SKIP = "SOCFramework.ReportMailbox.skip"
+NOTES = "SOCFramework.ReportMailbox.close_notes"
+CLOSE = {"action": "soc-close-issue-report-mailbox", "Phase": "triage", "Action_Actor": "automation",
+         "LifeCycle": "NIST_IR"}
+
+
+def skipped(issue):
+    """Skip set, close notes written, and exactly one close asked of the wrapper."""
+    return (issue.context_writes.get(SKIP) == "true" and NOTES in issue.context_writes
+            and issue.wrapper_calls == [CLOSE])
 
 
 # ── happy path ───────────────────────────────────────────────────────────────
 
-def test_mail_to_a_listed_mailbox_is_left_alone_and_recorded():
+def test_mail_to_a_listed_mailbox_is_not_assessed_and_a_close_is_requested():
     i = Issue()
     r = run(i)
-    assert i.context_writes == {SKIP: "true"}
-    assert "not assessed" in r.readable_output
-    assert i.rows == [{"event_type": "report_mailbox_decision", "status": "left_alone",
+    assert skipped(i)
+    assert "abuse@example.com is a report mailbox" in i.context_writes[NOTES]
+    assert "not assessed" in r.readable_output and "soc-close-issue-report-mailbox" in r.readable_output
+    assert i.rows == [{"event_type": "report_mailbox_decision", "status": "not_assessed",
                        "incident_id": "777", "case_id": "4242", "parent_xdr_incident": "4242",
                        "recipient": "abuse@example.com", "lifecycle": "NIST_IR",
                        "decided_at": i.rows[0]["decided_at"]}]
@@ -101,19 +118,26 @@ def test_mail_to_a_listed_mailbox_is_left_alone_and_recorded():
 def test_match_ignores_case_and_display_names():
     i = Issue(recipient='"Abuse Desk" <ABUSE@Example.com>')
     run(i)
-    assert i.context_writes == {SKIP: "true"}
+    assert skipped(i)
 
 
 def test_recipient_falls_back_to_the_mirrored_key():
     i = Issue(recipient=None, to="phish@example.com")
     run(i)
-    assert i.context_writes == {SKIP: "true"}
+    assert skipped(i)
 
 
-def test_an_issue_with_no_case_yet_is_still_left_alone():
+def test_an_issue_with_no_case_yet_is_handled_the_same():
     i = Issue(case=None)
     run(i)
-    assert i.context_writes == {SKIP: "true"} and "case_id" not in i.rows[0]
+    assert skipped(i) and "case_id" not in i.rows[0]
+
+
+def test_a_wrapper_failure_leaves_the_issue_skipped_and_open():
+    i = Issue(wrapper_error=True)
+    r = run(i)
+    assert i.context_writes.get(SKIP) == "true" and len(i.wrapper_calls) == 1
+    assert "not assessed" in r.readable_output
 
 
 # ── a click is never skipped ─────────────────────────────────────────────────
@@ -122,7 +146,7 @@ def test_an_issue_with_no_case_yet_is_still_left_alone():
 def test_a_click_to_a_listed_mailbox_is_assessed(click):
     i = Issue(**click)
     r = run(i)
-    assert i.context_writes == {}
+    assert i.context_writes == {} and i.wrapper_calls == []
     assert [row["status"] for row in i.rows] == ["assessed_click"]
     assert "assessed as usual" in r.readable_output
 
@@ -135,7 +159,7 @@ def test_no_listed_mailbox_writes_nothing_at_all(config):
     i = Issue(tenant_config=config)
     r = run(i)
     assert i.context_writes == {} and i.rows == [] and r.readable_output == ""
-    assert i.commands == ["getList"]
+    assert i.commands == ["getList"] and i.wrapper_calls == []
 
 
 # ── everything else is assessed ──────────────────────────────────────────────
@@ -145,16 +169,16 @@ def test_no_listed_mailbox_writes_nothing_at_all(config):
 def test_a_recipient_that_is_not_listed_is_assessed_with_no_row(recipient):
     i = Issue(recipient=recipient)
     r = run(i)
-    assert i.context_writes == {} and i.rows == [] and r.readable_output == ""
+    assert i.context_writes == {} and i.rows == [] and r.readable_output == "" and i.wrapper_calls == []
 
 
 def test_several_recipients_are_skipped_only_when_all_are_listed():
     mixed = Issue(recipient="abuse@example.com, ana@example.com")
     run(mixed)
-    assert mixed.context_writes == {} and mixed.rows == []
+    assert mixed.context_writes == {} and mixed.rows == [] and mixed.wrapper_calls == []
     both = Issue(recipient=["abuse@example.com", "phish@example.com"])
     run(both)
-    assert both.context_writes == {SKIP: "true"}
+    assert skipped(both)
     assert both.rows[0]["recipient"] == "abuse@example.com, phish@example.com"
 
 

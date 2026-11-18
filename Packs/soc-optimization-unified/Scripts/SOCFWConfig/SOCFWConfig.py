@@ -27,9 +27,10 @@ Commands
            starred cases are left to analysts. Dry run unless apply=yes.
   mailboxes
            Show or set the abuse/report mailboxes for this tenant. Mail sent to
-           one is left alone - not assessed, not closed - and Auto Triage sweeps
-           it. A click is always assessed. Empty by default. Dry run unless
-           apply=yes.
+           one is not assessed; its issue is closed with a note by the action
+           soc-close-issue-report-mailbox, which ships in shadow and is turned on
+           with command=shadow. A click is always assessed. Empty by default. Dry
+           run unless apply=yes.
   mode     List the modes in SOCFWConfigModes against this tenant, or apply one:
            the shadow settings it names and the Auto Triage JOB (owner=<email>
            optional). mode=default removes them and turns the JOB off.
@@ -53,7 +54,7 @@ SOCFWAnalystSelect and SOCFWOnDutySync read:
                   "window": "24 hours", "max_per_analyst": number or "unlimited", "online_only": bool}}
 SOCFWCaseSelect reads:
   {"case": {"window_hours": number, "max_analyses": number, "cases": "unstarred"|"all"}}
-SOCFWReportMailboxCheck and SOCAutoTriageScoreFilter read:
+SOCFWReportMailboxCheck reads:
   {"report_mailboxes": ["abuse@example.com", ...]}
 """
 
@@ -1675,9 +1676,12 @@ def case(args):
 
 MAILBOXES_KEY = "report_mailboxes"
 ADDRESS = re.compile(r"^[\w.%+-]+@[\w-]+(\.[\w-]+)+$")
-MAILBOXES_HELP = ("Mail delivered to a listed mailbox is left alone: no AI assessment, no close; "
-                  "Auto Triage sweeps it and says why in its closing comment. A click from a "
-                  "listed mailbox is still assessed.")
+MAILBOXES_ACTION = "soc-close-issue-report-mailbox"
+MAILBOXES_HELP = ("Mail delivered to a listed mailbox is not assessed, and its issue is closed with a "
+                  f"note by `{MAILBOXES_ACTION}`. That action ships in shadow, so the close is only "
+                  "recorded until you turn it on: "
+                  f"`!SOCFWConfig command=shadow action={MAILBOXES_ACTION} actor=automation value=off "
+                  "apply=yes`. The case is never closed. A click from a listed mailbox is still assessed.")
 MAILBOXES_USAGE = ("Set the list: `!SOCFWConfig command=mailboxes report=\"abuse@example.com, "
                    "phish@example.com\"` — the addresses given replace the whole list, `default` "
                    "empties it, add `apply=yes` to write.")

@@ -20,7 +20,7 @@ One command, `!SOCFWConfig`, is how the framework is configured on a tenant afte
 | `emergency` | List, edit or add issue-level emergency response policies and their guards |
 | `triage` | Show or set Auto Triage's score threshold and age window |
 | `assignment` | Show or set the analyst assignment settings: the roles and groups on duty when no schedule source is set up, which cases get an owner, the window, the per-analyst cap, online-only; see [Analyst Assignment](analyst-assignment.md) |
-| `mailboxes` | Show or set the abuse/report mailboxes. Mail delivered to one is left alone: `SOCFWReportMailboxCheck` stops the entry playbook before the assessment, the issue is not assessed and not closed, and Auto Triage sweeps the case and says why in its closing comment. A click from a listed mailbox is still assessed. Empty by default, which changes nothing |
+| `mailboxes` | Show or set the abuse/report mailboxes. Mail delivered to one is not assessed: `SOCFWReportMailboxCheck` stops the entry playbook before the assessment and closes that issue with a note through the action `soc-close-issue-report-mailbox`. The action ships in Shadow Mode, so the close is only recorded until it is turned on. The case is never closed. A click from a listed mailbox is still assessed. Empty by default, which changes nothing |
 | `mode` | Apply a deployment mode; see [Deployment Modes](deployment-modes.md) |
 
 ## 2. Where the switch lives
@@ -53,7 +53,11 @@ Three examples:
 !SOCFWConfig command=mailboxes report="abuse@customer.example, phish@customer.example" apply=yes
 ```
 
-For `mailboxes`, the addresses given replace the whole list and `report=default` empties it. Each skipped issue writes a `report_mailbox_decision` row to `xsiam_socfw_ir_execution_raw` with `status = left_alone`; a click to a listed mailbox writes `assessed_click` and is assessed as usual.
+For `mailboxes`, the addresses given replace the whole list and `report=default` empties it. Each matching issue writes a `report_mailbox_decision` row to `xsiam_socfw_ir_execution_raw` with `status = not_assessed`, followed by the `command` row for `soc-close-issue-report-mailbox` (shadow or production). A click to a listed mailbox writes `assessed_click` and is assessed as usual. To turn the close on:
+
+```
+!SOCFWConfig command=shadow action=soc-close-issue-report-mailbox actor=automation value=off apply=yes
+```
 
 ## 4. Verify
 
