@@ -311,7 +311,7 @@ Shipped defaults, read from each list's `_data.json`. Change them on the tenant 
 
     | Key | Shipped default | Description |
     |---|---|---|
-    | `Triage Incidents JOB` | `TriageWindowHours=6, TriageScoreThreshold=40, TriageMaxBatches=200, TriageBatchSize=100, TriageDomains=security` |  |
+    | `Triage Incidents JOB` | `TriageWindowHours=6, TriageScoreThreshold=100, TriageMaxBatches=200, TriageBatchSize=100, TriageDomains=security` |  |
     | `Dedup` | `true` |  |
     | `ShadowMode` | `true` |  |
     | `Case Analysis JOB` | `false` |  |

@@ -883,7 +883,7 @@ def triage_tenant(cfg=None):
 def test_triage_lists_shipped_values_when_nothing_is_set():
     r = run(triage_tenant(), command="triage")
     s = r.outputs["settings"]
-    assert s["score_threshold"] == {"shipped": "40", "tenant": None, "effective": "40", "from": "shipped"}
+    assert s["score_threshold"] == {"shipped": "100", "tenant": None, "effective": "100", "from": "shipped"}
     assert s["window_hours"]["effective"] == "6" and s["window_hours"]["from"] == "shipped"
     assert "command=triage" in r.readable_output
 
