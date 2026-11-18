@@ -883,7 +883,7 @@ def triage_tenant(cfg=None):
 def test_triage_lists_shipped_values_when_nothing_is_set():
     r = run(triage_tenant(), command="triage")
     s = r.outputs["settings"]
-    assert s["score_threshold"] == {"shipped": "40", "tenant": None, "effective": "40", "from": "shipped"}
+    assert s["score_threshold"] == {"shipped": "100", "tenant": None, "effective": "100", "from": "shipped"}
     assert s["window_hours"]["effective"] == "6" and s["window_hours"]["from"] == "shipped"
     assert "command=triage" in r.readable_output
 
@@ -1355,3 +1355,85 @@ def test_status_shows_the_case_settings():
     r = run(triage_tenant({"case": {"window_hours": 72}}), command="status")
     assert r.outputs["case"]["window_hours"]["effective"] == 72
     assert "Case Analysis settings" in r.readable_output
+
+
+# ── close ────────────────────────────────────────────────────────────────────
+
+def test_close_has_nothing_set_by_default():
+    t = triage_tenant()
+    r = run(t, command="close")
+    assert r.outputs["settings"] == {} and r.outputs["dry_run"]
+    assert "soc-close-issue-unassessed" in r.readable_output and t.writes() == []
+
+
+def test_close_is_a_dry_run_by_default():
+    t = triage_tenant({})
+    r = run(t, command="close", report_mailboxes="abuse@example.com, phish@example.com")
+    assert r.outputs["dry_run"] and r.outputs["changed"] and t.writes() == []
+    assert r.outputs["apply_command"] == (
+        '!SOCFWConfig command=close report_mailboxes="abuse@example.com, phish@example.com" apply=yes')
+
+
+def test_close_apply_writes_the_section_lowercase_once_each_and_records():
+    t = triage_tenant({"triage": {"window_hours": 12}})
+    r = run(t, command="close", report_mailboxes="Abuse@Example.com, phish@example.com,abuse@example.com",
+            comment="Handled by the abuse team.", apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.config() == {"triage": {"window_hours": 12},
+                          "close": {"report_mailboxes": ["abuse@example.com", "phish@example.com"],
+                                    "comment": "Handled by the abuse team."}}
+    rows = [x for x in t.rows if x["event_type"] == "config_change"]
+    assert len(rows) == 2 and all("incident_id" not in x and "phase" not in x for x in rows)
+    assert rows[0]["action_taken"] == "report_mailboxes: (not set) -> abuse@example.com, phish@example.com"
+
+
+def test_close_first_write_creates_a_json_list():
+    t = triage_tenant()
+    run(t, command="close", report_mailboxes="abuse@example.com", apply="yes")
+    assert t.types[NEW] == "json" and t.config() == {"close": {"report_mailboxes": ["abuse@example.com"]}}
+
+
+def test_close_given_addresses_replace_the_whole_list_and_leave_the_comment():
+    t = triage_tenant({"close": {"report_mailboxes": ["abuse@example.com", "phish@example.com"], "comment": "c"}})
+    run(t, command="close", report_mailboxes="soc@example.com", apply="yes")
+    assert t.config()["close"] == {"report_mailboxes": ["soc@example.com"], "comment": "c"}
+
+
+def test_close_default_removes_one_setting_then_the_section():
+    t = triage_tenant({"close": {"report_mailboxes": ["abuse@example.com"], "comment": "c"},
+                       "Zscaler": {"using": "z"}})
+    run(t, command="close", comment="default", apply="yes")
+    assert t.config()["close"] == {"report_mailboxes": ["abuse@example.com"]}
+    run(t, command="close", report_mailboxes="default", apply="yes")
+    assert t.config() == {"Zscaler": {"using": "z"}}
+
+
+def test_close_repeat_is_a_no_op():
+    t = triage_tenant({"close": {"report_mailboxes": ["abuse@example.com"]}})
+    r = run(t, command="close", report_mailboxes="abuse@example.com", apply="yes")
+    assert not r.outputs["changed"] and t.writes() == []
+
+
+@pytest.mark.parametrize("value", ["abuse", "abuse@", "abuse@example", "abuse@example.com; phish@example.com",
+                                   "abuse@example.com, none"])
+def test_close_bad_addresses_are_refused(value):
+    t = triage_tenant({})
+    with pytest.raises(RuntimeError, match="is not an email address"):
+        run(t, command="close", report_mailboxes=value, apply="yes")
+    assert t.writes() == []
+
+
+def test_close_arguments_are_refused_on_other_commands():
+    with pytest.raises(RuntimeError, match="report_mailboxes is for command=close"):
+        run(triage_tenant({}), command="triage", report_mailboxes="abuse@example.com")
+
+
+@pytest.mark.parametrize("cfg, message", [
+    ({"close": "abuse@example.com"}, "'close' in SOCFWTenantConfig is not an object"),
+    ({"close": {"report_mailboxes": "abuse@example.com"}}, "'close.report_mailboxes' in SOCFWTenantConfig is not a list"),
+])
+def test_close_malformed_section_is_never_overwritten(cfg, message):
+    t = triage_tenant(cfg)
+    with pytest.raises(RuntimeError, match=message):
+        run(t, command="close", report_mailboxes="phish@example.com", apply="yes")
+    assert t.config() == cfg

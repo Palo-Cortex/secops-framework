@@ -36,7 +36,7 @@ A case is eligible for auto-close when **all** of these are true:
 |---|---|---|
 | `status = "new"` | always | hard-coded |
 | `manual_score is null` | always | hard-coded — analyst hasn't intervened |
-| `aggregated_score <= TriageScoreThreshold` | **40** | `SOCOptimizationConfig_V3` |
+| `aggregated_score <= TriageScoreThreshold` | **100** | `SOCOptimizationConfig_V3` |
 | `creation_time` older than `TriageWindowHours` | **6 hours** | `SOCOptimizationConfig_V3` |
 | `starred = false` | always (currently) | hard-coded — but see below |
 
@@ -48,9 +48,10 @@ will touch it.
 ## Risk score is the primary gate
 
 Auto Triage now operates on **case risk score**. The default threshold
-is **40**, configurable per tenant in `SOCOptimizationConfig_V3`.
-Anything XSIAM scored above 40 is excluded from auto-close regardless
-of how old it is.
+is **100**, which lets every scored case through, and is set per tenant
+with `!SOCFWConfig command=triage`. Lower it and anything XSIAM scored
+above the threshold is excluded from auto-close regardless of how old it
+is.
 
 This is the framework leaning into XSIAM-native intelligence. The
 platform's ML-computed `aggregated_score` is a richer signal than any
@@ -69,7 +70,7 @@ The framework no longer requires it. Customers can:
 
 - **Skip starring entirely** — the lifecycle automation trigger fires
   on `Severity ≥ Medium` (or any other rule the customer prefers),
-  Auto Triage closes everything with `aggregated_score ≤ 40`. No
+  Auto Triage closes everything at or below the score threshold. No
   starring rule needed.
 - **Keep using starring** as an additional safeguard — the JOB still
   excludes starred cases from auto-close. A starring rule like
@@ -127,13 +128,14 @@ section:
 
 | Key | Default | Effect |
 |---|---|---|
-| `TriageScoreThreshold` | 40 | Cases at or below this score are eligible |
+| `TriageScoreThreshold` | 100 | Cases at or below this score are eligible |
 | `TriageWindowHours` | 6 | Cases must be older than this |
 
-Tune `TriageScoreThreshold` after observing the tenant's score
-distribution in the first week. Default 40 protects anything XSIAM
-ranked medium-risk or higher from auto-close. Customers with
-high-confidence detections often raise it.
+The default of 100 means the score does not hold a case back: every
+unstarred, unworked `New` case past the age window closes, whatever XSIAM
+scored it. A case with no score at all is still skipped. To protect
+higher-scored cases from auto-close, lower it for the tenant with
+`!SOCFWConfig command=triage score_threshold=<n>`.
 
 ## Value driver
 

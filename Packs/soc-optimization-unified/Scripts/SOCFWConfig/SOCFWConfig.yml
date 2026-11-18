@@ -12,7 +12,8 @@ comment: Configures the SOC Framework on this tenant. status shows which actions
   named actors, or returns it to the shipped setting. set sets or removes one customer
   value, such as a block-list id or proxy category. emergency lists, edits or adds
   the issue-level emergency response policies. triage shows or sets Auto Triage's
-  score threshold and age window. mode applies a set of these settings from SOCFWConfigModes,
+  score threshold and age window. close shows or sets the reasons an issue is closed
+  without an assessment, starting with mail delivered to an abuse/report mailbox. mode applies a set of these settings from SOCFWConfigModes,
   including turning Auto Triage on. Every change is a dry run unless
   apply=yes. Settings are written to SOCFWTenantConfig, a JSON list this script creates
   on first write (through the Core REST API integration) and no pack install overwrites.
@@ -32,7 +33,7 @@ supportedModules:
 system: false
 args:
 - name: command
-  description: status (default), shadow, set, job, owner, emergency, triage, assignment, case or mode. Each
+  description: status (default), shadow, set, job, owner, emergency, triage, assignment, case, close or mode. Each
     command takes only the arguments marked with it; one marked for another command is refused.
   defaultValue: status
   auto: PREDEFINED
@@ -46,6 +47,7 @@ args:
   - triage
   - assignment
   - case
+  - close
   - mode
 - name: action
   description: "[status, shadow, emergency] The action, e.g. soc-star-case. Required for
@@ -220,6 +222,13 @@ args:
   - contain_identity_and_hosts
   - contain_all
   - default
+- name: report_mailboxes
+  description: "[close] Abuse/report mailbox addresses, separated by commas. Mail delivered to
+    one is closed without an assessment; a click is still assessed. They replace the whole
+    list. default empties it."
+- name: comment
+  description: "[close] Your own text, added to the closing note of every issue closed without
+    an assessment. default removes it."
 - name: apply
   description: yes writes the change. Anything else is a dry run that shows the change.
   defaultValue: "no"

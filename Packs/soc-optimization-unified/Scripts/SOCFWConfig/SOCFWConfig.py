@@ -25,6 +25,13 @@ Commands
   case     Show or set which cases Case Analysis looks at: the window, the passes
            per case (1 = one pass, more = re-pass only on change) and whether
            starred cases are left to analysts. Dry run unless apply=yes.
+  close    Show or set the reasons an issue is closed without an assessment.
+           The first is report_mailboxes: mail delivered to a listed abuse/report
+           mailbox (a click is always assessed). comment adds the tenant's own
+           text to the closing note. The close is the action
+           soc-close-issue-unassessed, which ships in shadow and is turned on
+           with command=shadow. Nothing is set by default. Dry run unless
+           apply=yes.
   mode     List the modes in SOCFWConfigModes against this tenant, or apply one:
            the shadow settings it names and the Auto Triage JOB (owner=<email>
            optional). mode=default removes them and turns the JOB off.
@@ -48,6 +55,8 @@ SOCFWAnalystSelect and SOCFWOnDutySync read:
                   "window": "24 hours", "max_per_analyst": number or "unlimited", "online_only": bool}}
 SOCFWCaseSelect reads:
   {"case": {"window_hours": number, "max_analyses": number, "cases": "unstarred"|"all"}}
+SOCFWCloseWithoutAssessment reads:
+  {"close": {"report_mailboxes": ["abuse@example.com", ...], "comment": "text"}}
 """
 
 import json
@@ -1664,6 +1673,124 @@ def case(args):
                           outputs=outputs)
 
 
+# ── close ────────────────────────────────────────────────────────────────────
+
+CLOSE_ACTION = "soc-close-issue-unassessed"
+# Tenant key -> what it is. Each is one reason an issue closes without an assessment,
+# except comment, which is the tenant's own text added to every such closing note.
+CLOSE_FIELDS = ("report_mailboxes", "comment")
+ADDRESS = re.compile(r"^[\w.%+-]+@[\w-]+(\.[\w-]+)+$")
+CLOSE_HELP = ("report_mailboxes: mail delivered to one of these abuse/report mailboxes is not assessed "
+              "and its issue is closed with a note; a click is still assessed. comment: your own text, "
+              "added to the closing note. The case is never closed. The close is the action "
+              f"`{CLOSE_ACTION}`, which ships in shadow, so it is only recorded until you turn it on: "
+              f"`!SOCFWConfig command=shadow action={CLOSE_ACTION} actor=automation value=off apply=yes`.")
+CLOSE_USAGE = ("Change one: `!SOCFWConfig command=close report_mailboxes=\"abuse@example.com, "
+               "phish@example.com\" comment=\"<text>\"` — any subset, the addresses given replace the "
+               "whole list, `default` removes one, add `apply=yes` to write.")
+
+
+def _close_section(cfg):
+    section = cfg.get("close", {})
+    if not isinstance(section, dict):
+        raise ConfigError(f"'close' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    boxes = section.get("report_mailboxes", [])
+    if not isinstance(boxes, list) or not all(isinstance(v, str) for v in boxes):
+        raise ConfigError(f"'close.report_mailboxes' in {TENANT_CONFIG_LIST} is not a list of "
+                          "addresses; fix it in Settings > Lists")
+    return section
+
+
+def close_value(key, raw):
+    """What to store for key, or None to remove it."""
+    text = str(raw).strip()
+    if text.lower() == "default":
+        return None
+    if key == "comment":
+        return text
+    out = []
+    for item in _split(raw):
+        address = item.lower()
+        if not ADDRESS.match(address):
+            raise ConfigError(f"{item} is not an email address; give full addresses separated "
+                              "by commas, or default to empty the list")
+        if address not in out:
+            out.append(address)
+    return out or None
+
+
+def _close_shown(value):
+    if isinstance(value, list):
+        return ", ".join(value) or "(not set)"
+    return _plain(value)
+
+
+def _close_table(section):
+    md = ["| Setting | This tenant |", "|---|---|"]
+    md += [f"| {key} | {_close_shown(section.get(key))} |" for key in CLOSE_FIELDS]
+    return md
+
+
+def close(args):
+    given = {k: args.get(k) for k in CLOSE_FIELDS
+             if str(args.get(k) if args.get(k) is not None else "").strip() not in ("", "[]")}
+    apply = _yes(args.get("apply"))
+    cfg, exists = load_tenant_config()
+    before = dict(_close_section(cfg))
+
+    if not given:
+        md = ["### Close without assessment", ""] + _close_table(before) + ["", CLOSE_HELP, "", CLOSE_USAGE]
+        return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Close",
+                              outputs={"contract_version": CONTRACT_VERSION, "command": "close",
+                                       "settings": before, "dry_run": True, "applied": False})
+
+    new_cfg = json.loads(json.dumps(cfg))
+    section = _close_section(new_cfg)
+    for key, raw in given.items():
+        value = close_value(key, raw)
+        if value is None:
+            section.pop(key, None)
+        else:
+            section[key] = value
+    if section:
+        new_cfg["close"] = section
+    else:
+        new_cfg.pop("close", None)
+
+    changes = [{"setting": k, "from": before.get(k), "to": section.get(k),
+                "changed": before.get(k) != section.get(k)} for k in given]
+    changed = any(c["changed"] for c in changes)
+    apply_args = " ".join(
+        '{}="{}"'.format(k, ", ".join(section[k]) if isinstance(section.get(k), list)
+                         else section.get(k) if section.get(k) is not None else "default")
+        for k in given)
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "close",
+               "dry_run": not apply, "applied": False, "changed": changed, "changes": changes,
+               "settings": dict(section), "tenant_config_list": TENANT_CONFIG_LIST,
+               "creates_list": False, "recorded": False,
+               "apply_command": f"!SOCFWConfig command=close {apply_args} apply=yes"}
+
+    if changed:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([
+                {"universal_command": "close_without_assessment", "action_status": f"set {c['setting']}",
+                 "action_taken": f"{c['setting']}: {_close_shown(c['from'])} -> {_close_shown(c['to'])}"}
+                for c in changes if c["changed"]])
+
+    md = ["### Close without assessment: " + ("nothing to change" if not changed else
+                                               "applied" if outputs["applied"]
+                                               else "dry run, nothing written"), ""]
+    md += ["| Setting | Now | After |", "|---|---|---|"]
+    md += [f"| {c['setting']} | {_close_shown(c['from'])} | {_close_shown(c['to'])} |" for c in changes]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Close",
+                          outputs=outputs)
+
+
 # ── mode ─────────────────────────────────────────────────────────────────────
 
 MODES_LIST = "SOCFWConfigModes"
@@ -1896,6 +2023,7 @@ COMMAND_ARGS = {
     "triage": {"score_threshold", "window_hours"},
     "assignment": set(ASSIGNMENT_FIELDS),
     "case": set(CASE_FIELDS),
+    "close": set(CLOSE_FIELDS),
     "mode": {"mode", "owner"},
 }
 ALWAYS_ARGS = {"command", "apply"}
@@ -1925,7 +2053,7 @@ def _yes(value):
 
 COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner,
             "emergency": emergency, "triage": triage, "assignment": assignment,
-            "case": case, "mode": mode}
+            "case": case, "close": close, "mode": mode}
 
 
 def main():

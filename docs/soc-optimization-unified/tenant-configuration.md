@@ -20,6 +20,7 @@ One command, `!SOCFWConfig`, is how the framework is configured on a tenant afte
 | `emergency` | List, edit or add issue-level emergency response policies and their guards |
 | `triage` | Show or set Auto Triage's score threshold and age window |
 | `assignment` | Show or set the analyst assignment settings: the roles and groups on duty when no schedule source is set up, which cases get an owner, the window, the per-analyst cap, online-only; see [Analyst Assignment](analyst-assignment.md) |
+| `close` | Show or set the reasons an issue is closed without an assessment. The first is `report_mailboxes`: mail delivered to a listed abuse/report mailbox. `SOCFWCloseWithoutAssessment` checks the reasons before the assessment, and on a match the entry playbook skips the assessment and closes that issue with a note through the action `soc-close-issue-unassessed`. The action ships in Shadow Mode, so the close is only recorded until it is turned on. The case is never closed. A click to a listed mailbox is still assessed. `comment` adds your own text to the closing note. Nothing is set by default, which changes nothing |
 | `mode` | Apply a deployment mode; see [Deployment Modes](deployment-modes.md) |
 
 ## 2. Where the switch lives
@@ -49,6 +50,13 @@ Three examples:
 !SOCFWConfig command=set vendor=Zscaler arg=category-id value=12345 apply=yes
 !SOCFWConfig command=triage score_threshold=30 window_hours=12 apply=yes
 !SOCFWConfig command=assignment groups="SOC Analysts" roles=none apply=yes
+!SOCFWConfig command=close report_mailboxes="abuse@customer.example, phish@customer.example" apply=yes
+```
+
+For `close`, the addresses given replace the whole list and `default` removes a setting. Each matching issue writes a `close_without_assessment` row to `xsiam_socfw_ir_execution_raw` with the `reason` (`report_mailbox`) and `status = close`, followed by the `command` row for `soc-close-issue-unassessed` (shadow or production). A click to a listed mailbox writes `status = assessed_click` and is assessed as usual. To turn the close on:
+
+```
+!SOCFWConfig command=shadow action=soc-close-issue-unassessed actor=automation value=off apply=yes
 ```
 
 ## 4. Verify
