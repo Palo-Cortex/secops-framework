@@ -25,6 +25,11 @@ Commands
   case     Show or set which cases Case Analysis looks at: the window, the passes
            per case (1 = one pass, more = re-pass only on change) and whether
            starred cases are left to analysts. Dry run unless apply=yes.
+  mailboxes
+           Show or set the abuse/report mailboxes for this tenant. Mail sent to
+           one is left alone - not assessed, not closed - and Auto Triage sweeps
+           it. A click is always assessed. Empty by default. Dry run unless
+           apply=yes.
   mode     List the modes in SOCFWConfigModes against this tenant, or apply one:
            the shadow settings it names and the Auto Triage JOB (owner=<email>
            optional). mode=default removes them and turns the JOB off.
@@ -48,6 +53,8 @@ SOCFWAnalystSelect and SOCFWOnDutySync read:
                   "window": "24 hours", "max_per_analyst": number or "unlimited", "online_only": bool}}
 SOCFWCaseSelect reads:
   {"case": {"window_hours": number, "max_analyses": number, "cases": "unstarred"|"all"}}
+SOCFWReportMailboxCheck and SOCAutoTriageScoreFilter read:
+  {"report_mailboxes": ["abuse@example.com", ...]}
 """
 
 import json
@@ -1664,6 +1671,93 @@ def case(args):
                           outputs=outputs)
 
 
+# ── mailboxes ────────────────────────────────────────────────────────────────
+
+MAILBOXES_KEY = "report_mailboxes"
+ADDRESS = re.compile(r"^[\w.%+-]+@[\w-]+(\.[\w-]+)+$")
+MAILBOXES_HELP = ("Mail delivered to a listed mailbox is left alone: no AI assessment, no close; "
+                  "Auto Triage sweeps it and says why in its closing comment. A click from a "
+                  "listed mailbox is still assessed.")
+MAILBOXES_USAGE = ("Set the list: `!SOCFWConfig command=mailboxes report=\"abuse@example.com, "
+                   "phish@example.com\"` — the addresses given replace the whole list, `default` "
+                   "empties it, add `apply=yes` to write.")
+
+
+def current_mailboxes(cfg):
+    value = cfg.get(MAILBOXES_KEY, [])
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise ConfigError(f"'{MAILBOXES_KEY}' in {TENANT_CONFIG_LIST} is not a list of addresses; "
+                          "fix it in Settings > Lists")
+    return value
+
+
+def mailbox_list(raw):
+    """The addresses to store, lower-cased, in the order given, each once. default is none."""
+    if str(raw).strip().lower() == "default":
+        return []
+    out = []
+    for item in _split(raw):
+        address = item.lower()
+        if not ADDRESS.match(address):
+            raise ConfigError(f"{item} is not an email address; give full addresses separated "
+                              "by commas, or default to empty the list")
+        if address not in out:
+            out.append(address)
+    return out
+
+
+def mailboxes(args):
+    raw = args.get("report")
+    given = str(raw if raw is not None else "").strip() not in ("", "[]")
+    apply = _yes(args.get("apply"))
+    cfg, exists = load_tenant_config()
+    before = current_mailboxes(cfg)
+
+    if not given:
+        md = ["### Report mailboxes", ""]
+        md += [f"- `{m}`" for m in before] or ["(none set: every issue is assessed)"]
+        md += ["", MAILBOXES_HELP, "", MAILBOXES_USAGE]
+        return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mailboxes",
+                              outputs={"contract_version": CONTRACT_VERSION, "command": "mailboxes",
+                                       MAILBOXES_KEY: before, "dry_run": True, "applied": False})
+
+    after = mailbox_list(raw)
+    new_cfg = json.loads(json.dumps(cfg))
+    if after:
+        new_cfg[MAILBOXES_KEY] = after
+    else:
+        new_cfg.pop(MAILBOXES_KEY, None)
+    changed = before != after
+    report_arg = ", ".join(after) if after else "default"
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "mailboxes",
+               "dry_run": not apply, "applied": False, "changed": changed,
+               "before": before, MAILBOXES_KEY: after,
+               "added": [m for m in after if m not in before],
+               "removed": [m for m in before if m not in after],
+               "tenant_config_list": TENANT_CONFIG_LIST, "creates_list": False, "recorded": False,
+               "apply_command": f'!SOCFWConfig command=mailboxes report="{report_arg}" apply=yes'}
+
+    if changed:
+        outputs["creates_list"] = not exists
+        if apply:
+            write_tenant_config(new_cfg, exists)
+            outputs["applied"] = True
+            outputs["recorded"] = _record([
+                {"universal_command": MAILBOXES_KEY, "action_status": f"set {MAILBOXES_KEY}",
+                 "action_taken": f"{MAILBOXES_KEY}: {', '.join(before) or '(none)'} -> "
+                                 f"{', '.join(after) or '(none)'}"}])
+
+    md = ["### Report mailboxes: " + ("nothing to change" if not changed else
+                                      "applied" if outputs["applied"]
+                                      else "dry run, nothing written"), ""]
+    md += ["| | Addresses |", "|---|---|",
+           f"| Now | {', '.join(before) or '(none)'} |",
+           f"| After | {', '.join(after) or '(none)'} |"]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mailboxes",
+                          outputs=outputs)
+
+
 # ── mode ─────────────────────────────────────────────────────────────────────
 
 MODES_LIST = "SOCFWConfigModes"
@@ -1896,6 +1990,7 @@ COMMAND_ARGS = {
     "triage": {"score_threshold", "window_hours"},
     "assignment": set(ASSIGNMENT_FIELDS),
     "case": set(CASE_FIELDS),
+    "mailboxes": {"report"},
     "mode": {"mode", "owner"},
 }
 ALWAYS_ARGS = {"command", "apply"}
@@ -1925,7 +2020,7 @@ def _yes(value):
 
 COMMANDS = {"status": status, "shadow": shadow, "set": set_value, "job": job, "owner": owner,
             "emergency": emergency, "triage": triage, "assignment": assignment,
-            "case": case, "mode": mode}
+            "case": case, "mailboxes": mailboxes, "mode": mode}
 
 
 def main():

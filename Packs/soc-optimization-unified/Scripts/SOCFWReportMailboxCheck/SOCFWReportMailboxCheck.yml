@@ -1,0 +1,33 @@
+commonfields:
+  id: SOCFWReportMailboxCheck
+  version: -1
+name: SOCFWReportMailboxCheck
+script: ''
+type: python
+subtype: python3
+dockerimage: demisto/python3:3.12.8.1983910
+comment: Checks the issue's recipient against the tenant's abuse/report mailboxes,
+  set with SOCFWConfig command=mailboxes. Mail delivered to a listed mailbox sets
+  SOCFramework.ReportMailbox.skip so the entry playbook leaves the issue alone - not
+  assessed, not closed - for Auto Triage to sweep. A click is never skipped. With no
+  mailboxes listed it does nothing. Records a report_mailbox_decision row when the
+  recipient is listed.
+tags:
+- socfw
+enabled: true
+scripttarget: 0
+runonce: false
+runas: DBotWeakRole
+fromversion: 6.10.0
+marketplaces:
+- marketplacev2
+supportedModules:
+- X1
+- X3
+- X5
+system: false
+outputs:
+- contextPath: SOCFramework.ReportMailbox.skip
+  description: true when the issue is mail delivered to a listed report mailbox and is
+    to be left alone. Not set otherwise.
+  type: String

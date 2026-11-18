@@ -20,6 +20,7 @@ One command, `!SOCFWConfig`, is how the framework is configured on a tenant afte
 | `emergency` | List, edit or add issue-level emergency response policies and their guards |
 | `triage` | Show or set Auto Triage's score threshold and age window |
 | `assignment` | Show or set the analyst assignment settings: the roles and groups on duty when no schedule source is set up, which cases get an owner, the window, the per-analyst cap, online-only; see [Analyst Assignment](analyst-assignment.md) |
+| `mailboxes` | Show or set the abuse/report mailboxes. Mail delivered to one is left alone: `SOCFWReportMailboxCheck` stops the entry playbook before the assessment, the issue is not assessed and not closed, and Auto Triage sweeps the case and says why in its closing comment. A click from a listed mailbox is still assessed. Empty by default, which changes nothing |
 | `mode` | Apply a deployment mode; see [Deployment Modes](deployment-modes.md) |
 
 ## 2. Where the switch lives
@@ -49,7 +50,10 @@ Three examples:
 !SOCFWConfig command=set vendor=Zscaler arg=category-id value=12345 apply=yes
 !SOCFWConfig command=triage score_threshold=30 window_hours=12 apply=yes
 !SOCFWConfig command=assignment groups="SOC Analysts" roles=none apply=yes
+!SOCFWConfig command=mailboxes report="abuse@customer.example, phish@customer.example" apply=yes
 ```
+
+For `mailboxes`, the addresses given replace the whole list and `report=default` empties it. Each skipped issue writes a `report_mailbox_decision` row to `xsiam_socfw_ir_execution_raw` with `status = left_alone`; a click to a listed mailbox writes `assessed_click` and is assessed as usual.
 
 ## 4. Verify
 

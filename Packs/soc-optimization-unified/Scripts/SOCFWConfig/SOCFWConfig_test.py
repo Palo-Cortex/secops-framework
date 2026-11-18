@@ -1355,3 +1355,79 @@ def test_status_shows_the_case_settings():
     r = run(triage_tenant({"case": {"window_hours": 72}}), command="status")
     assert r.outputs["case"]["window_hours"]["effective"] == 72
     assert "Case Analysis settings" in r.readable_output
+
+
+# ── mailboxes ────────────────────────────────────────────────────────────────
+
+def test_mailboxes_is_empty_by_default():
+    t = triage_tenant()
+    r = run(t, command="mailboxes")
+    assert r.outputs["report_mailboxes"] == [] and r.outputs["dry_run"]
+    assert "none set" in r.readable_output and t.writes() == []
+
+
+def test_mailboxes_is_a_dry_run_by_default():
+    t = triage_tenant({})
+    r = run(t, command="mailboxes", report="abuse@example.com, phish@example.com")
+    assert r.outputs["dry_run"] and r.outputs["changed"] and t.writes() == []
+    assert r.outputs["apply_command"] == (
+        '!SOCFWConfig command=mailboxes report="abuse@example.com, phish@example.com" apply=yes')
+
+
+def test_mailboxes_apply_writes_lowercase_once_each_and_records():
+    t = triage_tenant({"triage": {"window_hours": 12}})
+    r = run(t, command="mailboxes", report="Abuse@Example.com, phish@example.com,abuse@example.com",
+            apply="yes")
+    assert r.outputs["applied"] and r.outputs["recorded"]
+    assert t.config() == {"triage": {"window_hours": 12},
+                          "report_mailboxes": ["abuse@example.com", "phish@example.com"]}
+    rows = [x for x in t.rows if x["event_type"] == "config_change"]
+    assert len(rows) == 1 and "incident_id" not in rows[0] and "phase" not in rows[0]
+    assert rows[0]["action_taken"] == "report_mailboxes: (none) -> abuse@example.com, phish@example.com"
+
+
+def test_mailboxes_first_write_creates_a_json_list():
+    t = triage_tenant()
+    run(t, command="mailboxes", report="abuse@example.com", apply="yes")
+    assert t.types[NEW] == "json" and t.config() == {"report_mailboxes": ["abuse@example.com"]}
+
+
+def test_mailboxes_given_addresses_replace_the_whole_list():
+    t = triage_tenant({"report_mailboxes": ["abuse@example.com", "phish@example.com"]})
+    r = run(t, command="mailboxes", report="soc@example.com", apply="yes")
+    assert t.config()["report_mailboxes"] == ["soc@example.com"]
+    assert r.outputs["added"] == ["soc@example.com"]
+    assert r.outputs["removed"] == ["abuse@example.com", "phish@example.com"]
+
+
+def test_mailboxes_default_empties_the_list_and_keeps_the_rest():
+    t = triage_tenant({"report_mailboxes": ["abuse@example.com"], "Zscaler": {"using": "z"}})
+    run(t, command="mailboxes", report="default", apply="yes")
+    assert t.config() == {"Zscaler": {"using": "z"}}
+
+
+def test_mailboxes_repeat_is_a_no_op():
+    t = triage_tenant({"report_mailboxes": ["abuse@example.com"]})
+    r = run(t, command="mailboxes", report="abuse@example.com", apply="yes")
+    assert not r.outputs["changed"] and t.writes() == []
+
+
+@pytest.mark.parametrize("report", ["abuse", "abuse@", "abuse@example", "abuse@example.com; phish@example.com",
+                                    "abuse@example.com, none"])
+def test_mailboxes_bad_addresses_are_refused(report):
+    t = triage_tenant({})
+    with pytest.raises(RuntimeError, match="is not an email address"):
+        run(t, command="mailboxes", report=report, apply="yes")
+    assert t.writes() == []
+
+
+def test_mailboxes_argument_is_refused_on_other_commands():
+    with pytest.raises(RuntimeError, match="report is for command=mailboxes"):
+        run(triage_tenant({}), command="triage", report="abuse@example.com")
+
+
+def test_mailboxes_malformed_value_is_never_overwritten():
+    t = triage_tenant({"report_mailboxes": "abuse@example.com"})
+    with pytest.raises(RuntimeError, match="'report_mailboxes' in SOCFWTenantConfig is not a list"):
+        run(t, command="mailboxes", report="phish@example.com", apply="yes")
+    assert t.config() == {"report_mailboxes": "abuse@example.com"}
