@@ -1,31 +1,29 @@
 # Foundation
 
-The Foundation tier is the framework itself. Two packs define how everything
-above them works:
+`soc-optimization-unified` is the SOC Framework itself: the layer every lifecycle and vendor pack builds on.
 
-- **`soc-optimization-unified`** — the Foundation layer. Universal Command,
-  the normalizer pattern, Shadow Mode wiring, lookup tables, dashboards.
-  Every other pack depends on this one.
+## What it holds
 
-- **`soc-framework-nist-ir`** — the NIST IR 800-61 lifecycle. Analysis,
-  Containment, Eradication, Recovery — implemented as parallel phase
-  playbooks that read and write a contractually-defined namespace.
+| Piece | Where |
+| --- | --- |
+| The Universal Command, which runs every action through one script | `SOCCommandWrapper` |
+| Shadow Mode, set per action and per caller | `SOCFrameworkActions_V3` |
+| The normalizer, which reads a lifecycle's normalize map | `SOCNormalizeFromList` |
+| The execution record every dashboard reads | `xsiam_socfw_ir_execution_raw`, written by `SOCCommandWrapper` |
+| Action categories for the dashboards | `SOCActionTimeMap_V3` |
 
-These packs ship together. They define the rails; vendor packs ride them.
+The foundation knows nothing about a specific product or lifecycle. A lifecycle pack adds the phases on top of it, and vendor packs add the detections that feed them.
 
-## Why two packs
+## The lifecycle on top
 
-The split exists because the Foundation layer is *infrastructure* — it
-doesn't know anything about specific products or attack categories. The NIST
-IR pack is *opinion* — it implements one specific lifecycle on top of that
-infrastructure. Splitting them lets a customer with a different lifecycle
-model swap out the IR pack while keeping the Foundation.
+The lifecycle pack is `soc-framework-nist-ir-ai`; see [NIST IR AI](../soc-framework-nist-ir-ai/nist-ir-ai.md). The earlier NIST IR pack, `soc-framework-nist-ir`, is retired and is not listed in the pack catalog.
 
-## When to read these
+## When to read the lifecycle's lists
 
-- **Adding a new vendor pack** — read the lifecycle's normalize map (`SOCFrameworkNormalizeMap_NIST_IR` for NIST IR) to know
-  what fields your pack must populate and where they go.
-- **Modifying a phase** — read `SOCFrameworkPhaseContract_V3` to see what
-  every phase reads and writes. Don't break the contract.
-- **Building dashboards** — the active dataset is `xsiam_socfw_ir_execution_raw`,
-  populated by `SOCCommandWrapper`. Categories come from `SOCActionTimeMap_V3`.
+| Task | Read |
+| --- | --- |
+| Adding a vendor pack | `SOCFrameworkNormalizeMap_NIST_IR`, for the fields the pack must fill and where they go |
+| Changing what a phase reads or writes | `SOCFrameworkPhaseContract_V3`. Don't break the contract |
+| Building a dashboard | The `xsiam_socfw_ir_execution_raw` dataset, with categories from `SOCActionTimeMap_V3` |
+
+All three lists ship in `soc-framework-nist-ir-ai`, except `SOCActionTimeMap_V3`, which ships in `soc-optimization-unified`.
