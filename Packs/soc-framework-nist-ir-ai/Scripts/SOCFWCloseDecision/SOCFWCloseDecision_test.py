@@ -17,6 +17,7 @@ if "CommonServerPython" not in sys.modules:
     csp.isError = lambda *a, **k: False
     sys.modules["CommonServerPython"] = csp
 
+import SOCFWCloseDecision as scd  # noqa: E402
 from SOCFWCloseDecision import decide  # noqa: E402
 
 CLOSEABLE = {
@@ -152,3 +153,69 @@ def test_reasoning_writes_nothing_when_absent():
     assert reasoning({}) == {}
     assert reasoning({"story": [], "closure_blockers": "not a list"}) == {}
     assert reasoning(None) == {}
+
+
+# --- SOCFWClosurePolicy that cannot be read --------------------------------------
+
+def test_unreadable_policy_blocks_a_closeable_issue():
+    ok, reason = decide(dict(CLOSEABLE), {}, {}, "email", "not valid JSON: x")
+    assert not ok
+    assert "SOCFWClosurePolicy unreadable" in reason and "a person decides" in reason
+
+
+def test_unreadable_policy_does_not_hide_a_guard_reason():
+    ok, reason = decide(dict(CLOSEABLE), {"owner": "analyst"}, {}, "email", "boom")
+    assert not ok and reason == "assigned to an analyst"
+
+
+def _with_list(monkeypatch, result, error=False, raises=None):
+    class D:
+        @staticmethod
+        def executeCommand(cmd, args):
+            if raises:
+                raise raises
+            return result
+    monkeypatch.setattr(scd, "demisto", D)
+    monkeypatch.setattr(scd, "isError", lambda r: error)
+
+
+def test_missing_policy_list_uses_the_defaults(monkeypatch):
+    _with_list(monkeypatch, [{"Contents": "Item not found (8)"}], error=True)
+    assert scd._policy() == ({}, None)
+
+
+def test_empty_policy_list_uses_the_defaults(monkeypatch):
+    _with_list(monkeypatch, [{"Contents": "  "}])
+    assert scd._policy() == ({}, None)
+
+
+def test_policy_list_read(monkeypatch):
+    _with_list(monkeypatch, [{"Contents": '{"min_closure_confidence": "medium"}'}])
+    assert scd._policy() == ({"min_closure_confidence": "medium"}, None)
+
+
+def test_policy_list_already_parsed(monkeypatch):
+    _with_list(monkeypatch, [{"Contents": {"require_no_blockers": False}}])
+    assert scd._policy() == ({"require_no_blockers": False}, None)
+
+
+def test_bad_json_is_a_problem(monkeypatch):
+    _with_list(monkeypatch, [{"Contents": "{not json"}])
+    policy, problem = scd._policy()
+    assert policy == {} and problem.startswith("not valid JSON")
+
+
+def test_json_that_is_not_an_object_is_a_problem(monkeypatch):
+    _with_list(monkeypatch, [{"Contents": "[1, 2]"}])
+    assert scd._policy() == ({}, "not a JSON object")
+
+
+def test_getlist_error_is_a_problem(monkeypatch):
+    _with_list(monkeypatch, [{"Contents": "permission denied"}], error=True)
+    policy, problem = scd._policy()
+    assert policy == {} and problem.startswith("getList failed")
+
+
+def test_getlist_raising_is_a_problem(monkeypatch):
+    _with_list(monkeypatch, None, raises=RuntimeError("down"))
+    assert scd._policy() == ({}, "getList raised: down")
