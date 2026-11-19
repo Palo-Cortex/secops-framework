@@ -191,7 +191,19 @@ def read_contract(case_id):
                                                                     "vendor": r.get("vendor")}
             for r in (execution.get("by_step") or [])
             if isinstance(r, dict) and r.get("issue") and r.get("status") in RAN + REPORTED}
+        out.setdefault("last", {})[phase] = last_reported(execution.get("by_step") or [])
     return out, None
+
+
+def last_reported(rows):
+    """What the last pass said about each step: (action, target) -> (status, reason).
+
+    A step that has not moved since - the same gap for the same reason - already
+    has its row in the dataset. Writing it again on every pass of the JOB only
+    adds copies.
+    """
+    return {(r.get("action"), r.get("target")): (r.get("status"), r.get("reason"))
+            for r in rows if isinstance(r, dict) and r.get("action")}
 
 
 def step_signature(rows):
@@ -449,6 +461,8 @@ def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members
     _, no_instance = ledger
     finished = (contract.get("finished") or {}).get(phase)
     finished = finished if isinstance(finished, dict) else {}
+    last = (contract.get("last") or {}).get(phase)
+    last = last if isinstance(last, dict) else {}
     scope = {r.get("id"): r for r in contract["scope"] if isinstance(r, dict)}
     results, outstanding = [], 0
     for step in sorted(contract[phase], key=lambda s: int(s.get("step") or 0)):
@@ -494,6 +508,8 @@ def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members
                     # Only a step waiting on a person holds the next phase. A
                     # gap is final for this pass and is reported, not waited on.
                     outstanding += 1
+        if last.get((action, row["target"])) == (row["status"], row.get("reason")):
+            quiet = True
         if row["status"] not in RAN and not quiet:
             post_row({"timestamp": utc_now(), "event_type": "phase_step",
                       "incident_id": case_id, "case_id": case_id, "phase": phase,

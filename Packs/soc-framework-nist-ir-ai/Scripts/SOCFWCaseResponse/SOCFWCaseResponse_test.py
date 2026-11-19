@@ -64,7 +64,7 @@ def step(n, action, target, refs=("11",), requires_human=False):
 posted = []
 
 
-def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None):
+def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None, last=None):
     """Run one phase; decisions maps action -> the executor's answer. Returns (rows, outstanding, sent)."""
     sent = []
 
@@ -78,6 +78,7 @@ def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None):
     done, no_instance = set(ledger[0]), set(ledger[1])
     c = contract(**{phase: plan})
     c["finished"] = {phase: dict(finished or {})}
+    c["last"] = {phase: dict(last or {})}
     posted.clear()
     cr.post_row = lambda payload: posted.append(payload)
     rows, outstanding = cr.run_phase(phase, c, "500", (done, no_instance),
@@ -424,3 +425,51 @@ def test_a_target_is_found_where_the_normalize_map_puts_it(entity, ctx):
 def test_an_issue_about_someone_else_still_does_not_match():
     assert not cr.aims_at({"type": "identity", "name": "adalwolfa"},
                           _artifacts(Identity__User__SAM="SKT\\greta"))
+
+
+# --- a step that has not moved since the last pass is not posted again ----------
+
+GAP_REASON = "no issue in the case carries identity frieda@skt.local"
+
+
+def _gap_run(last):
+    scope = list(SCOPE)
+    SCOPE.append({"id": "u2", "type": "identity", "name": "frieda@skt.local", "evidence_refs": ["13"]})
+    try:
+        return run("containment", [step(1, "soc-disable-user", "u2", refs=("13",))],
+                   {"soc-disable-user": SHADOW}, last=last)
+    finally:
+        SCOPE[:] = scope
+
+
+def test_a_new_gap_is_posted_once():
+    rows, _, _ = _gap_run(last=None)
+    assert rows[0]["status"] == "contract_gap"
+    assert [p["action_status"] for p in posted] == ["contract_gap"]
+
+
+def test_the_same_gap_on_the_next_pass_is_reported_but_not_posted_again():
+    rows, _, _ = _gap_run(last={("soc-disable-user", "frieda@skt.local"): ("contract_gap", GAP_REASON)})
+    assert rows[0]["status"] == "contract_gap" and rows[0]["reason"] == GAP_REASON
+    assert posted == []
+
+
+def test_a_gap_whose_reason_changed_is_posted():
+    _gap_run(last={("soc-disable-user", "frieda@skt.local"): ("contract_gap", "an older reason")})
+    assert len(posted) == 1
+
+
+def test_a_step_that_moved_from_a_gap_to_a_run_is_not_quieted():
+    rows, _, sent = run("containment", [step(1, "soc-isolate-endpoint", "h1")],
+                        {"soc-isolate-endpoint": {"status": "failed", "reason": "401"}},
+                        last={("soc-isolate-endpoint", "ws-01"): ("contract_gap", "x")})
+    assert sent and rows[0]["status"] == "failed" and len(posted) == 1
+
+
+def test_last_reported_reads_every_step_of_the_record():
+    got = cr.last_reported([
+        {"action": "soc-disable-user", "target": "frieda", "status": "contract_gap", "reason": "r"},
+        {"action": "soc-isolate-endpoint", "target": "ws-01", "status": "shadow", "issue": "12"},
+        "not a row"])
+    assert got == {("soc-disable-user", "frieda"): ("contract_gap", "r"),
+                   ("soc-isolate-endpoint", "ws-01"): ("shadow", None)}
