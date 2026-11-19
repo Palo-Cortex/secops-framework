@@ -29,6 +29,8 @@ WORKFLOW
   5. check_contracts.py          Layer contract violations — setIssue from
                                  Workflow, wrong namespace writes, missing
                                  Lifecycle phase boundaries.
+  5a. run_pack_tests.py          The pack's unit tests, one pytest process per
+                                 file (the PR gate runs the same).
   6. validate_shadow_mode.py     Shadow mode consistency across all UC actions.
   7. prep_docs.py --check        Documentation drift gate — wraps the four
                                  doc generators (pack overviews, schema docs,
@@ -480,6 +482,21 @@ def main() -> None:
                 "violation. Fix by editing the playbook to match the expected\n"
                 "namespace or call pattern, then re-run:\n"
                 f"  python3 tools/check_contracts.py --input {pack}"
+            ),
+        ))
+
+        # ── Step 5a: unit tests ───────────────────────────────────────────────
+        # The pack's test files, each in its own pytest process - the same
+        # runner the PR gate uses, so a branch that passes here passes there.
+        results.append(run_step(
+            f"unit tests — {pack.name}",
+            [sys.executable, "tools/run_pack_tests.py", pack.name],
+            args.ci,
+            remediation=(
+                "A test file in this pack failed or ran no tests. The output above\n"
+                "names it. Run that file on its own from its directory to see the\n"
+                "failure, fix the code or the test, then re-run:\n"
+                f"  python3 tools/run_pack_tests.py {pack.name}"
             ),
         ))
 

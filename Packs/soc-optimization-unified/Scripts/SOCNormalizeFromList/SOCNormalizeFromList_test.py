@@ -321,10 +321,17 @@ check("a non-dict json value is no case", parse_case_fields("[1,2,3]"), {})
 
 
 # --- Summary ---
-print()
-if fails:
-    print(f"{FAIL} {len(fails)} test(s) failed:")
-    for label, got, want in fails:
-        print(f"    {label}: got={got!r} want={want!r}")
-    sys.exit(1)
-print(f"{PASS} all tests passed")
+# The checks above run on import, so pytest and `python3 SOCNormalizeFromList_test.py`
+# run the same set; this test is how pytest sees them.
+def test_every_check_passes():
+    assert not fails, "\n".join(f"{label}: got={got!r} want={want!r}" for label, got, want in fails)
+
+
+if __name__ == "__main__":
+    print()
+    if fails:
+        print(f"{FAIL} {len(fails)} test(s) failed:")
+        for label, got, want in fails:
+            print(f"    {label}: got={got!r} want={want!r}")
+        sys.exit(1)
+    print(f"{PASS} all tests passed")
