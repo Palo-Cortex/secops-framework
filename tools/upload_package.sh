@@ -67,8 +67,8 @@ missing=()
 
 if [[ ${#missing[@]} -gt 0 ]]; then
   echo "ERROR: Missing required credentials: ${missing[*]}"
-  echo "       Set them in .env at the repo root or export them before running."
-  echo "       See tools/.env.example for the expected format."
+  echo "       Run through povkit, which supplies the tenant key from the OS credential store:"
+  echo "         povkit exec <tenant> -- bash tools/upload_package.sh <pack>"
   exit 1
 fi
 
