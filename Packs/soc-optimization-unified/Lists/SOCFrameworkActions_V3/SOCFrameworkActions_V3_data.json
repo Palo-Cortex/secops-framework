@@ -167,7 +167,8 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-unisolate-machine",
         "inline_args": {
-          "machine_id": "${SOCFramework.Artifacts.EndPointID}"
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}",
+          "comment": "Isolation lifted by SOC Framework recovery"
         }
       },
       "CrowdStrike Falcon": {
@@ -221,9 +222,13 @@
         "command": "microsoft-atp-live-response-run-script",
         "inline_args": {
           "machine_id": "${SOCFramework.Artifacts.EndPointID}",
-          "script_name": "StopProcess.ps1",
-          "args": "${SOCFramework.Artifacts.Process.PID}"
-        }
+          "scriptName": "",
+          "arguments": "${SOCFramework.Artifacts.Process.PID}",
+          "comment": "Process stopped by SOC Framework containment"
+        },
+        "required_args": [
+          "scriptName"
+        ]
       }
     },
     "shadow_mode": true,
@@ -245,8 +250,9 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
-          "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "file_hashes": "${SOCFramework.Artifacts.File}"
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}",
+          "file_hash": "${SOCFramework.Artifacts.File}",
+          "comment": "Removed by SOC Framework eradication"
         }
       },
       "CrowdStrike Falcon": {
@@ -270,9 +276,12 @@
         "command": "core-script-run",
         "inline_args": {
           "endpoint_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "script_name": "remove_persistence",
+          "script_uid": "",
           "parameters": "${SOCFramework.Artifacts.FilePath}"
-        }
+        },
+        "required_args": [
+          "script_uid"
+        ]
       },
       "CrowdStrike Falcon": {
         "command": "cs-falcon-run-command",
@@ -285,8 +294,9 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
-          "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "file_hashes": "${SOCFramework.Artifacts.File}"
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}",
+          "file_hash": "${SOCFramework.Artifacts.File}",
+          "comment": "Removed by SOC Framework eradication"
         }
       }
     },
@@ -340,7 +350,8 @@
         "command": "microsoft-atp-live-response-get-file",
         "inline_args": {
           "machine_id": "${SOCFramework.Artifacts.EndPointID}",
-          "path": "${SOCFramework.Artifacts.FilePath}"
+          "path": "${SOCFramework.Artifacts.FilePath}",
+          "comment": "File check by SOC Framework investigation"
         }
       }
     },
@@ -362,8 +373,9 @@
       "Microsoft Defender Advanced Threat Protection": {
         "command": "microsoft-atp-stop-and-quarantine-file",
         "inline_args": {
-          "machine_ids": "${SOCFramework.Artifacts.EndPointID}",
-          "file_hashes": "${SOCFramework.Artifacts.File}"
+          "machine_id": "${SOCFramework.Artifacts.EndPointID}",
+          "file_hash": "${SOCFramework.Artifacts.File}",
+          "comment": "Quarantined by SOC Framework containment"
         }
       }
     },
@@ -434,10 +446,9 @@
   "soc-reset-password": {
     "responses": {
       "Active Directory Query v2": {
-        "command": "ad-set-new-password",
+        "command": "ad-expire-password",
         "inline_args": {
-          "sAMAccountName": "${SOCFramework.Artifacts.Identity.User.Name}",
-          "password": "auto-generated"
+          "username": "${SOCFramework.Artifacts.Identity.User.Name}"
         }
       },
       "Okta v2": {
@@ -483,7 +494,7 @@
       "Active Directory Query v2": {
         "command": "ad-enable-account",
         "inline_args": {
-          "sAMAccountName": "${SOCFramework.Artifacts.Identity.User.Name}"
+          "username": "${SOCFramework.Artifacts.Identity.User.Name}"
         }
       },
       "Okta v2": {
@@ -523,13 +534,13 @@
       "Okta IAM": {
         "command": "iam-get-user",
         "inline_args": {
-          "user_profile": "${SOCFramework.Artifacts.Identity.User.UPN}"
+          "user-profile": "{\"email\": \"${SOCFramework.Artifacts.Identity.User.UPN}\"}"
         }
       },
       "Google Workspace": {
         "command": "gsuite-user-get",
         "inline_args": {
-          "user-key": "${SOCFramework.Artifacts.Identity.User.Email}"
+          "user": "${SOCFramework.Artifacts.Identity.User.Email}"
         }
       },
       "AWS - IAM": {
@@ -639,8 +650,7 @@
       "Trend Micro Vision One": {
         "command": "trendmicro-visionone-get-endpoint-info",
         "inline_args": {
-          "endpoint": "${SOCFramework.Artifacts.Endpoint.Hostname}",
-          "query_op": "or"
+          "endpoint": "${SOCFramework.Artifacts.Endpoint.Hostname}"
         }
       }
     },
@@ -752,7 +762,7 @@
       "Cisco Umbrella": {
         "command": "umbrella-domain-categorization",
         "inline_args": {
-          "name": "${SOCFramework.Artifacts.Network.Destination.Hostname}"
+          "domain": "${SOCFramework.Artifacts.Network.Destination.Hostname}"
         },
         "output_map": {
           "UC.Enrich.Domain.category": "Umbrella.Domain.category",
@@ -799,7 +809,7 @@
         "command": "recordedfuture-intelligence",
         "inline_args": {
           "entity": "${SOCFramework.Artifacts.Network.IP}",
-          "entity_type": "indicator"
+          "entity_type": "ip"
         }
       },
       "Proofpoint TAP v2": {
@@ -915,19 +925,8 @@
       "Gmail": {
         "command": "gmail-delete-mail",
         "inline_args": {
-          "user_id": "${SOCFramework.Artifacts.Email.To}",
-          "message_id": "${SOCFramework.Artifacts.Email.MessageID}"
-        },
-        "output_map": {
-          "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
-          "UC.Email.Retract.message": "MicrosoftGraph.Mail.Delete.message"
-        }
-      },
-      "O365 Compliance": {
-        "command": "o365-sc-compliance-search-purge",
-        "inline_args": {
-          "search_name": "${SOCFramework.Email.ComplianceSearchName}",
-          "purge_type": "SoftDelete"
+          "user-id": "${SOCFramework.Artifacts.Email.To}",
+          "message-id": "${SOCFramework.Artifacts.Email.MessageID}"
         },
         "output_map": {
           "UC.Email.Retract.status": "MicrosoftGraph.Mail.Delete.status",
@@ -955,22 +954,10 @@
   },
   "soc-quarantine-email": {
     "responses": {
-      "Trend Micro Vision One": {
-        "command": "trendmicro-visionone-quarantine-email-message",
-        "inline_args": {
-          "message_id": "${SOCFramework.Artifacts.Email.MessageID}",
-          "mailbox": "${SOCFramework.Artifacts.Email.To}"
-        },
-        "output_map": {
-          "UC.Email.Quarantine.status": "TrendMicro.QuarantineEmail.status",
-          "UC.Email.Quarantine.message": "TrendMicro.QuarantineEmail.message"
-        }
-      },
       "Mimecast": {
         "command": "mimecast-reject-held-message",
         "inline_args": {
-          "id": "${SOCFramework.Artifacts.Email.MessageID}",
-          "reason": "Quarantined by SOC Framework automated response"
+          "ids": "${SOCFramework.Artifacts.Email.MessageID}"
         },
         "output_map": {
           "UC.Email.Quarantine.status": "TrendMicro.QuarantineEmail.status",
@@ -1011,8 +998,10 @@
         "command": "mimecast-create-block-sender-policy",
         "inline_args": {
           "description": "SOCFramework block sender ${SOCFramework.Artifacts.Email.From}",
-          "from_attribute_value": "${SOCFramework.Artifacts.Email.From}",
-          "option": "block_sender"
+          "option": "block_sender",
+          "fromType": "individual_email_address",
+          "fromValue": "${SOCFramework.Artifacts.Email.From}",
+          "toType": "everyone"
         }
       }
     },
@@ -1098,13 +1087,6 @@
           "sha256": "${SOCFramework.Artifacts.Hash}"
         }
       },
-      "WildFire v2": {
-        "command": "wildfire-upload-file",
-        "inline_args": {
-          "upload": "${SOCFramework.Artifacts.FilePath}",
-          "format": "auto"
-        }
-      },
       "WildFire v2 (hash)": {
         "command": "wildfire-get-verdict",
         "inline_args": {
@@ -1117,17 +1099,11 @@
           "resource": "${SOCFramework.Artifacts.Hash}"
         }
       },
-      "Joe Security": {
-        "command": "joe-analysis-submit-sample",
-        "inline_args": {
-          "sample": "${SOCFramework.Artifacts.FilePath}"
-        }
-      },
       "CrowdStrike Falcon Sandbox v2": {
         "command": "cs-fx-submit-uploaded-file",
         "inline_args": {
           "sha256": "${SOCFramework.Artifacts.Hash}",
-          "environment_id": "160"
+          "environment_id": "160: Windows 10 (64-bit)"
         }
       }
     },
@@ -1156,15 +1132,6 @@
   "soc-search-and-delete-email": {
     "shadow_mode": true,
     "responses": {
-      "O365 Compliance": {
-        "command": "o365-sc-compliance-search-purge",
-        "inline_args": {
-          "search_name": "${SOCFramework.Email.ComplianceSearch.Name}"
-        },
-        "output_map": {
-          "UC.Email.SearchDelete.status": "O365.ComplianceSearch.Purge.status"
-        }
-      },
       "Abnormal Security": {
         "command": "abnormal-security-remediate-messages",
         "inline_args": {
@@ -1216,9 +1183,9 @@
         "inline_args": {
           "indicator_value": "${SOCFramework.Artifacts.File}",
           "indicator_type": "FileSha256",
-          "action": "AlertAndBlock",
-          "title": "SOCFramework Block",
-          "description": "Blocked by SOC Framework eradication"
+          "action": "Block",
+          "indicator_title": "SOCFramework Block",
+          "indicator_description": "Blocked by SOC Framework eradication"
         }
       },
       "SentinelOne V2": {
@@ -1299,7 +1266,7 @@
         "inline_args": {
           "indicator_value": "${SOCFramework.Artifacts.Network.Destination.IP}",
           "indicator_type": "IpAddress",
-          "action": "AlertAndBlock",
+          "action": "Block",
           "severity": "High",
           "indicator_title": "SOCFramework C2 block",
           "indicator_description": "Blocked by SOC Framework containment"
@@ -1307,10 +1274,10 @@
       },
       "Panorama": {
         "command": "pan-os-create-address",
-        "target_arg": "address",
+        "target_arg": "ip_netmask",
         "inline_args": {
           "name": "socfw-block-${SOCFramework.Artifacts.Network.Destination.IP}",
-          "address": "${SOCFramework.Artifacts.Network.Destination.IP}",
+          "ip_netmask": "${SOCFramework.Artifacts.Network.Destination.IP}",
           "description": "SOCFramework containment block"
         }
       },
