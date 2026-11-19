@@ -29,19 +29,10 @@ PACK_GLOB = "Packs/soc*"
 
 
 def creds():
-    env = {}
-    if os.path.exists(".env"):
-        for line in open(".env"):
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                env[k] = v.strip().strip('"').strip("'")
-    for k in ("DEMISTO_BASE_URL", "DEMISTO_API_KEY", "XSIAM_AUTH_ID"):
-        env.setdefault(k, os.environ.get(k, ""))
-    missing = [k for k in ("DEMISTO_BASE_URL", "DEMISTO_API_KEY", "XSIAM_AUTH_ID") if not env.get(k)]
-    if missing:
-        sys.exit(f"ERROR: missing credentials: {', '.join(missing)}")
-    return env
+    """The environment first (povkit exec, CI), .env only for what it lacks."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from tenant_env import tenant_credentials
+    return tenant_credentials()
 
 
 def api(env, path, payload=None, method="POST"):

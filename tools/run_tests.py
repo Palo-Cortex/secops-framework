@@ -2,7 +2,8 @@
 """
 SOC Framework Test Runner — with live XQL execution via XSIAM API.
 
-Loads credentials from .env (DEMISTO_BASE_URL, DEMISTO_API_KEY, XSIAM_AUTH_ID).
+Reads DEMISTO_BASE_URL, DEMISTO_API_KEY and XSIAM_AUTH_ID from the environment
+(povkit exec <tenant> -- python3 tools/run_tests.py ...), or .env for any it lacks.
 Sends each replay, waits for playbooks to complete, then runs XQL assertions
 directly against the tenant and reports PASS / FAIL / SKIP per check.
 
@@ -26,20 +27,10 @@ from collections import defaultdict
 
 # ── XSIAM XQL API ─────────────────────────────────────────────────────────────
 
-def load_credentials(env_path: str = ".env") -> dict:
-    """Load XSIAM credentials from .env file."""
-    creds = {}
-    candidates = [env_path, os.path.join(os.path.dirname(__file__), '..', env_path)]
-    for path in candidates:
-        if os.path.exists(path):
-            with open(path) as f:
-                for line in f:
-                    line = line.strip()
-                    if '=' in line and not line.startswith('#'):
-                        k, v = line.split('=', 1)
-                        creds[k.strip()] = v.strip()
-            break
-    return creds
+def load_credentials(env_path: str = None) -> dict:
+    """XSIAM credentials: the environment first (povkit exec, CI), a credentials file only to fill gaps."""
+    from tenant_env import tenant_credentials
+    return tenant_credentials(env_path, required=False)
 
 
 def xql_run(query: str, creds: dict, timeframe_hours: int = 24) -> dict:
@@ -60,7 +51,7 @@ def xql_run(query: str, creds: dict, timeframe_hours: int = 24) -> dict:
     auth_id  = creds.get('XSIAM_AUTH_ID', '')
 
     if not all([base_url, api_key, auth_id]):
-        return {'status': 'ERROR', 'rows': [], 'error': 'Missing credentials in .env'}
+        return {'status': 'ERROR', 'rows': [], 'error': 'Missing tenant credentials (run through povkit exec)'}
 
     headers = {
         'Authorization': api_key,
@@ -697,7 +688,7 @@ def run_tests(test_ids: list, dry_run: bool = False, skip_replay: bool = False):
     if not dry_run:
         creds = load_credentials()
         if not creds.get('DEMISTO_BASE_URL'):
-            print("ERROR: Could not load .env credentials. Run from repo root.")
+            print("ERROR: no tenant credentials. Run through povkit exec <tenant> -- python3 tools/run_tests.py")
             sys.exit(1)
         print(f"  Tenant: {creds['DEMISTO_BASE_URL']}")
 

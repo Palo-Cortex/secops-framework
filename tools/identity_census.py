@@ -25,6 +25,7 @@ wherever the engagement says customer data lives.
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib3
@@ -169,13 +170,10 @@ def email_scan_query(dataset, candidates, min_bucket=MIN_BUCKET):
 
 
 def load_creds(env_path):
-    creds = {}
-    for line in open(env_path):
-        line = line.strip()
-        if "=" in line and not line.startswith("#"):
-            k, v = line.split("=", 1)
-            creds[k.strip()] = v.strip().strip('"')
-    return creds
+    """The environment first (povkit exec, CI), the file only for what it lacks."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from tenant_env import tenant_credentials
+    return tenant_credentials(env_path)
 
 
 def run_xql(creds, query, days):
@@ -232,9 +230,9 @@ def main():
     p = argparse.ArgumentParser(
         description="Identifier-form census. Emits presence flags and counts only — "
                     "never usernames, domains, SIDs or any other field value.")
-    p.add_argument("--env", default="/home/scott/secops-framework/.env",
-                   help="tenant credentials file, e.g. .env-fedex, "
-                        ".env-deathstar-defender. Selects which tenant is queried.")
+    p.add_argument("--env", default=None,
+                   help="credentials file, only for variables the environment lacks. "
+                        "Choose the tenant with povkit exec <tenant> -- python3 tools/identity_census.py")
     p.add_argument("--source", action="append",
                    help="dataset name from SOURCES; repeatable. Default: all.")
     p.add_argument("--dataset", action="append",

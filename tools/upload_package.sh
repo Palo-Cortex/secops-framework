@@ -3,9 +3,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Upload a pack to an XSIAM tenant via demisto-sdk (no zipfiles).
 #
-# Credentials are read from .env at the repo root (local dev) or from
-# environment variables already set by the caller (CI / GitHub Actions).
-# Variables already in the environment always take precedence over .env values.
+# Credentials come from the environment: povkit exec locally
+#   (povkit exec <tenant> -- bash tools/upload_package.sh Packs/<pack>)
+# or the workflow's secrets in CI. A .env at the repo root fills only what the
+# environment lacks.
 #
 # Required variables:
 #   DEMISTO_BASE_URL      XSIAM tenant URL
@@ -26,8 +27,22 @@ if git_root=$(git rev-parse --show-toplevel 2>/dev/null); then
   cd "$git_root"
 fi
 
-# ── Load .env (only sets vars not already in the environment) ─────────────────
+# ── Refuse a .env that names another tenant ───────────────────────────────────
+# demisto-sdk loads .env at the repo root with override=True, so for the upload
+# itself a .env beats the environment: povkit exec or CI would name one tenant and
+# the pack would land on another, while the gate reports the first. Stop instead.
 ENV_FILE=".env"
+if [[ -f "$ENV_FILE" && -n "${DEMISTO_BASE_URL:-}" ]]; then
+  file_url=$(grep -E '^DEMISTO_BASE_URL=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d "\"'" | sed 's:/*$::')
+  if [[ -n "$file_url" && "$file_url" != "${DEMISTO_BASE_URL%/}" ]]; then
+    echo "ERROR: .env at the repo root names $file_url, but this run is for ${DEMISTO_BASE_URL%/}."
+    echo "       demisto-sdk would upload to the .env tenant. Remove .env (keys live in povkit:"
+    echo "       povkit exec <tenant> -- bash tools/upload_package.sh <pack>) and run again."
+    exit 1
+  fi
+fi
+
+# ── Load .env (only sets vars not already in the environment) ─────────────────
 if [[ -f "$ENV_FILE" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     # Skip blank lines and comments

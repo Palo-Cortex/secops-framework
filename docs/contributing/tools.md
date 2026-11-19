@@ -57,6 +57,7 @@ Every script under `tools/`, with what it does in its own words. `check_contribu
 | `sdk_classify.py` | UNVERIFIED — no docstring |  |
 | `send_pan_dss_seed.sh` | Seed socfw identity source data into pan_dss_raw via the brumxdr HTTP Collector. |  |
 | `send_test_events.py` | UNVERIFIED — no docstring |  |
+| `tenant_env.py` | The tenant credentials a repo tool uses: the environment first, a file only to fill gaps. |  |
 | `tsv_to_json.py` | Convert a CrowdStrike TSV export into a JSON array of flat objects suitable for XSIAM HTTP Collector test ingest, with optional theme-based anonymization (e.g. | `python3 tools/tsv_to_json.py     --input "XQL-QUERY-124577 - 2025_11_11 (1).tsv"     --output tools/crowdstrike_sample_execution.json     --limit 10`<br>`python3 tools/tsv_to_json.py     --input "XQL-QUERY-124577 - 2025_11_11 (1).tsv"     --output tools/crowdstrike_sample_execution_marvel.json     --limit 10     --theme marvel` |
 | `tsv_to_json_proofpoint.py` | Convert a Proofpoint TAP TSV export into a JSON array suitable for XSIAM HTTP Collector ingest via send_test_events.py. | `python3 tools/tsv_to_json_proofpoint.py --input scenario.tsv --output scenario.json`<br>`python3 tools/tsv_to_json_proofpoint.py --input scenario.tsv --output scenario.json --limit 5` |
 | `upload_package.sh` | Upload a pack to an XSIAM tenant via demisto-sdk (no zipfiles). | `bash tools/upload_package.sh Packs/soc-framework-nist-ir`<br>`bash tools/upload_package.sh Packs/soc-optimization-unified` |
