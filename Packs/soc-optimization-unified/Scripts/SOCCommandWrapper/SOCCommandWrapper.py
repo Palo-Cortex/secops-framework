@@ -1372,6 +1372,31 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
                 return {"vendor": vendor, "target": target,
                         "outcome": "integration_unavailable", "reason": error_msg}
 
+            # A read-only action that fails (a vendor 429, a timeout, a 5xx) costs the
+            # investigation one lookup; stopping the playbook would cost it everything
+            # after. Actions that change something still stop, so a failed isolate or
+            # block is never mistaken for one that ran.
+            if terminal and is_read_only(shared.get("action_entry") or {}):
+                output_map = vendor_data.get("output_map", {})
+                for dest_key in (output_map or {}).keys():
+                    demisto.setContext(dest_key, None)
+
+                return_warning(
+                    f"[SOCCommandWrapper] Read-only action '{action}' failed and was skipped. "
+                    f"Command: {command}. Error: {error_msg}"
+                )
+                return_results(CommandResults(
+                    readable_output=(
+                        f"⚠️ Command failed: `{command}`\n\n"
+                        f"Action `{action}` only reads, so the playbook continues without "
+                        f"its result.\n\nError: {error_msg}"
+                    ),
+                    outputs_prefix="UC",
+                    outputs={"action": action, "status": "failed", "command": command}
+                ))
+                return {"vendor": vendor, "target": target,
+                        "outcome": "failed", "reason": error_msg}
+
             if terminal:
                 return_error(error_msg)
             return {"vendor": vendor, "target": target,
