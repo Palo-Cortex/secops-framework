@@ -19,6 +19,7 @@ The decision, in the order it is made:
 | True positive | the verdict is `malicious`, at any confidence | code |
 | Not recommended | the assessment set `closure_recommended = false` | code |
 | Something landed | exposure is `delivered` or `executed`, not `already_contained`, and the verdict is not benign: a remediation is owed and that is decided at case scope | code |
+| Policy unreadable | `SOCFWClosurePolicy` exists but cannot be read or is not a JSON object: nothing closes until it is fixed | `SOCFWClosurePolicy` |
 | Category excluded | the policy's `category_overrides.<category>.skip` is set | `SOCFWClosurePolicy` |
 | Blockers outstanding | `closure_blockers` is non-empty and `require_no_blockers` is true | `SOCFWClosurePolicy` |
 | Confidence bar | `closure_confidence` is below `min_closure_confidence` | `SOCFWClosurePolicy` |
@@ -32,7 +33,7 @@ Closure is held to a higher bar than the verdict on purpose: escalating is recov
 | Where | Key | Shipped default | Evaluation | Production |
 |---|---|---|---|---|
 | List `SOCFrameworkActions_V3` (via tenant override) | `soc-close-issue` for actor `ai`: `!SOCFWConfig command=shadow action=soc-close-issue actor=ai value=off apply=yes` | shadow | shadow. The shipped `pov` mode sets it live; that default has not been reviewed against production closes and is under review. Until it is, keep closes shadowed in an evaluation: `!SOCFWConfig command=shadow action=soc-close-issue actor=ai value=on apply=yes` after applying the mode | live only after the shadow numbers have been read and agreed with the customer |
-| List `SOCFWClosurePolicy` | `min_closure_confidence` | `low` | as shipped | raise to `medium` or `high` if closes are too eager; the code falls back to `high` if the list is unreadable |
+| List `SOCFWClosurePolicy` | `min_closure_confidence` | `low` | as shipped | raise to `medium` or `high` if closes are too eager; if the list is missing the code uses `high`; if it exists but cannot be read, nothing closes |
 | List `SOCFWClosurePolicy` | `require_no_blockers` | `true` | as shipped | as shipped |
 | List `SOCFWClosurePolicy` | `category_overrides.<category>.{skip, min_closure_confidence, require_no_blockers}` | `{}` | as shipped | per category where one source closes differently from the rest |
 

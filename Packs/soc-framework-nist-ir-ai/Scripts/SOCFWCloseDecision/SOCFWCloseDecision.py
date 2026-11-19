@@ -35,14 +35,29 @@ CONFIDENCE_RANK = {"low": 1, "medium": 2, "high": 3}
 
 
 def _policy():
+    """(policy, problem). A missing list is ({}, None): the defaults in decide()
+    apply. A list that exists but cannot be read or parsed is ({}, why), and no
+    issue closes until a person fixes it, because the policy is where an owner
+    tightens closing and silently falling back to the defaults would undo that."""
     try:
         res = demisto.executeCommand("getList", {"listName": POLICY_LIST})
-        if not isError(res):
-            raw = res[0].get("Contents")
-            return json.loads(raw) if isinstance(raw, str) else (raw or {})
     except Exception as e:  # noqa: BLE001
-        demisto.debug(f"SOCFWCloseDecision: policy list unreadable, closing stays off: {e}")
-    return {}
+        return {}, f"getList raised: {e}"
+    first = res[0] if isinstance(res, list) and res and isinstance(res[0], dict) else {}
+    raw = first.get("Contents")
+    if isinstance(raw, str) and "Item not found" in raw:
+        return {}, None
+    if not res or isError(res):
+        return {}, f"getList failed: {str(raw)[:120]}"
+    if isinstance(raw, dict):
+        return raw, None
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return {}, None
+    try:
+        doc = json.loads(raw)
+    except (TypeError, ValueError) as e:
+        return {}, f"not valid JSON: {e}"
+    return (doc, None) if isinstance(doc, dict) else ({}, "not a JSON object")
 
 
 def _assessment(ctx):
@@ -91,8 +106,11 @@ def reasoning(assessment):
     return out
 
 
-def decide(a, incident, policy, category):
-    """Return (may_close, reason). Recorded whichever way it goes."""
+def decide(a, incident, policy, category, policy_problem=None):
+    """Return (may_close, reason). Recorded whichever way it goes.
+
+    policy_problem is set when SOCFWClosurePolicy exists but could not be read;
+    nothing closes until it is fixed."""
     if not a:
         return False, "no assessment"
 
@@ -128,6 +146,9 @@ def decide(a, incident, policy, category):
     if landed and not benign and not a.get("already_contained"):
         return False, f"{a.get('exposure')} and not contained — a remediation is owed"
 
+    if policy_problem:
+        return False, f"{POLICY_LIST} unreadable ({policy_problem}) - a person decides"
+
     # Tuning. A category override loosens or tightens one category without
     # changing the rule everywhere else.
     override = (policy.get("category_overrides") or {}).get(str(category or "").lower()) or {}
@@ -152,10 +173,12 @@ def main():
     ctx = demisto.context()
     incident = demisto.incident() or {}
     a = _assessment(ctx)
-    policy = _policy()
+    policy, policy_problem = _policy()
+    if policy_problem:
+        demisto.debug(f"SOCFWCloseDecision: {POLICY_LIST} unreadable, nothing closes: {policy_problem}")
     category = demisto.get(ctx, "SOCFramework.Product.category")
 
-    may_close, reason = decide(a, incident, policy, category)
+    may_close, reason = decide(a, incident, policy, category, policy_problem)
 
     row = {
         "event_type": "ai_close_decision",
