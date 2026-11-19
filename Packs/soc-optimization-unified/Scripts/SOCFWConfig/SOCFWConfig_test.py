@@ -155,7 +155,14 @@ def test_status_shows_customer_values_and_what_is_missing():
     values = {(v["vendor"], v["arg"]): v for v in r.outputs["values"]}
     assert set(values) == {("Zscaler", "category-id"), ("Zscaler", "using"), ("ThreatStopv2", "list_id"),
                            ("CrowdStrike Falcon", "using"), ("Okta v2", "using"),
-                           ("PagerDuty v2", "schedule_ids")}
+                           ("PagerDuty v2", "schedule_ids"),
+                           ("Cortex Core - IR", "script_uid"),
+                           ("Microsoft Defender Advanced Threat Protection", "scriptName")}
+    # Which script removes persistence (Core IR) or stops a process (Defender live
+    # response library) is a tenant fact: required, and missing until PS sets it.
+    for tenant_fact in (("Cortex Core - IR", "script_uid"),
+                        ("Microsoft Defender Advanced Threat Protection", "scriptName")):
+        assert values[tenant_fact]["required"] is True and values[tenant_fact]["set"] is False
     assert values[("Okta v2", "using")]["required"] is False
     assert "soc-clear-sessions" in values[("Okta v2", "using")]["used_by"]
     assert values[("Zscaler", "category-id")]["value"] == "CAT-1"

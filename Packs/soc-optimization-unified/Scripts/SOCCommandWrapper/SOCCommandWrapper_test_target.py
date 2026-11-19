@@ -147,7 +147,7 @@ def test_an_arg_that_embeds_the_target_follows_each_target():
     d = _run(target="176.59.15.33,91.52.62.64", action="soc-block-network-indicator",
              product=PANORAMA, tenant=IP_LIVE)
     calls = _calls(d, "pan-os-create-address")
-    assert [(c["address"], c["name"]) for c in calls] == [
+    assert [(c["ip_netmask"], c["name"]) for c in calls] == [
         ("176.59.15.33", "socfw-block-176.59.15.33"), ("91.52.62.64", "socfw-block-91.52.62.64")]
 
 
@@ -168,7 +168,7 @@ def test_an_endpoint_issue_reaches_every_enforcement_point():
     # Routed by source vendor it skipped on CrowdStrike issues: no CrowdStrike branch.
     d = _run(target="176.59.15.33", action="soc-block-network-indicator", product=CS,
              tenant={"shadow": {"soc-block-network-indicator": {"analyst": False}}})
-    assert [c["address"] for c in _calls(d, "pan-os-create-address")] == ["176.59.15.33"]
+    assert [c["ip_netmask"] for c in _calls(d, "pan-os-create-address")] == ["176.59.15.33"]
 
 
 # A JSON object is one target. soc-assign-case passes the update body - case and
