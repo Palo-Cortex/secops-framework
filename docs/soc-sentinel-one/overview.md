@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | `soc-sentinel-one` |
-| Version | `1.0.7` |
+| Version | `1.0.8` |
 | Category | Endpoint |
 | Pack Path | `Packs/soc-sentinel-one` |
 | Manifest | [`Packs/soc-sentinel-one/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-sentinel-one/xsoar_config.json) |
@@ -22,4 +22,4 @@ Additional custom packs the installer pulls in alongside this pack.
 
 | Pack | System | Source |
 |---|---|---|
-| `soc-sentinel-one.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-sentinel-one-v1.0.7/soc-sentinel-one-v1.0.7.zip) |
+| `soc-sentinel-one.zip` | `yes` | [release](https://github.com/Palo-Cortex/secops-framework/releases/download/soc-sentinel-one-v1.0.8/soc-sentinel-one-v1.0.8.zip) |
