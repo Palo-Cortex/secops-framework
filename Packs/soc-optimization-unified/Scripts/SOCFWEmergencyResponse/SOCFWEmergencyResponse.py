@@ -36,6 +36,13 @@ Which hosts and accounts may be contained is set once for the section:
                      workstation; any turns the check off)
   role               host:<pattern>:<role> - a role for hosts that report none
 
+A protection that cannot be read is never read as "nothing protected". A list:
+entry naming a list that is missing or unreadable blocks every action that setting
+guards, and a SOCFWTenantConfig that exists but cannot be read (a read error, not
+JSON, not an object) blocks every action of the matched policies. Both escalate,
+so a person decides. A tenant with no SOCFWTenantConfig, or an empty one, uses
+the shipped settings.
+
 The role is the first to answer: this tenant's role entries, the EDR
 (SOCFramework.Endpoint.role, refreshed by soc-enrich-endpoint), the operating
 system (macOS and Windows client editions read as workstation, Windows Server as
@@ -114,19 +121,44 @@ SECTION_SETTINGS = ("containable_roles", "containable_hosts", "protect", "role",
 
 # ── Reading ──────────────────────────────────────────────────────────────────
 
-def _get_list(name):
+def _read_list(name):
+    """(raw contents, problem). A list that does not exist is (None, None); a list
+    that exists but cannot be read is (None, why)."""
     try:
         res = demisto.executeCommand("getList", {"listName": name})
-        if res and not isError(res):
-            raw = res[0].get("Contents")
-            if isinstance(raw, dict):
-                return raw
-            if isinstance(raw, str) and "Item not found" not in raw:
-                doc = json.loads(raw)
-                return doc if isinstance(doc, dict) else {}
     except Exception as e:  # noqa: BLE001
-        demisto.debug(f"SOCFWEmergencyResponse: {name} unreadable: {e}")
-    return {}
+        return None, f"getList raised: {e}"
+    first = res[0] if isinstance(res, list) and res and isinstance(res[0], dict) else {}
+    raw = first.get("Contents")
+    if isinstance(raw, str) and "Item not found" in raw:
+        return None, None
+    if not res or isError(res):
+        return None, f"getList failed: {str(raw)[:120]}"
+    return raw, None
+
+
+def _load_doc(name):
+    """(dict, problem). Missing reads as {} with no problem; unparseable or not an
+    object is a problem."""
+    raw, problem = _read_list(name)
+    if problem or raw is None:
+        return {}, problem
+    if isinstance(raw, dict):
+        return raw, None
+    if isinstance(raw, str) and not raw.strip():
+        return {}, None
+    try:
+        doc = json.loads(raw)
+    except (TypeError, ValueError) as e:
+        return {}, f"not valid JSON: {e}"
+    return (doc, None) if isinstance(doc, dict) else ({}, "not a JSON object")
+
+
+def _get_list(name):
+    doc, problem = _load_doc(name)
+    if problem:
+        demisto.debug(f"SOCFWEmergencyResponse: {name} unreadable: {problem}")
+    return doc
 
 
 def _as_list(value):
@@ -236,30 +268,50 @@ def merge_settings(section, tenant_cfg):
 
 
 def expand_entries(entries):
-    """Entries with list:<name> replaced by that XSIAM list's lines.
+    """(typed entries, problems): entries with list:<name> replaced by that XSIAM
+    list's lines, and one problem per named list that is missing or unreadable.
 
     A line may carry its own prefix; a bare line reads as ip, cidr or host by its shape.
+    A list named here was meant to say something, so a missing one is a problem,
+    never an empty list: the callers refuse to act rather than read it as "nothing".
     """
-    out = []
+    out, problems = [], []
     for entry in _as_list(entries):
         if entry.lower().startswith("list:"):
-            text = _list_text(entry.split(":", 1)[1].strip())
+            name = entry.split(":", 1)[1].strip()
+            text, problem = _list_text(name)
+            if problem:
+                problems.append(f"list {name} {problem}")
+                continue
             out += [line.strip() for line in text.splitlines()
                     if line.strip() and not line.strip().startswith("#")]
         else:
             out.append(entry)
-    return [_typed(e) for e in out]
+    return [_typed(e) for e in out], problems
 
 
 def _list_text(name):
-    try:
-        res = demisto.executeCommand("getList", {"listName": name})
-        if res and not isError(res):
-            raw = res[0].get("Contents")
-            return raw if isinstance(raw, str) and "Item not found" not in raw else ""
-    except Exception as e:  # noqa: BLE001
-        demisto.debug(f"SOCFWEmergencyResponse: list {name} unreadable: {e}")
-    return ""
+    """(text, problem). Missing and unreadable are both problems here."""
+    raw, problem = _read_list(name)
+    if problem:
+        return "", f"is unreadable ({problem})"
+    if raw is None:
+        return "", "does not exist"
+    if not isinstance(raw, str):
+        return "", "is not text"
+    return raw, None
+
+
+def _entries(settings, which):
+    """(typed entries, why they cannot be trusted or ''). An unreadable tenant
+    config, or a list the setting names that cannot be read, means the setting
+    may say more than we can see - so nothing it guards is acted on."""
+    if settings.get("unreadable"):
+        return [], f"{TENANT_CONFIG_LIST} is unreadable ({settings['unreadable']}) - a person decides"
+    typed, problems = expand_entries(settings.get(which))
+    if problems:
+        return [], f"{which} cannot be read ({'; '.join(problems)}) - a person decides"
+    return typed, ""
 
 
 def _typed(entry):
@@ -343,12 +395,18 @@ def host_role(settings, f):
 
 def gate(scope, settings, f):
     """(go, outcome, why) for one action on this issue's host or account."""
-    protect = expand_entries(settings.get("protect"))
+    if scope not in (HOST_SCOPE, IDENTITY_SCOPE):
+        return True, "", ""
+    protect, why = _entries(settings, "protect")
+    if why:
+        return False, "blocked", why
     if scope == HOST_SCOPE:
         hit = host_matches(protect, f)
         if hit:
             return False, "blocked", f"protected ({settings.get('protect_from')}: {hit})"
-        listed = expand_entries(settings.get("containable_hosts"))
+        listed, why = _entries(settings, "containable_hosts")
+        if why:
+            return False, "blocked", why
         if listed:
             hit = host_matches(listed, f)
             if not hit:
@@ -398,7 +456,10 @@ def _domain_hit(value, pattern):
 
 def gate_indicator(value, settings, f):
     """(go, outcome, why) for blocking one destination address or domain."""
-    for kind, entry in expand_entries(settings.get("protect")):
+    protect, why = _entries(settings, "protect")
+    if why:
+        return False, "blocked", why
+    for kind, entry in protect:
         if ((kind == "ip" and value == entry) or (kind == "cidr" and _ip_in(value, entry))
                 or (kind in ("domain", "host") and _domain_hit(value, entry))):
             return False, "blocked", f"protected ({settings.get('protect_from')}: {kind} {entry})"
@@ -675,9 +736,15 @@ def main():
     if str(f["already_contained"]).strip().lower() == "true":
         return stop("already_contained", "the assessment says the issue is already contained")
 
-    tenant_cfg = _get_list(TENANT_CONFIG_LIST)
+    # A tenant config that exists but cannot be read may protect hosts, turn a
+    # shipped policy off or narrow what may be contained - none of which can be
+    # seen. The shipped policies still decide whether this is an emergency, but
+    # nothing is contained: every action is held and the case escalated.
+    tenant_cfg, cfg_problem = _load_doc(TENANT_CONFIG_LIST)
     policies = merge_policies(section, tenant_cfg)
     settings = merge_settings(section, tenant_cfg)
+    if cfg_problem:
+        settings["unreadable"] = cfg_problem
     matched, actions, trail = plan(policies, f)
     trail_md = "\n" + "\n".join(f"- {t}" for t in trail)
     if not matched:
@@ -687,6 +754,10 @@ def main():
     names = ", ".join(p["policy"] for p in matched)
     results = []
     for action in actions:
+        if cfg_problem:
+            results.append((action, "blocked", f"{TENANT_CONFIG_LIST} is unreadable ({cfg_problem}) "
+                                               "- a person decides"))
+            continue
         row = rows.get(action)
         if not isinstance(row, dict) or "responses" not in row:
             results.append((action, "skipped", f"not in {ACTIONS_LIST}"))
