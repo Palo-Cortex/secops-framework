@@ -449,8 +449,7 @@ def test_main_production_rate_limited_soft_fails():
     output keys so downstream conditions evaluate cleanly, and return —
     letting Containment/Eradication/Recovery still run.
 
-    RED until the failure gate at SOCCommandWrapper.py:895 is widened beyond
-    error 23 (integration_unavailable).
+    soc-get-email-forensics is an investigation action, so it only reads.
     """
     script, demisto = load_script()
 
@@ -472,6 +471,7 @@ def test_main_production_rate_limited_soft_fails():
             return [{
                 "Contents": json.dumps({
                     "soc-get-email-forensics": {
+                        "phase": "investigation",
                         "shadow_mode": False,
                         "responses": {
                             "Proofpoint TAP v2": {
@@ -523,6 +523,50 @@ def test_main_production_rate_limited_soft_fails():
     assert posted[0]["has_error"] is True
     assert posted[0]["action_status"] != "success"
 
+
+
+def test_main_production_changing_action_failure_still_stops():
+    """A failed action that changes something stops the playbook, so a failed
+    isolate is never read as one that ran. Only read-only actions soft-fail."""
+    script, demisto = load_script()
+
+    demisto._args = {
+        "action": "soc-isolate-endpoint",
+        "list_name": "SOCFrameworkActions_V3",
+        "output_key": "SOCFramework.Execution",
+        "Action_Actor": "automation",
+    }
+    demisto._context = {
+        "SOCFramework": {"Product": {"response": "CrowdStrikeFalcon"}}
+    }
+
+    def get_list_response(args):
+        if args["listName"] == "SOCFrameworkActions_V3":
+            return [{
+                "Contents": json.dumps({
+                    "soc-isolate-endpoint": {
+                        "phase": "containment",
+                        "shadow_mode": False,
+                        "responses": {
+                            "CrowdStrikeFalcon": {
+                                "command": "cs-falcon-contain-host",
+                                "inline_args": {"ids": "abc"},
+                            }
+                        },
+                    }
+                })
+            }]
+        return [{"Contents": "[]"}]
+
+    demisto._command_responses = {
+        "getList": get_list_response,
+        "getIssues": [{"Contents": {"data": [{"id": "100"}]}}],
+        "cs-falcon-contain-host": [{"Type": 4, "Contents": "Error in API call 429 Too Many Requests"}],
+        "socfw-post-to-dataset": [{"Type": 1, "Contents": "ok"}],
+    }
+
+    with pytest.raises(RuntimeError, match="429"):
+        script.main()
 
 def test_main_missing_action_raises_error():
     script, demisto = load_script()
