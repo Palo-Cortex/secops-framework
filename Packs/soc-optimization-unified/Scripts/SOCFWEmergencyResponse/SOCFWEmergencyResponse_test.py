@@ -111,6 +111,8 @@ class Tenant:
             if name not in self.lists:
                 return [{"Type": 4, "Contents": f" - Item not found (8) on list [{name}] (2609)"}]
             v = self.lists[name]
+            if isinstance(v, Exception):
+                return [{"Type": 4, "Contents": f"Failed to get list {name}: {v}"}]
             return [{"Type": 1, "Contents": v if isinstance(v, str) else json.dumps(v)}]
         if command == "socfw-post-to-dataset":
             self.rows.append(json.loads(args["JSON"]))
@@ -366,6 +368,62 @@ def test_protect_from_an_xsiam_list():
     t = endpoint(tenant=tenant, lists={"CriticalServers": "# servers\nexchange01\n10.20.20.0/24\n"}).run()
     assert t.statuses()["soc-isolate-endpoint"] == "blocked"
 
+
+
+# ── A protection that cannot be read protects everything it might name ───────
+
+@pytest.mark.parametrize("lists,why", [({}, "does not exist"),
+                                       ({"CriticalServers": RuntimeError("timeout")}, "is unreadable")])
+def test_a_protect_list_that_cannot_be_read_blocks_the_host(lists, why):
+    tenant = {"emergency": {"protect": ["list:CriticalServers"], "containable_roles": ["any"]}}
+    t = endpoint(tenant=tenant, lists=lists, outcome="executed").run()
+    assert "soc-isolate-endpoint" not in t.dispatched(er.ACTOR)
+    assert t.statuses()["soc-isolate-endpoint"] == "blocked"
+    assert why in t.decision()["blocked_reason"]
+    assert er.STAR_ACTION in t.dispatched(er.TRIAGE_ACTOR)
+    assert er.CLOSE_ACTION not in t.dispatched()
+
+
+def test_a_protect_list_that_cannot_be_read_blocks_the_account():
+    tenant = {"emergency": {"protect": ["list:BreakGlass"]}}
+    t = Tenant(a(), tenant=tenant, outcome="executed").run()
+    assert t.dispatched(er.ACTOR) == []
+    assert set(t.statuses().values()) == {"blocked"}
+
+
+def test_a_protect_list_that_cannot_be_read_blocks_the_destination():
+    t = c2(tenant={"emergency": {"protect": ["list:NoBlock"]}}, outcome="executed").run()
+    assert blocks(t) == []
+    assert "protect cannot be read" in t.decision()["blocked_reason"]
+
+
+def test_a_containable_hosts_list_that_cannot_be_read_blocks_the_host():
+    tenant = {"emergency": {"containable_hosts": ["list:Workstations"]}}
+    t = endpoint(tenant=tenant, outcome="executed").run()
+    assert "soc-isolate-endpoint" not in t.dispatched(er.ACTOR)
+    assert "containable_hosts cannot be read" in t.decision()["blocked_reason"]
+
+
+def test_an_empty_protect_list_is_read_as_empty():
+    tenant = {"emergency": {"protect": ["list:CriticalServers"], "containable_roles": ["any"]}}
+    t = endpoint(tenant=tenant, lists={"CriticalServers": "# none yet\n"}, outcome="executed").run()
+    assert t.dispatched(er.ACTOR) == ["soc-isolate-endpoint"]
+
+
+@pytest.mark.parametrize("cfg", ["{not json", "[1, 2]", RuntimeError("timeout")])
+def test_an_unreadable_tenant_config_contains_nothing_and_escalates(cfg):
+    t = Tenant(a(), outcome="executed", lists={"SOCFWTenantConfig": cfg}).run()
+    assert t.dispatched(er.ACTOR) == []
+    assert set(t.statuses().values()) == {"blocked"}
+    assert "SOCFWTenantConfig is unreadable" in t.decision()["blocked_reason"]
+    assert er.STAR_ACTION in t.dispatched(er.TRIAGE_ACTOR)
+    assert er.CLOSE_ACTION not in t.dispatched()
+
+
+@pytest.mark.parametrize("cfg", [None, ""])
+def test_a_missing_or_empty_tenant_config_uses_the_shipped_settings(cfg):
+    lists = {} if cfg is None else {"SOCFWTenantConfig": cfg}
+    assert Tenant(a(), lists=lists).run().dispatched(er.ACTOR) == IDENTITY
 
 def test_containable_hosts_replaces_the_role_check():
     tenant = {"emergency": {"containable_hosts": ["host:box*"]}}
