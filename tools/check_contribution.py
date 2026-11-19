@@ -39,7 +39,7 @@ WORKFLOW
   8. upload_package.sh           Deploy changed packs to review tenant.
   9. verify_tenant_content.py    Confirm the upload did not remove other packs' content.
                                  Runs in both local and CI — credentials come
-                                 from .env locally, GitHub Secrets in CI.
+                                 from povkit exec locally, GitHub Secrets in CI.
                                  Includes platform health check — aborts if
                                  API endpoints are unhealthy.
 
