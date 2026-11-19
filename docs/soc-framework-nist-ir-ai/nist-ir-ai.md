@@ -73,4 +73,4 @@ config timeframe = 24h
 
 ---
 
-Verified against **soc-framework-nist-ir-ai 1.6.0**, `ai/nist-ir` and **soc-optimization-unified 3.31.1** source · Tenant run: **pending** · Internal mapping: Notion, AI › Issue Assessment and Case Analysis master pages
+Verified against **soc-framework-nist-ir-ai 1.6.0**, the AI playbooks and **soc-optimization-unified 3.31.1** source · Tenant run: **pending** · Internal mapping: Notion, AI › Issue Assessment and Case Analysis master pages

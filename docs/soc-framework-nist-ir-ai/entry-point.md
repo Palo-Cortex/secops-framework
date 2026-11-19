@@ -29,10 +29,10 @@ Promote runs before the three decisions on purpose: each decision reads `Assessm
 | Where | Key | Shipped default | Evaluation | Production |
 |---|---|---|---|---|
 | Automation rule | `WHEN issue is created … THEN EP_IR_NIST - AI` | none | the three-branch rule from [Install NIST IR AI](../evaluate/install-nist-ir-ai.md) | same, sized per tenant; rollback is pointing the rule at another playbook |
-| Playbook file `ai/nist-ir/EP_IR_NIST_-_AI.yml` | aiTask named `SOCFWIssueAssessment` → `aiTaskId` | the authoring tenant's id; resolves nowhere else | bound to this tenant's prompt at install | re-bound after every upgrade |
+| Playbook `EP_IR_NIST - AI` (installed with povkit) | aiTask named `SOCFWIssueAssessment` → `aiTaskId` | the authoring tenant's id; resolves nowhere else | bound to this tenant's prompt at install | re-bound after every upgrade |
 | Context | `SOCFramework.lifecycle`, `SOCFramework.lifecycle_version` | `NIST_IR`, `3` | as shipped | as shipped |
 
-> The playbook is uploaded by hand, not shipped in the pack, because the aiTask carries a tenant-local prompt id. Upgrading the pack does not touch it; upgrading the playbook means re-uploading the file and re-binding the aiTask.
+> The playbook is not shipped in the pack, because the aiTask carries a tenant-local prompt id. Upgrading the pack does not touch it; povkit installs and updates it with the NIST IR AI use case.
 
 ## 3. Turn it on
 
@@ -66,4 +66,4 @@ config timeframe = 1h
 
 ---
 
-Verified against `ai/nist-ir/EP_IR_NIST_-_AI.yml` and **soc-framework-nist-ir-ai 1.6.0** source · Tenant run: **pending** · Internal mapping: Notion, AI › Issue Assessment master page
+Verified against the `EP_IR_NIST - AI` playbook and **soc-framework-nist-ir-ai 1.6.0** source · Tenant run: **pending** · Internal mapping: Notion, AI › Issue Assessment master page
