@@ -62,7 +62,8 @@ def plan_for(case, phase):
         for key, val in ec.items():
             if key.startswith("SOCFramework.Phase.Proposed"):
                 return as_list(val), None
-    return [], "planner returned no steps"
+    # An empty plan writes no context key: nothing to do, not a failure.
+    return [], None
 
 
 def execute(steps, phase, case_id):
@@ -99,24 +100,32 @@ def summarise(decisions):
     return tally
 
 
-def containment_state(decisions):
-    """Contained only when nothing that needed doing was left undone.
+def containment_state(decisions, error=""):
+    """Contained only when every step really ran and nothing was left undone.
 
-    A capability gap or a policy refusal leaves part of the intrusion live, and a
-    case that reads 'contained' on partial coverage is how an environment gets
-    handed back to an attacker at recovery.
+    A capability gap, a policy refusal or a failed command leaves part of the
+    intrusion live, and a case that reads 'contained' on partial coverage is how
+    an environment gets handed back to an attacker at recovery. A step the wrapper
+    only simulated did not contain anything either: a plan that ran entirely in
+    shadow is 'simulated'. A planner or executor that failed is 'error', never
+    'nothing_to_contain' - nobody knows what there was to contain.
     """
+    if error and not decisions:
+        return "error"
     if not decisions:
         return "nothing_to_contain"
-    done = sum(1 for d in decisions if d.get("status") == "dispatched")
-    blocked = sum(1 for d in decisions if d.get("status") in (
+    count = summarise(decisions)
+    done = count.get("executed", 0)
+    simulated = count.get("shadow", 0)
+    blocked = sum(count.get(s, 0) for s in (
         "integration_unavailable", "contract_gap", "content_gap",
-        "environment_denied", "policy_blocked"))
-    pending = sum(1 for d in decisions if d.get("status") in (
-        "awaiting_approval", "direction"))
-    if done and not blocked and not pending:
+        "environment_denied", "policy_blocked", "failed", "skipped"))
+    pending = sum(count.get(s, 0) for s in ("awaiting_approval", "direction"))
+    if done and not (simulated or blocked or pending or error):
         return "contained"
-    if done or pending:
+    if simulated and not (done or blocked or pending or error):
+        return "simulated"
+    if done or simulated or pending:
         return "partially_contained"
     return "uncontained"
 
@@ -134,8 +143,9 @@ def main():
 
         steps, err = plan_for(case, "containment")
         decisions, exec_err = execute(steps, "containment", case_id)
-        state = containment_state(decisions)
+        state = containment_state(decisions, err or exec_err)
         tally = summarise(decisions)
+        sent = sum(tally.get(s, 0) for s in ("executed", "shadow", "skipped", "failed"))
 
         # Eradication and recovery are directions_only for now, so the executor
         # returns them as steps for an analyst rather than dispatching. Producing
@@ -150,7 +160,11 @@ def main():
             "phase": "containment", "action_actor": "automation",
             "containment_state": state,
             "steps_planned": len(steps),
-            "steps_dispatched": tally.get("dispatched", 0),
+            # Handed to the wrapper, and what the wrapper said happened.
+            "steps_dispatched": sent,
+            "steps_executed": tally.get("executed", 0),
+            "steps_simulated": tally.get("shadow", 0),
+            "steps_failed": tally.get("failed", 0) + tally.get("skipped", 0),
             "steps_awaiting_approval": tally.get("awaiting_approval", 0),
             "steps_unavailable": tally.get("integration_unavailable", 0),
             "steps_contract_gap": tally.get("contract_gap", 0),

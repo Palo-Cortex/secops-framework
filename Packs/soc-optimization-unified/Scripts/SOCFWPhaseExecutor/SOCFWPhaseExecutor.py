@@ -313,6 +313,68 @@ def decide(step, actions, env, policy, brands, ctx, ledger, tenant_config=None):
     return out
 
 
+def records_from(action, entries):
+    """The wrapper's record of each call, from the entries executeCommand returns.
+
+    The same reading as SOCFWEmergencyResponse.records_from - scripts cannot
+    import each other on the tenant, so it is copied, and a test holds the two
+    to each other. Read from the entries because what a nested script writes to
+    context is not visible to its caller until the caller finishes.
+    """
+    records = []
+    for e in entries or []:
+        if not isinstance(e, dict):
+            continue
+        contents = e.get("Contents")
+        title = str(e.get("HumanReadable") or "").split("\n", 1)[0]
+        if e.get("Type") == 4:
+            records.append({"action": action, "success": False, "shadow_mode": False,
+                            "error": str(contents)[:300]})
+        elif isinstance(contents, dict) and "success" in contents and contents.get("action") == action:
+            records.append(contents)
+        elif isinstance(contents, dict) and f"{action}: skipped" in title:
+            records.append({"action": action, "skipped": True,
+                            "skip_reason": str(contents.get("reason") or title)})
+    return records
+
+
+def outcome_of(action, records):
+    """(executed | shadow | skipped | failed | no_record, why). Same as
+    SOCFWEmergencyResponse.outcome_of."""
+    mine = [r for r in records if isinstance(r, dict) and r.get("action") == action]
+    if not mine:
+        return "no_record", "the wrapper reported nothing for it"
+    skipped = [r for r in mine if r.get("skipped")]
+    if skipped:
+        return "skipped", str(skipped[0].get("skip_reason") or "skipped")
+    errors = [r for r in mine if r.get("error")]
+    if errors:
+        return "failed", str(errors[0].get("error"))
+    if any(r.get("shadow_mode") for r in mine):
+        return "shadow", "simulated (shadow mode)"
+    if all(r.get("success") is True for r in mine):
+        return "executed", "ran on " + ", ".join(sorted({str(r.get("vendor")) for r in mine}))
+    return "failed", "the wrapper did not report success"
+
+
+def dispatch(action, phase):
+    """(status, why) of one wrapper call: executed, shadow, skipped or failed.
+
+    A call the wrapper reports nothing for is failed - nothing says it ran.
+    """
+    try:
+        entries = demisto.executeCommand("SOCCommandWrapper", {
+            "action": action,
+            "Phase": phase,
+            "Action_Actor": ACTOR,
+            "output_key": "SOCFramework.Phase.Dispatch",
+        })
+    except Exception as e:  # noqa: BLE001
+        return "failed", "the wrapper raised: {}".format(e)
+    status, why = outcome_of(action, records_from(action, entries))
+    return ("failed", why) if status == "no_record" else (status, why)
+
+
 def load_plan(args, ctx):
     """Read the plan from context by default rather than take it as an argument.
 
@@ -365,17 +427,12 @@ def main():
         verdict = decide(step, actions, env, policy, brands, ctx, ledger, tenant_config)
         verdict["step"] = idx
         if verdict["status"] == "dispatch":
-            entry = actions.get(verdict["action"]) or {}
-            demisto.executeCommand("SOCCommandWrapper", {
-                "action": verdict["action"],
-                "shadow_mode": str(entry.get("shadow_mode", True)).lower(),
-                "Phase": phase,
-                "Action_Actor": "automation",
-                "output_key": "SOCFramework.Phase.Dispatch",
-            })
-            # The wrapper writes its own execution row and knows whether the
-            # vendor call really happened; do not duplicate its verdict here.
-            verdict["status"] = "dispatched"
+            # The wrapper writes its own execution row; its answer - not the act
+            # of calling it - says whether the step happened.
+            status, why = dispatch(verdict["action"], phase)
+            verdict["status"] = status
+            if status != "executed":
+                verdict["reason"] = why
             ledger.add((verdict["action"], verdict["entity_value"]))
         else:
             post_row({
@@ -399,7 +456,8 @@ def render(results, phase, case_id):
     """One scannable entry. War Room truncates past roughly thirty lines, so
     lead with the counts and keep one line per step."""
     marker = {
-        "dispatched": "\u2705", "shadow": "\U0001f7e1", "direction": "\U0001f4cb",
+        "executed": "\u2705", "shadow": "\U0001f7e1", "skipped": "\u26aa",
+        "failed": "\U0001f534", "direction": "\U0001f4cb",
         "awaiting_approval": "\u23f8\ufe0f", "integration_unavailable": "\U0001f50c",
         "contract_gap": "\u26a0\ufe0f", "content_gap": "\u26a0\ufe0f",
         "environment_denied": "\u26d4", "policy_blocked": "\u26d4",
