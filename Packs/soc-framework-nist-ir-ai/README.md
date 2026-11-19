@@ -14,10 +14,10 @@ Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the
 
 | Item | What it is |
 | --- | --- |
-| `EP_IR_NIST - AI` | Entry point. Builds the contract at Upon Trigger, then runs the issue assessment aiTask. **Not in this pack** — see [ai/nist-ir](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) |
+| `EP_IR_NIST - AI` | Entry point. Builds the contract at Upon Trigger, then runs the issue assessment aiTask. **Not in this pack**: installed with povkit (below) |
 | `JOB - SOC Case Analysis` | The JOB playbook. Selects cases, collapses them, builds payloads |
 | `JOB - SOC Case Response` | The JOB playbook for case response. Runs the containment, eradication and recovery plans from each case's Analysis contract through `SOCFWCaseResponse` |
-| `SOC Case Analysis Phase` | Sub-playbook, once per case. **Not in this pack** — see [ai/nist-ir](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) |
+| `SOC Case Analysis Phase` | Sub-playbook, once per case. **Not in this pack**: installed with povkit (below) |
 | `SOCFWCaseResponse` | Runs a case's response plan step by step through the framework executor, so shadowed steps are recorded; writes each phase's contract |
 | `SOCFWCaseContractWrite` | Writes a phase's declared contract to the case |
 | `SOCFWCollectIntel` | Gathers the reputation context roots into one key for the issue prompt |
@@ -32,17 +32,17 @@ Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the
 | AI Prompt `SOCFWIssueAssessment` | Issue-scope prompt; created on the tenant from the prompt master. Not installed by the pack |
 | AI Prompt `SOCFWCaseAnalysis` | Case-scope prompt; created on the tenant from the prompt master. Not installed by the pack |
 
-**Two playbooks are not in this pack.** `EP_IR_NIST - AI` and `SOC Case Analysis Phase` carry `aiTask` tasks, and an `aiTask` holds an `aiTaskId` bound to an AI Prompt on one specific tenant. A pack shipping them cannot install cleanly anywhere else, so they are installed with the AI content (povkit uploads them and walks the DC through the prompts). [`ai/nist-ir/`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md) covers uploading them by hand, rebinding each `aiTask`, and the automation rule that triggers the lifecycle.
+**Two playbooks are not in this pack.** `EP_IR_NIST - AI` and `SOC Case Analysis Phase` carry `aiTask` tasks, and an `aiTask` holds an `aiTaskId` bound to an AI Prompt on one specific tenant. A pack shipping them cannot install cleanly anywhere else, so they are distributed with the lifecycle's AI content (Palo Alto Networks internal; not published in this repository) and installed with povkit. povkit uploads them in order, walks through creating and binding the prompts, and brings them up to date when it is run again after a release.
 
-`JOB - SOC Case Analysis` and `JOB - SOC Case Response` have no `aiTask` and ship here. `JOB - SOC Case Analysis` calls `SOC Case Analysis Phase`, so it cannot resolve its sub-playbook until that upload is done.
+`JOB - SOC Case Analysis` and `JOB - SOC Case Response` have no `aiTask` and ship here. `JOB - SOC Case Analysis` calls `SOC Case Analysis Phase`, so it cannot resolve its sub-playbook until that playbook is installed.
 
-**Installing this pack changes nothing on its own.** The content side-loads alongside `soc-framework-nist-ir`; the existing `EP_IR_NIST (800-61)_V3` keeps its inline lifecycle and keeps running. Nothing switches over until the automation trigger is pointed at `EP_IR_NIST - AI`, and pointing it back is the rollback.
+**Installing this pack changes nothing on its own.** Nothing runs until the automation rule points at `EP_IR_NIST - AI`, and pointing it at another playbook is the rollback. The case JOBs are created off.
 
-The supporting scripts come from `soc-framework-nist-ir`: `SOCFWCaseSelect`, `SOCFWBuildCasePayload`, `SOCFWFetchShapeContracts`, `SOCFWCaseIterationSetup`, `SOCFWCaseVerdictReport`.
+The supporting scripts ship in this pack: `SOCFWCaseSelect`, `SOCFWBuildCasePayload`, `SOCFWFetchShapeContracts`, `SOCFWCaseIterationSetup`, `SOCFWCaseVerdictReport`.
 
 ## Install
 
-**1. Install this pack.** The automations, layout and JOB playbook arrive. The two `aiTask` playbooks do not — upload those per [`ai/nist-ir/README.md`](https://github.com/Palo-Cortex/secops-framework/blob/main/ai/nist-ir/README.md), which also covers rebinding and the automation rule. Neither AI step produces a verdict until its prompt exists and is bound.
+**1. Install this pack.** The automations, layout and JOB playbook arrive. The two `aiTask` playbooks do not: install them with povkit. [Install NIST IR AI](https://palo-cortex.github.io/secops-framework/evaluate/install-nist-ir-ai/) covers the prompts, the binding and the automation rule. Neither AI step produces a verdict until its prompt exists and is bound.
 
 **2. Create the issue assessment prompt.** Name it `SOCFWIssueAssessment`. Paste the body and bind the inputs from the prompt master distributed with the lifecycle (Palo Alto Networks internal; not published in this repository). Settings:
 

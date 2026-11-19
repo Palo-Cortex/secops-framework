@@ -42,12 +42,12 @@ Every `SOCFWIssueAssessment` input is bound through `SetIfEmpty` with default `n
 
 > Do not lower the token ceilings. A reply that exceeds the ceiling is cut mid-string and arrives as unparseable JSON; both prompts have truncated at lower settings, and on the Thinking tier the model's reasoning draws on the same budget as its output. 16000 is the default for both. Structured output stays off because the schema is described in the prompt body.
 
-## 3. Upload the two playbooks
+## 3. Install the two playbooks
 
-Investigation & Response → Automation → **Playbooks** → upload, in this order:
+They carry `aiTask` tasks, so they are not in the pack. They are distributed with the lifecycle's AI content (Palo Alto Networks internal; not published in this repository) and installed with povkit: `povkit install <name>` with the NIST IR AI use case uploads them in this order:
 
-1. `ai/nist-ir/SOC_Case_Analysis_Phase.yml`
-2. `ai/nist-ir/EP_IR_NIST_-_AI.yml`
+1. `SOC Case Analysis Phase`
+2. `EP_IR_NIST - AI`
 
 Order matters: `JOB - SOC Case Analysis`, installed with the pack, resolves `SOC Case Analysis Phase` as its sub-playbook.
 
@@ -60,7 +60,7 @@ The uploaded playbooks point at prompt ids from another tenant. Open each, selec
 | `EP_IR_NIST - AI` | the task named `SOCFWIssueAssessment` (id `9002` in the current file) | `SOCFWIssueAssessment` |
 | `SOC Case Analysis Phase` | the task named `AI Case Analysis` (id `10` in the current file) | `SOCFWCaseAnalysis` |
 
-Find the task by its name, not its number. Each playbook has exactly one aiTask, and its name matches the prompt it binds to; the numeric id can change when a playbook is re-exported. The task shows the prompt name once bound. A pack upgrade replaces `SOC Case Analysis Phase` with the shipped placeholder, so re-check task `10` after every upgrade. The symptom of a lost binding is a playbook that completes with no verdict.
+Find the task by its name, not its number. Each playbook has exactly one aiTask, and its name matches the prompt it binds to; the numeric id can change when a playbook is re-exported. The task shows the prompt name once bound. Run `povkit install <name>` again after each release to bring both playbooks up to date; it keeps the binding when it updates a playbook. A playbook uploaded by hand loses its binding. The symptom of a lost binding is a playbook that completes with no verdict.
 
 ## 5. Create the automation rule
 
@@ -146,4 +146,4 @@ config timeframe = 1h
 
 ---
 
-Verified against **soc-framework-nist-ir-ai 1.6.0** and `ai/nist-ir` source · Tenant run: **pending** · Internal mapping: Notion, Evaluate track › AI layer
+Verified against **soc-framework-nist-ir-ai 1.6.0** and the AI playbooks' source · Tenant run: **pending** · Internal mapping: Notion, Evaluate track › AI layer

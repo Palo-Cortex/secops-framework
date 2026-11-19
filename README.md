@@ -21,7 +21,6 @@ The operating layer for security operations on Cortex XSIAM, and the lifecycles 
 |---|---|
 | `Packs/soc-optimization-unified/` | The framework: the universal command, Shadow Mode, lists, datasets, scripts, dashboards. Its [README](Packs/soc-optimization-unified/README.md) is the capability catalog. |
 | `Packs/soc-framework-nist-ir-ai/` | The NIST IR AI lifecycle: assessment, close decision, case analysis, layouts, dashboards. |
-| `ai/nist-ir/` | The lifecycle's hand-deployed playbooks and prompt recipes, with their release notes. |
 | `Packs/soc-*` | Vendor packs: one per data source, generated from a contract under `schemas/vendors/`. |
 | `schemas/` | The contracts the content is generated from and validated against. |
 | `tools/` | The gates and generators: `check_contribution.py` before every commit, `prep_docs.py` for the docs. |

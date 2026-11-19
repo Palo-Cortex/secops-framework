@@ -88,4 +88,4 @@ Two consequences of the test:
 
 ---
 
-Verified against **soc-optimization-unified 3.31.1**, **soc-framework-nist-ir-ai 1.6.0** and `ai/nist-ir` source · Internal mapping: Notion, SOC Framework — Documentation › the boundary rule
+Verified against **soc-optimization-unified 3.31.1**, **soc-framework-nist-ir-ai 1.6.0** and the AI playbooks' source · Internal mapping: Notion, SOC Framework — Documentation › the boundary rule
