@@ -68,6 +68,7 @@ Every script under `tools/`, with what it does in its own words. `check_contribu
 | `validate_xsoar_configs.py` | CI gate for xsoar_config.json in every pack Rules enforced: 1. | `python tools/validate_xsoar_configs.py`<br>`python tools/validate_xsoar_configs.py --packs soc-optimization-unified,soc-framework-nist-ir` |
 | `verify_pack_zip.py` | release gate: prove a built pack zip actually contains the pack's content before it is published. | `python3 tools/verify_pack_zip.py --pack-root Packs/<pack> --zip dist/<pack>-vX.Y.Z.zip` |
 | `verify_tenant_content.py` | Confirm every script and list in the repo's SOCFW packs is present on the tenant. | `python3 tools/verify_tenant_content.py Packs/soc-framework-nist-ir-ai`<br>`python3 tools/verify_tenant_content.py` |
+| `xql_query.py` | Run one read-only XQL query against a lab tenant and print the rows. |  |
 | `xql_tenant_check.py` | Validate correlation rule XQL against a live tenant's dataset schema. |  |
 
 ## Without a docstring
