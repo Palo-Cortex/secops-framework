@@ -420,6 +420,29 @@ jobs:
         run: |
           python tools/validate_shadow_mode.py --all
 
+  # ── JOB 4b: UNIT TESTS ──────────────────────────────────────────
+  # Each changed pack's test files, one pytest process per file (the scripts'
+  # test stubs collide in a shared process). check_contribution runs the same.
+  tests:
+    name: Tests — pack unit tests
+    needs: [detect]
+    if: needs.detect.outputs.has_content == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install pytest
+        run: pip install pytest pyyaml
+
+      - name: Run the changed packs' tests
+        env:
+          CHANGED_PACKS: ${{ needs.detect.outputs.packs }}
+        run: python tools/run_pack_tests.py "$CHANGED_PACKS"
+
   # ── JOB 5: VALIDATE ─────────────────────────────────────────────
   validate:
     name: Validate — demisto-sdk
@@ -471,7 +494,7 @@ jobs:
   # ── JOB 6: PREFLIGHT xsoar_config.json ──────────────────────────
   preflight:
     name: Preflight — xsoar_config.json
-    needs: [detect, json-integrity, shadow-mode, validate]
+    needs: [detect, json-integrity, shadow-mode, validate, tests]
     if: needs.detect.outputs.has_content == 'true'
     runs-on: ubuntu-latest
     steps:

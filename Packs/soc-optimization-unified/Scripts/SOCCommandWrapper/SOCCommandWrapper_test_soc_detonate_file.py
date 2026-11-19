@@ -16,93 +16,24 @@ import types
 
 import pytest
 
-# Add the SOCCommandWrapper script directory to the path so it can be imported
-# when running from the tools/ directory
-sys.path.insert(0, os.path.join(os.path.dirname(__file__),
-    '../Packs/soc-optimization-unified/Scripts/SOCCommandWrapper'))
+HERE = os.path.dirname(os.path.abspath(__file__))
+LISTS = os.path.join(HERE, "..", "..", "Lists")
+sys.path.insert(0, HERE)
+
+
+def _read_list(name):
+    """The pack's own list. A missing file fails the test: a contract checked
+    against a stand-in proves nothing."""
+    path = os.path.join(LISTS, name, f"{name}_data.json")
+    assert os.path.exists(path), f"{path} not found"
+    with open(path) as fh:
+        return json.load(fh)
 
 SCRIPT_MODULE_NAME = "SOCCommandWrapper"
 
 
-def load_script():
-    """Import SOCCommandWrapper with mocked XSOAR runtime."""
-    demisto_mock = types.SimpleNamespace()
-    demisto_mock._context = {}
-    demisto_mock._args = {}
-    demisto_mock._incidents = [{"id": "100"}]
-    demisto_mock._results = []
-    demisto_mock._commands = []
-    demisto_mock._command_responses = {}
-
-    def _get(data, path, default=None):
-        if data is None or path in (None, ""):
-            return default
-        cur = data
-        for part in str(path).split("."):
-            if isinstance(cur, dict):
-                cur = cur.get(part, default)
-            else:
-                return default
-        return cur
-
-    def _set_context(key, value):
-        parts = key.split(".")
-        cur = demisto_mock._context
-        for part in parts[:-1]:
-            if part not in cur or not isinstance(cur[part], dict):
-                cur[part] = {}
-            cur = cur[part]
-        cur[parts[-1]] = value
-
-    def _execute_command(command, args):
-        demisto_mock._commands.append((command, args))
-        response = demisto_mock._command_responses.get(command)
-        if callable(response):
-            return response(args)
-        return response if response is not None else []
-
-    demisto_mock.args = lambda: demisto_mock._args
-    demisto_mock.context = lambda: demisto_mock._context
-    demisto_mock.setContext = _set_context
-    demisto_mock.get = _get
-    demisto_mock.executeCommand = _execute_command
-    demisto_mock.incidents = lambda: demisto_mock._incidents
-    demisto_mock.results = lambda x: demisto_mock._results.append(x)
-    demisto_mock.debug = lambda x: None
-
-    sys.modules["demistomock"] = demisto_mock
-
-    common = types.ModuleType("CommonServerPython")
-
-    class EntryType:
-        NOTE = 1
-
-    def return_results(value):
-        demisto_mock._results.append(value)
-
-    def return_error(message):
-        raise RuntimeError(message)
-
-    def register_module_line(*args, **kwargs):
-        return None
-
-    def __line__():
-        return 0
-
-    common.EntryType = EntryType
-    common.entryTypes = {"error": 4}
-    common.return_results = return_results
-    common.return_error = return_error
-    common.register_module_line = register_module_line
-    common.__line__ = __line__
-
-    sys.modules["CommonServerPython"] = common
-
-    if SCRIPT_MODULE_NAME in sys.modules:
-        del sys.modules[SCRIPT_MODULE_NAME]
-
-    module = importlib.import_module(SCRIPT_MODULE_NAME)
-    return module, demisto_mock
+# The maintained loader, so this file never drifts from how the wrapper is loaded.
+from SOCCommandWrapper_test import load_script  # noqa: E402
 
 
 # ── Action list factory ───────────────────────────────────────────────────────
@@ -111,6 +42,7 @@ def make_actions_list(extra_actions: dict | None = None) -> str:
     """Return a SOCFrameworkActions JSON string with soc-detonate-file and optional extras."""
     base = {
         "soc-detonate-file": {
+            "phase": "investigation",
             "shadow_mode": False,
             "responses": {
                 "Cortex Core - IR": {
@@ -456,20 +388,8 @@ class TestCERActionsRemainInShadow:
 class TestActionsListContracts:
     """Validate SOCFrameworkActions_V3_data.json structural contracts."""
 
-    def _load_actions(self, path: str = None):
-        """Load the actual actions file if it exists, otherwise use test fixture."""
-        import os
-        candidates = [
-            path,
-            "Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json",
-            "../../Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json",
-        ]
-        for p in candidates:
-            if p and os.path.exists(p):
-                return json.loads(open(p).read())
-
-        # Return minimal fixture if file not found
-        return json.loads(make_actions_list())
+    def _load_actions(self):
+        return _read_list("SOCFrameworkActions_V3")
 
     def test_soc_detonate_file_exists(self):
         actions = self._load_actions()
@@ -491,17 +411,20 @@ class TestActionsListContracts:
         assert "Cortex Core - IR" in vendors, \
             "Cortex Core - IR must be the baseline vendor for soc-detonate-file (free, always available)"
 
-    def test_cer_actions_have_shadow_mode_true(self):
-        """All C/E/R actions must default to shadow — explicit flip required for production."""
+    def test_cer_actions_are_shadowed_for_unattended_callers(self):
+        """C/E/R actions simulate for every unattended caller unless a tenant flips them."""
+        script, _ = load_script()
         actions = self._load_actions()
         cer_actions = [
             "soc-isolate-endpoint", "soc-disable-user", "soc-reset-password",
             "soc-retract-email", "soc-block-sender", "soc-search-and-delete-email",
         ]
         for action in cer_actions:
-            if action in actions:
-                assert actions[action].get("shadow_mode") is True, \
-                    f"{action} must have shadow_mode=true — C/E/R actions default to shadow"
+            if action not in actions:
+                continue
+            for actor in ("automation", "ai", "issue_emergency"):
+                assert script.resolve_shadow_mode(actions[action], actor) is True, \
+                    f"{action} must be simulated for {actor} - C/E/R actions default to shadow"
 
     def test_no_singular_inbox_rule_key(self):
         """soc-remove-inbox-rule (singular) was renamed — old key must not exist."""
@@ -522,26 +445,7 @@ class TestFeatureFlagsContracts:
     """Validate SOCFWFeatureFlags_data.json structural contracts."""
 
     def _load_flags(self):
-        import os
-        candidates = [
-            "Packs/soc-optimization-unified/Lists/SOCFWFeatureFlags/SOCFWFeatureFlags_data.json",
-            "../../Packs/soc-optimization-unified/Lists/SOCFWFeatureFlags/SOCFWFeatureFlags_data.json",
-        ]
-        for p in candidates:
-            if os.path.exists(p):
-                return json.loads(open(p).read())
-
-        # Minimal fixture
-        return {
-            "id": "SOCFWFeatureFlags",
-            "name": "SOCFWFeatureFlags",
-            "sandbox_detonation": {"enabled": False, "description": "test"},
-            "email_authentication": {"enabled": False, "description": "test"},
-            "email_header_scoring": {"enabled": False, "description": "test"},
-            "email_process_original": {"enabled": False, "description": "test"},
-            "email_indicator_hunting": {"enabled": False, "description": "test"},
-            "email_phishing_ml": {"enabled": False, "description": "test"},
-        }
+        return _read_list("SOCFWFeatureFlags")
 
     def test_all_flags_default_false(self):
         """All feature flags must default to enabled=false — OOTB runs with zero config."""
