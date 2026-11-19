@@ -45,18 +45,28 @@ ACTIONS_LIST = "SOCFrameworkActions_V3"
 CONTRACT_LIST = "SOCFrameworkPhaseContract_V3"
 # The wrapper's statuses that mean the action happened, live or simulated.
 DONE_STATUSES = ("success", "simulated", "shadow", "executed", "completed")
-RAN = ("done", "dispatched")
+# Executor statuses that mean the step happened, live or simulated. A wrapper
+# duplicate (already taken on this target in this case) is recorded as done.
+# "dispatched" is what contracts written before soc-optimization-unified 3.31.8
+# recorded; it still counts, so those steps are not sent again.
+RAN = ("done", "executed", "shadow", "dispatched")
 # A step the wrapper skipped (no implementation for the source, nothing to act
 # on) is reported from the last pass, not sent again every few minutes.
 REPORTED = ("skipped",)
-# Fields of an issue's artifacts that name each kind of scope entity.
-AIM_FIELDS = {"host": ("Endpoint.Hostname", "Endpoint.Name", "Hostname"),
+# Fields of an issue's artifacts that name each kind of scope entity: the paths
+# SOCFrameworkNormalizeMap_NIST_IR writes, which a test holds this table to. A
+# path the map never writes can never match, and a step aimed at that entity
+# never finds an issue to run in.
+AIM_FIELDS = {"host": ("Endpoint.Hostname", "Endpoint.FQDN", "Endpoint.IPAddress",
+                       "Network.Source.Hostname"),
               "identity": ("Identity.User.Name", "Identity.User.UPN", "Identity.User.Email",
-                           "Identity.User.ID", "User"),
-              "file": ("File", "Hash", "Target.SHA256", "Target.File", "FilePath"),
-              "email": ("Email.Sender", "Email.Recipient", "Email.Address"),
-              "ip": ("Network.IP", "IP", "Endpoint.IPAddress"),
-              "domain": ("Domain", "Network.Domain", "URL")}
+                           "Identity.User.SAM", "Identity.User.ID", "User"),
+              "file": ("File", "Hash", "FilePath", "Target.SHA256", "Target.File", "Target.Path",
+                       "Process.SHA256", "Process.Path"),
+              "email": ("Email.From", "Email.To", "Email.MessageID"),
+              "ip": ("Network.IP", "Network.Destination.IP", "Network.Source.IP",
+                     "Endpoint.IPAddress", "Identity.Source.IP"),
+              "domain": ("Network.DNS.Query", "Network.Destination.Hostname", "Email.ThreatURL")}
 GAPS = ("environment_denied", "policy_blocked", "integration_unavailable",
         "contract_gap", "content_gap", "skipped", "failed", "error")
 # Scope entity types as the agent writes them, mapped to the executor's.
@@ -419,42 +429,16 @@ def run_step(step, entity, phase, case_id, issue):
         if isinstance(d, dict) and d.get("action") == step.get("action") and \
                 (d.get("entity_value") or "") == (entity.get("name") or ""):
             # The executor's key merges by step number, so fields from an earlier
-            # decision survive under this one: a reason under a dispatch, a
-            # shadow flag under a gap. Keep only what belongs to this status.
-            if d.get("status") == "dispatched":
+            # decision survive under this one: a reason under a run, a shadow flag
+            # under a gap. Keep only what belongs to this status.
+            if d.get("status") == "duplicate":
+                d["status"] = "done"
+            if d.get("status") == "executed":
                 d.pop("reason", None)
-                d.update(dispatch_outcome(after, step.get("action")))
-            if d.get("status") != "dispatched":
+            if d.get("status") != "shadow":
                 d.pop("shadow", None)
             return d
     return {"status": "error", "reason": "executor returned no decision"}
-
-
-def dispatch_outcome(ctx, action):
-    """What the wrapper did with a dispatch, from the record the executor keeps for it.
-
-    The executor marks a step dispatched as soon as it hands it to the wrapper.
-    The wrapper then routes by the issue's source vendor and may skip the action
-    outright, and a skip writes no ledger row - so without reading its record the
-    step would be dispatched again on every pass, for ever.
-    """
-    node = demisto.get(ctx, "SOCFramework.Phase.Dispatch")
-    records = [r for r in (node if isinstance(node, list) else [node])
-               if isinstance(r, dict) and r.get("action") == action]
-    if not records:
-        return {}
-    last = max(records, key=lambda r: str(r.get("timestamp") or ""))
-    if last.get("duplicate"):
-        # Already taken on this target in this case, by another path or an
-        # analyst: the step is done, and nothing ran twice.
-        prior = last.get("duplicate_of") or {}
-        return {"status": "done", "reason": "already {} by {}".format(
-            "simulated" if prior.get("m") == "shadow" else "done", prior.get("by") or "another path")}
-    if last.get("skipped"):
-        return {"status": "skipped", "reason": str(last.get("skip_reason") or "skipped by the wrapper")[:120]}
-    if last.get("success") is False and not last.get("shadow_mode"):
-        return {"status": "failed", "reason": str(last.get("error") or last.get("message") or "command failed")[:120]}
-    return {}
 
 
 def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members, contexts,
@@ -503,8 +487,8 @@ def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members
                 row.update(status=decision.get("status"), reason=decision.get("reason"),
                            vendor=decision.get("vendor"), issue=issue,
                            shadow=bool(decision.get("shadow")))
-                if decision.get("status") == "dispatched":
-                    finished[(action, entity.get("name"), str(issue))] = {"status": "dispatched",
+                if decision.get("status") in RAN:
+                    finished[(action, entity.get("name"), str(issue))] = {"status": decision.get("status"),
                                                                         "vendor": decision.get("vendor")}
                 elif decision.get("status") == "awaiting_approval":
                     # Only a step waiting on a person holds the next phase. A
@@ -520,7 +504,7 @@ def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members
     return results, outstanding
 
 
-MARK = {"done": "\u2705", "dispatched": "\u2705", "awaiting_approval": "\u23f8\ufe0f",
+MARK = {"done": "\u2705", "executed": "\u2705", "shadow": "\U0001f7e1", "awaiting_approval": "\u23f8\ufe0f",
         "direction": "\U0001f4cb", "waiting": "\u23f3", "environment_denied": "\u26d4",
         "policy_blocked": "\u26d4", "integration_unavailable": "\U0001f50c",
         "contract_gap": "\u26a0\ufe0f", "content_gap": "\u26a0\ufe0f", "skipped": "\u26a0\ufe0f",

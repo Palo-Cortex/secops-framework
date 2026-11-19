@@ -9,6 +9,8 @@ import os
 import sys
 import types
 
+import pytest
+
 HERE = os.path.dirname(__file__)
 LISTS = os.path.join(HERE, "..", "..", "Lists")
 CONTRACT = json.load(open(os.path.join(LISTS, "SOCFrameworkPhaseContract_V3",
@@ -27,6 +29,8 @@ csp.return_results = lambda *a, **k: None
 sys.modules["CommonServerPython"] = csp
 sys.path.insert(0, HERE)
 import SOCFWCaseResponse as cr  # noqa: E402
+
+REAL_RUN_STEP = cr.run_step
 
 POLICY = {"phases": {"containment": {"enabled": True, "mode": "execute"},
                      "eradication": {"enabled": True, "mode": "directions_only"},
@@ -81,7 +85,7 @@ def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None):
     return rows, outstanding, sent
 
 
-SHADOW = {"status": "dispatched", "shadow": True, "vendor": "X"}
+SHADOW = {"status": "shadow", "shadow": True, "vendor": "X"}
 
 
 def test_a_step_runs_in_the_issue_whose_contract_fills_the_binding():
@@ -136,10 +140,11 @@ def test_another_target_isolated_in_the_case_does_not_mark_this_one_done():
     rows, _, sent = run("containment", [step(1, "soc-isolate-endpoint", "h1", refs=("11",))],
                         {"soc-isolate-endpoint": SHADOW},
                         ledger=({("12", "soc-isolate-endpoint")}, set()))
-    assert sent == [("soc-isolate-endpoint", "12")] and rows[0]["status"] == "dispatched"
+    assert sent == [("soc-isolate-endpoint", "12")] and rows[0]["status"] == "shadow"
 
 
 def test_a_step_finished_last_pass_for_its_own_target_is_not_sent_again():
+    # "dispatched" is how contracts written before 3.31.8 record a finished step.
     rows, _, sent = run("containment", [step(1, "soc-isolate-endpoint", "h1")],
                         {"soc-isolate-endpoint": SHADOW},
                         finished={("soc-isolate-endpoint", "ws-01", "12"): {"status": "dispatched"}})
@@ -150,7 +155,7 @@ def test_finished_for_a_different_target_does_not_count():
     rows, _, sent = run("containment", [step(1, "soc-isolate-endpoint", "h1")],
                         {"soc-isolate-endpoint": SHADOW},
                         finished={("soc-isolate-endpoint", "dc-01", "13"): {"status": "dispatched"}})
-    assert sent and rows[0]["status"] == "dispatched"
+    assert sent and rows[0]["status"] == "shadow"
 
 
 def test_finished_in_another_issue_does_not_count_for_this_one():
@@ -197,14 +202,16 @@ def test_name_forms_match_short_and_qualified_names():
     assert cr.name_forms("10.20.10.9") == {"10.20.10.9"}
 
 
-def test_a_duplicate_answer_from_the_wrapper_counts_as_done():
-    ctx = {"SOCFramework": {"Phase": {"Dispatch": [
-        {"action": "soc-isolate-endpoint", "timestamp": "2026-11-09T10:00:00Z", "duplicate": True,
-         "duplicate_of": {"m": "shadow", "by": "issue_emergency"}}]}}}
-    cr.demisto.get = lambda obj, path: ((obj.get("SOCFramework") or {}).get("Phase") or {}).get("Dispatch")
-    out = cr.dispatch_outcome(ctx, "soc-isolate-endpoint")
-    cr.demisto.get = lambda obj, path: None
-    assert out == {"status": "done", "reason": "already simulated by issue_emergency"}
+def test_a_duplicate_from_the_executor_counts_as_done(monkeypatch):
+    decision = {"action": "soc-isolate-endpoint", "entity_value": "ws-01", "status": "duplicate",
+                "reason": "already simulated by issue_emergency", "shadow": True}
+    monkeypatch.setattr(cr, "api", lambda path, body: [{"type": 1, "contents": "ok"}])
+    monkeypatch.setattr(cr, "get_context", lambda inv: {"plan": [decision]})
+    monkeypatch.setattr(cr.demisto, "get", lambda obj, path: obj.get("plan"), raising=False)
+    d = REAL_RUN_STEP({"action": "soc-isolate-endpoint"}, {"type": "host", "name": "ws-01"},
+                      "containment", "500", "12")
+    assert d["status"] == "done" and d["reason"] == "already simulated by issue_emergency"
+    assert "shadow" not in d
 
 
 def test_no_instance_is_reported_once_and_not_sent_again():
@@ -236,7 +243,7 @@ def test_eradication_and_recovery_write_their_declared_targets():
 
 def test_report_lists_what_was_eradicated_and_what_to_monitor():
     c = contract()
-    rows = [{"step": 1, "action": "soc-isolate-endpoint", "target": "ws-01", "status": "dispatched", "shadow": True},
+    rows = [{"step": 1, "action": "soc-isolate-endpoint", "target": "ws-01", "status": "shadow", "shadow": True},
             {"step": 2, "action": "soc-disable-user", "target": "bob", "status": "contract_gap",
              "reason": "unresolved arguments: X"}]
     eradicated, monitor, tel = cr.artifact_report(c, rows, "Endpoint: CrowdStrike Falcon (EDR)")
@@ -290,7 +297,7 @@ def test_a_later_analysis_pass_is_the_one_read():
 
 def test_the_story_says_simulated_only_for_steps_that_ran():
     story = cr.phase_story([
-        {"step": 1, "action": "a", "target": "t", "status": "dispatched", "shadow": True},
+        {"step": 1, "action": "a", "target": "t", "status": "shadow", "shadow": True},
         {"step": 2, "action": "b", "target": "t", "status": "contract_gap", "shadow": True,
          "reason": "unresolved arguments: X"}])
     assert story[0].endswith("(simulated - shadow mode)")
@@ -314,7 +321,7 @@ def test_an_unreadable_status_keeps_every_case():
 
 
 def test_a_pass_that_ran_and_the_next_that_finds_it_done_read_the_same():
-    first = [{"action": "a", "target": "t", "status": "dispatched", "issue": "12"}]
+    first = [{"action": "a", "target": "t", "status": "executed", "issue": "12"}]
     second = [{"action": "a", "target": "t", "status": "done", "issue": "12"}]
     assert cr.step_signature(first) == cr.step_signature(second)
 
@@ -322,7 +329,7 @@ def test_a_pass_that_ran_and_the_next_that_finds_it_done_read_the_same():
 def test_a_missing_or_stale_step_record_counts_as_a_change():
     # The story can match while the record under it is missing: that phase
     # must be rewritten, or the next pass has nothing to know its steps by.
-    rows = [{"action": "a", "target": "t", "status": "dispatched", "issue": "12"}]
+    rows = [{"action": "a", "target": "t", "status": "executed", "issue": "12"}]
     assert cr.step_signature(rows) != cr.step_signature([])
     assert cr.step_signature(rows) != cr.step_signature([dict(rows[0], issue=None)])
 
@@ -353,7 +360,67 @@ def test_same_story_with_no_step_record_is_still_written():
 
 def test_same_story_and_same_steps_write_nothing():
     story = cr.phase_story([{"step": 1, "action": "soc-isolate-endpoint", "target": "ws-01",
-                             "status": "dispatched", "shadow": True, "why": "w"}])
+                             "status": "shadow", "shadow": True, "why": "w"}])
     steps = [("soc-isolate-endpoint", "ws-01", "ran", "12")]
     writes, out = _respond_once(story, steps)
     assert writes == [] and out.get("note") == "unchanged"
+
+
+# ── Which issue carries a step's target ──────────────────────────────────────
+
+def _normalized_paths():
+    """Every Artifacts.* target the NIST IR normalize map writes, without the prefix."""
+    with open(os.path.join(LISTS, "SOCFrameworkNormalizeMap_NIST_IR",
+                           "SOCFrameworkNormalizeMap_NIST_IR_data.json")) as fh:
+        doc = json.load(fh)
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            target = node.get("target")
+            if isinstance(target, str) and target.startswith("Artifacts."):
+                found.add(target[len("Artifacts."):])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+    walk(doc)
+    return found
+
+
+@pytest.mark.parametrize("entity_type", sorted(cr.AIM_FIELDS))
+def test_every_aim_field_is_a_path_the_normalize_map_writes(entity_type):
+    written = _normalized_paths()
+    for field in cr.AIM_FIELDS[entity_type]:
+        assert field in written, \
+            "{} never matches: the NIST IR normalize map does not write Artifacts.{}".format(entity_type, field)
+
+
+def _artifacts(**paths):
+    root = {}
+    for path, value in paths.items():
+        node = root
+        parts = path.split("__")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+    return {"SOCFramework": {"Artifacts": root}}
+
+
+@pytest.mark.parametrize("entity,ctx", [
+    ({"type": "email", "name": "noreply@sktlocal.it"}, _artifacts(Email__From="noreply@sktlocal.it")),
+    ({"type": "domain", "name": "zamstats.me"}, _artifacts(Network__DNS__Query=["zamstats.me"])),
+    ({"type": "domain", "name": "cdn.clubinfo.io"},
+     _artifacts(Network__Destination__Hostname="cdn.clubinfo.io")),
+    ({"type": "host", "name": "192.168.1.101"}, _artifacts(Endpoint__IPAddress="192.168.1.101")),
+    ({"type": "identity", "name": "adalwolfa"}, _artifacts(Identity__User__SAM="SKT\\adalwolfa")),
+    ({"type": "file", "name": "0ea7e9ce5fcca464"}, _artifacts(Process__SHA256="0ea7e9ce5fcca464")),
+])
+def test_a_target_is_found_where_the_normalize_map_puts_it(entity, ctx):
+    assert cr.aims_at(entity, ctx)
+
+
+def test_an_issue_about_someone_else_still_does_not_match():
+    assert not cr.aims_at({"type": "identity", "name": "adalwolfa"},
+                          _artifacts(Identity__User__SAM="SKT\\greta"))

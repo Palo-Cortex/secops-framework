@@ -47,7 +47,7 @@ Runs each analysed case's response plan: containment, eradication and recovery f
 
 | Field | Value |
 |---|---|
-| Playbook | `JOB - SOC Case Containment` |
+| Playbook | `JOB - SOC Case Response` |
 | Recurrent | ✓ |
 | Schedule | every 10 minutes daily |
 | Owner | `abarone@paloaltonetworks.com` |
