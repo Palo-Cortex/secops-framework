@@ -137,3 +137,77 @@ def test_a_disabled_phase_is_still_blocked_in_shadow():
             "entity_value": "ws-01"}
     d = ex.decide(plan, ACTIONS, {"entries": []}, policy, ALL_BRANDS, FULL_CTX, set(), None)
     assert d["status"] == "policy_blocked"
+
+
+# ── What the wrapper said happened ───────────────────────────────────────────
+
+REC = {"action": "soc-isolate-endpoint", "vendor": "CrowdStrikeFalconV2", "command": "x", "args": {}}
+WRAPPER_SAYS = {
+    "shadow": [{"Type": 1, "Contents": dict(REC, shadow_mode=True, success=False),
+                "HumanReadable": "### SOC Framework - SHADOW MODE (Command Not Executed)"}],
+    "executed": [{"Type": 1, "Contents": dict(REC, shadow_mode=False, success=True),
+                  "HumanReadable": "### SOC Framework - Command Success"}],
+    "failed": [{"Type": 1, "Contents": dict(REC, shadow_mode=False, success=False, error="401 Unauthorized"),
+                "HumanReadable": "### SOC Framework - Command Failure"}],
+    "error": [{"Type": 4, "Contents": "Failed to execute cs-falcon-contain-host: 429"}],
+    "skipped": [{"Type": 1, "Contents": {"reason": "all context-derived command args resolved empty"},
+                 "HumanReadable": "### SOC Framework - soc-isolate-endpoint: skipped (no artifact to act on)"}],
+    "nothing": [],
+}
+
+
+def _wrapper_returns(entries):
+    calls = []
+
+    def execute(command, args):
+        calls.append((command, dict(args)))
+        if command == "SOCCommandWrapper":
+            return entries
+        return [{"Type": 1, "Contents": "ok"}]
+    ex.demisto = types.SimpleNamespace(debug=lambda *a: None, executeCommand=execute)
+    return calls
+
+
+@pytest.mark.parametrize("said,status", [("shadow", "shadow"), ("executed", "executed"),
+                                         ("failed", "failed"), ("error", "failed"),
+                                         ("skipped", "skipped"), ("nothing", "failed")])
+def test_the_step_status_is_what_the_wrapper_reported(said, status):
+    calls = _wrapper_returns(WRAPPER_SAYS[said])
+    got, why = ex.dispatch("soc-isolate-endpoint", "containment")
+    assert got == status
+    assert calls[0][1]["Action_Actor"] == "automation"
+    if status == "failed":
+        assert why
+
+
+def test_a_shadowed_step_is_never_reported_as_done(monkeypatch):
+    _wrapper_returns(WRAPPER_SAYS["shadow"])
+    monkeypatch.setattr(ex, "get_list", lambda name: {"SOCFrameworkActions_V3": ACTIONS,
+                                                      "SOCFrameworkPhasePolicy_V3": POLICY}.get(name, {}))
+    monkeypatch.setattr(ex, "active_brands", lambda: ALL_BRANDS)
+    ex.demisto.args = lambda: {"phase": "containment", "case_id": "7", "plan": json.dumps(
+        [{"action": "soc-isolate-endpoint", "entity_type": "host", "entity_value": "ws-01"}])}
+    ex.demisto.context = lambda: FULL_CTX
+    results, _, _ = ex.main()
+    assert [r["status"] for r in results] == ["shadow"]
+    assert results[0]["reason"] == "simulated (shadow mode)"
+
+
+@pytest.mark.parametrize("said", sorted(WRAPPER_SAYS))
+def test_the_reader_matches_emergency_response(said):
+    """The executor's copy of the wrapper reader never drifts from SOCFWEmergencyResponse's."""
+    sys.path.insert(0, os.path.join(HERE, "..", "SOCFWEmergencyResponse"))
+    import SOCFWEmergencyResponse as er
+    action = "soc-isolate-endpoint"
+    assert ex.outcome_of(action, ex.records_from(action, WRAPPER_SAYS[said])) == \
+        er.outcome_of(action, er.records_from(action, WRAPPER_SAYS[said]))
+
+
+@pytest.mark.parametrize("prior_mode,said", [("shadow", "already simulated by issue_emergency"),
+                                             ("live", "already done by issue_emergency")])
+def test_an_action_already_taken_on_the_target_is_a_duplicate_not_a_failure(prior_mode, said):
+    rec = dict(REC, shadow_mode=True, success=False, duplicate=True,
+               duplicate_of={"m": prior_mode, "by": "issue_emergency"})
+    _wrapper_returns([{"Type": 1, "Contents": rec,
+                       "HumanReadable": "### SOC Framework - soc-isolate-endpoint: not run (already ...)"}])
+    assert ex.dispatch("soc-isolate-endpoint", "containment") == ("duplicate", said)
