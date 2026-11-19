@@ -9,10 +9,12 @@ Every script under `tools/`, with what it does in its own words. `check_contribu
 | `SOCFramework_AIVerdictSummary.py` | UNVERIFIED — no docstring |  |
 | `SOCFramework_IdentityScoreAnalysis.py` | UNVERIFIED — no docstring |  |
 | `build_campaign_from_tsv.py` | UNVERIFIED — no docstring |  |
+| `build_command_specs.py` | Record the arguments of every vendor command the framework calls. | `python3 tools/build_command_specs.py --content /tmp/content` |
 | `build_pack_catalog.py` | UNVERIFIED — no docstring |  |
 | `build_proofpoint_scenarios.py` | Build 6 realistic Proofpoint TAP TSV test scenario files. |  |
 | `build_unhappy_path_scenarios.py` | Build the unhappy-path TSVs for the close/leave branches. | `python3 tools/build_unhappy_path_scenarios.py` |
 | `bump_pack_version.py` | UNVERIFIED — no docstring |  |
+| `check_action_args.py` | Fail when an action names a vendor command or argument the vendor does not have. | `python3 tools/check_action_args.py`<br>`python3 tools/check_action_args.py --verbose` |
 | `check_contracts.py` | SOC Framework layer contract validator. | `python3 tools/check_contracts.py`<br>`python3 tools/check_contracts.py --dry-run`<br>`python3 tools/check_contracts.py --strict` |
 | `check_contribution.py` | Pre-merge contribution validation orchestrator. | `python3 tools/check_contribution.py`<br>`python3 tools/check_contribution.py --no-upload`<br>`python3 tools/check_contribution.py --input Packs/soc-framework-nist-ir` |
 | `check_dependency_versions.py` | Compares version strings embedded in each pack's xsoar_config.json URLs against the current versions in pack_catalog.json. | `python tools/check_dependency_versions.py`<br>`python tools/check_dependency_versions.py --pack my-pack`<br>`python tools/check_dependency_versions.py --fix` |

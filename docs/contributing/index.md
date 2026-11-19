@@ -21,10 +21,11 @@ How a change gets from your editor to a tenant: author it, run the gate, open a 
 | `check_contracts.py` | A Workflow playbook calls `setIssue`/`setIncident`, or writes another layer's namespace | Layer contracts are what keep lifecycles vendor-generic |
 | `run_pack_tests.py` | A test file in the pack fails, or runs no tests | A test nobody runs protects nothing; each file runs in its own process because the scripts' test stubs collide in a shared one |
 | `check_readme_coverage.py` | A pack adds a script, list or list key that no page or README mentions | Capabilities nobody can find do not exist |
+| `check_action_args.py` | A response in `SOCFrameworkActions_V3` names a command or argument the vendor does not have, leaves out a required one, or uses a value the command does not accept | Checked against `policies/vendor_command_specs.json`, built from demisto/content by `build_command_specs.py`. Otherwise a wrong argument only shows up the first time the action runs live |
 | `validate_shadow_mode.py --all` | A changing action ships live outside the documented policy | Shadow Mode is the safety contract |
 | `prep_docs.py --check` | A generated page is stale | The site is built from the repo; drift is a lie on the site |
 
-The CI PR gate repeats the scan for customer data, the version-label check, JSON integrity, shadow mode, the changed packs' unit tests and SDK validation. It does not deploy anywhere: content reaches a tenant from your gate run, and production from a release.
+The CI PR gate repeats the scan for customer data, the vendor command arguments, the version-label check, JSON integrity, shadow mode, the changed packs' unit tests and SDK validation. It does not deploy anywhere: content reaches a tenant from your gate run, and production from a release.
 
 ## Describing contract entries
 

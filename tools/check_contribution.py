@@ -31,6 +31,9 @@ WORKFLOW
                                  Lifecycle phase boundaries.
   5a. run_pack_tests.py          The pack's unit tests, one pytest process per
                                  file (the PR gate runs the same).
+  5d. check_action_args.py       Every vendor response in SOCFrameworkActions_V3
+                                 against the command's arguments in
+                                 policies/vendor_command_specs.json.
   6. validate_shadow_mode.py     Shadow mode consistency across all UC actions.
   7. prep_docs.py --check        Documentation drift gate — wraps the four
                                  doc generators (pack overviews, schema docs,
@@ -529,6 +532,21 @@ def main() -> None:
             "Private content (an AI Prompt recipe, AI_PROMPTS.md, or a file carrying a\n"
             "prompt fingerprint) is in the public tree. Remove it; the recipes belong in\n"
             "Palo-Cortex/socfw-nist-ir-ai. Patterns: policies/private_content.json."
+        ),
+    ))
+
+    # ── Step 5d: vendor command arguments (once, whole list) ─────────────────
+    # Every response in SOCFrameworkActions_V3 against the commands the vendors
+    # define (policies/vendor_command_specs.json). A wrong argument name only
+    # shows up the first time an action runs live, so it is caught here.
+    results.append(run_step(
+        "check_action_args",
+        [sys.executable, "tools/check_action_args.py"],
+        args.ci,
+        remediation=(
+            "A response in SOCFrameworkActions_V3 names a command or argument the vendor\n"
+            "does not have. Fix the mapping. If you mapped a new command, rebuild the spec\n"
+            "file first: python3 tools/build_command_specs.py --content <demisto/content checkout>"
         ),
     ))
 
