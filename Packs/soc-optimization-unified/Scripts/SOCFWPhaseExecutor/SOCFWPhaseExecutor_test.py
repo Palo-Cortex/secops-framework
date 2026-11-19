@@ -153,6 +153,12 @@ WRAPPER_SAYS = {
     "skipped": [{"Type": 1, "Contents": {"reason": "all context-derived command args resolved empty"},
                  "HumanReadable": "### SOC Framework - soc-isolate-endpoint: skipped (no artifact to act on)"}],
     "nothing": [],
+    "duplicate_live": [{"Type": 1, "Contents": dict(REC, shadow_mode=False, success=False, duplicate=True,
+                                                    duplicate_of={"m": "live", "by": "issue_emergency"}),
+                        "HumanReadable": "### SOC Framework - soc-isolate-endpoint: not run (already done)"}],
+    "duplicate_shadow": [{"Type": 1, "Contents": dict(REC, shadow_mode=True, success=False, duplicate=True,
+                                                      duplicate_of={"m": "shadow", "by": "ai"}),
+                          "HumanReadable": "### SOC Framework - soc-isolate-endpoint: not run (already simulated)"}],
 }
 
 
