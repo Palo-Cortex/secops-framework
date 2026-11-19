@@ -822,3 +822,36 @@ def test_every_block_response_names_its_target_arg():
         for vendor, data in ACTIONS[action]["responses"].items():
             arg = data.get("target_arg") or ACTIONS[action].get("target_arg")
             assert arg and str(data["inline_args"][arg]).startswith("${SOCFramework.Artifacts.Network."), vendor
+
+
+# --- act-once duplicates from the wrapper ------------------------------------------
+
+def _dup_entries(prior_mode, shadow_now):
+    rec = {"action": "soc-isolate-endpoint", "vendor": "CrowdStrikeFalconV2", "command": "x", "args": {},
+           "shadow_mode": shadow_now, "success": False, "duplicate": True,
+           "duplicate_of": {"m": prior_mode, "by": "ai"}}
+    return [{"Type": 1, "Contents": rec,
+             "HumanReadable": "### SOC Framework - soc-isolate-endpoint: not run (already ...)"}]
+
+
+@pytest.mark.parametrize("prior_mode,shadow_now,status,why", [
+    ("live", False, "already", "already done by ai"),
+    ("live", True, "already", "already done by ai"),
+    ("shadow", True, "shadow", "already simulated by ai"),
+])
+def test_an_action_the_case_already_took_is_not_a_failure(monkeypatch, prior_mode, shadow_now, status, why):
+    monkeypatch.setattr(er.demisto, "executeCommand", lambda cmd, args: _dup_entries(prior_mode, shadow_now))
+    got, reason, _ = er._dispatch("soc-isolate-endpoint", "containment")
+    assert (got, reason) == (status, why)
+
+
+def test_a_duplicate_alongside_a_real_failure_is_still_a_failure():
+    recs = er.records_from("soc-isolate-endpoint", _dup_entries("live", False)) + [
+        {"action": "soc-isolate-endpoint", "success": False, "shadow_mode": False, "error": "401"}]
+    assert er.outcome_of("soc-isolate-endpoint", recs) == ("failed", "401")
+
+
+def test_a_duplicate_alongside_a_run_reports_the_run():
+    recs = er.records_from("soc-isolate-endpoint", _dup_entries("live", False)) + [
+        {"action": "soc-isolate-endpoint", "vendor": "Cortex Core - IR", "success": True, "shadow_mode": False}]
+    assert er.outcome_of("soc-isolate-endpoint", recs) == ("executed", "ran on Cortex Core - IR")

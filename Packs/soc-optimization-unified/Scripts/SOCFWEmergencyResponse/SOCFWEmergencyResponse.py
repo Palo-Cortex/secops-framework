@@ -586,10 +586,18 @@ def records_from(action, entries):
 
 
 def outcome_of(action, records):
-    """(executed | shadow | skipped | failed | no_record, why)."""
+    """(executed | shadow | skipped | failed | duplicate | no_record, why)."""
     mine = [r for r in records if isinstance(r, dict) and r.get("action") == action]
     if not mine:
         return "no_record", "the wrapper reported nothing for it"
+    # The wrapper acts once per target per case. A repeat comes back as a
+    # duplicate of what already ran, live or simulated: done, not failed.
+    dups = [r for r in mine if r.get("duplicate")]
+    if dups and len(dups) == len(mine):
+        prior = dups[0].get("duplicate_of") or {}
+        return "duplicate", "already {} by {}".format(
+            "simulated" if prior.get("m") == "shadow" else "done", prior.get("by") or "another path")
+    mine = [r for r in mine if not r.get("duplicate")]
     skipped = [r for r in mine if r.get("skipped")]
     if skipped:
         return "skipped", str(skipped[0].get("skip_reason") or "skipped")
@@ -614,6 +622,11 @@ def _dispatch(action, phase, actor=ACTOR, target=None):
         return "failed", f"the wrapper raised: {e}", {}
     records = records_from(action, entries)
     status, why = outcome_of(action, records)
+    if status == "duplicate":
+        # Already taken on this target in this case. A live prior counts as
+        # contained; a simulated one is still only a simulation.
+        prior = (records[0].get("duplicate_of") or {}) if records else {}
+        status = "shadow" if prior.get("m") == "shadow" else "already"
     return status, why, (records[0] if records else {})
 
 
