@@ -44,8 +44,8 @@ blocks. Vendor-specificity lives in the Normalize layer, not here.
 
 ## What never goes in Upon Trigger
 
-- **Routing logic.** That's `SOCExecutionList_V3` and the Branch
-  Execution pattern. Upon Trigger doesn't decide what to skip.
+- **Routing logic.** That belongs to the lifecycle. Upon Trigger doesn't
+  decide what to skip.
 - **Vendor checks.** Vendor specifics belong in the per-vendor normalize
   playbooks. Foundation should never branch on `vendor == "X"`.
 - **Direct field reads.** Only Foundation playbooks may read `issue.*`

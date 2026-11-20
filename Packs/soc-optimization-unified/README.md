@@ -34,7 +34,6 @@ One page per capability on the site, in the same shape every time: what it does,
 | Value accounting | Every execution row carries `time_minutes` and `action_category` from `SOCActionTimeMap_V3` (tenant override wins); the dashboards sum them. | page pending |
 | Execution dataset writer | Posts events to an HTTP Collector through a named integration instance; never blocks a playbook. | page pending |
 | Health dashboard | Command error rate, failed commands, minutes credited to failures, failure reasons, write failures. | page pending |
-| Branch execution | `SOCExecutionList_V3` selects which branch of each Workflow playbook runs. | page pending |
 | Feature flags | `SOCFWFeatureFlags` gates optional analysis features. | page pending |
 
 <!-- capabilities:end -->
@@ -49,7 +48,6 @@ Runtime-tunable on the tenant without editing content. Edit them with `!SOCFWCon
 | `SOCActionClassMap_V3` | Action name to class (`endpoint`, `identity`, `email`, `indicator`, `comms`), so the wrapper knows which vendor responses apply. |
 | `SOCActionTimeMap_V3` | Analyst minutes and category per action, written onto every execution row. |
 | `SOCProductCategoryMap_V3` | Data source to category, type, confidence and responding vendors. |
-| `SOCExecutionList_V3` | Which branch each Workflow playbook runs. |
 | `SOCFWConfigModes` | The named bundles of switches that `!SOCFWConfig command=mode` applies. |
 | `SOCFrameworkEnvironment_V3` | Asset and identity tiers with deny and require-approval action lists. |
 | `SOCFrameworkPhasePolicy_V3` | Per-phase authority and mode, elevate rules, emergency policies, ticketing policy. |

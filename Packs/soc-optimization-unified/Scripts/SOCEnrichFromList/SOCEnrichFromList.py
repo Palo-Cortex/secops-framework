@@ -53,7 +53,7 @@ DESIGN NOTES
 
 CONTRACT VS BEHAVIOR
   This script reads the list as ground truth. To change enrichment behavior,
-  edit schemas/soc-framework/soc-framework-nist-ir/SOCFrameworkEnrichmentMap_NIST_IR.yaml
+  edit schemas/soc-framework/soc-framework-nist-ir-ai/SOCFrameworkEnrichmentMap_NIST_IR.yaml
   and regenerate the list — never edit the script for per-lane changes.
 """
 

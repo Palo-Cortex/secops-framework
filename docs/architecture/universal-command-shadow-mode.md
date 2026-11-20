@@ -65,10 +65,6 @@ for real.
 
 ## What Shadow Mode is NOT
 
-- **Not** controlled by `SOCExecutionList_V3`. That list controls
-  *which branch* of a phase playbook runs (branch execution / skip
-  logic). It has nothing to do with whether a vendor command actually
-  fires.
 - **Not** a global toggle. There's no master switch. Every action
   is independently flag-able. This is intentional — production rollouts
   proceed action-by-action as confidence builds.

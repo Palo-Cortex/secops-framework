@@ -177,43 +177,6 @@ Shipped defaults, read from each list's `_data.json`. Change them on the tenant 
     | `soc-unblock-sender` | `10 min, recovery` |  |
     | `soc-block-domain` | `15 min, containment` |  |
 
-??? note "`SOCExecutionList_V3` — 32 keys"
-
-    | Key | Shipped default | Description |
-    |---|---|---|
-    | `SOC Endpoint Analysis_V3` | `default` |  |
-    | `SOC Endpoint Containment_V3` | `default` |  |
-    | `SOC Endpoint Eradication_V3` | `default` |  |
-    | `SOC Endpoint Recovery_V3` | `default` |  |
-    | `SOC Email Analysis_V3` | `default` |  |
-    | `SOC Email Containment_V3` | `default` |  |
-    | `SOC Email Eradication_V3` | `default` |  |
-    | `SOC Email Recovery_V3` | `default` |  |
-    | `SOC Identity Analysis_V3` | `default` |  |
-    | `SOC Identity Containment_V3` | `default` |  |
-    | `SOC Identity Eradication_V3` | `default` |  |
-    | `SOC Identity Recovery_V3` | `default` |  |
-    | `SOC Network Analysis_V3` | `default` |  |
-    | `SOC Network Containment_V3` | `default` |  |
-    | `SOC Network Eradication_V3` | `default` |  |
-    | `SOC Network Recovery_V3` | `default` |  |
-    | `SOC SaaS Analysis_V3` | `default` |  |
-    | `SOC SaaS Containment_V3` | `default` |  |
-    | `SOC SaaS Eradication_V3` | `default` |  |
-    | `SOC SaaS Recovery_V3` | `default` |  |
-    | `SOC Workload Analysis_V3` | `default` |  |
-    | `SOC Workload Containment_V3` | `default` |  |
-    | `SOC Workload Eradication_V3` | `default` |  |
-    | `SOC Workload Recovery_V3` | `default` |  |
-    | `SOC PAM Analysis_V3` | `default` |  |
-    | `SOC PAM Containment_V3` | `default` |  |
-    | `SOC PAM Eradication_V3` | `default` |  |
-    | `SOC PAM Recovery_V3` | `default` |  |
-    | `SOC Data Analysis_V3` | `default` |  |
-    | `SOC Data Containment_V3` | `default` |  |
-    | `SOC Data Eradication_V3` | `default` |  |
-    | `SOC Data Recovery_V3` | `default` |  |
-
 ??? note "`SOCFWConfigModes` — 1 keys"
 
     Each mode sets every switch listed here, so changing modes leaves nothing behind. Apply one with !SOCFWConfig command=mode mode=<name> owner=<email> apply=yes; mode=default removes these settings a...
