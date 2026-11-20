@@ -5,6 +5,7 @@ issue-scope prompt, and shows the case verdict alongside it where the case JOB
 has also run — the case sees what a single issue cannot, so where the two
 disagree the case verdict is the one to act on.
 """
+import html
 import json
 import demistomock as demisto
 from CommonServerPython import *
@@ -39,6 +40,13 @@ EXPOSURE_NOTE = {
 }
 
 
+def esc(value):
+    """Model output and artifact values carry attacker-controlled text: email
+    subjects, command lines, user agents. None of it may reach the layout as
+    markup (same rule as SOCFWDisplayCaseAnalysis)."""
+    return html.escape(str(value), quote=False)
+
+
 def _scalar(ctx, path):
     """Single value. Collapses a list, which the promoted flat fields can be."""
     val = demisto.get(ctx, path)
@@ -69,7 +77,7 @@ def _assessment(ctx):
 def _badge(label, color):
     return (
         f"<span style='background:{color};color:#fff;padding:2px 8px;"
-        f"border-radius:3px;font-size:11px;font-weight:bold;'>{label}</span>"
+        f"border-radius:3px;font-size:11px;font-weight:bold;'>{esc(label)}</span>"
     )
 
 
@@ -133,7 +141,7 @@ def main():
                          "Contents": NO_VERDICT_YET if ran else NOT_RUN})
         return
 
-    html = "<div style='padding:4px;'>"
+    out = "<div style='padding:4px;'>"
 
     if verdict:
         head = _badge(str(verdict).upper(), VERDICT_COLOR.get(str(verdict).lower(), "#555")) + "&nbsp;"
@@ -145,34 +153,34 @@ def main():
             head += _badge("Already contained", "#2e7d32") + "&nbsp;"
         if escalate:
             head += _badge("Needs an analyst", "#c62828")
-        html += f"<div style='margin-bottom:12px;'>{head}</div>"
+        out += f"<div style='margin-bottom:12px;'>{head}</div>"
 
     facts = []
     if entity:
-        facts.append(f"<b>Entity:</b> {entity}")
+        facts.append(f"<b>Entity:</b> {esc(entity)}")
     if tactic or technique:
-        facts.append(f"<b>MITRE:</b> {' '.join(str(f) for f in (tactic, technique) if f)}")
+        facts.append(f"<b>MITRE:</b> {esc(' '.join(str(x) for x in (tactic, technique) if x))}")
     if facts:
-        html += _section("Subject", "<br>".join(facts), "#0277bd")
+        out += _section("Subject", "<br>".join(facts), "#0277bd")
 
     if story:
-        body = "".join(f"<div style='margin:3px 0;'>{s}</div>" for s in story)
-        html += _section("Analysis", body)
+        body = "".join(f"<div style='margin:3px 0;'>{esc(s)}</div>" for s in story)
+        out += _section("Analysis", body)
 
     # Closure is the decision an analyst acts on, so it gets its own block and
     # states the blockers rather than only the recommendation.
     if close_ok:
         reason = close_reason or "closure recommended"
-        conf = f" ({close_conf} confidence)" if close_conf else ""
-        html += _section("Closure", f"<b style='color:#81c784;'>{reason}</b>{conf}", "#2e7d32")
+        conf = f" ({esc(close_conf)} confidence)" if close_conf else ""
+        out += _section("Closure", f"<b style='color:#81c784;'>{esc(reason)}</b>{conf}", "#2e7d32")
     elif blockers:
         items = "".join(
-            f"<div style='margin:2px 0;color:#ffcc80;'>&bull; {b}</div>" for b in blockers
+            f"<div style='margin:2px 0;color:#ffcc80;'>&bull; {esc(b)}</div>" for b in blockers
         )
-        html += _section("Before this can close", items, "#e65100")
+        out += _section("Before this can close", items, "#e65100")
 
     if truncated:
-        html += _section(
+        out += _section(
             "Note",
             "The model's reply was cut off by the output token limit; this is the part that survived.",
             "#455a64",
@@ -183,16 +191,16 @@ def main():
         if case_story:
             first = _as_list(case_story)[:1]
             if first:
-                case_html += f"<div style='margin-top:6px;'>{first[0]}</div>"
+                case_html += f"<div style='margin-top:6px;'>{esc(first[0])}</div>"
         case_html += (
             "<div style='margin-top:6px;color:#888;font-size:11px;'>"
             "The case verdict sees what a single issue cannot. Where the two differ, act on this one."
             "</div>"
         )
-        html += _section("Case verdict", case_html, "#6a1b9a")
+        out += _section("Case verdict", case_html, "#6a1b9a")
 
-    html += "</div>"
-    demisto.results({"ContentsFormat": formats["html"], "Type": entryTypes["note"], "Contents": html})
+    out += "</div>"
+    demisto.results({"ContentsFormat": formats["html"], "Type": entryTypes["note"], "Contents": out})
 
 
 if __name__ in ("__main__", "__builtin__", "builtins"):

@@ -100,9 +100,6 @@ def test_a_cut_off_answer_says_so(monkeypatch):
     assert "cut off by the output token limit" in html
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: the model's story and blocker text go into the layout HTML unescaped, "
-    "so a subject or URL carrying < or & renders wrong (and markup in it is rendered)."))
 def test_model_text_is_escaped_in_the_layout(monkeypatch):
     ai = dict(ANSWER, story=["subject was <b>Invoice</b> & more"])
     html = render(monkeypatch, {"Assessment": {"AI": ai}})
