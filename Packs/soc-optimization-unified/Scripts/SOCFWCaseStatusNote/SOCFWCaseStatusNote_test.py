@@ -134,11 +134,21 @@ def test_a_failed_write_is_silent(t):
     assert t.results[-1]["readable_output"] == ""
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: enabled is read with bool(), so the string \"false\" reads as "
-    "enabled. A config written as text (by hand, or by a tool that writes strings) "
-    "makes the note promise a verdict on a tenant with case analysis off."))
 def test_enabled_written_as_the_text_false_is_off(t):
     t.config = {"Case Analysis JOB": {"enabled": "false"}}
     sn.main()
     assert not [c for c, a in t.calls if c == "core-api-post"]
+
+
+@pytest.mark.parametrize("value", ["true", " True ", "yes", "1"])
+def test_enabled_written_as_text_that_means_on_is_on(t, value):
+    t.config = {"Case Analysis JOB": {"enabled": value}}
+    sn.main()
+    assert len(t.writes()) == 2
+
+
+@pytest.mark.parametrize("value", ["false", "False", "no", "0", "", "off"])
+def test_enabled_written_as_text_that_means_off_is_off(t, value):
+    t.config = {"Case Analysis JOB": {"enabled": value}}
+    sn.main()
+    assert t.writes() == []

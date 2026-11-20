@@ -34,7 +34,12 @@ def case_analysis_enabled():
         if not contents or 'Item not found' in str(contents):
             return False
         cfg = json.loads(contents) if isinstance(contents, str) else contents
-        return bool((cfg.get('Case Analysis JOB') or {}).get('enabled'))
+        enabled = (cfg.get('Case Analysis JOB') or {}).get('enabled')
+        # A value typed as text is read as text: bool("false") is True, which
+        # would promise a verdict on a tenant with case analysis off.
+        if isinstance(enabled, str):
+            return enabled.strip().lower() in ('true', 'yes', '1')
+        return bool(enabled)
     except Exception as e:
         demisto.debug(f'SOCFWCaseStatusNote: config unreadable, staying silent: {e}')
         return False
