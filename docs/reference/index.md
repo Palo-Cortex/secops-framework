@@ -62,7 +62,6 @@ Every capability, by pack, with its page where one exists.
 | Value accounting | Every execution row carries `time_minutes` and `action_category` from `SOCActionTimeMap_V3` (tenant override wins); the dashboards sum them. | page pending |
 | Execution dataset writer | Posts events to an HTTP Collector through a named integration instance; never blocks a playbook. | page pending |
 | Health dashboard | Command error rate, failed commands, minutes credited to failures, failure reasons, write failures. | page pending |
-| Branch execution | `SOCExecutionList_V3` selects which branch of each Workflow playbook runs. | page pending |
 | Feature flags | `SOCFWFeatureFlags` gates optional analysis features. | page pending |
 
 ### NIST IR AI

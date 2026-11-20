@@ -6,8 +6,7 @@ Pre-commit / CI gate for the SOC Framework Universal Command shadow mode archite
 
 Architecture (v3 -- per-action, SOCFrameworkActions_V3):
   shadow_mode is defined per-action in SOCFrameworkActions_V3_data.json.
-  SOCCommandWrapper reads it from the action entry -- NOT from playbook args or
-  SOCExecutionList_V3. The branch execution list controls routing only.
+  SOCCommandWrapper reads it from the action entry -- NOT from playbook args.
 
   C/E/R destructive actions MUST have shadow_mode: true.
   Read-only / enrichment / analysis actions MAY have shadow_mode: false, but only

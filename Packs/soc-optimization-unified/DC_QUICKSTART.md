@@ -7,7 +7,6 @@
 ## Phase 1 — Install SOC Framework
 
 - [ ] Install `soc-optimization-unified` pack (Foundation, Universal Command, Lists, Dashboards)
-- [ ] Install `soc-framework-nist-ir` pack (NIST IR lifecycle playbooks)
 - [ ] Install vendor pack(s) for customer data sources:
   - `SocFrameworkCrowdstrikeFalcon` — if customer has CrowdStrike
   - `SocFrameworkProofPointTap` — if customer has Proofpoint TAP

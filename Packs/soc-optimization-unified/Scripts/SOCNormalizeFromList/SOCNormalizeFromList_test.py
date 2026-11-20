@@ -153,7 +153,7 @@ check("mirror with empty source skipped", "Artifacts.Email.Missing" not in write
 # --- END-TO-END against an inline per-lifecycle payload ---
 # Self-contained: exercises load_list_section + apply_* together against the
 # per-lifecycle contract shape (lifecycle + categories), without reaching across
-# packs into the soc-framework-nist-ir list file. Same inline pattern as the
+# packs into a lifecycle pack's list file. Same inline pattern as the
 # loader tests below — the list payload lives here, not on disk in another pack.
 print("end-to-end (inline per-lifecycle payload):")
 demisto.list_payload = {

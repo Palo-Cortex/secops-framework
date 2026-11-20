@@ -38,9 +38,8 @@ EP playbooks are **slim orchestrators**. They:
 - Call the lifecycle phase playbooks in sequence
 
 They do **not** contain routing decisions, conditional branches, or
-vendor-specific logic. All four of those concerns live in lower layers:
+vendor-specific logic. Those concerns live in lower layers:
 
-- Routing → `SOCExecutionList_V3`
 - Categorization → `SOCProductCategoryMap_V3`
 - Vendor specifics → per-product Normalize playbooks
 - Action gating → Shadow Mode in `SOCFrameworkActions_V3`

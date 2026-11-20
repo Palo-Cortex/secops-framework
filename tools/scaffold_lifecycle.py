@@ -1350,7 +1350,7 @@ def tpl_workflow_leaf(n: dict, args: argparse.Namespace, phase: str, category: s
 
 
 def tpl_execution_list_descriptor(n: dict) -> str:
-    """SOCExecutionList_<ID> list descriptor (matches SOCExecutionList_V3 shape)."""
+    """SOCExecutionList_<ID> list descriptor (the shape SOCExecutionList_POSTURE ships with)."""
     obj = {
         "allRead": True, "allReadWrite": True, "cacheVersn": 0, "data": "-",
         "definitionId": "", "description": (
