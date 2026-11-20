@@ -159,15 +159,37 @@ def test_earlier_verdicts_are_read_from_the_bare_case_id_and_tagged_once(t):
     assert tagged[0]["tags"] == [vr.VERDICT_TAG, vr.SUPERSEDED_TAG]
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: the entry tags endpoint takes INCIDENT-<id> (only the investigation "
-    "read takes the bare id), so tagging with the bare case id is expected to miss, and "
-    "the failure is swallowed into demisto.debug. Verified against a tenant Sept 2026; "
-    "re-verify before fixing."))
 def test_the_superseded_tag_is_written_to_the_case_investigation(t):
     t.entries = [{"id": "e1", "tags": [vr.VERDICT_TAG]}]
     vr.supersede_prior("42")
     assert t.sent("/xsoar/public/v1/entry/tags")[0]["investigationId"] == "INCIDENT-42"
+
+
+def test_the_read_asks_for_every_entry(t):
+    """page is ignored and pageSize caps the read silently, so no paging arguments."""
+    vr.supersede_prior("42")
+    assert t.sent("/xsoar/public/v1/investigation/42") == [{}]
+
+
+def test_a_prefixed_case_id_is_read_bare_and_tagged_prefixed(t):
+    t.entries = [{"id": "e1", "tags": [vr.VERDICT_TAG]}]
+    assert vr.supersede_prior("INCIDENT-42") == 1
+    assert t.sent("/xsoar/public/v1/investigation/42")
+    assert t.sent("/xsoar/public/v1/entry/tags")[0]["investigationId"] == "INCIDENT-42"
+
+
+def test_only_tags_that_landed_are_counted(t, monkeypatch):
+    t.entries = [{"id": "e1", "tags": [vr.VERDICT_TAG]}, {"id": "e2", "tags": [vr.VERDICT_TAG]}]
+    real = t.execute
+
+    def first_tag_fails(cmd, args):
+        if args.get("uri") == "/xsoar/public/v1/entry/tags" and json.loads(args["body"])["id"] == "e1":
+            t.calls.append((cmd, args["uri"], json.loads(args["body"])))
+            return [{"Type": 4, "Contents": "denied"}]
+        return real(cmd, args)
+    monkeypatch.setattr(demisto, "executeCommand", first_tag_fails, raising=False)
+    assert vr.supersede_prior("42") == 1
+    assert [b["id"] for b in t.sent("/xsoar/public/v1/entry/tags")] == ["e1", "e2"]
 
 
 def test_a_failed_read_supersedes_nothing_and_never_raises(t):

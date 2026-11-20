@@ -168,10 +168,6 @@ def test_the_summary_counts_the_shapes(t, monkeypatch):
     assert json.loads(t.results[-1]["readable_output"])[0]["shapes"] == 2
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: a Payload that arrives as an object is pinned correctly but the "
-    "summary json.loads()es the object, which raises, so it reports 0 shapes. The "
-    "same dict-or-string trap SOCFWCaseVerdictReport already handles."))
 def test_the_summary_counts_the_shapes_of_a_payload_object(t, monkeypatch):
     run(t, monkeypatch, dict(CASE, Payload={"shapes": [{}, {}]}))
     assert json.loads(t.results[-1]["readable_output"])[0]["shapes"] == 2

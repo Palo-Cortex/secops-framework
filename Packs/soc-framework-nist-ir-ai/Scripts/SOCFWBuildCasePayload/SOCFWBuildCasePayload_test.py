@@ -130,10 +130,6 @@ def test_query_cost_is_summed_from_each_reply():
     assert cost == {"queries": 2, "cost_charged": 1.875, "rows_returned": 2, "remaining_quota": 7.5}
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: the context walk is a stack, so replies are visited last to "
-    "first and remaining_quota ends as the FIRST reply's (highest) value. Quota "
-    "only falls, so the run row over-reports what is left."))
 def test_remaining_quota_is_the_lowest_reported():
     ctx = {"X": [xql("socfw_case_shapes", [{"n": 1}], quota=10),
                  xql("socfw_case_coverage", [{"n": 1}], quota=7.5)]}
@@ -141,11 +137,6 @@ def test_remaining_quota_is_the_lowest_reported():
     assert cost["remaining_quota"] == 7.5
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: `results = node.get('results') or node.get('Results')` turns an "
-    "empty result list into None, so a query that returned no rows is not counted. "
-    "It was still charged, so xql_queries and xql_cost_charged under-report on every "
-    "run where an aggregate comes back empty."))
 def test_a_query_that_returned_no_rows_is_still_counted_and_charged():
     ctx = {"X": [xql("socfw_case_entities", [], cost=0.5, quota=9)]}
     _, _, cost = bcp.collect_results(ctx)
@@ -381,4 +372,7 @@ def test_every_downstream_path_is_assigned(t, monkeypatch):
     ctx = run(t, monkeypatch, [])
     for key in ("Payloads", "Uncontracted", "SingleShape", "ExecutionRows", "QueryCost"):
         assert f"SOCFramework.Case.{key}" in ctx
-    assert "XQL: 0 queries, 0.0 charged, 0 rows" in t.results[-1]["readable_output"]
+    # Three aggregates ran and returned nothing: still three queries, still cleared.
+    out = t.results[-1]["readable_output"]
+    assert "XQL: 3 queries, 0.0 charged, 0 rows" in out
+    assert "Cleared raw aggregate context: PaloAltoNetworksXQL" in out
