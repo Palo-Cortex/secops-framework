@@ -258,24 +258,48 @@ def test_no_indicators_means_no_indicator_key(t, monkeypatch):
     assert "indicators" not in body(run(t, monkeypatch, [case("1", [{"n": 1, "sample_alert_id": "a1"}])]))
 
 
+def sent(ctx, i=0):
+    return ctx["SOCFramework.Case.Payloads"][i]["Payload"]
+
+
 def test_the_smallest_shapes_are_dropped_to_fit_the_character_budget(t, monkeypatch):
     shapes = [{"alert_name": f"s{i}", "n": 10 - i, "pad": "x" * 200} for i in range(6)]
     ctx = run(t, monkeypatch, [case("1", shapes)], max_payload_chars="900")
     b = body(ctx)
-    assert [s["alert_name"] for s in b["shapes"]] == ["s0", "s1", "s2"]
-    assert b["coverage_note"] == ("3 lowest-occurrence shape(s) dropped to fit the 900 character "
-                                  "prompt limit. 3 of 6 carried.")
-    assert b["shapes_analysed"] == 3 and b["shapes_in_case"] == 6
+    assert [s["alert_name"] for s in b["shapes"]] == ["s0", "s1"]
+    assert b["coverage_note"] == ("4 lowest-occurrence shape(s) dropped to fit the 900 character "
+                                  "prompt limit. 2 of 6 carried.")
+    assert b["shapes_analysed"] == 2 and b["shapes_in_case"] == 6
+    assert len(sent(ctx)) <= 900
+
+
+def test_the_budget_is_measured_on_the_payload_as_sent(t, monkeypatch):
+    """One shape fewer than the limit allows is never dropped, and the payload
+    sent, counts and note included, is never over the limit."""
+    shapes = [{"alert_name": f"s{i}", "n": 10 - i, "pad": "x" * 200} for i in range(6)]
+    for limit in range(700, 1700, 37):
+        t.context.clear()
+        ctx = run(t, monkeypatch, [case("1", [dict(s) for s in shapes])], max_payload_chars=str(limit))
+        b, text = body(ctx), sent(ctx)
+        kept = len(b["shapes"])
+        assert len(text) <= limit, limit
+        if kept < 6:
+            bigger = fsc.finish_payload(
+                {k: v for k, v in b.items() if k not in ("coverage_note",)},
+                shapes[:kept + 1], 6, b["shape_contract_coverage_pct"],
+                fsc.budget_note(5 - kept, kept + 1, 6, limit))
+            assert len(json.dumps(bigger, separators=(",", ":"))) > limit, limit
 
 
 def test_the_entry_vector_survives_when_its_shape_is_dropped(t, monkeypatch):
     t.issues["phish"] = issue(contract(Email={"ThreatURL": "http://evil"}))
     shapes = [{"alert_name": "big", "n": 50, "pad": "x" * 300},
               {"alert_name": "phish", "n": 1, "sample_alert_id": "phish"}]
-    # big alone is 401 characters with the indicators; with the phish shape, 599.
-    b = body(run(t, monkeypatch, [case("1", shapes)], max_payload_chars="500"))
+    ctx = run(t, monkeypatch, [case("1", shapes)], max_payload_chars="600")
+    b = body(ctx)
     assert [s["alert_name"] for s in b["shapes"]] == ["big"]
     assert b["indicators"] == {"urls": ["http://evil"]}
+    assert len(sent(ctx)) <= 600
 
 
 def test_a_case_over_the_fetch_budget_carries_only_the_budget(t, monkeypatch):
@@ -283,20 +307,29 @@ def test_a_case_over_the_fetch_budget_carries_only_the_budget(t, monkeypatch):
     ctx = run(t, monkeypatch, [case("1", shapes)], max_fetches_per_case="2")
     b = body(ctx)
     assert len(t.calls) == 2 and [s["alert_name"] for s in b["shapes"]] == ["s0", "s1"]
-    assert b["coverage_note"] == "4 shapes in case, 2 carried. Highest occurrence counts first."
+    assert b["coverage_note"] == "4 shapes in case, 2 within the fetch budget. Highest occurrence counts first."
     assert "candidate_ids" not in json.dumps(b)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: each truncation assigns coverage_note, so a later one overwrites "
-    "an earlier one. A case both over the fetch budget and over the character "
-    "budget reports '2 carried' while fewer were, and the budget drop is silent."))
 def test_both_truncations_are_declared(t, monkeypatch):
     shapes = [{"alert_name": f"s{i}", "n": 9 - i, "pad": "x" * 300, "sample_alert_id": f"a{i}"}
               for i in range(4)]
-    b = body(run(t, monkeypatch, [case("1", shapes)], max_fetches_per_case="2", max_payload_chars="600"))
+    ctx = run(t, monkeypatch, [case("1", shapes)], max_fetches_per_case="2", max_payload_chars="700")
+    b = body(ctx)
     assert len(b["shapes"]) == 1
-    assert "dropped to fit" in b["coverage_note"] and "2 carried" in b["coverage_note"]
+    assert b["coverage_note"] == (
+        "4 shapes in case, 2 within the fetch budget. Highest occurrence counts first. "
+        "1 lowest-occurrence shape(s) dropped to fit the 700 character prompt limit. 1 of 4 carried.")
+    assert len(sent(ctx)) <= 700
+
+
+def test_an_unread_shape_and_a_budget_drop_are_both_declared(t, monkeypatch):
+    t.issues["a0"] = RuntimeError("timeout")
+    shapes = [{"alert_name": f"s{i}", "n": 9 - i, "pad": "x" * 300, "sample_alert_id": f"a{i}"}
+              for i in range(3)]
+    b = body(run(t, monkeypatch, [case("1", shapes, prior=2)], max_payload_chars="800"))
+    assert b["coverage_note"].startswith("1 shape(s) could not be read after 3 attempt(s). Analysed without them. ")
+    assert "dropped to fit the 800 character prompt limit" in b["coverage_note"]
 
 
 # ── main: input shapes and output ────────────────────────────────────────────
@@ -322,10 +355,6 @@ def test_the_payload_goes_back_as_compact_json_text(t, monkeypatch):
     assert json.loads(p["Payload"])["siblings"] == ["2"]
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: json.loads() on a Payload that arrives as an object raises, the "
-    "except turns it into {}, and the case is analysed with no shapes. The same "
-    "dict-or-string trap as SOCFWCaseIterationSetup's summary."))
 def test_a_payload_object_is_read_not_emptied(t, monkeypatch):
     p = {"ID": "1", "Payload": {"case_id": "1", "shapes": [{"n": 1}, {"n": 2}]}}
     assert body(run(t, monkeypatch, [p]))["shapes_in_case"] == 2

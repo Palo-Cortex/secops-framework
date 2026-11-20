@@ -164,6 +164,26 @@ def fetch_contract(issue_id, roots=DEFAULT_INTEL_ROOTS):
     return contract, ''
 
 
+def budget_note(dropped, kept, total, limit):
+    """The note for shapes dropped to fit the character limit, if any were."""
+    if not dropped:
+        return []
+    return [f'{dropped} lowest-occurrence shape(s) dropped to fit the {limit} '
+            f'character prompt limit. {kept} of {total} carried.']
+
+
+def finish_payload(payload, shapes, total, coverage, notes):
+    """The payload as sent: the carried shapes, the counts, and every note."""
+    out = dict(payload)
+    out['shapes'] = shapes
+    out['shape_contract_coverage_pct'] = coverage
+    out['shapes_analysed'] = len(shapes)
+    out['shapes_in_case'] = total
+    if notes:
+        out['coverage_note'] = ' '.join(notes)
+    return out
+
+
 def main():
     args = demisto.args()
 
@@ -194,9 +214,15 @@ def main():
     total_fetches = 0
 
     for p in payloads:
-        try:
-            payload = json.loads(p.get('Payload') or '{}')
-        except Exception:
+        # Text from SOCFWBuildCasePayload, but take an object as it is: json.loads()
+        # on a dict raises, and the case was analysed with no shapes.
+        payload = p.get('Payload') or '{}'
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                payload = {}
+        if not isinstance(payload, dict):
             payload = {}
         shapes = payload.get('shapes') or []
         sampled = [sh for sh in shapes if sh.get('sample_alert_id')
@@ -265,34 +291,31 @@ def main():
         # shape cap cannot guarantee that, because per-shape size varies with the
         # contract. Drop the lowest-occurrence shapes until the payload fits and
         # say how many were dropped, so a truncated case is never silently
-        # truncated.
+        # truncated. Every reason is stated: the notes used to overwrite one
+        # another, so a case over both budgets reported the fetch cap and hid
+        # the character drop.
         kept_shapes = shapes[:max_per_case]
+        notes = []
+        if over_budget:
+            notes.append(f'{len(shapes)} shapes in case, {max_per_case} within the '
+                         f'fetch budget. Highest occurrence counts first.')
+        if transient:
+            notes.append(f'{transient} shape(s) could not be read after '
+                         f'{prior_deferrals + 1} attempt(s). Analysed without them.')
+
+        # The trial is the payload exactly as it will be sent, note included, so
+        # what is measured is what is sent.
         dropped_for_budget = 0
         while kept_shapes:
-            trial = dict(payload)
-            trial['shapes'] = kept_shapes
+            trial = finish_payload(payload, kept_shapes, len(shapes), coverage,
+                                   notes + budget_note(dropped_for_budget, len(kept_shapes),
+                                                       len(shapes), max_payload_chars))
             if len(json.dumps(trial, separators=(',', ':'))) <= max_payload_chars:
                 break
             kept_shapes.pop()
             dropped_for_budget += 1
-        if dropped_for_budget:
-            payload['coverage_note'] = (
-                f'{dropped_for_budget} lowest-occurrence shape(s) dropped to fit '
-                f'the {max_payload_chars} character prompt limit. '
-                f'{len(kept_shapes)} of {len(shapes)} carried.')
-
-        payload['shapes'] = kept_shapes
-        payload['shape_contract_coverage_pct'] = coverage
-        payload['shapes_analysed'] = len(kept_shapes)
-        payload['shapes_in_case'] = len(shapes)
-        if over_budget:
-            payload['coverage_note'] = (
-                f'{len(shapes)} shapes in case, {max_per_case} carried. Highest '
-                f'occurrence counts first.')
-        if transient:
-            payload['coverage_note'] = (
-                f'{transient} shape(s) could not be read after '
-                f'{prior_deferrals + 1} attempt(s). Analysed without them.')
+        notes += budget_note(dropped_for_budget, len(kept_shapes), len(shapes), max_payload_chars)
+        payload = finish_payload(payload, kept_shapes, len(shapes), coverage, notes)
 
         p['Payload'] = json.dumps(payload, separators=(',', ':'))
         p['ShapeContracts'] = {'with_contract': with_contract,

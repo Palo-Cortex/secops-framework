@@ -56,7 +56,11 @@ def collect_results(context):
             seen += 1
             if isinstance(node, dict):
                 name = node.get('query_name') or node.get('QueryName')
-                results = node.get('results') or node.get('Results')
+                # Not `or`: an empty result list is falsy, and a query that
+                # returned no rows was still run and still charged.
+                results = node.get('results')
+                if results is None:
+                    results = node.get('Results')
                 if name and isinstance(results, list):
                     for key, qname in QUERY_NAMES.items():
                         if name == qname:
@@ -73,9 +77,14 @@ def collect_results(context):
                                     float(v or 0) for v in charged.values())
                             elif charged is not None:
                                 cost['cost_charged'] += float(charged or 0)
+                            # The walk does not visit replies in the order they
+                            # were made. Quota only falls, so the lowest value
+                            # reported is the most recent.
                             rq = node.get('remaining_quota')
                             if rq is not None:
-                                cost['remaining_quota'] = float(rq)
+                                rq = float(rq)
+                                if cost['remaining_quota'] is None or rq < cost['remaining_quota']:
+                                    cost['remaining_quota'] = rq
                 stack.extend(node.values())
             elif isinstance(node, list):
                 stack.extend(node)

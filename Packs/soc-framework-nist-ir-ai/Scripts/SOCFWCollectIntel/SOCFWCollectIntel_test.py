@@ -148,26 +148,19 @@ def test_over_budget_drops_reported_roots_before_configured_ones(t, monkeypatch)
     """A reported root goes before a larger configured one, and the drop is declared."""
     t.context = {"A": "x" * 100, "V": "y" * 60,
                  "SOCFramework": {"EnrichFromList": {"intel_roots": ["A", "V"]}}}
-    out = run(t, monkeypatch, roots="A", max_chars="120")
+    # Both roots are 178 characters; A with the note naming V is 161, which fits 170.
+    out = run(t, monkeypatch, roots="A", max_chars="170")
     payload = json.loads(t.set["Assessment.Intel"])
     assert payload == {"A": "x" * 100, "coverage_note": "Dropped for size, not absent: V"}
     assert out.endswith("dropped for size: V")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: when every root is dropped for size the result is empty, and the "
-    "script writes 'no content' and says no intel resolved. The intel existed; the "
-    "model and the analyst read too-big as absent, the opposite of what _trim's "
-    "docstring promises."))
 def test_intel_dropped_entirely_for_size_is_not_reported_as_absent(t, monkeypatch):
     t.context = {"A": "x" * 100}
     run(t, monkeypatch, roots="A", max_chars="50")
     assert t.set["Assessment.Intel"] != "no content"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: _trim measures the roots without the coverage_note that is added "
-    "afterwards, so a trimmed payload can exceed max_chars by the note's length."))
 def test_a_trimmed_payload_fits_the_budget(t, monkeypatch):
     t.context = {"A": "x" * 100, "C": "z" * 60}
     run(t, monkeypatch, roots="A,C", max_chars="80")
