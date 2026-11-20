@@ -13,7 +13,7 @@ human gates between them.
 The phases live in the `soc-framework-nist-ir` pack as four parallel
 playbooks. Each phase has a defined contract — what it must read from
 prior phases, what it must write for downstream phases — captured in
-[`SOCFrameworkPhaseContract_V3`](../soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.md).
+[`SOCFrameworkPhaseContract_V3`](../soc-framework-nist-ir-ai/SOCFrameworkPhaseContract_V3.md).
 
 ## The four phases
 
@@ -84,7 +84,7 @@ Each phase reads from two sources:
 - **`<PriorPhase>.*`** — outputs from earlier phases in the lifecycle
 
 The exact field-by-field contract is documented in
-[`SOCFrameworkPhaseContract_V3`](../soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.md).
+[`SOCFrameworkPhaseContract_V3`](../soc-framework-nist-ir-ai/SOCFrameworkPhaseContract_V3.md).
 The contract is *enforced* — the build pipeline runs `check_contracts.py`
 to confirm phase playbooks read only from declared sources and write only
 to declared targets.

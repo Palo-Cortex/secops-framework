@@ -6,7 +6,7 @@
 # Read top-down: each category lists its mappings, stamps, and mirrors.
 # ============================================================================
 lifecycle: nist_ir
-pack: soc-framework-nist-ir
+pack: soc-framework-nist-ir-ai
 list_name: SOCFrameworkNormalizeMap_NIST_IR
 description: Maps issue.<field> -> SOCFramework.<target> per product category for the
   NIST IR lifecycle. mappings (issue.* passthrough), stamps (literal initializers),
@@ -38,6 +38,7 @@ categories:
       - { target: Endpoint.alert_action, issue_field: alertaction, shape: flat, role: canonical, source_origin: native }
       - { target: Endpoint.containment_status, issue_field: endpointisolationstatus, shape: flat, role: canonical, source_origin: native }
       - { target: Endpoint.dns_queries, issue_field: dnsqueryname, shape: flat, role: canonical, source_origin: native }
+      - { target: Endpoint.remote_ips, issue_field: remoteip, shape: flat, role: canonical, source_origin: native, reason: 'Addresses the endpoint connected to (the CrowdStrike rule writes network_accesses remote_address to remoteip). Not Destination.IP: a host''s connections are not a block list - emergency response blocks only those scored malicious' }
       - { target: Endpoint.domain, issue_field: domain, shape: flat, role: canonical, source_origin: native }
       - { target: Endpoint.endpoint_id, issue_field: agentid, shape: flat, role: canonical, source_origin: native, dedup_key: true, dedup_match: text }
       - { target: Endpoint.external_ip, issue_field: deviceexternalips, shape: flat, role: canonical, source_origin: native }
@@ -196,6 +197,11 @@ categories:
       - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: employeedisplayname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
     stamps:
       - { target: Endpoint.normalization_source, value: endpoint }
       - { target: Artifacts.Process.Verdict, value:  }
@@ -233,6 +239,7 @@ categories:
       - { target: Email.threat_status, issue_field: socfwemailthreatstatus, shape: flat, role: canonical, source_origin: socfw_custom, reason: "Vendor email threat/remediation status; no native issue field" }
       - { target: Email.threat_type, issue_field: socfwemailthreattype, shape: flat, role: canonical, source_origin: socfw_custom, reason: "Vendor email threat type; no native issue field" }
       - { target: Email.threat_url, issue_field: socfwemailthreaturl, shape: flat, role: canonical, source_origin: socfw_custom, reason: "Vendor email threat URL; no native issue field" }
+      - { target: Artifacts.Network.DNS.Query, issue_field: dnsqueryname, shape: structured, role: canonical, source_origin: native, reason: Domain of the threat URL (the TAP rule writes it to dns_query_name); what soc-block-domain blocks }
       - { target: Primary.User, issue_field: username, shape: flat, role: canonical, source_origin: native }
       - { target: Artifacts.Identity.User.Email, issue_field: emailrecipient, shape: structured, role: canonical, source_origin: native, lower: true }
       - { target: Artifacts.Identity.User.UPN, issue_field: username, shape: structured, role: canonical, source_origin: native, lower: true }
@@ -293,6 +300,11 @@ categories:
       - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: employeedisplayname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
     stamps:
       - { target: Email.normalization_source, value: email }
       - { target: Email.normalization_source, value: mail_listener }
@@ -394,6 +406,11 @@ categories:
       - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: employeedisplayname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
     stamps:
       - { target: Identity.normalization_source, value: identity }
     mirrors:
@@ -495,6 +512,11 @@ categories:
       - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: employeedisplayname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
     stamps:
       - { target: Network.normalization_source, value: network }
     mirrors:
@@ -594,6 +616,11 @@ categories:
       - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: employeedisplayname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
     stamps:
       - { target: Cloud.normalization_source, value: cloud }
     mirrors:
@@ -670,6 +697,11 @@ categories:
       - { target: Investigation.UserCount, issue_field: case.user_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.HostCount, issue_field: case.host_count, shape: flat, role: canonical, source_origin: native }
       - { target: Investigation.LinkedCount, issue_field: linkedCount, shape: flat, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.DisplayName, issue_field: employeedisplayname, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.Email, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: employeeemail, shape: structured, role: canonical, source_origin: native }
+      - { target: Artifacts.Identity.User.UPN, issue_field: contactemailaddress, shape: structured, role: canonical, source_origin: native }
     stamps:
       - { target: Generic.normalization_source, value: generic }
     mirrors:

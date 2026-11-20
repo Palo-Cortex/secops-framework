@@ -64,7 +64,7 @@ first stop inside the framework. Three things happen:
 - **Normalization** — pack-specific Normalize playbooks read the alert's
   raw fields and write them into the framework namespace
   (`SOCFramework.Artifacts.*`). What gets written for each category is
-  defined by the lifecycle's normalize map, `SOCFrameworkNormalizeMap_<LIFECYCLE>` (for NIST IR, [`SOCFrameworkNormalizeMap_NIST_IR`](../soc-framework-nist-ir/SOCFrameworkNormalizeMap_NIST_IR.md)).
+  defined by the lifecycle's normalize map, `SOCFrameworkNormalizeMap_<LIFECYCLE>` (for NIST IR, [`SOCFrameworkNormalizeMap_NIST_IR`](../soc-framework-nist-ir-ai/SOCFrameworkNormalizeMap_NIST_IR.md)).
 - **Routing** — Foundation hands off to the entry-point playbook
   (`EP_IR_NIST (800-61)_V3`) which kicks off the lifecycle.
 
@@ -78,7 +78,7 @@ The entry-point playbook walks the alert through four phases:
 4. **Recovery** — re-enable, restore service
 
 Each phase's contract — what it reads, what it writes — is defined by
-[`SOCFrameworkPhaseContract_V3`](../soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.md).
+[`SOCFrameworkPhaseContract_V3`](../soc-framework-nist-ir-ai/SOCFrameworkPhaseContract_V3.md).
 Comms, dataset writes for metrics, and case closure happen as the lifecycle
 progresses.
 
@@ -177,7 +177,7 @@ differs.
 ### The Endpoint normalizer model
 
 The endpoint section of
-[`SOCFrameworkNormalizeMap_NIST_IR`](../soc-framework-nist-ir/SOCFrameworkNormalizeMap_NIST_IR.md)
+[`SOCFrameworkNormalizeMap_NIST_IR`](../soc-framework-nist-ir-ai/SOCFrameworkNormalizeMap_NIST_IR.md)
 is the canonical pattern. `Foundation_-_Normalize_Artifacts_V3` hands the
 alert's category and lifecycle to `SOCNormalizeFromList`, which applies that
 section; there is no per-category playbook. It reads native `issue.*`

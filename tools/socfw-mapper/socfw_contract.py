@@ -36,7 +36,7 @@ except ImportError:  # enum-agreement check degrades to a skip without PyYAML
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 NORMALIZE_MAP = os.path.join(
-    REPO, "Packs/soc-framework-nist-ir/Lists/SOCFrameworkNormalizeMap_NIST_IR/"
+    REPO, "Packs/soc-framework-nist-ir-ai/Lists/SOCFrameworkNormalizeMap_NIST_IR/"
           "SOCFrameworkNormalizeMap_NIST_IR_data.json")
 CATEGORY_MAP = os.path.join(
     REPO, "Packs/soc-optimization-unified/Lists/SOCProductCategoryMap_V3/"

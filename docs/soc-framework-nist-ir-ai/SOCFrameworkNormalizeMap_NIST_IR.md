@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Pack | `soc-framework-nist-ir` |
+| Pack | `soc-framework-nist-ir-ai` |
 | List Name | `SOCFrameworkNormalizeMap_NIST_IR` |
-| Source | [`schemas/soc-framework/soc-framework-nist-ir/SOCFrameworkNormalizeMap_NIST_IR.yaml`](https://github.com/Palo-Cortex/secops-framework/blob/main/schemas/soc-framework/soc-framework-nist-ir/SOCFrameworkNormalizeMap_NIST_IR.yaml) |
+| Source | [`schemas/soc-framework/soc-framework-nist-ir-ai/SOCFrameworkNormalizeMap_NIST_IR.yaml`](https://github.com/Palo-Cortex/secops-framework/blob/main/schemas/soc-framework/soc-framework-nist-ir-ai/SOCFrameworkNormalizeMap_NIST_IR.yaml) |
 
 Maps issue.<field> -> SOCFramework.<target> per product category for the NIST IR lifecycle. mappings (issue.* passthrough), stamps (literal initializers), mirrors (flat -> structured Artifacts.* tree).
 
