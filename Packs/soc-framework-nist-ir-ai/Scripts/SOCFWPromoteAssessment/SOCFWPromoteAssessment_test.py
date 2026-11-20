@@ -80,13 +80,22 @@ def test_an_unescaped_windows_path_is_repaired_and_flagged():
     assert pa._ESCAPES_REPAIRED is True
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: a path segment that starts with b, f, n, r or t is a valid JSON "
-    "escape, so _repair keeps it and C:\\Users\\bob loses the 'b' to a backspace. "
-    "Only replies that already failed a strict parse reach the repair."))
-def test_a_path_segment_that_looks_like_an_escape_survives_the_repair():
-    obj = pa._load('{"verdict": "malicious", "closure_reason": "ran C:\\Users\\bob\\x.exe"}')
-    assert obj["closure_reason"] == "ran C:\\Users\\bob\\x.exe"
+@pytest.mark.parametrize("path", [
+    "C:\\Users\\bob\\x.exe", "C:\\temp\\new\\run.ps1", "D:\\reports\\final\\a.txt", "c:\\f\\b\\t\\n\\r"])
+def test_a_path_segment_that_looks_like_an_escape_survives_the_repair(path):
+    # The reply also carries an invalid escape (\U or \x), so it reaches the repair.
+    obj = pa._load('{"verdict": "malicious", "closure_reason": "ran ' + path + ' via \\Users"}')
+    assert obj["closure_reason"] == "ran " + path + " via \\Users"
+
+
+def test_a_partly_escaped_path_comes_out_whole():
+    obj = pa._load('{"verdict": "malicious", "closure_reason": "C:\\\\Users\\bob", "x": "\\q"}')
+    assert obj["closure_reason"] == "C:\\Users\\bob"
+
+
+def test_a_newline_escape_after_a_path_and_a_space_is_still_a_newline():
+    obj = pa._load('{"verdict": "malicious", "story": "ran C:\\Users\\bob\\x.exe then\\nnext"}')
+    assert obj["story"] == "ran C:\\Users\\bob\\x.exe then\nnext"
 
 
 def test_valid_escapes_are_left_alone_by_the_repair():

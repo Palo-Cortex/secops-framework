@@ -71,17 +71,34 @@ _ESCAPES_REPAIRED = False
 
 _VALID_ESCAPE = re.compile(r'\\u[0-9a-fA-F]{4}|\\["\\/bfnrt]')
 
+# A drive-letter path, up to whitespace or a quote: C:\Users\bob\x.exe
+_WINDOWS_PATH = re.compile(r'(?<![A-Za-z0-9])[A-Za-z]:(?:\\+[^\\\s"]*)+')
+
+
+def _escape_path(match):
+    """Every separator in a Windows path is a literal backslash, written as \\\\.
+
+    Inside a path, \\bob or \\temp is a folder, not a backspace or a tab, so the
+    separators are rewritten before the escape check below can mistake them.
+    A run of backslashes counts as one separator, which also repairs a path the
+    model escaped only partly.
+    """
+    return "\\\\".join(re.split(r"\\+", match.group()))
+
 
 def _repair(text):
     """Escape backslashes that do not begin a valid JSON escape.
 
     Models quote Windows paths and URLs verbatim — "C:\\Users\\x", "\\\\share" —
     and a lone backslash before the wrong character is invalid JSON that
-    strict=False does not forgive. Double only the offending backslashes; valid
-    escapes (\\n, \\", \\u0041, \\\\) pass through untouched, and the function
-    only runs after a strict parse has already failed, so well-formed replies
-    are never rewritten.
+    strict=False does not forgive. Windows paths are rewritten first, so a
+    segment that happens to look like an escape (\\bob, \\temp, \\new) stays a
+    folder name. Elsewhere only the offending backslashes are doubled; valid
+    escapes (\\n, \\", \\u0041, \\\\) pass through untouched. The function only
+    runs after a strict parse has already failed, so well-formed replies are
+    never rewritten.
     """
+    text = _WINDOWS_PATH.sub(_escape_path, text)
     out, i, n = [], 0, len(text)
     while i < n:
         if text[i] == "\\":
