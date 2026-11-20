@@ -1,0 +1,107 @@
+commonfields:
+  id: NormalizeCompromisedUserIdentifier
+  version: -1
+name: NormalizeCompromisedUserIdentifier
+script: "import re\nimport traceback\nfrom typing import Any\n\n\nOUTPUT_PREFIX = \"AccountContainment.NormalizedUser\"\n\n\
+  \ndef arg_to_bool(value: Any, default: bool = False) -> bool:\n    if value is None:\n        return default\n    if isinstance(value,\
+  \ bool):\n        return value\n    return str(value).strip().lower() in (\"true\", \"yes\", \"y\", \"1\")\n\n\ndef normalize_whitespace(value:\
+  \ Any) -> str:\n    return \" \".join(str(value or \"\").strip().split())\n\n\ndef detect_identifier_type(identifier: str)\
+  \ -> str:\n    if re.match(r\"(?i)^\\s*(CN|OU|DC|DN|UID)=\", identifier) and \",\" in identifier:\n        return \"distinguished_name\"\
+  \n\n    if \"\\\\\" in identifier and re.match(r\"^[^\\\\]+\\\\[^\\\\]+$\", identifier):\n        return \"domain_sam\"\n\
+  \n    if \"@\" in identifier:\n        return \"upn_or_email\"\n\n    return \"sam_or_username\"\n\n\ndef extract_dn_common_name(dn:\
+  \ str) -> str:\n    match = re.search(r\"(?i)(?:^|,)\\s*CN=([^,]+)\", dn)\n    return match.group(1).strip() if match else\
+  \ \"\"\n\n\ndef parse_args(args: dict[str, Any]) -> dict[str, Any]:\n    user_identifier = normalize_whitespace(args.get(\"\
+  user_identifier\", \"\"))\n    default_upn_suffix = normalize_whitespace(args.get(\"default_upn_suffix\", \"\"))\n\n   \
+  \ if not user_identifier:\n        raise DemistoException(\"user_identifier is required.\")\n\n    return {\n        \"\
+  user_identifier\": user_identifier,\n        \"allow_ambiguous\": arg_to_bool(args.get(\"allow_ambiguous\"), False),\n \
+  \       \"default_upn_suffix\": default_upn_suffix.lower().lstrip(\"@\"),\n    }\n\n\ndef build_upn(username: str, default_upn_suffix:\
+  \ str) -> str:\n    username = username.strip().lower()\n    if default_upn_suffix:\n        return f\"{username}@{default_upn_suffix}\"\
+  \n    return username\n\n\ndef normalize_user_identifier(\n    user_identifier: str,\n    allow_ambiguous: bool,\n    default_upn_suffix:\
+  \ str,\n) -> dict[str, Any]:\n    identifier_type = detect_identifier_type(user_identifier)\n    normalized_original = user_identifier.strip()\n\
+  \n    ambiguous = False\n    ambiguity_reason = \"\"\n\n    normalized = \"\"\n    sam_account_name = \"\"\n    upn = \"\
+  \"\n    ad_lookup_value = \"\"\n    entra_lookup_value = \"\"\n\n    if identifier_type == \"upn_or_email\":\n        upn\
+  \ = normalized_original.lower()\n        sam_account_name = upn.split(\"@\", 1)[0]\n        normalized = upn\n\n       \
+  \ ad_lookup_value = sam_account_name\n        entra_lookup_value = upn\n\n    elif identifier_type == \"domain_sam\":\n\
+  \        domain, sam = normalized_original.split(\"\\\\\", 1)\n        domain = domain.upper().strip()\n        sam_account_name\
+  \ = sam.strip()\n\n        upn = build_upn(sam_account_name, default_upn_suffix)\n        normalized = f\"{domain}\\\\{sam_account_name}\"\
+  \n\n        ad_lookup_value = sam_account_name\n        entra_lookup_value = upn\n\n        if not default_upn_suffix:\n\
+  \            ambiguous = True\n            ambiguity_reason = (\n                \"domain\\\\username was provided but no\
+  \ default_upn_suffix was provided. \"\n                \"UPN is best-effort only.\"\n            )\n\n    elif identifier_type\
+  \ == \"distinguished_name\":\n        cn = extract_dn_common_name(normalized_original)\n\n        sam_account_name = cn\
+  \ or \"\"\n        upn = build_upn(sam_account_name, default_upn_suffix) if sam_account_name else \"\"\n        normalized\
+  \ = cn or normalized_original\n\n        ad_lookup_value = sam_account_name or normalized_original\n        entra_lookup_value\
+  \ = upn or normalized_original.lower()\n\n        ambiguous = True\n        ambiguity_reason = (\n            \"Distinguished\
+  \ name was provided. CN was extracted as a best-effort SAMAccountName, \"\n            \"but authoritative SAMAccountName\
+  \ should be resolved from AD when possible.\"\n        )\n\n    else:\n        sam_account_name = normalized_original.strip()\n\
+  \        upn = build_upn(sam_account_name, default_upn_suffix)\n        normalized = sam_account_name\n\n        ad_lookup_value\
+  \ = sam_account_name\n        entra_lookup_value = upn\n\n        if not default_upn_suffix:\n            ambiguous = True\n\
+  \            ambiguity_reason = (\n                \"Username/SAMAccountName was provided but no default_upn_suffix was\
+  \ provided. \"\n                \"UPN is best-effort only.\"\n            )\n\n            if not allow_ambiguous:\n   \
+  \             raise DemistoException(\n                    f\"Ambiguous user identifier: {user_identifier}. \"\n       \
+  \             \"Provide default_upn_suffix or set allow_ambiguous=true.\"\n                )\n\n    return {\n        \"\
+  Original\": user_identifier,\n        \"Normalized\": normalized,\n        \"IdentifierType\": identifier_type,\n      \
+  \  \"SAMAccountName\": sam_account_name,\n        \"UPN\": upn,\n        \"ADLookupValue\": ad_lookup_value,\n        \"\
+  EntraLookupValue\": entra_lookup_value,\n        \"Ambiguous\": ambiguous,\n        \"AmbiguityReason\": ambiguity_reason,\n\
+  \    }\n\n\ndef main():\n    try:\n        args = parse_args(demisto.args())\n\n        result = normalize_user_identifier(\n\
+  \            args[\"user_identifier\"],\n            args[\"allow_ambiguous\"],\n            args[\"default_upn_suffix\"\
+  ],\n        )\n\n        readable_output = tableToMarkdown(\n            \"Normalized Compromised User Identifier\",\n \
+  \           result,\n            headers=[\n                \"Original\",\n                \"Normalized\",\n           \
+  \     \"IdentifierType\",\n                \"SAMAccountName\",\n                \"UPN\",\n                \"ADLookupValue\"\
+  ,\n                \"EntraLookupValue\",\n                \"Ambiguous\",\n                \"AmbiguityReason\",\n       \
+  \     ],\n            removeNull=True,\n        )\n\n        return_results(CommandResults(\n            outputs_prefix=OUTPUT_PREFIX,\n\
+  \            outputs_key_field=\"Original\",\n            outputs=result,\n            readable_output=readable_output,\n\
+  \            raw_response=result,\n        ))\n\n    except Exception as ex:\n        demisto.error(traceback.format_exc())\n\
+  \        return_error(f\"Failed to normalize compromised user identifier. Error: {ex}\")\n\n\nif __name__ in (\"__main__\"\
+  , \"__builtin__\", \"builtins\"):\n    main()"
+type: python
+tags:
+- Compromised User
+- Account Containment
+comment: Normalize a compromised user identifier before account containment. Accepts email, UPN, SAMAccountName, username,
+  domain\\username, or distinguished name and returns lookup values for downstream AD and Microsoft Graph tasks. Does not
+  call external integrations.
+enabled: true
+args:
+- supportedModules: []
+  name: user_identifier
+  required: true
+  description: Email, UPN, SAMAccountName, username, domain\\username, or distinguished name.
+  type: string
+- supportedModules: []
+  name: allow_ambiguous
+  description: Whether to allow best-effort output when the identifier is ambiguous, such as a local-only username without
+    a domain or UPN suffix.
+  defaultValue: 'true'
+  type: boolean
+- supportedModules: []
+  name: default_upn_suffix
+  default: true
+  description: Optional default UPN suffix to append when user_identifier is only a username/SAMAccountName, for example contoso.com.
+    Leave blank to avoid guessing a domain.
+  defaultValue: ''
+outputs:
+- contextPath: AccountContainment.NormalizedUser.Original
+  description: Original user identifier argument after whitespace normalization.
+  type: string
+- contextPath: AccountContainment.NormalizedUser.Normalized
+  description: Display-safe normalized user identifier.
+  type: string
+- contextPath: AccountContainment.NormalizedUser.IdentifierType
+  description: Detected identifier type.
+  type: string
+- contextPath: AccountContainment.NormalizedUser.Ambiguous
+  description: Whether the identifier required best-effort handling.
+  type: boolean
+- contextPath: AccountContainment.NormalizedUser.AmbiguityReason
+  description: Explanation when the identifier is ambiguous.
+  type: string
+- contextPath: AccountContainment.NormalizedUser.SAMAccountName
+  description: Username/SAMAccountName value for Active Directory lookups such as ad-get-user.
+  type: string
+- contextPath: AccountContainment.NormalizedUser.UPN
+  description: UPN value for Microsoft Entra ID or MS Graph tasks.
+scripttarget: 0
+subtype: python3
+runonce: false
+dockerimage: demisto/python3:3.10.14.92207
+runas: DBotWeakRole

@@ -1,0 +1,1486 @@
+id: Compromised User Kill Switch Containment - Entra and Active Directory
+version: -1
+name: Compromised User Kill Switch Containment - Entra and Active Directory
+description: |2
+    Manual kill-switch containment playbook for a confirmed compromised user.
+    This playbook is intentionally opinionated: after validation, protected-account checks,
+    optional approval, and dry-run handling, it attempts the standard containment bundle
+    instead of exposing per-action toggles.
+
+    Containment bundle:
+    - Disable the on-prem Active Directory account when an AD identity is found.
+    - Expire the on-prem Active Directory password when an AD identity is found.
+    - Disable the Microsoft Entra account when an Entra identity is found.
+    - Revoke Microsoft Entra refresh tokens / cloud sessions when an Entra identity is found.
+    - Reset/remove supported Entra authentication methods when an Entra identity is found.
+    - Verify final state and generate a single analyst-facing containment summary.
+
+  Contribution cleanup notes:
+  - Default execution is safe for shared framework review: DryRun defaults to true and RequireApproval defaults to true.
+  - Upload referenced custom automations with this playbook or ensure they already exist in the target pack.
+starttaskid: '0'
+tasks:
+  '0':
+    id: '0'
+    taskid: b1dfdb7d-3d74-465f-860e-84e7fe374d8e
+    type: start
+    task:
+      id: b1dfdb7d-3d74-465f-860e-84e7fe374d8e
+      version: -1
+      name: ''
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '1'
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '1':
+    id: '1'
+    taskid: deb80f3c-744f-428c-816f-5d8d426af95d
+    type: regular
+    task:
+      id: deb80f3c-744f-428c-816f-5d8d426af95d
+      version: -1
+      name: Validate required kill-switch inputs
+      description: Validates UserIdentifier and Reason before the containment workflow continues.
+      scriptName: ValidateCompromisedUserContainmentInputs
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '2'
+    scriptarguments:
+      reason:
+        simple: ${inputs.Reason}
+      user_identifier:
+        simple: ${inputs.UserIdentifier}
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 220
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '2':
+    id: '2'
+    taskid: f2d06709-e01a-4569-8282-58f1e8190ae7
+    type: regular
+    task:
+      id: f2d06709-e01a-4569-8282-58f1e8190ae7
+      version: -1
+      name: Normalize user identifier
+      description: Normalizes email, UPN, SAMAccountName, domain\\username, username, or DN into lookup values for AD and
+        Entra.
+      scriptName: NormalizeCompromisedUserIdentifier
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '3'
+    scriptarguments:
+      user_identifier:
+        simple: ${CompromisedUser.InputValidation.UserIdentifier}
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 405
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '3':
+    id: '3'
+    taskid: 947c6dc9-05fe-48e8-856c-c7436872ce54
+    type: regular
+    task:
+      id: 947c6dc9-05fe-48e8-856c-c7436872ce54
+      version: -1
+      name: Look up user in Active Directory
+      description: Attempts to retrieve the matching on-prem Active Directory account. Failure does not stop Entra containment.
+      script: Active Directory Query v2|||ad-get-user
+      type: regular
+      iscommand: true
+      brand: Active Directory Query v2
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '4'
+    scriptarguments:
+      email:
+        simple: ${AccountContainment.NormalizedUser.UPN}
+      sAMAccountName:
+        simple: ${AccountContainment.NormalizedUser.SAMAccountName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 590
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '4':
+    id: '4'
+    taskid: 1fa4403d-1d6a-4eba-8774-c13f1dfe466e
+    type: regular
+    task:
+      id: 1fa4403d-1d6a-4eba-8774-c13f1dfe466e
+      version: -1
+      name: Look up user in Entra ID
+      description: Attempts to retrieve the matching Microsoft Entra user. Failure does not stop AD containment.
+      script: Microsoft Graph User|||msgraph-user-get
+      type: regular
+      iscommand: true
+      brand: Microsoft Graph User
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '5'
+    scriptarguments:
+      user:
+        simple: ${AccountContainment.NormalizedUser.UPN}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 775
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '5':
+    id: '5'
+    taskid: 287f1d83-c9dc-4dd9-8dce-8f1d94567247
+    type: condition
+    task:
+      id: 287f1d83-c9dc-4dd9-8dce-8f1d94567247
+      version: -1
+      name: Was the user found in AD or Entra?
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      'no':
+      - '29'
+      'yes':
+      - '6'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: ActiveDirectory.Users.sAMAccountName
+            iscontext: true
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: MSGraphUser.ID
+            iscontext: true
+    - label: 'no'
+      condition:
+      - - operator: isEmpty
+          left:
+            value:
+              simple: ActiveDirectory.Users.sAMAccountName
+            iscontext: true
+        - operator: isEmpty
+          left:
+            value:
+              simple: MSGraphUser.ID
+            iscontext: true
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 827.5,
+          "y": 960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '6':
+    id: '6'
+    taskid: a17324c7-3982-4eb9-8461-2cb4c0e422aa
+    type: title
+    task:
+      id: a17324c7-3982-4eb9-8461-2cb4c0e422aa
+      version: -1
+      name: Enrichment and safety checks
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '7'
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1042.5,
+          "y": 1145
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '7':
+    id: '7'
+    taskid: 4035dc1b-4bc7-4fb1-aef6-4ad2852912cd
+    type: regular
+    task:
+      id: 4035dc1b-4bc7-4fb1-aef6-4ad2852912cd
+      version: -1
+      name: Collect user context for approval and notes
+      description: Collects Entra and AD enrichment context for a confirmed compromised user before containment.
+      scriptName: CollectCompromisedUserContext
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '8'
+    scriptarguments:
+      ad_sam_account_name:
+        simple: ${ActiveDirectory.Users.sAMAccountName}
+      entra_user_id:
+        simple: ${MSGraphUser.ID}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1042.5,
+          "y": 1315
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '8':
+    id: '8'
+    taskid: 2bb147f4-63f1-4319-80d5-7ff361754bc8
+    type: regular
+    task:
+      id: 2bb147f4-63f1-4319-80d5-7ff361754bc8
+      version: -1
+      name: Check protected account guardrails
+      description: Detects privileged, break-glass, service, VIP, executive, admin, and other protected-account indicators
+        before containment.
+      scriptName: ProtectedAccountContainmentGuard
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '9'
+    scriptarguments:
+      ad_user_json:
+        simple: ${ActiveDirectory.Users}
+      entra_user_json:
+        simple: ${MSGraphUser}
+      user_identifier:
+        simple: ${AccountContainment.NormalizedUser.UPN}
+      vip_list:
+        simple: ${lists.LKSD_VIPs}
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1042.5,
+          "y": 1500
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '9':
+    id: '9'
+    taskid: e5f9073b-2cc1-45b6-856b-d25bc66ec35d
+    type: condition
+    task:
+      id: e5f9073b-2cc1-45b6-856b-d25bc66ec35d
+      version: -1
+      name: Is this a protected account?
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      'no':
+      - '11'
+      'yes':
+      - '10'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ProtectedAccountGuard.is_protected_account
+            iscontext: true
+          right:
+            value:
+              simple: 'true'
+    - label: 'no'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: ProtectedAccountGuard.is_protected_account
+            iscontext: true
+          right:
+            value:
+              simple: 'false'
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1042.5,
+          "y": 1685
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '10':
+    id: '10'
+    taskid: 777d3216-c18c-450b-8982-a9ffb6546cab
+    type: condition
+    task:
+      id: 777d3216-c18c-450b-8982-a9ffb6546cab
+      version: -1
+      name: Protected account approval required
+      description: Analyst approval is required for protected accounts. Deny if the target is a break-glass, service, or executive
+        account and containment requires an alternate path.
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '31'
+      'Yes':
+      - '11'
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1492.5,
+          "y": 1870
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '11':
+    id: '11'
+    taskid: 156643cb-ff82-4450-8935-08a41286b6b2
+    type: condition
+    task:
+      id: 156643cb-ff82-4450-8935-08a41286b6b2
+      version: -1
+      name: Is dry run enabled?
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      'no':
+      - '12'
+      'yes':
+      - '30'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.DryRun
+            iscontext: true
+          right:
+            value:
+              simple: 'true'
+    - label: 'no'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.DryRun
+            iscontext: true
+          right:
+            value:
+              simple: 'false'
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 920,
+          "y": 2055
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '12':
+    id: '12'
+    taskid: 824134ed-fd53-4280-83e9-f0348fa6a4c4
+    type: condition
+    task:
+      id: 824134ed-fd53-4280-83e9-f0348fa6a4c4
+      version: -1
+      name: Is analyst approval required?
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      'no':
+      - '14'
+      'yes':
+      - '13'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.RequireApproval
+            iscontext: true
+          right:
+            value:
+              simple: 'true'
+    - label: 'no'
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: inputs.RequireApproval
+            iscontext: true
+          right:
+            value:
+              simple: 'false'
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 592.5,
+          "y": 2240
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '13':
+    id: '13'
+    taskid: ffb668c5-3316-4a34-8faa-dcad7ea6ebe8
+    type: condition
+    task:
+      id: ffb668c5-3316-4a34-8faa-dcad7ea6ebe8
+      version: -1
+      name: Approve compromised user kill switch
+      description: |-
+        Manual approval gate. Review the normalized identity, AD result, Entra result,
+        protected-account findings, business context, and reason. Complete this task only
+        when the user is confirmed compromised and immediate account containment is intended.
+
+        If containment should not proceed, stop or close the playbook manually and document
+        the reason in the incident.
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#default#':
+      - '31'
+      'Yes':
+      - '14'
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1135,
+          "y": 2425
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '14':
+    id: '14'
+    taskid: 26ca1993-341b-44ab-8582-4f5ec3b9c05a
+    type: title
+    task:
+      id: 26ca1993-341b-44ab-8582-4f5ec3b9c05a
+      version: -1
+      name: Kill-switch containment bundle
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '15'
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 582.5,
+          "y": 2617.5
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '15':
+    id: '15'
+    taskid: 6a6a6567-f185-4c82-8862-671b2da73aab
+    type: condition
+    task:
+      id: 6a6a6567-f185-4c82-8862-671b2da73aab
+      version: -1
+      name: Was an AD account found?
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      'no':
+      - '19'
+      'yes':
+      - '16'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: ActiveDirectory.Users.sAMAccountName
+            iscontext: true
+    - label: 'no'
+      condition:
+      - - operator: isEmpty
+          left:
+            value:
+              simple: ActiveDirectory.Users.sAMAccountName
+            iscontext: true
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 582.5,
+          "y": 2795
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '16':
+    id: '16'
+    taskid: 447e2e63-5710-4304-8fbd-c00aa68adaed
+    type: regular
+    task:
+      id: 447e2e63-5710-4304-8fbd-c00aa68adaed
+      version: -1
+      name: Disable AD account
+      description: Disables the on-prem Active Directory account.
+      script: Active Directory Query v2|||ad-disable-account
+      type: regular
+      iscommand: true
+      brand: Active Directory Query v2
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '17'
+    scriptarguments:
+      username:
+        simple: ${ActiveDirectory.Users.sAMAccountName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 807.5,
+          "y": 2980
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '17':
+    id: '17'
+    taskid: 6bea4275-6730-4ee3-83f0-73134fbee5ce
+    type: regular
+    task:
+      id: 6bea4275-6730-4ee3-83f0-73134fbee5ce
+      version: -1
+      name: Expire AD password
+      description: Expires the on-prem Active Directory password to reduce reuse risk.
+      script: Active Directory Query v2|||ad-expire-password
+      type: regular
+      iscommand: true
+      brand: Active Directory Query v2
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '18'
+    scriptarguments:
+      username:
+        simple: ${ActiveDirectory.Users.sAMAccountName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 807.5,
+          "y": 3165
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '18':
+    id: '18'
+    taskid: b1124a84-bec8-453b-885a-e456972d5170
+    type: regular
+    task:
+      id: b1124a84-bec8-453b-885a-e456972d5170
+      version: -1
+      name: Verify AD containment result
+      description: Re-queries AD and normalizes AD containment status as Success, Failed, Partial, or Unknown.
+      scriptName: VerifyADCompromisedUserContainment
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '20'
+    scriptarguments:
+      sam_account_name:
+        simple: ${ActiveDirectory.Users.sAMAccountName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 807.5,
+          "y": 3350
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '19':
+    id: '19'
+    taskid: 259dc3f7-fae7-41a1-86ec-c5142f3b8a82
+    type: regular
+    task:
+      id: 259dc3f7-fae7-41a1-86ec-c5142f3b8a82
+      version: -1
+      name: Mark AD containment skipped
+      description: Records that AD containment was skipped because no AD account was found.
+      scriptName: SetCompromisedUserContainmentActionStatus
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '20'
+    scriptarguments:
+      action:
+        simple: ad_containment
+      detail:
+        simple: No matching Active Directory account was found.
+      status:
+        simple: Skipped
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 377.5,
+          "y": 3350
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '20':
+    id: '20'
+    taskid: 72be4660-eba0-4a60-8505-ea5c09633f8f
+    type: condition
+    task:
+      id: 72be4660-eba0-4a60-8505-ea5c09633f8f
+      version: -1
+      name: Was an Entra account found?
+      type: condition
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      'no':
+      - '25'
+      'yes':
+      - '21'
+    separatecontext: false
+    conditions:
+    - label: 'yes'
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: MSGraphUser.ID
+            iscontext: true
+    - label: 'no'
+      condition:
+      - - operator: isEmpty
+          left:
+            value:
+              simple: MSGraphUser.ID
+            iscontext: true
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 582.5,
+          "y": 3535
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '21':
+    id: '21'
+    taskid: eeff7620-901e-4af0-8264-2f610d2c6601
+    type: regular
+    task:
+      id: eeff7620-901e-4af0-8264-2f610d2c6601
+      version: -1
+      name: Disable Entra account
+      description: Disables Microsoft Entra sign-in for the compromised user.
+      script: Microsoft Graph User|||msgraph-user-account-disable
+      type: regular
+      iscommand: true
+      brand: Microsoft Graph User
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '22'
+    scriptarguments:
+      user:
+        simple: ${MSGraphUser.UserPrincipalName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 807.5,
+          "y": 3720
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '22':
+    id: '22'
+    taskid: 54b14171-db56-4e30-82e3-054a62e4d4ea
+    type: regular
+    task:
+      id: 54b14171-db56-4e30-82e3-054a62e4d4ea
+      version: -1
+      name: Revoke Entra sessions
+      description: Invalidates refresh tokens issued to applications for the compromised user.
+      script: Microsoft Graph User|||msgraph-user-session-revoke
+      type: regular
+      iscommand: true
+      brand: Microsoft Graph User
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '23'
+    scriptarguments:
+      user:
+        simple: ${MSGraphUser.UserPrincipalName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 807.5,
+          "y": 3905
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '23':
+    id: '23'
+    taskid: 61500bb7-16e5-4ceb-8427-3d7744a403c1
+    type: regular
+    task:
+      id: 61500bb7-16e5-4ceb-8427-3d7744a403c1
+      version: -1
+      name: Reset Entra authentication methods
+      description: Deletes or resets supported authentication methods for the compromised user. Partial failures are captured
+        for the final summary.
+      scriptName: ResetEntraAuthenticationMethods
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '24'
+    scriptarguments:
+      dry_run:
+        simple: 'false'
+      user_id:
+        simple: ${MSGraphUser.ID}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 807.5,
+          "y": 4090
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '24':
+    id: '24'
+    taskid: a2985f25-fae3-40b0-8841-04ca7d88b187
+    type: regular
+    task:
+      id: a2985f25-fae3-40b0-8841-04ca7d88b187
+      version: -1
+      name: Verify Entra containment result
+      description: Re-queries Entra and normalizes Entra containment status as Success, Failed, Partial, Submitted, or Unknown.
+      scriptName: VerifyEntraCompromisedUserContainment
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '26'
+    scriptarguments:
+      user_id:
+        simple: ${MSGraphUser.ID}
+      user_principal_name:
+        simple: ${MSGraphUser.UserPrincipalName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: errorPath
+    view: |-
+      {
+        "position": {
+          "x": 807.5,
+          "y": 4275
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '25':
+    id: '25'
+    taskid: 34762ed2-9aa0-4eb5-80ad-fb4e3a9d16c6
+    type: regular
+    task:
+      id: 34762ed2-9aa0-4eb5-80ad-fb4e3a9d16c6
+      version: -1
+      name: Mark Entra containment skipped
+      description: Records that Entra containment was skipped because no Entra account was found.
+      scriptName: SetCompromisedUserContainmentActionStatus
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '26'
+    scriptarguments:
+      action:
+        simple: entra_containment
+      detail:
+        simple: No matching Microsoft Entra account was found.
+      status:
+        simple: Skipped
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 377.5,
+          "y": 4275
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '26':
+    id: '26'
+    taskid: bddb75ad-e1b6-41f6-8cbe-764dee6b8daf
+    type: regular
+    task:
+      id: bddb75ad-e1b6-41f6-8cbe-764dee6b8daf
+      version: -1
+      name: Append AD containment description note
+      description: Appends a timestamped containment note to the AD description field when an AD account exists.
+      scriptName: AppendADContainmentDescriptionNote
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '27'
+    scriptarguments:
+      containment_reason:
+        simple: ${inputs.Reason}
+      user_identifier:
+        simple: ${ActiveDirectory.Users.sAMAccountName}
+    separatecontext: false
+    continueonerror: true
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 582.5,
+          "y": 4460
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '27':
+    id: '27'
+    taskid: 7d63c00f-5c76-46c2-8a44-1abcae588a7f
+    type: regular
+    task:
+      id: 7d63c00f-5c76-46c2-8a44-1abcae588a7f
+      version: -1
+      name: Build final containment verdict
+      description: Combines AD, Entra, session, password, MFA, and note outcomes into a single containment verdict and residual-risk
+        statement.
+      scriptName: BuildCompromisedUserContainmentVerdict
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '28'
+    scriptarguments:
+      action_status_json:
+        simple: ${CompromisedUserContainment.Actions}
+      ad_status_json:
+        simple: ${CompromisedUserContainment.AD}
+      entra_status_json:
+        simple: ${CompromisedUserContainment.Entra}
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 582.5,
+          "y": 4645
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '28':
+    id: '28'
+    taskid: 8e7e47a4-dcde-42e9-8ee4-1e86169f1d56
+    type: regular
+    task:
+      id: 8e7e47a4-dcde-42e9-8ee4-1e86169f1d56
+      version: -1
+      name: Generate containment case notes
+      description: Generates final analyst-facing Markdown notes from actual action and verification results.
+      scriptName: GenerateCompromisedAccountContainmentCaseNotes
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '32'
+    scriptarguments:
+      ad_user_json:
+        simple: ${ActiveDirectory.Users}
+      entra_user_json:
+        simple: ${MSGraphUser}
+      reason:
+        simple: ${inputs.Reason}
+      residual_risk:
+        simple: ${CompromisedUserContainment.Verdict.residual_risk}
+      user_identifier:
+        simple: ${AccountContainment.NormalizedUser.UPN}
+      verification_results_json:
+        simple: ${CompromisedUserContainment.Verdict}
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 582.5,
+          "y": 4830
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '29':
+    id: '29'
+    taskid: 566a5d24-6ff8-4610-8996-945182c1fe3e
+    type: regular
+    task:
+      id: 566a5d24-6ff8-4610-8996-945182c1fe3e
+      version: -1
+      name: Generate not-found containment notes
+      description: Documents that no matching AD or Entra user was found and no containment actions were attempted.
+      scriptName: GenerateCompromisedAccountContainmentCaseNotes
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '32'
+    scriptarguments:
+      reason:
+        simple: ${inputs.Reason}
+      residual_risk:
+        simple: User identity could not be confirmed. Validate identifier manually.
+      user_identifier:
+        simple: ${inputs.UserIdentifier}
+      verification_results_json:
+        simple: User not found in AD or Entra. No containment actions were attempted.
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 4830
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '30':
+    id: '30'
+    taskid: 305edd72-06b5-4c90-8b44-dfd9f4923277
+    type: regular
+    task:
+      id: 305edd72-06b5-4c90-8b44-dfd9f4923277
+      version: -1
+      name: Generate dry-run containment notes
+      description: Documents the actions that would have run without performing containment.
+      scriptName: GenerateCompromisedAccountContainmentCaseNotes
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '32'
+    scriptarguments:
+      ad_user_json:
+        simple: ${ActiveDirectory.Users}
+      entra_user_json:
+        simple: ${MSGraphUser}
+      reason:
+        simple: ${inputs.Reason}
+      residual_risk:
+        simple: Account remains active because dry run was enabled.
+      user_identifier:
+        simple: ${AccountContainment.NormalizedUser.UPN}
+      verification_results_json:
+        simple: DryRun=true. No containment actions were executed.
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1360,
+          "y": 4830
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '31':
+    id: '31'
+    taskid: 73ba3099-52fb-41af-8cb8-36a8e6208f2d
+    type: regular
+    task:
+      id: 73ba3099-52fb-41af-8cb8-36a8e6208f2d
+      version: -1
+      name: Generate approval-denied notes
+      description: Documents that analyst approval was denied and no containment actions were attempted.
+      scriptName: GenerateCompromisedAccountContainmentCaseNotes
+      type: regular
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    nexttasks:
+      '#none#':
+      - '32'
+    scriptarguments:
+      reason:
+        simple: ${inputs.Reason}
+      residual_risk:
+        simple: Account remains active because containment was not approved.
+      user_identifier:
+        simple: ${AccountContainment.NormalizedUser.UPN}
+      verification_results_json:
+        simple: Analyst approval denied. No containment actions were executed.
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 1135,
+          "y": 2610
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  '32':
+    id: '32'
+    taskid: 5c30362a-3440-4871-8664-c46d59db3a6d
+    type: title
+    task:
+      id: 5c30362a-3440-4871-8664-c46d59db3a6d
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ''
+      playbooktaskmissingcomponent: null
+      istaskmissingcomponenterrordismissed: false
+    separatecontext: false
+    continueonerrortype: ''
+    view: |-
+      {
+        "position": {
+          "x": 797.5,
+          "y": 5015
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 5025,
+        "width": 1822.5,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs:
+- key: UserIdentifier
+  value: {}
+  required: true
+  description: Email, UPN, SAMAccountName, domain\\username, username, or distinguished name for the confirmed compromised
+    user.
+  playbookInputQuery: null
+- key: Reason
+  value: {}
+  required: true
+  description: Short containment reason to include in case notes and account annotations.
+  playbookInputQuery: null
+- key: DryRun
+  value:
+    simple: 'true'
+  required: true
+  description: When true, performs validation, lookup, enrichment, safety checks, Defaults to true for safe framework review.
+  playbookInputQuery: null
+- key: RequireApproval
+  value:
+    simple: 'true'
+  required: false
+  description: |-
+    When true, requires analyst approval before the kill-switch containment
+        bundle executes. Defaults to true for high-impact containment.
+  playbookInputQuery: null
+- key: TicketOrIncidentId
+  value: {}
+  required: false
+  description: |-
+    Optional external ticket, incident, or case reference for the containment
+        record.
+  playbookInputQuery: null
+- key: NotifyManager
+  value: {}
+  required: false
+  description: |-
+    Optional documentation-only flag for downstream notification handling.
+        No notification task is included in this scaffold.
+  playbookInputQuery: null
+inputSections:
+- inputs:
+  - UserIdentifier
+  - Reason
+  - DryRun
+  - RequireApproval
+  - TicketOrIncidentId
+  - NotifyManager
+  name: General (Inputs group)
+  description: Generic group for inputs
+outputs:
+- contextPath: CompromisedUserContainment.Verdict.containment_success
+  description: True only when at least one identity platform was contained successfully and no critical containment action
+    failed.
+  type: Boolean
+- contextPath: CompromisedUserContainment.Verdict.residual_risk
+  description: Residual risk statement built from failed, skipped, or unknown actions.
+  type: String
+- contextPath: CompromisedUserContainment.AD.status
+  description: Success, Partial, Failed, or Unknown.
+  type: String
+- contextPath: CompromisedUserContainment.Entra.status
+  description: Overall verification result. One of Success, Partial, Failed, Submitted, or Unknown.
+  type: String
+- contextPath: CompromisedUserContainment.Actions
+  type: unknown
+outputSections:
+- outputs:
+  - CompromisedUserContainment.Verdict.containment_success
+  - CompromisedUserContainment.Verdict.residual_risk
+  - CompromisedUserContainment.AD.status
+  - CompromisedUserContainment.Entra.status
+  - CompromisedUserContainment.Actions
+  name: General (Outputs group)
+  description: Generic group for outputs
