@@ -26,7 +26,7 @@ import sys
 from collections import defaultdict
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-NM = os.path.join(REPO, "Packs/soc-framework-nist-ir/Lists/"
+NM = os.path.join(REPO, "Packs/soc-framework-nist-ir-ai/Lists/"
                         "SOCFrameworkNormalizeMap_NIST_IR/"
                         "SOCFrameworkNormalizeMap_NIST_IR_data.json")
 CM = os.path.join(REPO, "Packs/soc-optimization-unified/Lists/"

@@ -31,7 +31,7 @@ import sys
 from collections import defaultdict
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-NM_REL = ("Packs/soc-framework-nist-ir/Lists/SOCFrameworkNormalizeMap_NIST_IR/"
+NM_REL = ("Packs/soc-framework-nist-ir-ai/Lists/SOCFrameworkNormalizeMap_NIST_IR/"
           "SOCFrameworkNormalizeMap_NIST_IR_data.json")
 CM_REL = ("Packs/soc-optimization-unified/Lists/SOCProductCategoryMap_V3/"
           "SOCProductCategoryMap_V3_data.json")

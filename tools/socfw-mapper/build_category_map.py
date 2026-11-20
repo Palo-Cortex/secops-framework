@@ -884,10 +884,10 @@ def normalize_map_docs(repo, path=None):
     and Wiz (was Email) all corrected to Network purely from these definitions.
     """
     candidates = [path] if path else [
-        os.path.join(repo, "Packs", "soc-framework-nist-ir", "Lists",
+        os.path.join(repo, "Packs", "soc-framework-nist-ir-ai", "Lists",
                      "SOCFrameworkNormalizeMap_NIST_IR",
                      "SOCFrameworkNormalizeMap_NIST_IR_data.json"),
-        os.path.join(repo, "schemas", "soc-framework", "soc-framework-nist-ir",
+        os.path.join(repo, "schemas", "soc-framework", "soc-framework-nist-ir-ai",
                      "SOCFrameworkNormalizeMap_NIST_IR.yaml"),
     ]
     doc = None

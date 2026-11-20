@@ -10,15 +10,6 @@
 | Pack Path | `Packs/soc-framework-nist-ir` |
 | Manifest | [`Packs/soc-framework-nist-ir/xsoar_config.json`](https://github.com/Palo-Cortex/secops-framework/blob/main/Packs/soc-framework-nist-ir/xsoar_config.json) |
 
-## Schemas
-
-Reference documentation for the schemas this pack defines.
-
-- [SOCFrameworkEnrichmentMap_NIST_IR](SOCFrameworkEnrichmentMap_NIST_IR.md)
-- [SOCFrameworkNormalizeMap_NIST_IR](SOCFrameworkNormalizeMap_NIST_IR.md)
-- [SOCFrameworkPhaseContract_V3](SOCFrameworkPhaseContract_V3.md)
-- [SOCFrameworkProfileMap_NIST_IR](SOCFrameworkProfileMap_NIST_IR.md)
-
 > ⚠️ This pack requires manual post-install steps. See [Manual Steps](#manual-steps) below.
 
 ## Manual Steps

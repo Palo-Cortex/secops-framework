@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Pack | `soc-framework-nist-ir` |
+| Pack | `soc-framework-nist-ir-ai` |
 | List Name | `SOCFrameworkPhaseContract_V3` |
-| Source | [`schemas/soc-framework/soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.yaml`](https://github.com/Palo-Cortex/secops-framework/blob/main/schemas/soc-framework/soc-framework-nist-ir/SOCFrameworkPhaseContract_V3.yaml) |
+| Source | [`schemas/soc-framework/soc-framework-nist-ir-ai/SOCFrameworkPhaseContract_V3.yaml`](https://github.com/Palo-Cortex/secops-framework/blob/main/schemas/soc-framework/soc-framework-nist-ir-ai/SOCFrameworkPhaseContract_V3.yaml) |
 
 NIST IR phase contract — what each phase reads, writes, and routes to. Two roles (canonical, legacy_alias) with banded organization for one-shot legacy cleanup.
 
@@ -53,7 +53,7 @@ NIST IR phase contract — what each phase reads, writes, and routes to. Two rol
 
 | Phase | Orchestrator | Purpose |
 |---|---|---|
-| `analysis` | `SOC_Analysis_V3` | Determine verdict, confidence, scope, and recommended response from raw alerts and SOCFramework artifacts. |
+| `analysis` | `SOC_Analysis_V3` | Read the Assessment contract on every issue in the case and write the Analysis contract the later phases execute: ver... |
 | `containment` | `SOC_Containment_V3` | Stop the spread — isolate hosts, block users, quarantine email. |
 | `eradication` | `SOC_Eradication_V3` | Remove persistence and remediate compromised entities. |
 | `recovery` | `SOC_Recovery_V3` | Restore systems to known-good state and establish monitoring. |
@@ -160,6 +160,9 @@ NIST IR phase contract — what each phase reads, writes, and routes to. Two rol
 | `containment` | `analysis` | `Analysis.response_recommended` | `canonical` |
 | `containment` | `analysis` | `Analysis.spread_level` | `canonical` |
 | `containment` | `analysis` | `Analysis.verdict` | `canonical` |
+| `containment` | `analysis` | `Analysis.needs_analyst` | `canonical` |
+| `containment` | `analysis` | `Analysis.scope` | `canonical` |
+| `containment` | `analysis` | `Analysis.containment_plan` | `canonical` |
 | `eradication` | `analysis` | `Analysis.compromise_decision` | `canonical` |
 | `eradication` | `analysis` | `Analysis.compromise_level` | `canonical` |
 | `eradication` | `analysis` | `Analysis.mitre_tactic` | `canonical` |
@@ -171,6 +174,8 @@ NIST IR phase contract — what each phase reads, writes, and routes to. Two rol
 | `eradication` | `analysis` | `Analysis.spread_level` | `canonical` |
 | `eradication` | `containment` | `Containment.action` | `canonical` |
 | `eradication` | `containment` | `Containment.required` | `canonical` |
+| `eradication` | `analysis` | `Analysis.scope` | `canonical` |
+| `eradication` | `analysis` | `Analysis.eradication_plan` | `canonical` |
 | `recovery` | `analysis` | `Analysis.compromise_decision` | `canonical` |
 | `recovery` | `analysis` | `Analysis.compromise_level` | `canonical` |
 | `recovery` | `analysis` | `Analysis.primary_entity_user` | `canonical` |
@@ -180,53 +185,72 @@ NIST IR phase contract — what each phase reads, writes, and routes to. Two rol
 | `recovery` | `eradication` | `Eradication.success` | `canonical` |
 | `recovery` | `containment` | `Containment.Execution` | `canonical` |
 | `recovery` | `containment` | `Containment.required` | `canonical` |
+| `recovery` | `analysis` | `Analysis.scope` | `canonical` |
+| `recovery` | `analysis` | `Analysis.recovery_plan` | `canonical` |
+| `recovery` | `analysis` | `Analysis.verify_by_human` | `canonical` |
 
 ## Writes (Top-Level)
 
-| phase | target | type | init | role |
-|---|---|---|---|---|
-| `analysis` | `Analysis.verdict` | `string` |  | `canonical` |
-| `analysis` | `Analysis.confidence` | `string` |  | `canonical` |
-| `analysis` | `Analysis.response_recommended` | `boolean` |  | `canonical` |
-| `analysis` | `Analysis.compromise_level` | `string` |  | `canonical` |
-| `analysis` | `Analysis.compromise_decision` | `string` |  | `canonical` |
-| `analysis` | `Analysis.spread_level` | `string` |  | `canonical` |
-| `analysis` | `Analysis.persistence_type` | `string` |  | `canonical` |
-| `analysis` | `Analysis.primary_entity_id` | `string` |  | `canonical` |
-| `analysis` | `Analysis.primary_entity_name` | `string` |  | `canonical` |
-| `analysis` | `Analysis.primary_entity_type` | `string` |  | `canonical` |
-| `analysis` | `Analysis.primary_entity_user` | `string` |  | `canonical` |
-| `analysis` | `Analysis.case_category` | `string` |  | `canonical` |
-| `analysis` | `Analysis.mitre_tactic` | `string` |  | `canonical` |
-| `analysis` | `Analysis.mitre_tactic_id` | `string` |  | `canonical` |
-| `analysis` | `Analysis.mitre_technique` | `string` |  | `canonical` |
-| `analysis` | `Analysis.mitre_technique_id` | `string` |  | `canonical` |
-| `analysis` | `Analysis.story` | `array` |  | `canonical` |
-| `analysis` | `Analysis.case_score` | `number` | `0` | `canonical` |
-| `analysis` | `Analysis.global_hash_prevalence_count` | `number` | `0` | `canonical` |
-| `analysis` | `Analysis.case_host_count` | `number` | `0` | `canonical` |
-| `analysis` | `Analysis.case_issue_count` | `number` | `0` | `canonical` |
-| `analysis` | `Analysis.case_user_count` | `number` | `0` | `canonical` |
-| `containment` | `Containment.status` | `string` |  | `canonical` |
-| `containment` | `Containment.isolated_hosts` | `array` |  | `canonical` |
-| `containment` | `Containment.action` | `string` |  | `canonical` |
-| `containment` | `Containment.story` | `array` |  | `canonical` |
-| `containment` | `Containment.required` | `boolean` |  | `canonical` |
-| `containment` | `Containment.Execution` | `object` |  | `canonical` |
-| `containment` | `Containment.disabled_users` | `array` |  | `canonical` |
-| `eradication` | `Eradication.success` | `boolean` |  | `canonical` |
-| `eradication` | `Eradication.attempted` | `boolean` |  | `canonical` |
-| `eradication` | `Eradication.files_removed` | `array` |  | `canonical` |
-| `eradication` | `Eradication.persistence_removed` | `array` |  | `canonical` |
-| `eradication` | `Eradication.reimage_required` | `boolean` |  | `canonical` |
-| `eradication` | `Eradication.escalate_to_reimage` | `boolean` |  | `canonical` |
-| `eradication` | `Eradication.story` | `array` |  | `canonical` |
-| `recovery` | `Recovery.status` | `string` |  | `canonical` |
-| `recovery` | `Recovery.story` | `array` |  | `canonical` |
-| `recovery` | `Recovery.monitoring_required` | `boolean` |  | `canonical` |
-| `recovery` | `Recovery.monitoring_scope` | `string` |  | `canonical` |
-| `recovery` | `Recovery.restore_required` | `boolean` |  | `canonical` |
-| `recovery` | `Recovery.restore_method` | `string` |  | `canonical` |
+| phase | target | type | init | role | notes |
+|---|---|---|---|---|---|
+| `analysis` | `Analysis.verdict` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.confidence` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.response_recommended` | `boolean` |  | `canonical` |  |
+| `analysis` | `Analysis.compromise_level` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.compromise_decision` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.spread_level` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.persistence_type` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.primary_entity_id` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.primary_entity_name` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.primary_entity_type` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.primary_entity_user` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.case_category` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.mitre_tactic` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.mitre_tactic_id` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.mitre_technique` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.mitre_technique_id` | `string` |  | `canonical` |  |
+| `analysis` | `Analysis.story` | `array` |  | `canonical` |  |
+| `analysis` | `Analysis.case_score` | `number` | `0` | `canonical` |  |
+| `analysis` | `Analysis.global_hash_prevalence_count` | `number` | `0` | `canonical` |  |
+| `analysis` | `Analysis.case_host_count` | `number` | `0` | `canonical` |  |
+| `analysis` | `Analysis.case_issue_count` | `number` | `0` | `canonical` |  |
+| `analysis` | `Analysis.case_user_count` | `number` | `0` | `canonical` |  |
+| `analysis` | `Analysis.closure_recommended` | `boolean` |  | `ai` |  |
+| `analysis` | `Analysis.closure_reason` | `string` |  | `ai` |  |
+| `analysis` | `Analysis.closure_confidence` | `string` |  | `ai` |  |
+| `analysis` | `Analysis.closure_blockers` | `array` |  | `ai` |  |
+| `analysis` | `Analysis.action_confidence` | `string` |  | `ai` |  |
+| `analysis` | `Analysis.needs_analyst` | `boolean` |  | `ai` | Star the case: a person has to own it. |
+| `analysis` | `Analysis.scope` | `array` |  | `ai` | Rows of scope_entity. |
+| `analysis` | `Analysis.containment_plan` | `array` |  | `ai` | Rows of plan_step, ordered. Containment runs these. |
+| `analysis` | `Analysis.eradication_plan` | `array` |  | `ai` | Rows of plan_step, ordered. Eradication runs these. |
+| `analysis` | `Analysis.recovery_plan` | `array` |  | `ai` | Rows of plan_step, ordered. Recovery runs these; includes reversal of shadow containment and monitoring. |
+| `analysis` | `Analysis.verify_by_human` | `array` |  | `ai` | What a person must confirm before closure. |
+| `containment` | `Containment.status` | `string` |  | `canonical` |  |
+| `containment` | `Containment.isolated_hosts` | `array` |  | `canonical` |  |
+| `containment` | `Containment.action` | `string` |  | `canonical` |  |
+| `containment` | `Containment.story` | `array` |  | `canonical` |  |
+| `containment` | `Containment.required` | `boolean` |  | `canonical` |  |
+| `containment` | `Containment.Execution` | `object` |  | `canonical` |  |
+| `containment` | `Containment.disabled_users` | `array` |  | `canonical` |  |
+| `eradication` | `Eradication.Execution` | `object` |  | `canonical` | Per-step record of the last pass: {steps, ran, outstanding, gaps, by_step[{step, action, target, status, issue, vendor, shadow}], updated_at}. The next pass reads it so a step that ran, or was skipped for want of an implementation, is not sent again. |
+| `eradication` | `Eradication.success` | `boolean` |  | `canonical` |  |
+| `eradication` | `Eradication.attempted` | `boolean` |  | `canonical` |  |
+| `eradication` | `Eradication.files_removed` | `array` |  | `canonical` |  |
+| `eradication` | `Eradication.persistence_removed` | `array` |  | `canonical` |  |
+| `eradication` | `Eradication.reimage_required` | `boolean` |  | `canonical` |  |
+| `eradication` | `Eradication.escalate_to_reimage` | `boolean` |  | `canonical` |  |
+| `eradication` | `Eradication.story` | `array` |  | `canonical` |  |
+| `eradication` | `Eradication.artifacts` | `array` |  | `canonical` | One row per artifact an eradication step acted on: {type, value, action, status}. |
+| `recovery` | `Recovery.status` | `string` |  | `canonical` |  |
+| `recovery` | `Recovery.story` | `array` |  | `canonical` |  |
+| `recovery` | `Recovery.monitoring_required` | `boolean` |  | `canonical` |  |
+| `recovery` | `Recovery.monitoring_scope` | `string` |  | `canonical` |  |
+| `recovery` | `Recovery.restore_required` | `boolean` |  | `canonical` |  |
+| `recovery` | `Recovery.restore_method` | `string` |  | `canonical` |  |
+| `recovery` | `Recovery.monitor` | `array` |  | `canonical` | One row per artifact to watch after recovery: {type, value, why}. Every scope artifact, plus any eradication could not act on. |
+| `recovery` | `Recovery.telemetry` | `string` |  | `canonical` | The sources the case's issues came from; eradication and monitoring cover only what these show. |
+| `recovery` | `Recovery.Execution` | `object` |  | `canonical` | Per-step record of the last pass: {steps, ran, outstanding, gaps, by_step[{step, action, target, status, issue, vendor, shadow}], updated_at}. The next pass reads it so a step that ran, or was skipped for want of an implementation, is not sent again. |
 
 ## Writes by Category
 

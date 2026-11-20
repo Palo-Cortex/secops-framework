@@ -17,7 +17,7 @@ import sys, os, re, json, types, argparse, importlib
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NORM = os.path.join(REPO, "Packs/soc-optimization-unified/Scripts/SOCNormalizeFromList")
 PANEL = os.path.join(REPO, "Packs/soc-framework-nist-ir/Scripts/SOCFramework_displayEntityContext")
-NORMDATA = os.path.join(REPO, "Packs/soc-framework-nist-ir/Lists/SOCFrameworkNormalizeMap_NIST_IR/SOCFrameworkNormalizeMap_NIST_IR_data.json")
+NORMDATA = os.path.join(REPO, "Packs/soc-framework-nist-ir-ai/Lists/SOCFrameworkNormalizeMap_NIST_IR/SOCFrameworkNormalizeMap_NIST_IR_data.json")
 ENTITY = os.path.join(REPO, "Packs/soc-framework-nist-ir/Playbooks/SOC_Entity_Enrichment_V3.yml")
 
 

@@ -80,7 +80,7 @@
 #      namespace (Analysis|Containment|Eradication|Recovery).* (CI)
 # ============================================================================
 
-pack: soc-framework-nist-ir
+pack: soc-framework-nist-ir-ai
 list_name: SOCFrameworkPhaseContract_V3
 description: NIST IR phase contract — what each phase reads, writes, and routes to. Two roles (canonical, legacy_alias) with banded organization for one-shot legacy cleanup.
 
@@ -170,7 +170,7 @@ phases:
   analysis:
     orchestrator: SOC_Analysis_V3
     requires_phase: ~
-    purpose: Determine verdict, confidence, scope, and recommended response from raw alerts and SOCFramework artifacts.
+    purpose: "Read the Assessment contract on every issue in the case and write the Analysis contract the later phases execute: verdict, who owns the case, the entities in scope and the ordered containment, eradication and recovery plans with the issues that justify each step."
   containment:
     orchestrator: SOC_Containment_V3
     requires_phase: analysis
@@ -359,6 +359,9 @@ reads_from_phases:
   - { phase: containment, from_phase: analysis, source: Analysis.response_recommended, role: canonical }
   - { phase: containment, from_phase: analysis, source: Analysis.spread_level        , role: canonical }
   - { phase: containment, from_phase: analysis, source: Analysis.verdict             , role: canonical }
+  - { phase: "containment", from_phase: "analysis", source: "Analysis.needs_analyst", role: "canonical" }
+  - { phase: "containment", from_phase: "analysis", source: "Analysis.scope", role: "canonical" }
+  - { phase: "containment", from_phase: "analysis", source: "Analysis.containment_plan", role: "canonical" }
 
   # ------ eradication ------
   - { phase: eradication, from_phase: analysis   , source: Analysis.compromise_decision , role: canonical }
@@ -372,6 +375,8 @@ reads_from_phases:
   - { phase: eradication, from_phase: analysis   , source: Analysis.spread_level        , role: canonical }
   - { phase: eradication, from_phase: containment, source: Containment.action           , role: canonical }
   - { phase: eradication, from_phase: containment, source: Containment.required         , role: canonical }
+  - { phase: "eradication", from_phase: "analysis", source: "Analysis.scope", role: "canonical" }
+  - { phase: "eradication", from_phase: "analysis", source: "Analysis.eradication_plan", role: "canonical" }
 
   # ------ recovery ------
   - { phase: recovery, from_phase: analysis   , source: Analysis.compromise_decision, role: canonical }
@@ -383,6 +388,9 @@ reads_from_phases:
   - { phase: recovery, from_phase: eradication, source: Eradication.success         , role: canonical }
   - { phase: recovery, from_phase: containment, source: Containment.Execution       , role: canonical }
   - { phase: recovery, from_phase: containment, source: Containment.required        , role: canonical }
+  - { phase: "recovery", from_phase: "analysis", source: "Analysis.scope", role: "canonical" }
+  - { phase: "recovery", from_phase: "analysis", source: "Analysis.recovery_plan", role: "canonical" }
+  - { phase: "recovery", from_phase: "analysis", source: "Analysis.verify_by_human", role: "canonical" }
 
 # ============================================================================
 # writes — phase contract surface (the story produced for downstream phases)
@@ -417,6 +425,17 @@ writes:
   - { phase: analysis, target: Analysis.case_host_count             , type: number  , init: 0     , role: canonical }
   - { phase: analysis, target: Analysis.case_issue_count            , type: number  , init: 0     , role: canonical }
   - { phase: analysis, target: Analysis.case_user_count             , type: number  , init: 0     , role: canonical }
+  - { phase: "analysis", target: "Analysis.closure_recommended", type: "boolean", init: false, role: "ai" }
+  - { phase: "analysis", target: "Analysis.closure_reason", type: "string", init: "", role: "ai" }
+  - { phase: "analysis", target: "Analysis.closure_confidence", type: "string", init: "", role: "ai" }
+  - { phase: "analysis", target: "Analysis.closure_blockers", type: "array", init: [], role: "ai" }
+  - { phase: "analysis", target: "Analysis.action_confidence", type: "string", init: "", role: "ai" }
+  - { phase: "analysis", target: "Analysis.needs_analyst", type: "boolean", init: false, role: "ai", notes: "Star the case: a person has to own it." }
+  - { phase: "analysis", target: "Analysis.scope", type: "array", init: [], role: "ai", notes: "Rows of scope_entity." }
+  - { phase: "analysis", target: "Analysis.containment_plan", type: "array", init: [], role: "ai", notes: "Rows of plan_step, ordered. Containment runs these." }
+  - { phase: "analysis", target: "Analysis.eradication_plan", type: "array", init: [], role: "ai", notes: "Rows of plan_step, ordered. Eradication runs these." }
+  - { phase: "analysis", target: "Analysis.recovery_plan", type: "array", init: [], role: "ai", notes: "Rows of plan_step, ordered. Recovery runs these; includes reversal of shadow containment and monitoring." }
+  - { phase: "analysis", target: "Analysis.verify_by_human", type: "array", init: [], role: "ai", notes: "What a person must confirm before closure." }
 
   # ------ containment ------
   - { phase: containment, target: Containment.status        , type: string  , init: ""    , role: canonical }
@@ -428,6 +447,7 @@ writes:
   - { phase: containment, target: Containment.disabled_users, type: array   , init: []    , role: canonical }
 
   # ------ eradication ------
+  - { phase: "eradication", target: "Eradication.Execution", type: "object", init: {}, role: "canonical", notes: "Per-step record of the last pass: {steps, ran, outstanding, gaps, by_step[{step, action, target, status, issue, vendor, shadow}], updated_at}. The next pass reads it so a step that ran, or was skipped for want of an implementation, is not sent again." }
   - { phase: eradication, target: Eradication.success            , type: boolean , init: false , role: canonical }
   - { phase: eradication, target: Eradication.attempted          , type: boolean , init: false , role: canonical }
   - { phase: eradication, target: Eradication.files_removed      , type: array   , init: []    , role: canonical }
@@ -435,6 +455,7 @@ writes:
   - { phase: eradication, target: Eradication.reimage_required   , type: boolean , init: false , role: canonical }
   - { phase: eradication, target: Eradication.escalate_to_reimage, type: boolean , init: false , role: canonical }
   - { phase: eradication, target: Eradication.story              , type: array   , init: []    , role: canonical }
+  - { phase: "eradication", target: "Eradication.artifacts", type: "array", init: [], role: "canonical", notes: "One row per artifact an eradication step acted on: {type, value, action, status}." }
 
   # ------ recovery ------
   - { phase: recovery, target: Recovery.status             , type: string  , init: ""    , role: canonical }
@@ -443,6 +464,9 @@ writes:
   - { phase: recovery, target: Recovery.monitoring_scope   , type: string  , init: ""    , role: canonical }
   - { phase: recovery, target: Recovery.restore_required   , type: boolean , init: false , role: canonical }
   - { phase: recovery, target: Recovery.restore_method     , type: string  , init: ""    , role: canonical }
+  - { phase: "recovery", target: "Recovery.monitor", type: "array", init: [], role: "canonical", notes: "One row per artifact to watch after recovery: {type, value, why}. Every scope artifact, plus any eradication could not act on." }
+  - { phase: "recovery", target: "Recovery.telemetry", type: "string", init: "", role: "canonical", notes: "The sources the case's issues came from; eradication and monitoring cover only what these show." }
+  - { phase: "recovery", target: "Recovery.Execution", type: "object", init: {}, role: "canonical", notes: "Per-step record of the last pass: {steps, ran, outstanding, gaps, by_step[{step, action, target, status, issue, vendor, shadow}], updated_at}. The next pass reads it so a step that ran, or was skipped for want of an implementation, is not sent again." }
 
 # ============================================================================
 # writes_by_category — per-category phase outputs (typed empty-init)
@@ -560,3 +584,27 @@ writes_by_category:
   - { phase: recovery, category: identity, target: Recovery.monitoring_required, type: boolean, init: false , role: canonical }
   - { phase: recovery, category: identity, target: Recovery.restore_method     , type: string , init: ""    , role: canonical }
   - { phase: recovery, category: identity, target: Recovery.story              , type: array  , init: []    , role: canonical }
+
+# ============================================================================
+# Case-level plan shapes — the rows of Analysis.scope and of the three plans
+# (containment_plan, eradication_plan, recovery_plan) that the case response
+# executes. Emitted as-is.
+# ============================================================================
+plan_step:
+  description: One row of Analysis.containment_plan, eradication_plan or recovery_plan. The phase executes
+    rows in step order through the Universal Command; a row it cannot run is recorded, never re-decided.
+  fields:
+    step: number - order within the plan
+    action: string - Universal Command action name (soc-*)
+    target: string - id of the Analysis.scope row the action applies to
+    why: string - one line, from the evidence
+    evidence_refs: array - issue ids that justify the step
+    requires_human: boolean - true when a person must approve or do this step
+scope_entity:
+  description: 'One row of Analysis.scope: an entity the response touches.'
+  fields:
+    id: string - stable id used by plan rows as target
+    type: string - host | identity | email | domain | file | ip
+    name: string - hostname, user, address, sha256, domain
+    role: string - origin | victim | lateral | artifact
+    evidence_refs: array - issue ids that put the entity in scope
