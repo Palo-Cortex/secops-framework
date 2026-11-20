@@ -7,6 +7,7 @@ Analysis.* first, which the AI lifecycle does not populate.
 Identity and endpoint are drawn as separate blocks so an alert carrying only one
 of them renders cleanly rather than showing an empty half.
 """
+import html
 import json
 
 import demistomock as demisto
@@ -35,6 +36,13 @@ _VENDOR_MAP = {
     "normal": "normal",
     "not isolated": "normal",
 }
+
+
+def esc(value):
+    """Model output and artifact values carry attacker-controlled text: email
+    subjects, command lines, user agents. None of it may reach the layout as
+    markup (same rule as SOCFWDisplayCaseAnalysis)."""
+    return html.escape(str(value), quote=False)
 
 
 PROFILE_LIST = "SOCFrameworkProfileMap_NIST_IR"
@@ -96,12 +104,12 @@ def _rows(ctx, pairs, prefix, profile=None):
                 v = _v(ctx, src)
                 if v is not None:
                     tag = (f" <span style='color:#666;font-size:10px;'>"
-                           f"{src.split('.')[0]}</span>")
+                           f"{esc(src.split('.')[0])}</span>")
                     break
         if v is not None:
             out.append(
                 f"<div style='margin:2px 0;'><span style='color:#888;'>{label}</span> "
-                f"<span style='color:#ddd;'>{v}</span>{tag}</div>"
+                f"<span style='color:#ddd;'>{esc(v)}</span>{tag}</div>"
             )
     return "".join(out)
 
@@ -200,15 +208,15 @@ def main():
     ART = "SOCFramework.Artifacts."
     profile = load_profile_map()
     ctx = _enrich_identity()
-    html = ""
+    out = ""
 
     # The primary entity is what the framework resolved as the subject of the
     # issue, which is not always the same as the identity fields on the alert.
-    html += _block("Primary entity", _rows(ctx, [
+    out += _block("Primary entity", _rows(ctx, [
         ("User", "User"), ("Email", "Email"), ("SAM", "SamAccountName"),
     ], "SOCFramework.Primary."), "#4a148c")
 
-    html += _block("User", _rows(ctx, [
+    out += _block("User", _rows(ctx, [
         ("Name", "Identity.User.Name"), ("Display name", "Identity.User.DisplayName"),
         ("Email", "Identity.User.Email"), ("UPN", "Identity.User.UPN"),
         ("SAM", "Identity.User.SAM"), ("ID", "Identity.User.ID"),
@@ -220,14 +228,14 @@ def main():
         ("Manager", "Identity.User.Manager"),
     ], ART, profile), "#0277bd")
 
-    html += _block("Sign-in source", _rows(ctx, [
+    out += _block("Sign-in source", _rows(ctx, [
         ("IP", "Identity.Source.IP"), ("Hostname", "Identity.Source.Hostname"),
         ("Country", "Identity.Source.Country"), ("User agent", "Identity.Source.UserAgent"),
         ("Event", "Identity.Provider.EventType"),
     ], ART), "#1a237e")
 
     status = _endpoint_status(ctx)
-    html += _block(f"Endpoint&nbsp;&nbsp;{status}" if status else "Endpoint", _rows(ctx, [
+    out += _block(f"Endpoint&nbsp;&nbsp;{status}" if status else "Endpoint", _rows(ctx, [
         ("Hostname", "Endpoint.Hostname"), ("FQDN", "Endpoint.FQDN"),
         ("IP", "Endpoint.IPAddress"), ("MAC", "Endpoint.MACAddress"),
         ("Domain", "Endpoint.Domain"), ("OS", "Endpoint.OS"),
@@ -237,17 +245,17 @@ def main():
         ("Tags", "Endpoint.Tags"),
     ], ART, profile), "#00695c")
 
-    html += _block("Scope", _rows(ctx, [
+    out += _block("Scope", _rows(ctx, [
         ("Risk score", "RiskScore"), ("Linked issues", "LinkedCount"),
         ("Hosts", "HostCount"), ("Users", "UserCount"),
     ], "SOCFramework.Investigation."), "#37474f")
 
-    if not html:
-        html = ("<div style='color:#888;font-style:italic;padding:8px;'>"
+    if not out:
+        out = ("<div style='color:#888;font-style:italic;padding:8px;'>"
                 "No identity or device context resolved for this alert.</div>")
 
     demisto.results({"ContentsFormat": formats["html"], "Type": entryTypes["note"],
-                     "Contents": f"<div style='padding:4px;'>{html}</div>"})
+                     "Contents": f"<div style='padding:4px;'>{out}</div>"})
 
 
 if __name__ in ("__main__", "__builtin__", "builtins"):

@@ -70,10 +70,6 @@ def test_no_contract_points_at_the_category_map(monkeypatch, artifacts):
     assert "No normalized contract for this alert" in html and "SOCProductCategoryMap_V3" in html
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: artifact values go into the layout HTML unescaped. Command lines and "
-    "email subjects are attacker-controlled; SOCFWDisplayCaseAnalysis escapes the same "
-    "kind of value with esc()."))
 def test_attacker_text_in_the_artifacts_is_escaped(monkeypatch):
     html = render(monkeypatch, {"Email": {"Subject": "Invoice <b>due</b> & overdue"}})
     assert "Invoice &lt;b&gt;due&lt;/b&gt; &amp; overdue" in html

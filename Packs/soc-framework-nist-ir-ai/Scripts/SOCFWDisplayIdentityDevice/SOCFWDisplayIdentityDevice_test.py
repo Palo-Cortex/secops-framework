@@ -137,10 +137,6 @@ def test_nothing_resolved_says_so(monkeypatch):
     assert "No identity or device context resolved" in render(monkeypatch, Tenant({}))
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect: contract and vendor values go into the layout HTML unescaped. User agents "
-    "and hostnames from sign-in logs are attacker-controlled; SOCFWDisplayCaseAnalysis escapes "
-    "the same kind of value with esc()."))
 def test_attacker_text_is_escaped(monkeypatch):
     html = render(monkeypatch, Tenant(art(Identity={"Source": {"UserAgent": "<img src=x> & co"}})))
     assert "&lt;img src=x&gt; &amp; co" in html
