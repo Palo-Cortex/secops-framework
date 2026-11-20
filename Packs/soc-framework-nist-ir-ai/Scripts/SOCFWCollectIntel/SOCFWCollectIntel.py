@@ -35,15 +35,29 @@ def collect(context, roots):
     return out
 
 
+def _note(dropped):
+    return "Dropped for size, not absent: " + ", ".join(dropped)
+
+
+def _serialise(found, dropped):
+    """The value written to context: the roots kept, plus a note naming any dropped."""
+    payload = dict(found)
+    if dropped:
+        # say what was shed, so the model reads it as missing rather than clean
+        payload["coverage_note"] = _note(dropped)
+    return json.dumps(payload, default=str)
+
+
 def _trim(obj, max_chars):
     """Drop whole roots, largest first, until the payload fits the budget.
 
     Losing a root entirely is honest; a truncated JSON string would read to the
-    model as corrupt evidence.
+    model as corrupt evidence. The measurement includes the note naming what was
+    dropped, so what is measured is what is written.
     """
     dropped = []
-    while len(json.dumps(obj)) > max_chars and obj:
-        biggest = max(obj, key=lambda k: len(json.dumps(obj[k])))
+    while obj and len(_serialise(obj, dropped)) > max_chars:
+        biggest = max(obj, key=lambda k: len(json.dumps(obj[k], default=str)))
         obj.pop(biggest)
         dropped.append(biggest)
     return obj, dropped
@@ -65,15 +79,16 @@ def main():
     found = collect(context, str(roots).split(","))
     found, dropped = _trim(found, max_chars)
 
-    if not found:
+    if not found and not dropped:
         demisto.setContext(output_key, "no content")
         note = "no reputation or threat intel resolved for this issue"
+    elif not found:
+        # Intel existed and none of it fit. Writing "no content" here would tell
+        # the model there was no intel, the opposite of the truth.
+        demisto.setContext(output_key, _serialise(found, dropped))
+        note = f"0 intel root(s) fit the {max_chars} character budget — dropped for size: {', '.join(dropped)}"
     else:
-        payload = dict(found)
-        if dropped:
-            # say what was shed, so the model reads it as missing rather than clean
-            payload["coverage_note"] = "Dropped for size, not absent: " + ", ".join(dropped)
-        demisto.setContext(output_key, json.dumps(payload, default=str))
+        demisto.setContext(output_key, _serialise(found, dropped))
         note = f"{len(found)} intel root(s): {', '.join(sorted(found))}"
         if dropped:
             note += f" — dropped for size: {', '.join(dropped)}"

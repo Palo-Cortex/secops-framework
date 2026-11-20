@@ -56,23 +56,34 @@ def supersede_prior(case_id):
     verdict is made findable by tag instead. Without this a re-analysed case
     accumulates verdicts with no indication which one is live.
     """
-    inv = str(case_id)
+    # Two id shapes. The investigation read takes the bare id (INCIDENT-<id>
+    # returns an empty shell and creates it); the entry tags endpoint takes
+    # INCIDENT-<id>. Tagging with the bare id missed every entry.
+    bare = str(case_id).replace('INCIDENT-', '', 1)
     tagged = 0
     try:
-        res = api(f'/xsoar/public/v1/investigation/{inv}', {'pageSize': 200, 'page': 0})
+        # No paging arguments: page is ignored and pageSize silently caps the read.
+        res = api(f'/xsoar/public/v1/investigation/{bare}', {})
         if isinstance(res, list):
             res = res[0] if res else {}
         entries = demisto.get(res, 'Contents.response.entries') or \
             demisto.get(res, 'response.entries') or []
-        for e in entries:
-            tags = e.get('tags') or []
-            if VERDICT_TAG in tags and SUPERSEDED_TAG not in tags:
-                api('/xsoar/public/v1/entry/tags',
-                    {'id': e.get('id'), 'investigationId': inv,
-                     'tags': tags + [SUPERSEDED_TAG]})
-                tagged += 1
     except Exception as e:
-        demisto.debug(f'SOCFWCaseVerdictReport: could not supersede prior entries: {e}')
+        demisto.debug(f'SOCFWCaseVerdictReport: could not read prior entries: {e}')
+        return tagged
+    for e in entries:
+        tags = e.get('tags') or []
+        if VERDICT_TAG not in tags or SUPERSEDED_TAG in tags:
+            continue
+        try:
+            api('/xsoar/public/v1/entry/tags',
+                {'id': e.get('id'), 'investigationId': f'INCIDENT-{bare}',
+                 'tags': tags + [SUPERSEDED_TAG]})
+            tagged += 1
+        except Exception as err:
+            # Counted only when the tag landed, so the run row's
+            # prior_verdicts_superseded is what actually happened.
+            demisto.debug(f'SOCFWCaseVerdictReport: could not tag entry {e.get("id")}: {err}')
     return tagged
 
 
