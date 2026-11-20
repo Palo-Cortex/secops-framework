@@ -199,7 +199,7 @@ def write_case_contract(case_id, ai, case, payload):
     # Shadow: the AI verdict lands under Analysis.AI on the case, not bare
     # Analysis. There is no deterministic case producer to compare against yet,
     # so writing to Analysis would make the first AI output authoritative by
-    # default. Promotion is SOCPromoteAIPhaseOutput's decision, not this one.
+    # default. Promoting it to Analysis is not this script's decision.
     # Written from a member issue with setParentIncidentContext, not from the
     # case. Executing !Set inside a case investigation returns a nil pointer
     # panic, so the case is reached upward from one of its issues instead.

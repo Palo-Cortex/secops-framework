@@ -16,7 +16,7 @@ The foundation knows nothing about a specific product or lifecycle. A lifecycle 
 
 ## The lifecycle on top
 
-The lifecycle pack is `soc-framework-nist-ir-ai`; see [NIST IR AI](../soc-framework-nist-ir-ai/nist-ir-ai.md). The earlier NIST IR pack, `soc-framework-nist-ir`, is retired and is not listed in the pack catalog.
+The lifecycle pack is `soc-framework-nist-ir-ai`; see [NIST IR AI](../soc-framework-nist-ir-ai/nist-ir-ai.md).
 
 ## When to read the lifecycle's lists
 

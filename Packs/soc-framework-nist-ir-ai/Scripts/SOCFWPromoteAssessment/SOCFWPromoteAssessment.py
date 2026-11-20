@@ -4,11 +4,10 @@ The aiTask returns its answer as a JSON string. This turns it into a navigable
 object, promotes the flat fields, and writes an ai_reasoning row to the execution
 dataset so the verdict is queryable.
 
-Lives in this pack deliberately. The equivalent in soc-framework-nist-ir serves
-the legacy per-issue Analysis path and stays there; depending on it from here
-made the AI playbook fail whenever that pack's content was absent, and a missing
-script marks itself and everything downstream WillNotBeExecuted rather than
-skipping.
+Lives in this pack deliberately: a script the AI playbook needs from another
+pack makes the playbook fail whenever that pack's content is absent, because a
+missing script marks itself and everything downstream WillNotBeExecuted rather
+than skipping.
 """
 import json
 import re

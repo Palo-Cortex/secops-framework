@@ -14,7 +14,7 @@ for SOC Framework conventions:
 Pack types
 ----------
   vendor      Thin vendor layer. Correlation rules + optional modeling rule.
-              Dependencies: soc-optimization-unified, soc-framework-nist-ir.
+              Dependencies: soc-optimization-unified.
               Examples: SocFrameworkCrowdstrikeFalcon, SocFrameworkProofPointTap,
                         SocFrameworkZscalerZPA
 
@@ -155,7 +155,6 @@ DIRS_TO_CREATE = {
 DEPENDENCIES = {
     "vendor": {
         "soc-optimization-unified": {},
-        "soc-framework-nist-ir": {},
     },
     "foundation": {},
     "nist-ir": {
@@ -369,7 +368,6 @@ def write_readme(pack_path: Path, pack_name: str, pack_type: str, dry_run: bool)
         ## Dependencies
 
         - `soc-optimization-unified` — Foundation layer (Universal Command, lists, lookups)
-        - `soc-framework-nist-ir` — NIST IR lifecycle playbooks
 
         ## Value Driver Alignment
 

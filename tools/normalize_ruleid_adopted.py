@@ -21,13 +21,13 @@ Behavior:
 
 Usage:
   # Local (fix mode)
-  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir --fix
+  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir-ai --fix
 
   # CI / check-only mode (exit 1 if changes would be needed)
-  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir
+  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir-ai
 
   # Override the expected packID (default: derived from --root folder name)
-  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir --pack-id soc-framework-nist-ir --fix
+  python3 normalize_ruleid_adopted.py --root Packs/soc-framework-nist-ir-ai --pack-id soc-framework-nist-ir-ai --fix
 """
 
 import argparse

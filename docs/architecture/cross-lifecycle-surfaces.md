@@ -99,7 +99,7 @@ reputation command.
 
 | Artifact | Pattern | Example |
 |---|---|---|
-| Pack | `soc-framework-<lifecycle-id>` | `soc-framework-nist-ir` |
+| Pack | `soc-framework-<lifecycle-id>` | `soc-framework-nist-ir-ai` |
 | Schema | `SOCFramework<Type><Map\|Contract>_<LIFECYCLE>.yaml` | `SOCFrameworkNormalizeMap_NIST_IR.yaml` |
 | List (generated) | `SOCFramework<Type><Map\|Contract>_<LIFECYCLE>` | `SOCFrameworkEnrichmentMap_NIST_IR` |
 | Entry Point playbook | `EP_<Lifecycle>_V3` | `EP_IR_NIST (800-61)_V3` |

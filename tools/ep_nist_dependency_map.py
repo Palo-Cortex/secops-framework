@@ -28,7 +28,7 @@ Exception lists:
 Usage (from repo root):
 
   python3 tools/ep_nist_dependency_map.py \
-    --root-pack Packs/soc-framework-nist-ir \
+    --root-pack Packs/soc-framework-nist-ir-ai \
     --root-playbook-name "EP_IR_NIST (800-61)_V3" \
     --other-pack Packs/soc-optimization-unified
 """
