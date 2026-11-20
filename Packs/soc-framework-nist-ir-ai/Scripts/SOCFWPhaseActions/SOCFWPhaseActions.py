@@ -8,9 +8,11 @@ condition - so the layout cannot show or hide a button per product category.
 This runs behind one button per phase and computes the set at click time, then
 renders each applicable action as a clickable War Room action button.
 
-An action is offered only when the tenant can reach a vendor for it and the
-contract can supply its arguments. Both are the same checks SOCFWPhaseExecutor
-makes before dispatch, so the analyst is never offered something that would fail.
+An action is offered only when clicking it would run: the vendor is the one
+SOCCommandWrapper would route to for this issue's data source (its response
+integration in SOCProductCategoryMap_V3), that vendor is not known to be down,
+and the contract supplies its arguments. The analyst is never offered a vendor
+that does not own the alert, or something the wrapper would skip.
 """
 import json
 import re
@@ -60,31 +62,81 @@ def resolve(root, path):
     return node
 
 
-def active_brands():
+def module_states():
+    """brand -> the states of its instances, or None when the registry cannot be read."""
     try:
         modules = demisto.getModules() or {}
     except Exception:
         return None
     if not modules:
         return None
-    brands = {}
+    states = {}
     for m in modules.values():
         if isinstance(m, dict) and m.get("brand"):
-            brands.setdefault(m["brand"], []).append(m.get("state"))
-    return {b for b, st in brands.items() if "active" in st}
+            states.setdefault(m["brand"], []).append(m.get("state"))
+    return states
 
 
-def usable(entry, ctx, brands):
-    """A vendor we can reach, and every argument that vendor needs."""
-    for vendor, binding in (entry.get("responses") or {}).items():
-        if brands is not None and vendor not in brands:
+def reachable(vendor, states):
+    """SOCCommandWrapper.brand_available: a vendor is out only when a module
+    carries that brand and none of its instances is active. A label no module
+    claims is dispatched anyway - registry labels do not always equal the
+    installed brand ('CrowdStrike Falcon' vs 'CrowdstrikeFalcon'), and the
+    platform runs commands by name."""
+    if states is None or vendor == "Builtin" or vendor not in states:
+        return True
+    return "active" in states[vendor]
+
+
+def routed_vendors(entry, action_class, ctx):
+    """The vendors SOCCommandWrapper would dispatch this action to on this issue.
+
+    The same ladder as the wrapper: the data source's response integration for
+    the action's class (SOCProductCategoryMap_V3, via SOCFramework.Product.responses),
+    then a Builtin-only action, then the legacy SOCFramework.Product.response. No
+    fallback to another vendor's branch - the wrapper skips rather than run a
+    vendor that does not own the alert. An all_applicable action goes to every
+    branch it declares.
+    """
+    responses = entry.get("responses") or {}
+    if str(entry.get("dispatch") or "routed").strip().lower() == "all_applicable":
+        return list(responses)
+    by_class = resolve(ctx, "SOCFramework.Product.responses") or {}
+    if isinstance(by_class, str):
+        try:
+            by_class = json.loads(by_class)
+        except ValueError:
+            by_class = {}
+    vendor = by_class.get(action_class) if action_class and isinstance(by_class, dict) else None
+    if vendor in responses:
+        return [vendor]
+    if set(responses) == {"Builtin"}:
+        return ["Builtin"]
+    legacy = resolve(ctx, "SOCFramework.Product.response")
+    if legacy in responses:
+        return [legacy]
+    return []
+
+
+def usable(entry, action_class, ctx, states):
+    """(vendor, "") for the first routed vendor that is reachable and whose
+    arguments the contract supplies, else (None, why)."""
+    vendors = routed_vendors(entry, action_class, ctx)
+    if not vendors:
+        source = resolve(ctx, "SOCFramework.Product.response") or "this source"
+        return None, "no implementation for {}".format(source)
+    why = ""
+    for vendor in vendors:
+        if not reachable(vendor, states):
+            why = "{} has no active instance".format(vendor)
             continue
-        args = json.dumps(binding.get("inline_args") or {})
-        missing = [p for p in TEMPLATE.findall(args)
+        args = json.dumps((entry["responses"][vendor] or {}).get("inline_args") or {})
+        missing = [p.rsplit(".", 1)[-1] for p in TEMPLATE.findall(args)
                    if resolve(ctx, p) in (None, "", [], {})]
         if not missing:
             return vendor, ""
-    return None, "no reachable vendor with resolvable arguments"
+        why = "{} needs {}".format(vendor, ", ".join(missing))
+    return None, why
 
 
 def action_button(label, action):
@@ -140,7 +192,7 @@ def main():
     actions = get_list(ACTIONS_LIST) or {}
     classes = get_list(CLASS_LIST) or {}
     ctx = demisto.context() or {}
-    brands = active_brands()
+    states = module_states()
 
     category = str(resolve(ctx, "SOCFramework.Product.category") or "").lower()
     allowed = CATEGORY_CLASSES.get(category)
@@ -152,7 +204,7 @@ def main():
         cls = classes.get(name)
         if allowed and cls and cls not in allowed:
             continue
-        vendor, why = usable(entry, ctx, brands)
+        vendor, why = usable(entry, cls, ctx, states)
         label = entry.get("capability") or name
         if vendor:
             offered.append((entry.get("sequence_rank", 999), label, name,
