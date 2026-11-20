@@ -43,7 +43,7 @@ CATEGORY_MAP = os.path.join(
           "SOCProductCategoryMap_V3_data.json")
 
 PLAYBOOK_GLOBS = [
-    "Packs/soc-framework-nist-ir/Playbooks/*.yml",
+    "Packs/soc-framework-nist-ir-ai/Playbooks/*.yml",
     "Packs/soc-common-playbooks-unified/Playbooks/*.yml",
     "Packs/soc-optimization-unified/Playbooks/*.yml",
 ]

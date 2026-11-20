@@ -36,10 +36,10 @@ Usage:
   python3 tools/check_contracts.py --strict
 
   # Check a specific file
-  python3 tools/check_contracts.py --input Packs/soc-framework-nist-ir/Playbooks/SOC_Email_Exposure_Evaluation_V3.yml
+  python3 tools/check_contracts.py --input Packs/soc-framework-nist-ir-ai/Playbooks/JOB_-_SOC_Case_Response.yml
 
   # Check an entire pack
-  python3 tools/check_contracts.py --input Packs/soc-framework-nist-ir
+  python3 tools/check_contracts.py --input Packs/soc-framework-nist-ir-ai
 """
 
 import argparse

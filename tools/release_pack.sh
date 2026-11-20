@@ -20,7 +20,7 @@
 #   3.  Commit, push, tag.
 #
 # Usage:
-#   bash tools/release_pack.sh Packs/soc-framework-nist-ir minor
+#   bash tools/release_pack.sh Packs/soc-framework-nist-ir-ai minor
 #   bash tools/release_pack.sh Packs/soc-optimization-unified major
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -37,7 +37,7 @@ LEVEL="${2:-}"
 if [[ -z "$PACK_PATH" || -z "$LEVEL" ]]; then
   echo "Usage: $0 <pack-path> <minor|major>"
   echo ""
-  echo "  pack-path   Path to the pack directory (e.g. Packs/soc-framework-nist-ir)"
+  echo "  pack-path   Path to the pack directory (e.g. Packs/soc-framework-nist-ir-ai)"
   echo "  level       Release bump level: minor or major"
   echo ""
   echo "  Revision bumps happen automatically during dev iteration via"

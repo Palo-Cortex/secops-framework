@@ -8,7 +8,7 @@ Where both have run on the same issue, the case verdict wins — it sees what no
 
 The two AI Prompts the lifecycle binds to are not in this repository: their bodies, input bindings and authoring notes are in the prompt master distributed with the lifecycle (Palo Alto Networks internal; not published in this repository).
 
-Requires `soc-framework-nist-ir` and `soc-optimization-unified`, which carry the supporting scripts, the phase contract and the configuration list.
+Requires `soc-optimization-unified`, which carries the universal command and the configuration list.
 
 ## Contents
 
@@ -124,7 +124,7 @@ Keep the interval well clear of run duration. Runs take minutes on a busy tenant
 
 **Why the aiTask is quiet.** An `aiTask` at the default echoes its entire rendered prompt into the War Room — roughly 10KB on every issue. Task `9002` runs `quietmode: 1`; `9003` prints the verdict instead.
 
-**Why Render runs before Promote.** Promote depends on `SOCPromoteAIPhaseOutput` from `soc-framework-nist-ir`. Where that script is absent, the task marks itself *and everything downstream* `WillNotBeExecuted` — `skipunavailable` does not skip and continue. Rendering first means an analyst still gets the verdict even if the dataset write cannot run.
+**Why Render runs before Promote.** A task whose script is missing on the tenant marks itself *and everything downstream* `WillNotBeExecuted` — `skipunavailable` does not skip and continue. Rendering first means an analyst still gets the verdict even if a later step or the dataset write cannot run.
 
 **What the assessment decides.** A disposition, not an investigation: `verdict`, `confidence`, `exposure`, `already_contained`, `escalate_recommended`, and the `closure_*` fields, with a short story. Verdict and exposure are deliberately separate — a detection can be correct and nothing can have happened, and calling that a false positive feeds bad signal into detection tuning.
 

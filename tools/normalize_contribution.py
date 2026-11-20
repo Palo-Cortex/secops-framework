@@ -31,7 +31,7 @@ Infrastructure files that are ALWAYS skipped regardless of location:
 PACK IDENTITY — derived from path, never guessed
 ─────────────────────────────────────────────────
 The pack is always read from the file's path:
-  Packs/soc-framework-nist-ir/Playbooks/foo.yml → soc-framework-nist-ir
+  Packs/soc-framework-nist-ir-ai/Playbooks/foo.yml → soc-framework-nist-ir-ai
 
 The packName field inside the file is used as a cross-check only. If it
 disagrees with the path, a warning is printed but the path always wins.
@@ -77,10 +77,10 @@ Usage:
   python3 tools/normalize_contribution.py --dry-run
 
   # Normalise a specific file explicitly
-  python3 tools/normalize_contribution.py --input Packs/soc-framework-nist-ir/Playbooks/SOC_Email_Exposure_Evaluation_V3_copy.yml
+  python3 tools/normalize_contribution.py --input Packs/soc-framework-nist-ir-ai/Playbooks/JOB_-_SOC_Case_Response_copy.yml
 
   # Normalise everything in a specific pack (only changed files)
-  python3 tools/normalize_contribution.py --input Packs/soc-framework-nist-ir
+  python3 tools/normalize_contribution.py --input Packs/soc-framework-nist-ir-ai
 """
 
 import argparse
@@ -269,7 +269,7 @@ def pack_from_path(path: Path) -> Optional[str]:
     Derive the pack ID from the file's path.
 
     Looks for a 'Packs' component in the path and returns the next segment.
-    Example: Packs/soc-framework-nist-ir/Playbooks/foo.yml → soc-framework-nist-ir
+    Example: Packs/soc-framework-nist-ir-ai/Playbooks/foo.yml → soc-framework-nist-ir-ai
 
     Returns None if the file is not under a Packs directory.
     """
@@ -285,7 +285,7 @@ def content_dir_from_path(path: Path) -> Optional[str]:
     Return the content type directory name for this file.
 
     Looks for known content type directory names in the path.
-    Example: Packs/soc-framework-nist-ir/Playbooks/foo.yml → 'Playbooks'
+    Example: Packs/soc-framework-nist-ir-ai/Playbooks/foo.yml → 'Playbooks'
 
     Returns None if the file is not under a recognised content type directory.
     """

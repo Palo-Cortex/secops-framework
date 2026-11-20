@@ -64,7 +64,7 @@ Usage:
   python3 tools/check_contribution.py --no-upload
 
   # Target a specific pack
-  python3 tools/check_contribution.py --input Packs/soc-framework-nist-ir
+  python3 tools/check_contribution.py --input Packs/soc-framework-nist-ir-ai
 
   # CI mode — same as default but formats output for GitHub Actions annotations
   python3 tools/check_contribution.py --ci

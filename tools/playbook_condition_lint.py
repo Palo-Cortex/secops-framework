@@ -109,13 +109,13 @@ EXIT CODES
 USAGE
 ─────
   # Single pack
-  python3 tools/playbook_condition_lint.py Packs/soc-framework-nist-ir
+  python3 tools/playbook_condition_lint.py Packs/soc-framework-nist-ir-ai
 
   # Single file
-  python3 tools/playbook_condition_lint.py Packs/soc-framework-nist-ir/Playbooks/SOC_Endpoint_Containment_V3.yml
+  python3 tools/playbook_condition_lint.py Packs/soc-framework-nist-ir-ai/Playbooks/JOB_-_SOC_Case_Response.yml
 
   # Multiple paths
-  python3 tools/playbook_condition_lint.py Packs/soc-framework-nist-ir Packs/soc-optimization-unified
+  python3 tools/playbook_condition_lint.py Packs/soc-framework-nist-ir-ai Packs/soc-optimization-unified
 """
 
 import argparse

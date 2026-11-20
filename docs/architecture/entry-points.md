@@ -47,16 +47,7 @@ vendor-specific logic. All four of those concerns live in lower layers:
 
 ## How to find them
 
-Search the `soc-framework-nist-ir` pack for files matching `EP_*.yml`.
-Currently:
-
-```
-Packs/soc-framework-nist-ir/Playbooks/EP_IR_NIST_(800-61)_V3.yml
-```
-
-The filename uses underscores; the playbook `id` and `name` use spaces
-(`"EP_IR_NIST (800-61)_V3"`). Both forms appear depending on where you
-look. If you're searching XSIAM logs, use the spaced form.
+The NIST IR AI lifecycle has one entry point, `EP_IR_NIST - AI`. It is not in a pack: povkit installs it with the lifecycle's AI prompts. See [Entry point](../soc-framework-nist-ir-ai/entry-point.md).
 
 ## Adding a new EP playbook
 

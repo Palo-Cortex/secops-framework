@@ -70,7 +70,7 @@ def parse_args() -> argparse.Namespace:
         "pack",
         help=(
             "Pack name (folder under both schemas/soc-framework/ and Packs/). "
-            "E.g. soc-framework-posture, soc-framework-nist-ir."
+            "E.g. soc-framework-posture, soc-framework-nist-ir-ai."
         ),
     )
     mode = p.add_mutually_exclusive_group()

@@ -39,7 +39,7 @@ Exit codes:
 
 Usage:
     python3 tools/validate_shadow_mode.py
-    python3 tools/validate_shadow_mode.py Packs/soc-framework-nist-ir
+    python3 tools/validate_shadow_mode.py Packs/soc-framework-nist-ir-ai
     python3 tools/validate_shadow_mode.py --all
     python3 tools/validate_shadow_mode.py --all \\
         --actions-list Packs/soc-optimization-unified/Lists/SOCFrameworkActions_V3/SOCFrameworkActions_V3_data.json \\
