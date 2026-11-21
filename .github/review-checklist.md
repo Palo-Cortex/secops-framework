@@ -1,6 +1,6 @@
 # Review checklist
 
-What the automated reviewer checks on every pull request. It sees only the diff and this file. Each item is a question a rule can't answer yet; when a tool starts checking an item, the item is removed from this list. Background: `docs/contributing/engineering-practices.md`.
+What the author checks before opening a pull request. Each item is a question a rule can't answer yet; when a tool starts checking an item, the item is removed from this list. Background: `docs/contributing/engineering-practices.md`.
 
 ## Every pull request
 

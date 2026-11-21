@@ -57,13 +57,13 @@ These decide whether something acts on a customer's systems or closes work. A ch
 
 ## Review
 
-Every pull request gets one automated review pass before a person looks at it. The reviewer sees only the diff and [`.github/review-checklist.md`](https://github.com/Palo-Cortex/secops-framework/blob/main/.github/review-checklist.md), never the reasoning of whoever wrote the change, so it reads the change cold.
+Before opening a pull request, the author goes through [`.github/review-checklist.md`](https://github.com/Palo-Cortex/secops-framework/blob/main/.github/review-checklist.md): the questions no rule can answer yet. An automated reviewer that reads only the diff and the checklist is added when it is needed: when a second person contributes code regularly, or when problems get past the automated checks. Until then it is one more thing to maintain for little gain.
 
 | Rule | Why |
 |---|---|
-| One reviewer, one checklist. A new concern is a new checklist line, not a new reviewer | Every reviewer is one more thing to maintain and understand |
+| One checklist. A new concern is a new checklist line, not a new reviewer or tool | Every reviewer is one more thing to maintain and understand |
 | When a tool can check an item reliably (a ruff rule, a gate in `check_contribution.py`, a CI job), the item moves to the tool and comes off the checklist | A rule checks every time; a reviewer checks when it notices. The checklist should get shorter over time |
-| An item whose comments are usually dismissed is cut, or turned into a rule | Noise teaches people to ignore the reviewer |
+| An item that never catches anything is cut, or turned into a rule | Noise teaches people to skip the checklist |
 | Docs and dashboards: comments only. High-risk paths: a person reads every line as well | Review effort follows the damage a mistake can do |
 
 ## Conventions
@@ -100,4 +100,4 @@ ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py
 | Lint | Review: `ruff check` on the changed files | A CI check that a changed file has no more findings than on `main` |
 | Test data | PR gate: `check_test_data.py`, with exemptions and their reasons in `policies/test_data_allowed.json` | |
 | Tests first for fixes | Review: the pull request shows the failing run | A CI check that a fix's new tests fail on `main` |
-| Automated review | Run by hand against the checklist | Run on every pull request |
+| Review checklist | The author, before opening the pull request | An automated reviewer, once a second regular contributor or a missed problem calls for one |
