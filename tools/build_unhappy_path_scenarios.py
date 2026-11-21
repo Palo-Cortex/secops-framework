@@ -38,7 +38,8 @@ def load_template():
     return rows[0]
 
 
-def device_evidence(hostname, user, ip, remediation="none", detail=""):
+def device_evidence(hostname: str, user: str, ip: str, remediation: str = "none", detail: str = "") -> dict:
+    """Defender deviceEvidence for one host, with the user logged on and its remediation state."""
     return {
         "@odata.type": "#microsoft.graph.security.deviceEvidence",
         "createdDateTime": "2025-12-02T19:17:28.000Z",
@@ -55,14 +56,16 @@ def device_evidence(hostname, user, ip, remediation="none", detail=""):
         "healthStatus": "active", "riskScore": "low",
         "rbacGroupId": 1, "rbacGroupName": "Default",
         "onboardingStatus": "onboarded", "defenderAvStatus": "updated",
-        "lastIpAddress": ip, "lastExternalIpAddress": "20.124.230.220",
+        "lastIpAddress": ip, "lastExternalIpAddress": "198.51.100.1",
         "ipInterfaces": [ip, "127.0.0.1"], "vmMetadata": None,
         "loggedOnUsers": [{"accountName": user, "domainName": "SKT"}],
     }
 
 
-def process_evidence(cmdline, fname, fpath, sha256, publisher, signer,
-                     detection_status, remediation="none", detail="", user="greta"):
+def process_evidence(cmdline: str, fname: str, fpath: str, sha256: str, publisher: str,
+                     signer: str, detection_status: str, remediation: str = "none", detail: str = "",
+                     user: str = "greta") -> dict:
+    """Defender processEvidence for one process: its command line, image file, signer and detection status."""
     return {
         "@odata.type": "#microsoft.graph.security.processEvidence",
         "createdDateTime": "2025-12-02T19:17:28.000Z",
@@ -87,7 +90,7 @@ def process_evidence(cmdline, fname, fpath, sha256, publisher, signer,
             "filePublisher": "Microsoft Windows Publisher",
             "signer": "Microsoft Windows Publisher", "issuer": None},
         "userAccount": {"accountName": user, "domainName": "SKT",
-                        "userSid": "S-1-5-21-4168186624-547105363-3065826963-2204"},
+                        "userSid": "S-1-5-21-1000000000-2000000000-3000000001-2204"},
         "riskScore": None,
     }
 
