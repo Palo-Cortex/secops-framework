@@ -6,6 +6,7 @@ What the author checks before opening a pull request. Each item is a question a 
 
 - [ ] Does the change do only what the pull request says? Anything extra belongs under *Not built*.
 - [ ] Could someone who didn't write it explain each function? Flag clever one-liners, unclear names, and non-obvious choices with no comment saying why.
+- [ ] Can a reader tell what each name holds without reading the code that fills it? `data`, `res`, `tmp` and `x` outside a few lines fail this.
 - [ ] Does a test exercise the changed behaviour, and would it fail without the change?
 - [ ] Are the unhappy paths tested: empty input, a missing field, a vendor error, a list that can't be read?
 - [ ] Do the fixtures match what the vendor really sends, rather than what the code expects?
