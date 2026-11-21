@@ -19,7 +19,7 @@ How a change gets from your editor to a tenant: author it, run the gate, open a 
 | `correlation_rule_preflight.py` | A rule would be rejected by the platform with an uninformative error | The platform's `101704` says nothing; this says which field |
 | `pack_prep.py` → `demisto-sdk validate --marketplace marketplacev2` | Content breaks the SDK schema | The default marketplace silently skips XSIAM content |
 | `check_contracts.py` | A Workflow playbook calls `setIssue`/`setIncident`, or writes another layer's namespace | Layer contracts are what keep lifecycles vendor-generic |
-| `run_pack_tests.py` | A test file in the pack fails, or runs no tests | A test nobody runs protects nothing; each file runs in its own process because the scripts' test stubs collide in a shared one |
+| `run_pack_tests.py` | A test file in the pack or in `tools/` fails, or runs no tests | A test nobody runs protects nothing; each file runs in its own process because the scripts' test stubs collide in a shared one |
 | `check_readme_coverage.py` | A pack adds a script, list or list key that no page or README mentions | Capabilities nobody can find do not exist |
 | `check_action_args.py` | A response in `SOCFrameworkActions_V3` names a command or argument the vendor does not have, leaves out a required one, or uses a value the command does not accept | Checked against `policies/vendor_command_specs.json`, built from demisto/content by `build_command_specs.py`. Otherwise a wrong argument only shows up the first time the action runs live |
 | `validate_shadow_mode.py --all` | A changing action ships live outside the documented policy | Shadow Mode is the safety contract |

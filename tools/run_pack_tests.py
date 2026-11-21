@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run every pack test file, each in its own pytest process, and fail on any failure.
+"""Run pack or tool test files, each in its own pytest process, and fail on any failure.
 
 Script tests load their script as a module named after it, and several test files
 stub `demistomock` and `CommonServerPython` differently. In one pytest process
@@ -13,9 +13,11 @@ Usage:
     python3 tools/run_pack_tests.py soc-optimization-unified
     python3 tools/run_pack_tests.py soc-optimization-unified,soc-framework-nist-ir-ai
     python3 tools/run_pack_tests.py --all
+    python3 tools/run_pack_tests.py --tools
 
-Exit code 0 when every file passes, 1 otherwise. Test files are *_test.py,
-*_test_*.py and test_*.py under Packs/<pack>/.
+Exit code 0 when every file passes, 1 otherwise. Pack test files are *_test.py,
+*_test_*.py and test_*.py under Packs/<pack>/. Tool test files are test_*.py
+directly under tools/.
 """
 import argparse
 import os
@@ -26,6 +28,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKS = ROOT / "Packs"
+TOOLS = ROOT / "tools"
 PATTERNS = ("*_test.py", "*_test_*.py", "test_*.py")
 NO_TESTS = 5  # pytest's exit code when it collected nothing
 
@@ -36,6 +39,11 @@ def test_files(pack):
         found.update(p for p in (PACKS / pack).rglob(pattern)
                      if "__pycache__" not in p.parts and "node_modules" not in p.parts)
     return sorted(found)
+
+
+def tool_test_files():
+    """The test_*.py files directly under tools/."""
+    return sorted(TOOLS.glob("test_*.py"))
 
 
 def run(path):
@@ -51,28 +59,25 @@ def run(path):
     return proc.returncode == 0, summary
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("packs", nargs="?", default="", help="comma-separated pack directories")
-    ap.add_argument("--all", action="store_true", help="every pack under Packs/")
-    a = ap.parse_args()
-    if a.all:
-        packs = sorted(p.name for p in PACKS.iterdir() if p.is_dir())
-    else:
-        packs = [p.strip() for p in a.packs.split(",") if p.strip()]
-    if not packs:
-        ap.error("name a pack or use --all")
-
-    failed, missing, total = [], [], 0
+def pack_groups(packs):
+    """([(pack, test files)], [packs that do not exist]) for the named packs."""
+    groups, missing = [], []
     for pack in packs:
         if not (PACKS / pack).is_dir():
             print(f"::error::Packs/{pack} does not exist")
             missing.append(pack)
             continue
-        files = test_files(pack)
+        groups.append((pack, test_files(pack)))
+    return groups, missing
+
+
+def run_groups(groups):
+    """Run each group's files; (files run, [failed files])."""
+    failed, total = [], 0
+    for name, files in groups:
         if not files:
             continue
-        print(f"=== {pack} ({len(files)} test file(s))")
+        print(f"=== {name} ({len(files)} test file(s))")
         for path in files:
             total += 1
             ok, summary = run(path)
@@ -82,6 +87,28 @@ def main():
                 failed.append(str(rel))
                 if os.environ.get("GITHUB_ACTIONS"):
                     print(f"::error file={rel}::{summary}")
+    return total, failed
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("packs", nargs="?", default="", help="comma-separated pack directories")
+    ap.add_argument("--all", action="store_true", help="every pack under Packs/")
+    ap.add_argument("--tools", action="store_true", help="the test_*.py files under tools/")
+    a = ap.parse_args()
+    if a.tools:
+        packs = []
+    elif a.all:
+        packs = sorted(p.name for p in PACKS.iterdir() if p.is_dir())
+    else:
+        packs = [p.strip() for p in a.packs.split(",") if p.strip()]
+    if not packs and not a.tools:
+        ap.error("name a pack, or use --all or --tools")
+
+    groups, missing = pack_groups(packs)
+    if a.tools:
+        groups.append(("tools", tool_test_files()))
+    total, failed = run_groups(groups)
 
     print(f"\n{total - len(failed)} of {total} test file(s) passed")
     if failed:
