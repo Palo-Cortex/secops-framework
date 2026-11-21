@@ -48,16 +48,19 @@ class Recorder:
     """Stands in for every way _dispatch_one reaches the platform, and keeps the calls in order."""
 
     def __init__(self, script, demisto):
+        """Record calls made by the loaded script against the mocked platform."""
         self.events = []
         self.script = script
         self.demisto = demisto
 
     def hook(self, name):
+        """Replace the script's function of this name with one that records its calls."""
         def record(*args, **kwargs):
             self.events.append([name, list(args), kwargs])
         setattr(self.script, name, record)
 
     def install(self, *, enrich_fails=False):
+        """Stub every platform call _dispatch_one makes; enrich_fails makes dataset enrichment raise."""
         for name in ("warroom_log", "append_context", "post_dataset_payload",
                      "return_results", "return_warning", "return_error", "apply_output_map"):
             self.hook(name)
@@ -74,6 +77,7 @@ class Recorder:
         self.demisto.setContext = set_context
 
     def dump(self):
+        """The recorded calls as plain JSON, in order."""
         return json.loads(json.dumps(self.events, default=_encode))
 
 
@@ -170,6 +174,11 @@ def _golden():
 
 @pytest.mark.parametrize("name", sorted(SCENARIOS))
 def test_dispatch_one_matches_golden(name):
+    """
+    Given one dispatch situation (shadow, success, vendor error, unavailable integration or exception)
+    When _dispatch_one runs it
+    Then every War Room entry, context write, dataset row and result matches the golden file, key order included
+    """
     got = _run(name)
     if UPDATE:
         golden = _golden()
@@ -183,5 +192,10 @@ def test_dispatch_one_matches_golden(name):
 
 
 def test_every_outcome_is_covered():
+    """
+    Given the golden file
+    When its recorded outcomes are collected
+    Then every outcome _dispatch_one can return appears at least once
+    """
     outcomes = {run["outcome"]["outcome"] for run in _golden().values() if run["outcome"]}
     assert {"simulated", "no_instance", "success", "failed", "integration_unavailable"} <= outcomes
