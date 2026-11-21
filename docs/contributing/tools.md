@@ -6,7 +6,6 @@ Every script under `tools/`, with what it does in its own words. `check_contribu
 
 | Tool | What it does | Usage |
 |---|---|---|
-| `SOCFramework_AIVerdictSummary.py` | UNVERIFIED — no docstring |  |
 | `SOCFramework_IdentityScoreAnalysis.py` | UNVERIFIED — no docstring |  |
 | `build_campaign_from_tsv.py` | UNVERIFIED — no docstring |  |
 | `build_command_specs.py` | Record the arguments of every vendor command the framework calls. | `python3 tools/build_command_specs.py --content /tmp/content` |
@@ -76,7 +75,6 @@ Every script under `tools/`, with what it does in its own words. `check_contribu
 
 These need a module docstring before they can be described here:
 
-- `SOCFramework_AIVerdictSummary.py`
 - `SOCFramework_IdentityScoreAnalysis.py`
 - `build_campaign_from_tsv.py`
 - `build_pack_catalog.py`
