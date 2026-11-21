@@ -53,10 +53,13 @@ select = [
     "D1",   # a public module, class or function says what it does (PEP 257)
     "ANN001",  # every argument has a type hint (PEP 484)
     "ANN201",  # every public function says what it returns (PEP 484)
+    "S",    # security (Bandit's rules): TLS checks off, secrets in code, swallowed exceptions, unsafe loads
 ]
 ignore = [
     "F403",     # from CommonServerPython import *: how the engine loads it
     "F405",     # names from that star import; the real ones are declared in builtins
+    "S603",     # subprocess without a shell: informational; the tools call git, ruff and pytest on purpose
+    "S607",     # a program found on PATH: the same calls
 ]
 
 [lint.mccabe]
@@ -72,9 +75,10 @@ max-statements = 50
 # Pack tests follow the XSOAR/XSIAM convention: every test has a docstring in
 # Given / When / Then form. Type hints stay optional in tests, where pytest
 # fixtures are typed by use.
-"Packs/**/*_test.py" = ["ANN001", "ANN201"]
-"Packs/**/*_test_*.py" = ["ANN001", "ANN201"]
-"Packs/**/test_*.py" = ["ANN001", "ANN201"]
+# Tests assert by design (S101).
+"Packs/**/*_test.py" = ["ANN001", "ANN201", "S101"]
+"Packs/**/*_test_*.py" = ["ANN001", "ANN201", "S101"]
+"Packs/**/test_*.py" = ["ANN001", "ANN201", "S101"]
 # Tests of the repo's own tools: the test's name says what it checks.
-"tools/**/test_*.py" = ["D1", "ANN001", "ANN201"]
-"conftest.py" = ["D1", "ANN001", "ANN201"]
+"tools/**/test_*.py" = ["D1", "ANN001", "ANN201", "S101"]
+"conftest.py" = ["D1", "ANN001", "ANN201", "S101"]

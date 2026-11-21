@@ -84,7 +84,7 @@ The rules people need every day, in one place. The reasons behind refactoring an
 
 ## Lint
 
-`ruff.toml` at the repo root holds the settings: PEP 8 naming and layout, likely bugs, simpler forms, limits on function size and complexity, and docstrings and type hints outside test files. Run it on the files you changed:
+`ruff.toml` at the repo root holds the settings: PEP 8 naming and layout, likely bugs, simpler forms, limits on function size and complexity, docstrings and type hints outside test files, and Bandit's security rules. Run it on the files you changed:
 
 ```
 ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py')
@@ -100,6 +100,7 @@ ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py
 | The gate's own tools pass their tests | PR gate (`run_pack_tests.py --tools`) | |
 | Lint | PR gate: `check_ruff_no_new.py`, which fails when a changed file has more findings for any rule than on `main`, and lists the existing findings of a high-risk file | |
 | Self-documenting code | PR gate: `check_ruff_no_new.py`. A function the pull request touches must have a docstring and type hints. Names and comments: review | |
+| Security | PR gate: `check_ruff_no_new.py` with Bandit's rules (S): a changed file may not gain a security finding. GitHub code scanning (CodeQL) on every pull request; Dependabot alerts. What a tool can't see: the review checklist's Security items | mypy, as the platform's own pipeline runs it |
 | Test data | PR gate: `check_test_data.py`, with exemptions and their reasons in `policies/test_data_allowed.json` | |
 | Tests first for fixes | PR gate: `check_fix_test_fails_on_main.py`. For a pull request titled `fix...` that changes code, the tests it adds or changes must fail on `main` | |
 | Review checklist | The author, before opening the pull request | An automated reviewer, once a second regular contributor or a missed problem calls for one |
