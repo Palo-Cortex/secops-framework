@@ -2,6 +2,24 @@
 
 Two ways in. If you work in the repo with a terminal, read [Contributing](https://palo-cortex.github.io/secops-framework/contributing/) on the site: branch, gate, pull request, merge, release. If you built content on an XSIAM tenant and want it in the framework without using git, this page is for you: everything happens in the GitHub web UI.
 
+## Rules for every change
+
+These apply whether you use the web UI or a terminal. The reasons behind them, the test data to use and the high-risk paths are on [Engineering practices](https://palo-cortex.github.io/secops-framework/contributing/engineering-practices/).
+
+<!-- --8<-- [start:rules] -->
+| Rule | Why | Checked by |
+|---|---|---|
+| Build only what was asked. Ideas you had along the way go in the pull request under *Not built*, not in the diff | Every extra line costs review time and can break something nobody asked to change | Review: the pull request lists *Not built* |
+| One concern per pull request | A reviewer can tell what changed and why | Review |
+| A fix or a change in behaviour comes with a test written first, which fails on `main` and passes on the branch | A test that has never failed proves nothing | Review: the pull request shows the failing run |
+| Code reads like the code around it: [PEP 8](https://peps.python.org/pep-0008/), the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html), and [PEP 20](https://peps.python.org/pep-0020/) when they disagree | Readable code is reviewable code; clever code hides bugs from reviewers | `ruff check` on the files you changed; review |
+| A refactor and a change in behaviour never share a pull request ([refactoring](https://palo-cortex.github.io/secops-framework/contributing/refactoring/)) | A behaviour change hidden in a cleanup is how regressions ship | Review |
+| Comments say what and why; change history stays in git | Version notes in code go stale and bury the code | Review |
+| Functions stay within the limits in `ruff.toml` (complexity 10, 12 branches, 50 statements, 6 arguments) | A function a reviewer can't follow in one read is a function they approve on trust | `ruff check` on the files you changed |
+| Test data uses only reserved names and addresses, and customer issues are described by what happened, never by who ([list](https://palo-cortex.github.io/secops-framework/contributing/engineering-practices/#test-data)) | Fixtures get copied into scenarios, tickets and screenshots; real values leak that way | Review |
+| A person reads every line of a change to a high-risk path ([list](https://palo-cortex.github.io/secops-framework/contributing/engineering-practices/#high-risk-paths)) | A wrong line there acts on a customer's systems or closes real work | Review: the reviewer says so on the pull request |
+<!-- --8<-- [end:rules] -->
+
 ## Before you start
 
 - A GitHub account with access to this repository.
