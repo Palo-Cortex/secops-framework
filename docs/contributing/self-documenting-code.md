@@ -14,6 +14,30 @@ How to write Python in this repo so a reader can tell what each name holds and w
 | Names sized to their scope | Brian Kernighan and Rob Pike, *The Practice of Programming* (1999), "Style" | Descriptive names for things used widely, short names for things used in a few lines. Be consistent |
 | Python conventions | [PEP 8](https://peps.python.org/pep-0008/) naming, [PEP 257](https://peps.python.org/pep-0257/) docstrings, [PEP 484](https://peps.python.org/pep-0484/) type hints, the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html) (docstrings and naming) | The shapes a Python reader already expects |
 
+## The platform's guidelines come first
+
+Pack content runs on XSIAM, and Palo Alto Networks publishes how it should be written: the
+[code conventions](https://xsoar.pan.dev/docs/integrations/code-conventions) and the
+[linting guide](https://cortex-docs.paloaltonetworks.com/cortex-xsiam-developer-guide/cortex-xsiam-development-guide/testing/linting)
+for XSOAR and XSIAM content. When a rule on this page and the platform's guideline disagree,
+the guideline wins, unless the table below names the difference and why.
+
+| Platform guideline | What it means here |
+|---|---|
+| Functions and variables in `snake_case`; commands lowercase with hyphens; constants in `UPPER_SNAKE_CASE` after the imports; no global variables | The same as PEP 8 naming, which ruff checks (N) |
+| A command function returns `CommandResults`; `main()` calls `return_results` and `return_error`, and catches the exceptions the functions raise | Command functions stay unit-testable. Some older framework scripts, `SOCCommandWrapper` among them, report from inside their functions; they move to this shape as they are refactored, never in the same pull request as a behaviour change |
+| No `sleep()`; retries through `BaseClient` | Already a framework rule |
+| No `print`; log with `demisto.debug`, `demisto.info`, `demisto.error`; never log sensitive data | The same, for War Room output and dataset rows too |
+| Docstrings document parameters and return values: `Args:` and `Returns:` sections in command functions, `:type:` fields in client classes | Google sections, as the rules below say; `:type:` fields are fine in a client class |
+| Every command has a unit test in `<Name>_test.py`, and each test's docstring says Given / When / Then | Pack tests need a docstring in that form; tests of `tools/` don't |
+| Content is linted with ruff, mypy, pylint, the XSOAR linter and Bandit (`demisto-sdk pre-commit`). An inline suppression names its rule: `# noqa: E501`, `# type: ignore[<error>]`, never a bare one | This repo runs ruff in the PR gate. Bandit's rules and mypy are planned |
+
+### Where the framework differs on purpose
+
+| Difference | Why |
+|---|---|
+| Pack scripts have no `import demistomock as demisto` or `from CommonServerPython import *` line | The platform loads both into every script, and the pack is installed from its source as it is. Tests inject the same names instead (`load_script` in `SOCCommandWrapper_test.py`) |
+
 ## The rules
 
 | Rule | In practice |
@@ -58,7 +82,7 @@ Old code on `main` doesn't meet these rules yet. It gets there as it is worked o
 | Whether a comment says why rather than what | Review |
 | One name per idea | Review |
 
-Test files are exempt from the docstring and type-hint rules: a test's name says what it checks, and pytest fixtures are typed by use.
+Pack tests need a docstring in Given / When / Then form, as the platform's guideline asks; type hints stay optional in tests, where pytest fixtures are typed by use. Tests of `tools/` need neither.
 
 ## Verify
 
