@@ -33,3 +33,25 @@ def test_the_dependency_tool_runs_from_main_not_from_the_pull_request():
     run = _step_text("Apply fix or pin")
     assert ".trusted/tools/check_dependency_versions.py" in run
     assert '"tools/check_dependency_versions.py"' not in run
+
+
+def test_the_pull_request_is_checked_out_at_the_commit_seen_when_the_command_was_given():
+    pr_checkout = [s for s in _job()["steps"]
+                   if "checkout" in str(s.get("uses", "")) and s.get("with", {}).get("path") != ".trusted"]
+    assert pr_checkout[0]["with"]["ref"] == "${{ steps.pr.outputs.sha }}"
+    assert "headRefOid" in _step_text("Get PR branch")
+
+
+def test_the_fix_is_pushed_only_onto_the_branch_it_was_made_from():
+    commit = _step_text("Commit changes")
+    assert "git push origin HEAD:refs/heads/" in commit
+    assert "--force" not in commit
+
+
+def test_python_never_imports_from_the_pull_request_checkout():
+    runs = [s.get("run", "") for s in _job()["steps"]]
+    for run in runs:
+        for line in run.splitlines():
+            if line.strip().startswith("python"):
+                assert line.strip().startswith("python -I"), line
+    assert '"python", "-I", ".trusted/tools/check_dependency_versions.py"' in _step_text("Apply fix or pin")
