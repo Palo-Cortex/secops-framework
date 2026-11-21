@@ -90,14 +90,14 @@ The rules people need every day, in one place. The reasons behind refactoring an
 ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py')
 ```
 
-**Expected:** no findings in lines you added. Code already on `main` does not meet these limits yet, so `ruff check .` on the whole repo reports existing findings, and the repo-wide run is not a gate. A file you touch should not end up with more findings than it has on `main`.
+**Expected:** no findings in lines you added. Code already on `main` does not meet these limits yet, so `ruff check .` on the whole repo reports existing findings, and the repo-wide run is not a gate. A file you touch should not end up with more findings than it has on `main`; the PR gate checks this with `tools/check_ruff_no_new.py`.
 
 ## What is enforced, and what is planned
 
 | Practice | Checked by today | Planned |
 |---|---|---|
 | Unit tests pass | PR gate and `check_contribution` (`run_pack_tests.py`) | |
-| Lint | Review: `ruff check` on the changed files | A CI check that a changed file has no more findings than on `main` |
+| Lint | PR gate: `check_ruff_no_new.py`, which fails when a changed file has more findings for any rule than on `main`, and lists the existing findings of a high-risk file | |
 | Test data | PR gate: `check_test_data.py`, with exemptions and their reasons in `policies/test_data_allowed.json` | |
 | Tests first for fixes | Review: the pull request shows the failing run | A CI check that a fix's new tests fail on `main` |
 | Review checklist | The author, before opening the pull request | An automated reviewer, once a second regular contributor or a missed problem calls for one |
