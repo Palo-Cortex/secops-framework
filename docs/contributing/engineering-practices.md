@@ -76,7 +76,7 @@ The rules people need every day, in one place. The reasons behind refactoring an
 | Commits | One logical step per commit, made before you start the next thing. The message says what changed and why; customer issues are described by what happened, not who |
 | Merges | Squash. `[skip release]` in the subject when the change should not cut a release; cut the release once a batch is gated and tested, rather than leaving merged work unreleased |
 | Before a pull request | Run `check_contribution.py` against a lab tenant, then run the change on that tenant: the happy path, the unhappy paths, a regression check on what already works, and the tenant's own traffic as noise |
-| Comments | Say what a block does and why a non-obvious choice was made. No change history or version notes in code: that is git's job |
+| Comments | Say what a block does and why a non-obvious choice was made. No change history or version notes in code: that is git's job. Names, docstrings and type hints: [Self-documenting code](self-documenting-code.md) |
 | Generated content | Never edit it by hand. A list emitted from `schemas/` is changed in the schema and re-emitted |
 | Playbooks | End with a `Done` title task. Changing actions go through the universal command and ship in Shadow Mode |
 | Correlation rules | Never write into an issue field the platform owns; `check_issue_field_targets.py` fails the gate if one does |
@@ -84,13 +84,13 @@ The rules people need every day, in one place. The reasons behind refactoring an
 
 ## Lint
 
-`ruff.toml` at the repo root holds the settings: PEP 8 naming and layout, likely bugs, simpler forms, and limits on function size and complexity. Run it on the files you changed:
+`ruff.toml` at the repo root holds the settings: PEP 8 naming and layout, likely bugs, simpler forms, limits on function size and complexity, and docstrings and type hints outside test files. Run it on the files you changed:
 
 ```
 ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py')
 ```
 
-**Expected:** no findings in lines you added. Code already on `main` does not meet these limits yet, so `ruff check .` on the whole repo reports existing findings, and the repo-wide run is not a gate. A file you touch should not end up with more findings than it has on `main`; the PR gate checks this with `tools/check_ruff_no_new.py`.
+**Expected:** no findings in lines you added. Code already on `main` does not meet these limits yet, so `ruff check .` on the whole repo reports existing findings, and the repo-wide run is not a gate. A file you touch should not end up with more findings than it has on `main`, and a function you touch must leave with a docstring and type hints; the PR gate checks both with `tools/check_ruff_no_new.py`.
 
 ## What is enforced, and what is planned
 
@@ -99,6 +99,7 @@ ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py
 | Unit tests pass | PR gate and `check_contribution` (`run_pack_tests.py`) | |
 | The gate's own tools pass their tests | PR gate (`run_pack_tests.py --tools`) | |
 | Lint | PR gate: `check_ruff_no_new.py`, which fails when a changed file has more findings for any rule than on `main`, and lists the existing findings of a high-risk file | |
+| Self-documenting code | PR gate: `check_ruff_no_new.py`. A function the pull request touches must have a docstring and type hints. Names and comments: review | |
 | Test data | PR gate: `check_test_data.py`, with exemptions and their reasons in `policies/test_data_allowed.json` | |
 | Tests first for fixes | PR gate: `check_fix_test_fails_on_main.py`. For a pull request titled `fix...` that changes code, the tests it adds or changes must fail on `main` | |
 | Review checklist | The author, before opening the pull request | An automated reviewer, once a second regular contributor or a missed problem calls for one |
