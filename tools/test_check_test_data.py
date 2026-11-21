@@ -3,7 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from check_test_data import findings  # noqa: E402
+from check_test_data import _test_files, findings  # noqa: E402
 
 NO_EXEMPTIONS: dict[str, str] = {}
 
@@ -53,3 +53,8 @@ def test_multicast_and_shared_address_space_pass():
 
 def test_a_lookalike_of_a_reserved_domain_is_flagged():
     assert values('to = "dc@notexample.com"; u = "https://notexample.org/x"') == ["notexample.com", "notexample.org"]
+
+
+def test_replay_data_lists_in_the_pov_test_pack_are_scanned():
+    scanned = _test_files()
+    assert any(p.endswith("SOCFWPoVData_CrowdStrike_TurlaCarbon_V1_data.json") for p in scanned)

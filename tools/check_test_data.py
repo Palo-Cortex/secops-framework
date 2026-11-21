@@ -36,6 +36,8 @@ TEST_FILES = (
     "Packs/*/Scripts/*/test_data/*",
     "scenarios/*.yml",
     "tools/test_*.py",
+    # Replay data shipped in the PoV test pack: events from a lab, so the same rules apply.
+    "Packs/soc-framework-pov-test/Lists/*/*_data.json",
 )
 
 RESERVED_DOMAINS = ("example", "test", "invalid", "local", "example.com", "example.net", "example.org")
