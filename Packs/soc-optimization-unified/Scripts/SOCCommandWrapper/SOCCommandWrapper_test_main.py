@@ -113,7 +113,7 @@ SCENARIOS = {
 }
 
 
-class _Stop(Exception):
+class _ScriptEndedError(Exception):
     """return_error ends the script on the platform; the stand-in ends the run here."""
 
 
@@ -164,7 +164,7 @@ def _run(name):
 
     def return_error(message):
         events.append(["return_error", [message], {}])
-        raise _Stop(message)
+        raise _ScriptEndedError(message)
     script.return_error = return_error
 
     outcomes = iter(spec.get("outcomes", [["simulated"]] * 4))
@@ -180,7 +180,7 @@ def _run(name):
     try:
         script.main()
         ended = "returned"
-    except _Stop:
+    except _ScriptEndedError:
         ended = "return_error"
     return json.loads(json.dumps({"events": events, "ended": ended}, default=_encode))
 

@@ -1785,31 +1785,8 @@ def _record_done(shared: dict, key: str, once: bool, per_vendor: str | None) -> 
         write_ledger(shared["issue"], dict(done, a=undone, t=key, reversed=True))
 
 
-def main():
-    args = demisto.args()
-    ctx = demisto.context()
-
-    demisto.debug(f"RAW TAGS: {args.get('tags')} | TYPE: {type(args.get('tags'))}")
-
-    action = args.get("action")
-    using = args.get("using")
-    # target= names what to act on from the CLI (a domain, an IP), replacing the
-    # issue's artifact for the action's target_arg. For an analyst in the War Room
-    # on an issue that carries none (a manual issue) or several (an endpoint's DNS
-    # lookups). Everything else - shadow per actor, tenant config, the record - is
-    # unchanged.
-    target_override = parse_target_override(args.get("target"))
-    list_name = args.get("list_name")
-    output_key = args.get("output_key")
-    # shadow_mode is now read from the action entry in SOCFrameworkActions_V3.
-    # Analysis/Enrichment: shadow_mode: false — always execute.
-    # C/E/R: shadow_mode: true — suppressed until PS flips to false.
-    # To go live: edit shadow_mode on the specific action in the list.
-    # The args shadow_mode field is retained for backward compat but ignored.
-
-    raw_tags = args.get("tags")
-    tags = parse_tags(raw_tags)
-
+def _load_action(action: str, list_name: str) -> tuple:
+    """(action_map, action_entry) from the action list; return_error on anything unusable."""
     if not action:
         return_error("Missing action")
 
@@ -1830,224 +1807,298 @@ def main():
 
     if not action_entry:
         return_error(f"Action not found: {action}")
+    return action_map, action_entry
 
-    # Load action time map — soft fail if list not present or action not listed.
-    # SOCActionTimeMap_V3 ships one entry per action (time_minutes,
-    # action_category); the tenant config's "value" section overrides it.
-    # Both values are written to the dataset so dashboards need no join.
-    _time_map_result = demisto.executeCommand("getList", {"listName": "SOCActionTimeMap_V3"})
-    _time_map: dict = {}
-    if _time_map_result and isinstance(_time_map_result, list) and "Contents" in _time_map_result[0]:
-        _time_map = _try_json_loads(_time_map_result[0].get("Contents", "")) or {}
-    tenant_config = load_tenant_config()
-    action_time_minutes, action_time_category, _value_from = resolve_action_value(
-        _time_map, tenant_config, action)
+
+def _load_time_map() -> dict:
+    """SOCActionTimeMap_V3, or {} when the list is missing or unreadable."""
+    result = demisto.executeCommand("getList", {"listName": "SOCActionTimeMap_V3"})
+    if result and isinstance(result, list) and "Contents" in result[0]:
+        return _try_json_loads(result[0].get("Contents", "")) or {}
+    return {}
+
+
+def _action_value(action: str, time_map: dict, tenant_config: dict) -> tuple:
+    """(time_minutes, action_category) for the record: the tenant config over SOCActionTimeMap_V3.
+
+    An action in neither records 0 minutes. Both values are written to the
+    dataset so dashboards need no join.
+    """
+    minutes, category, source = resolve_action_value(time_map, tenant_config, action)
     demisto.debug(
         f"SOCActionTimeMap_V3: action={action} "
-        f"time_minutes={action_time_minutes} "
-        f"action_category={action_time_category} from={_value_from}"
+        f"time_minutes={minutes} "
+        f"action_category={category} from={source}"
+    )
+    return minutes, category
+
+
+def _names_a_target(action_entry: dict) -> bool:
+    """Whether the action, or one of its response branches, names the arg it acts on."""
+    responses = action_entry.get("responses", {})
+    branches = responses.values() if isinstance(responses, dict) else []
+    return bool(action_entry.get("target_arg")
+                or any(isinstance(r, dict) and r.get("target_arg") for r in branches))
+
+
+def _dispatch_mode(action: str, action_entry: dict) -> str:
+    """routed (one vendor, the default) or all_applicable (every branch); anything else is routed.
+
+    The field lives on registry rows authored with the framework; it is not an
+    operator setting.
+    """
+    mode = str(action_entry.get("dispatch") or "routed").strip().lower()
+    if mode not in ("routed", "all_applicable"):
+        demisto.debug(
+            f"SOCCommandWrapper: unknown dispatch {mode!r} on {action} - treating as routed"
+        )
+        mode = "routed"
+    return mode
+
+
+def _action_class(action: str) -> str | None:
+    """The action's class (endpoint, identity, email, ...) from SOCActionClassMap_V3, or None."""
+    result = demisto.executeCommand("getList", {"listName": "SOCActionClassMap_V3"})
+    if not result or not isinstance(result, list):
+        return None
+    raw = result[0].get("Contents", "")
+    if not raw or raw == "Item not found":
+        return None
+    try:
+        return json.loads(raw).get(action)
+    except Exception:
+        return None
+
+
+def _class_vendor(action: str, action_class: str | None, responses: dict, ctx: dict) -> str | None:
+    """The vendor the source's category map names for this action class, if the action has its branch."""
+    if not action_class:
+        return None
+    category_responses = demisto.get(ctx, "SOCFramework.Product.responses") or {}
+    if isinstance(category_responses, str):
+        try:
+            category_responses = json.loads(category_responses)
+        except Exception:
+            category_responses = {}
+    vendor = category_responses.get(action_class)
+    if vendor and responses.get(vendor):
+        demisto.debug(
+            f"SOCCommandWrapper: multi-vendor routing — action={action} "
+            f"class={action_class} vendor={vendor}"
+        )
+        return vendor
+    return None
+
+
+def _route(action: str, responses: dict, ctx: dict) -> tuple:
+    """(vendor, vendor_data, action_class) for a routed action; vendor_data is None when nothing matches.
+
+    In order:
+    1. The action's class from SOCActionClassMap_V3, and the vendor the alert's
+       SOCProductCategoryMap entry names for that class (responses.{class}). A
+       CrowdStrike alert can use CrowdStrike for endpoint actions and Active
+       Directory for identity ones, set in one place without touching playbooks.
+    2. Platform actions: starring, raising severity and closing are done by the
+       platform, so an action whose only branch is Builtin runs as Builtin
+       whatever the source vendor. Narrow on purpose: an action with Builtin
+       plus vendor branches still routes by vendor.
+    3. The legacy single-vendor field SOCFramework.Product.response.
+
+    Never the first available vendor: that silently runs a non-matching
+    vendor's command (core-quarantine-files against a CrowdStrike host).
+    """
+    action_class = _action_class(action)
+    vendor = _class_vendor(action, action_class, responses, ctx)
+    if vendor:
+        return vendor, responses.get(vendor), action_class
+
+    if set(responses.keys()) == {"Builtin"} and responses.get("Builtin"):
+        demisto.debug(
+            f"SOCCommandWrapper: platform action — action={action} "
+            f"dispatched as Builtin, independent of source vendor"
+        )
+        return "Builtin", responses.get("Builtin"), action_class
+
+    vendor = demisto.get(ctx, "SOCFramework.Product.response")
+    vendor_data = responses.get(vendor) if vendor else None
+    if vendor_data:
+        demisto.debug(
+            f"SOCCommandWrapper: legacy response routing — vendor={vendor}"
+        )
+    return vendor, vendor_data, action_class
+
+
+def _record_skip(call: dict, vendor: str, skip_reason: str) -> None:
+    """Build the skipped execution record and write it to output_key, when the caller asked for one.
+
+    The record is built either way: building it creates the run id when the
+    context has none, and later actions in the run read it.
+    """
+    record = {
+        "action": call["action"],
+        "vendor": vendor,
+        "command": None,
+        "args": {},
+        "shadow_mode": call["shadow_mode"],
+        "success": False,
+        "skipped": True,
+        "skip_reason": skip_reason,
+        "tags": call["tags"] or [],
+        "run_id": get_or_create_run_id(call["ctx"]),
+        "timestamp": utc_now(),
+    }
+    if call["output_key"]:
+        append_context(call["output_key"], record)
+
+
+def _skip_no_vendor(call: dict, responses: dict, action_class: str | None) -> None:
+    """No branch for the alert's source: record the attempt so the phase summary and audit show it."""
+    action = call["action"]
+    legacy_vendor = demisto.get(call["ctx"], "SOCFramework.Product.response")
+    available = sorted(responses.keys())
+    skip_reason = (
+        f"no implementation for source vendor {legacy_vendor!r} in "
+        f"{action}.responses; available: {available}"
+    )
+    demisto.debug(
+        f"SOCCommandWrapper: skipping {action} — {skip_reason} "
+        f"(action_class={action_class})"
+    )
+    _record_skip(call, legacy_vendor or "(unresolved)", skip_reason)
+    warroom_log(
+        f"SOC Framework — {action}: skipped (no vendor implementation)",
+        {
+            "reason": "no implementation for source vendor",
+            "source_vendor": legacy_vendor or "(unresolved)",
+            "action_class": action_class,
+            "action": action,
+            "available_vendors": available,
+        },
+        call["tags"],
+    )
+    return_results(
+        f"{action} skipped — no implementation for source vendor "
+        f"{legacy_vendor or '(unresolved)'} in this action's responses"
     )
 
-    # Shadow: the tenant config's setting for this action and actor if it names
-    # one, otherwise the shipped action entry.
+
+def _skip_no_branches(call: dict) -> None:
+    """An all_applicable action with no response branch to dispatch."""
+    action = call["action"]
+    skip_reason = f"{action} declares dispatch all_applicable but no response branches"
+    demisto.debug(f"SOCCommandWrapper: skipping {action} - {skip_reason}")
+    _record_skip(call, "(none)", skip_reason)
+    warroom_log(
+        f"SOC Framework - {action}: skipped (no response branches)",
+        {"reason": skip_reason, "action": action},
+        call["tags"],
+    )
+    return_results(f"{action} skipped - no response branches declared")
+
+
+def _plan(call: dict, action_entry: dict, dispatch_mode: str) -> list | None:
+    """The (vendor, vendor_data) pairs to dispatch, or None after recording a skip."""
+    responses = action_entry.get("responses", {})
+    if dispatch_mode == "all_applicable":
+        plan = [(v, responses[v]) for v in sorted(responses) if isinstance(responses.get(v), dict)]
+        if not plan:
+            _skip_no_branches(call)
+            return None
+        return plan
+    vendor, vendor_data, action_class = _route(call["action"], responses, call["ctx"])
+    if not vendor_data:
+        _skip_no_vendor(call, responses, action_class)
+        return None
+    return [(vendor, vendor_data)]
+
+
+def _summarize(action: str, dispatch_mode: str, outcomes: list, tags: list) -> None:
+    """One War Room line for a run that fanned out; return_error when every dispatch failed.
+
+    Per-pair entries carry the detail. A single dispatch emits nothing extra, so
+    existing actions read exactly as before.
+    """
+    if len(outcomes) <= 1:
+        return
+    counts: dict = {}
+    for o in outcomes:
+        counts[o["outcome"]] = counts.get(o["outcome"], 0) + 1
+    warroom_log(
+        f"SOC Framework - {action}: dispatch summary",
+        {
+            "dispatch": dispatch_mode,
+            "vendors": sorted({str(o["vendor"]) for o in outcomes}),
+            "results": counts,
+            "detail": [
+                {k: o.get(k) for k in ("vendor", "target", "outcome", "reason")
+                 if o.get(k) is not None}
+                for o in outcomes
+            ],
+        },
+        tags,
+    )
+    hard_failures = [o for o in outcomes if o["outcome"] == "failed"]
+    if hard_failures and len(hard_failures) == len(outcomes):
+        return_error(
+            f"{action}: every dispatch failed - "
+            + "; ".join(
+                f"{o['vendor']}: {o.get('reason', 'error')}" for o in hard_failures
+            )
+        )
+    return_results(
+        f"{action}: "
+        + ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))
+    )
+
+
+def main() -> None:
+    """Run one universal-command action: resolve it, route it to its vendors, dispatch, summarize.
+
+    Shadow mode comes from the action entry in SOCFrameworkActions_V3, or the
+    tenant config per actor; the shadow_mode argument is kept for backward
+    compatibility and ignored.
+    """
+    args = demisto.args()
+    ctx = demisto.context()
+
+    demisto.debug(f"RAW TAGS: {args.get('tags')} | TYPE: {type(args.get('tags'))}")
+
+    action = args.get("action")
+    # target= names what to act on from the CLI (a domain, an IP), replacing the
+    # issue's artifact for the action's target_arg: for an analyst on an issue
+    # that carries none or several.
+    target_override = parse_target_override(args.get("target"))
+    output_key = args.get("output_key")
+    raw_tags = args.get("tags")
+    tags = parse_tags(raw_tags)
+
+    action_map, action_entry = _load_action(action, args.get("list_name"))
+
+    time_map = _load_time_map()
+    tenant_config = load_tenant_config()
+    action_time_minutes, action_time_category = _action_value(action, time_map, tenant_config)
     shadow_mode = resolve_shadow_mode(
         action_entry, args.get("Action_Actor"),
         tenant_shadow_override(tenant_config, action, args.get("Action_Actor")))
 
-    responses = action_entry.get("responses", {})
-
-    # target= only means something on an action that names what it acts on.
     # Decided from the action's own definition, before routing, so the answer is
-    # the same on every source - an analyst never sees target silently ignored.
-    if target_override and not (
-            action_entry.get("target_arg")
-            or any(isinstance(r, dict) and r.get("target_arg")
-                   for r in (responses.values() if isinstance(responses, dict) else []))):
+    # the same on every source: an analyst never sees target silently ignored.
+    if target_override and not _names_a_target(action_entry):
         return_error(
             f"{action} takes no target: it acts on the issue's own artifacts. "
             "target= works on actions that name what they act on, such as soc-block-domain.")
         return
 
-    # ── Dispatch mode ────────────────────────────────────────────────────────
-    # dispatch on the action entry decides fan-out. Absent means "routed":
-    # exactly one vendor, resolved by the routing ladder below — the original
-    # behavior, unchanged. "all_applicable" dispatches every vendor branch the
-    # action declares, each checked and recorded on its own; the routing ladder
-    # is skipped because the answer is all of them. The field lives on registry
-    # rows authored with the framework; it is not an operator setting.
-    dispatch_mode = str(action_entry.get("dispatch") or "routed").strip().lower()
-    if dispatch_mode not in ("routed", "all_applicable"):
-        demisto.debug(
-            f"SOCCommandWrapper: unknown dispatch {dispatch_mode!r} on {action} - treating as routed"
-        )
-        dispatch_mode = "routed"
+    dispatch_mode = _dispatch_mode(action, action_entry)
+    call = {"action": action, "ctx": ctx, "output_key": output_key,
+            "shadow_mode": shadow_mode, "tags": tags}
+    plan = _plan(call, action_entry, dispatch_mode)
+    if plan is None:
+        return
 
-    vendor = None
-    vendor_data = None
-
-    if dispatch_mode == "routed":
-        # ── Multi-vendor response routing ─────────────────────────────────────────
-        # Resolution order:
-        # 1. Look up the action's class (endpoint/identity/email/indicator/network)
-        #    from SOCActionClassMap_V3.
-        # 2. Look up responses.{class} in the alert's SOCProductCategoryMap entry.
-        #    This is the correct integration for this action type on this source.
-        # 3. Fall back to SOCFramework.Product.response (legacy single-vendor field).
-        # 4. Fall back to first available vendor in the action's responses dict.
-        #
-        # This allows a CrowdStrike Endpoint alert to use CrowdStrike for endpoint
-        # actions but Active Directory for identity actions — configured in one place
-        # (SOCProductCategoryMap_V3) without touching playbooks.
-        # ─────────────────────────────────────────────────────────────────────────
-
-        vendor = None
-        vendor_data = None
-
-        # Step 1: get action class from SOCActionClassMap_V3
-        action_class_map = demisto.executeCommand(
-            "getList", {"listName": "SOCActionClassMap_V3"}
-        )
-        action_class = None
-        if action_class_map and isinstance(action_class_map, list):
-            acm_raw = action_class_map[0].get("Contents", "")
-            if acm_raw and acm_raw != "Item not found":
-                import json as _json
-                try:
-                    acm = _json.loads(acm_raw)
-                    action_class = acm.get(action)
-                except Exception:
-                    pass
-
-        # Step 2: look up responses.{action_class} from the category map entry
-        if action_class:
-            category_responses = demisto.get(ctx, "SOCFramework.Product.responses") or {}
-            if isinstance(category_responses, str):
-                try:
-                    category_responses = _json.loads(category_responses)
-                except Exception:
-                    category_responses = {}
-            class_vendor = category_responses.get(action_class)
-            if class_vendor:
-                vendor_data = responses.get(class_vendor)
-                if vendor_data:
-                    vendor = class_vendor
-                    demisto.debug(
-                        f"SOCCommandWrapper: multi-vendor routing — action={action} "
-                        f"class={action_class} vendor={vendor}"
-                    )
-
-        # Step 2b: platform actions are not vendor actions.
-        #
-        # Starring a case, raising its severity and closing an issue are done by the
-        # platform itself, so they carry a single "Builtin" implementation and no
-        # source vendor can satisfy them. Routing them by vendor skipped them on every
-        # alert: soc-star-case was skipped as "no implementation for source vendor
-        # 'CrowdStrike Falcon'", and soc-close-issue has the same shape.
-        #
-        # This is narrow on purpose. It applies ONLY when Builtin is the action's one
-        # and only implementation, so there is no vendor ambiguity to resolve wrongly -
-        # which is what the "never fall back to first available vendor" rule below
-        # exists to prevent. An action with Builtin plus vendor branches still routes
-        # by vendor.
-        if not vendor_data and set(responses.keys()) == {"Builtin"}:
-            vendor_data = responses.get("Builtin")
-            if vendor_data:
-                vendor = "Builtin"
-                demisto.debug(
-                    f"SOCCommandWrapper: platform action — action={action} "
-                    f"dispatched as Builtin, independent of source vendor"
-                )
-
-        # Step 3: fall back to legacy SOCFramework.Product.response
-        if not vendor_data:
-            vendor = demisto.get(ctx, "SOCFramework.Product.response")
-            vendor_data = responses.get(vendor) if vendor else None
-            if vendor_data:
-                demisto.debug(
-                    f"SOCCommandWrapper: legacy response routing — vendor={vendor}"
-                )
-
-        # Step 4: no matching vendor — skip cleanly with a recorded reason.
-        # Do NOT fall back to "first available vendor": that silently dispatches a
-        # non-matching vendor's command (e.g. core-quarantine-files against a
-        # CrowdStrike host because soc-quarantine-files lacks a CrowdStrike branch).
-        # Instead, write a skipped execution record so SOCSummarizePhase and the
-        # case audit trail show the action was attempted but had no vendor
-        # implementation for the alert's source.
-        if not vendor_data:
-            legacy_vendor = demisto.get(ctx, "SOCFramework.Product.response")
-            available = sorted(responses.keys())
-            skip_reason = (
-                f"no implementation for source vendor {legacy_vendor!r} in "
-                f"{action}.responses; available: {available}"
-            )
-            demisto.debug(
-                f"SOCCommandWrapper: skipping {action} — {skip_reason} "
-                f"(action_class={action_class})"
-            )
-
-            skip_record = {
-                "action": action,
-                "vendor": legacy_vendor or "(unresolved)",
-                "command": None,
-                "args": {},
-                "shadow_mode": shadow_mode,
-                "success": False,
-                "skipped": True,
-                "skip_reason": skip_reason,
-                "tags": tags or [],
-                "run_id": get_or_create_run_id(ctx),
-                "timestamp": utc_now(),
-            }
-            if output_key:
-                append_context(output_key, skip_record)
-
-            warroom_log(
-                f"SOC Framework — {action}: skipped (no vendor implementation)",
-                {
-                    "reason": "no implementation for source vendor",
-                    "source_vendor": legacy_vendor or "(unresolved)",
-                    "action_class": action_class,
-                    "action": action,
-                    "available_vendors": available,
-                },
-                tags,
-            )
-            return_results(
-                f"{action} skipped — no implementation for source vendor "
-                f"{legacy_vendor or '(unresolved)'} in this action's responses"
-            )
-            return
-
-    plan = []
-    if dispatch_mode == "all_applicable":
-        plan = [(v, responses[v]) for v in sorted(responses)
-                if isinstance(responses.get(v), dict)]
-        if not plan:
-            skip_reason = f"{action} declares dispatch all_applicable but no response branches"
-            demisto.debug(f"SOCCommandWrapper: skipping {action} - {skip_reason}")
-            skip_record = {
-                "action": action, "vendor": "(none)", "command": None, "args": {},
-                "shadow_mode": shadow_mode, "success": False, "skipped": True,
-                "skip_reason": skip_reason, "tags": tags or [],
-                "run_id": get_or_create_run_id(ctx), "timestamp": utc_now(),
-            }
-            if output_key:
-                append_context(output_key, skip_record)
-            warroom_log(
-                f"SOC Framework - {action}: skipped (no response branches)",
-                {"reason": skip_reason, "action": action},
-                tags,
-            )
-            return_results(f"{action} skipped - no response branches declared")
-            return
-    else:
-        plan = [(vendor, vendor_data)]
-
-    # target_arg names the one inline arg that carries the thing being acted
-    # on. When its context reference resolves to a list, the wrapper
-    # dispatches once per element - one approval upstream still covers the
-    # whole run.
+    # target_arg names the one inline arg that carries the thing being acted on.
+    # When its context reference resolves to a list, the wrapper dispatches once
+    # per element; one approval upstream still covers the whole run.
     target_arg = action_entry.get("target_arg")
 
     timestamp = utc_now()
@@ -2060,7 +2111,7 @@ def main():
     issue = get_issue_data()
 
     shared = {
-        "action": action, "args": args, "ctx": ctx, "using": using,
+        "action": action, "args": args, "ctx": ctx, "using": args.get("using"),
         "output_key": output_key, "tags": tags, "raw_tags": raw_tags,
         "shadow_mode": shadow_mode, "run_id": run_id, "timestamp": timestamp,
         "schema_entries": schema_entries, "issue": issue,
@@ -2082,39 +2133,7 @@ def main():
             _dispatch_vendor(shared, pair_vendor, pair_data, pair_target_arg, single_vendor)
         )
 
-    # One summary entry whenever the run fanned out - per-pair entries above
-    # carry the detail; this is the at-a-glance line. Legacy single dispatch
-    # emits nothing extra, so existing actions read exactly as before.
-    if len(outcomes) > 1:
-        counts = {}
-        for o in outcomes:
-            counts[o["outcome"]] = counts.get(o["outcome"], 0) + 1
-        warroom_log(
-            f"SOC Framework - {action}: dispatch summary",
-            {
-                "dispatch": dispatch_mode,
-                "vendors": sorted({str(o["vendor"]) for o in outcomes}),
-                "results": counts,
-                "detail": [
-                    {k: o.get(k) for k in ("vendor", "target", "outcome", "reason")
-                     if o.get(k) is not None}
-                    for o in outcomes
-                ],
-            },
-            tags,
-        )
-        hard_failures = [o for o in outcomes if o["outcome"] == "failed"]
-        if hard_failures and len(hard_failures) == len(outcomes):
-            return_error(
-                f"{action}: every dispatch failed - "
-                + "; ".join(
-                    f"{o['vendor']}: {o.get('reason', 'error')}" for o in hard_failures
-                )
-            )
-        return_results(
-            f"{action}: "
-            + ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))
-        )
+    _summarize(action, dispatch_mode, outcomes, tags)
 
 
 if __name__ in ("__builtin__", "builtins", "__main__"):
