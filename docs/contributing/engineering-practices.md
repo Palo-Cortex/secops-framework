@@ -98,6 +98,6 @@ ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py
 |---|---|---|
 | Unit tests pass | PR gate and `check_contribution` (`run_pack_tests.py`) | |
 | Lint | Review: `ruff check` on the changed files | A CI check that a changed file has no more findings than on `main` |
-| Test data | Review | A scan that flags any domain, IP address or email outside the ranges above, replacing the customer-identifier scan |
+| Test data | PR gate: `check_test_data.py`, with exemptions and their reasons in `policies/test_data_allowed.json` | |
 | Tests first for fixes | Review: the pull request shows the failing run | A CI check that a fix's new tests fail on `main` |
 | Automated review | Run by hand against the checklist | Run on every pull request |
