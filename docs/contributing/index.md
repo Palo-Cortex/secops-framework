@@ -33,6 +33,7 @@ The lifecycle contracts under `schemas/soc-framework/` (`SOCFrameworkPhaseContra
 
 ## Pages in this section
 
+- [Engineering practices](engineering-practices.md): the rules every change follows, the test data to use, and the paths a person reads line by line.
 - [Tools reference](tools.md): every script under `tools/`, generated from its docstring.
 - [Editing vendor contracts](editing-vendor-contracts.md): the per-data-source YAML a vendor pack is generated from.
 - [CONTRIBUTING.md](https://github.com/Palo-Cortex/secops-framework/blob/main/CONTRIBUTING.md) on GitHub: contributing content exported from a tenant through the GitHub web UI, with no terminal.

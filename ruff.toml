@@ -1,0 +1,65 @@
+# Lint settings for every Python file in the repo: pack scripts and tools/.
+# Run from the repo root: ruff check .
+#
+# The limits below are where new code should land. Code on main does not meet
+# them yet, so this file is not a gate on the whole repo. See
+# docs/contributing/engineering-practices.md.
+
+target-version = "py310"
+line-length = 120
+
+extend-exclude = [
+    "site",
+    "out",
+    "output",
+    "input_tsv",
+]
+
+# Pack scripts run on the XSIAM engine, which loads CommonServerPython into
+# every script. These names come from that load, not from an import ruff can see.
+builtins = [
+    "demisto",
+    "CommandResults",
+    "DemistoException",
+    "EntryType",
+    "argToBoolean",
+    "argToList",
+    "entryTypes",
+    "execute_command",
+    "fileResult",
+    "formats",
+    "get_error",
+    "handle_proxy",
+    "isError",
+    "is_error",
+    "register_module_line",
+    "return_error",
+    "return_results",
+    "return_warning",
+    "__line__",
+    "tableToMarkdown",
+]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors (PEP 8)
+    "W",    # pycodestyle warnings (PEP 8)
+    "F",    # pyflakes: unused names, undefined names
+    "B",    # bugbear: likely bugs
+    "C90",  # cyclomatic complexity
+    "PLR",  # pylint refactor: function size limits
+]
+ignore = [
+    "F403",     # from CommonServerPython import *: how the engine loads it
+    "F405",     # names from that star import; the real ones are declared in builtins
+    "PLR2004",  # magic-number comparisons: too noisy for status codes and thresholds
+]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+max-args = 6
+max-branches = 12
+max-returns = 6
+max-statements = 50
