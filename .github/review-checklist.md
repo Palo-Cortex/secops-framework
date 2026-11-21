@@ -14,6 +14,16 @@ What the author checks before opening a pull request. Each item is a question a 
 - [ ] Does any name, id, URL or address in code, tests, fixtures, the commit message or the pull request point at a real customer or tenant?
 - [ ] Is there code nothing calls, or an option nobody asked for, that could be deleted?
 
+## Security
+
+What a tool can't see. Background: the [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/).
+
+- [ ] Is every value from an alert, an issue field or a vendor treated as untrusted? XQL, a command argument, a URL or a file path built from one is checked or escaped first.
+- [ ] Can a key, token or password reach the War Room, a dataset row, a log line or an error message?
+- [ ] Does each integration or API key get only the permissions the action needs?
+- [ ] When a check can't be completed (a list unreadable, a lookup timed out), does the code stop or refuse, rather than carry on as if it passed?
+- [ ] Does a workflow that runs with a write token act only for trusted people, and only on code from `main`?
+
 ## High-risk paths
 
 A person reads every line of these as well; see the high-risk paths in the guide.
