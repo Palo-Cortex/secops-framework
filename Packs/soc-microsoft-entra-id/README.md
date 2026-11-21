@@ -8,15 +8,7 @@ Correlation rules for Microsoft Entra ID (formerly Azure AD) sign-in events.
 
 ## Prerequisite
 
-The `msft_azure_ad_raw` dataset must exist and have a populated schema before this pack is installed. On tenants without Entra ID data yet, seed the dataset with the SOC Framework test pack:
-
-```
-!SOCFWPoVSend list_name=SOCFWPoVData_Identity_TurlaCarbon_V1 source_name=identity seed=true
-```
-
-Wait 60 seconds, then install this pack.
-
-On production tenants with the Office 365 data source configured, the dataset already exists.
+The `msft_azure_ad_raw` dataset must exist and have a populated schema before this pack is installed. Connect the Office 365 data source with the Microsoft Graph sign-in log options enabled, wait for the first sign-in events to arrive, then install this pack.
 
 ## Native Detection Overlap
 
