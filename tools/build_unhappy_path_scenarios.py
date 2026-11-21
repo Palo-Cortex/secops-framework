@@ -38,7 +38,8 @@ def load_template():
     return rows[0]
 
 
-def device_evidence(hostname, user, ip, remediation="none", detail=""):
+def device_evidence(hostname: str, user: str, ip: str, remediation: str = "none", detail: str = "") -> dict:
+    """Defender deviceEvidence for one host, with the user logged on and its remediation state."""
     return {
         "@odata.type": "#microsoft.graph.security.deviceEvidence",
         "createdDateTime": "2025-12-02T19:17:28.000Z",
@@ -61,8 +62,10 @@ def device_evidence(hostname, user, ip, remediation="none", detail=""):
     }
 
 
-def process_evidence(cmdline, fname, fpath, sha256, publisher, signer,
-                     detection_status, remediation="none", detail="", user="greta"):
+def process_evidence(cmdline: str, fname: str, fpath: str, sha256: str, publisher: str,
+                     signer: str, detection_status: str, remediation: str = "none", detail: str = "",
+                     user: str = "greta") -> dict:
+    """Defender processEvidence for one process: its command line, image file, signer and detection status."""
     return {
         "@odata.type": "#microsoft.graph.security.processEvidence",
         "createdDateTime": "2025-12-02T19:17:28.000Z",
