@@ -48,4 +48,8 @@ def test_each_finding_names_its_line():
 
 
 def test_multicast_and_shared_address_space_pass():
-    assert values('ips = [224.0.0.1, 100.64.0.1]') == []
+    assert values('ips = ["224.0.0.1", "100.64.0.1"]') == []
+
+
+def test_a_lookalike_of_a_reserved_domain_is_flagged():
+    assert values('to = "dc@notexample.com"; u = "https://notexample.org/x"') == ["notexample.com", "notexample.org"]

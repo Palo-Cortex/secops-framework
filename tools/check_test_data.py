@@ -38,7 +38,7 @@ TEST_FILES = (
     "tools/test_*.py",
 )
 
-RESERVED_SUFFIXES = (".example", ".test", ".invalid", ".local", "example.com", "example.net", "example.org")
+RESERVED_DOMAINS = ("example", "test", "invalid", "local", "example.com", "example.net", "example.org")
 ALLOWED_NETWORKS = tuple(ipaddress.ip_network(n) for n in (
     "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24",  # documentation (RFC 5737)
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",      # private (RFC 1918)
@@ -53,7 +53,8 @@ DOMAIN = re.compile(rf"(?<![\w@.-])((?:[a-z0-9-]+\.)+(?:{TLDS}))(?![\w-])", re.I
 
 
 def _reserved_domain(domain: str) -> bool:
-    return domain.lower().endswith(RESERVED_SUFFIXES)
+    domain = domain.lower()
+    return any(domain == r or domain.endswith("." + r) for r in RESERVED_DOMAINS)
 
 
 def _exempt(value: str, allowed: dict[str, str]) -> bool:
