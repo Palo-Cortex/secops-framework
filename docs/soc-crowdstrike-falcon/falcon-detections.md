@@ -250,7 +250,6 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 | `causality_actor_process_image_path` | `causality_actor_process_image_path` |  |  |
 | `causality_actor_process_command_line` | `cgo_cmd` |  |  |
 | `causality_actor_process_image_sha256` | `causality_actor_process_image_sha256` |  |  |
-| `hostos` | `device_platform_name` |  |  |
 | `agentossubtype` | `device_os_version` |  |  |
 | `hostfqdn` | `device_fqdn` |  |  |
 | `hostip` | `local_ip` |  |  |
