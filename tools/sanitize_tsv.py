@@ -49,6 +49,7 @@ SAFE_IP_NETWORKS = [
     ipaddress.ip_network("0.0.0.0/32"),          # Unspecified
     ipaddress.ip_network("100.64.0.0/10"),       # Carrier-grade NAT
     ipaddress.ip_network("169.254.0.0/16"),      # Link-local
+    ipaddress.ip_network("224.0.0.0/4"),         # Multicast: never a real host
     ipaddress.ip_network("::1/128"),             # IPv6 loopback
     ipaddress.ip_network("fc00::/7"),            # IPv6 ULA
     ipaddress.ip_network("fe80::/10"),           # IPv6 link-local
@@ -141,12 +142,38 @@ NON_DOMAIN_EXTENSIONS = {
     ".zip", ".gz", ".tar", ".png", ".jpg", ".gif", ".svg",
 }
 
+# Keys whose values identify a vendor tenant, agent or device (CrowdStrike's
+# customer ID, agent and sensor IDs). The values are replaced wherever they
+# appear: in their own column, inside rawJSON, and inside composite IDs.
+VENDOR_ID_KEYS = (
+    "cid", "aid", "agent_id", "device_id", "sensor_id",
+    "source_endpoint_sensor_id", "target_endpoint_sensor_id",
+)
+# The key, then the value: plain JSON quotes, or the doubled quotes of a JSON
+# string inside a TSV cell.
+VENDOR_ID_IN_JSON = re.compile(
+    r'"{1,2}(' + "|".join(VENDOR_ID_KEYS) + r')"{1,2}\s*:\s*"{1,2}([0-9a-fA-F]{32})"'
+)
+HEX_ID = re.compile(r"^[0-9a-fA-F]{32}$")
+FABRICATED_HEX_ID = re.compile(r"^0{24}[0-9a-f]{8}$")
+
+# A MAC address, with - or : between its six octets. 00-00-5E-00-53-xx is the
+# range RFC 7042 sets aside for documentation.
+MAC_PATTERN = re.compile(r"\b[0-9a-fA-F]{2}([-:])(?:[0-9a-fA-F]{2}\1){4}[0-9a-fA-F]{2}\b")
+DOC_MAC_PREFIX = "00-00-5e-00-53"
+
+# The domain part of a Windows account SID (S-1-5-21-a-b-c); the relative ID
+# that follows it names the account and is kept.
+DOMAIN_SID = re.compile(r"\bS-1-5-21-\d+-\d+-\d+(?=-\d+)")
+FABRICATED_SID_PREFIX = "S-1-5-21-1000000000-2000000000-"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # REPLACEMENT MAP — safe equivalents for fix mode
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Counter for generating unique safe replacements
-_replacement_counters = {"ip": 1, "domain": 1, "uuid": 1}
+_replacement_counters = {"ip": 1, "domain": 1, "uuid": 1, "vendor_id": 1, "mac": 1, "sid": 1}
 _replacement_cache = {}  # original -> replacement for consistency within a run
 
 
@@ -186,6 +213,76 @@ def _safe_uuid_replacement(original: str) -> str:
             f"00000000-0000-4000-a000-{idx:012d}"
         )
     return _replacement_cache[original]
+
+
+def _safe_vendor_id(original: str) -> str:
+    """Replace a 32-hex vendor ID with an obviously fabricated one of the same shape."""
+    if original not in _replacement_cache:
+        idx = _replacement_counters["vendor_id"]
+        _replacement_counters["vendor_id"] += 1
+        _replacement_cache[original] = f"{'0' * 24}{idx:08x}"
+    return _replacement_cache[original]
+
+
+def _safe_mac(original: str) -> str:
+    """Replace a MAC address with one from the documentation range, keeping its separator."""
+    if original not in _replacement_cache:
+        idx = _replacement_counters["mac"]
+        _replacement_counters["mac"] += 1
+        sep = original[2]
+        _replacement_cache[original] = f"{DOC_MAC_PREFIX}-{idx:02x}".replace("-", sep)
+    return _replacement_cache[original]
+
+
+def _safe_domain_sid(original: str) -> str:
+    """Replace a domain SID prefix with a fabricated one; accounts in one domain stay in one domain."""
+    if original not in _replacement_cache:
+        idx = _replacement_counters["sid"]
+        _replacement_counters["sid"] += 1
+        _replacement_cache[original] = f"{FABRICATED_SID_PREFIX}{3000000000 + idx}"
+    return _replacement_cache[original]
+
+
+def _id_columns(content: str) -> list[int]:
+    """Indexes of the header columns named for vendor IDs."""
+    header = content.split("\n", 1)[0].split("\t")
+    return [i for i, name in enumerate(header) if name.strip().lower() in VENDOR_ID_KEYS]
+
+
+def find_identifiers(content: str) -> list[tuple[str, str]]:
+    """(category, value) for each real vendor ID, MAC address and domain SID in a file's text.
+
+    One list for both modes: the report flags these values and fix mode
+    replaces them, so the check and the scrub can't disagree.
+    """
+    found = set()
+    for _key, value in VENDOR_ID_IN_JSON.findall(content):
+        found.add(("VENDOR_ID", value))
+    columns = _id_columns(content)
+    for line in content.split("\n")[1:]:
+        fields = line.split("\t")
+        for i in columns:
+            if i < len(fields) and HEX_ID.match(fields[i].strip()):
+                found.add(("VENDOR_ID", fields[i].strip()))
+    for match in MAC_PATTERN.finditer(content):
+        found.add(("MAC_ADDRESS", match.group()))
+    for match in DOMAIN_SID.finditer(content):
+        found.add(("DOMAIN_SID", match.group()))
+    return sorted(
+        (category, value) for category, value in found
+        if not (category == "VENDOR_ID" and FABRICATED_HEX_ID.match(value))
+        and not (category == "MAC_ADDRESS" and value.lower().replace(":", "-").startswith(DOC_MAC_PREFIX))
+        and not (category == "DOMAIN_SID" and value.startswith(FABRICATED_SID_PREFIX))
+    )
+
+
+def fix_identifiers(content: str) -> tuple[str, int]:
+    """Replace every real vendor ID, MAC address and domain SID, the same way each time."""
+    replace = {"VENDOR_ID": _safe_vendor_id, "MAC_ADDRESS": _safe_mac, "DOMAIN_SID": _safe_domain_sid}
+    found = find_identifiers(content)
+    for category, value in found:
+        content = content.replace(value, replace[category](value))
+    return content, len(found)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -490,6 +587,18 @@ def scan_tsv(filepath: str, allowlist: dict,
             severity="ERROR",
         ))
 
+    # Vendor IDs, MACs and SIDs are found across the whole file, inside JSON too
+    try:
+        content = Path(filepath).read_text(encoding="utf-8", errors="replace")
+        for category, value in find_identifiers(content):
+            findings.append(Finding(
+                file=filename, row=0, col="", category=category, value=value,
+                message="Real identifier from a vendor tenant or a lab - replace with --fix",
+                severity="ERROR",
+            ))
+    except OSError:
+        pass  # the read error is already reported above
+
     # Filter allowlisted findings
     findings = [f for f in findings if not is_allowlisted(f, allowlist)]
 
@@ -519,6 +628,10 @@ def apply_fixes(filepath: str, output_path: str, allowlist: dict) -> int:
                 replacement = _safe_ip_replacement(ip_str)
                 content = content.replace(ip_str, replacement)
                 fix_count += 1
+
+    # Replace vendor IDs, MAC addresses and domain SIDs
+    content, fixed = fix_identifiers(content)
+    fix_count += fixed
 
     # Replace real-looking UUIDs in system-field columns
     # (This is harder to do generically — we flag but manual review is safer)
