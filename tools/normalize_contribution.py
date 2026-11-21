@@ -233,8 +233,10 @@ SKIP_CONTENT_DIRS: set[str] = {
 # Suffix patterns stripped from playbook name and id fields.
 # Only removes explicit copy/export markers — never strips _V3 or other
 # version suffixes that are part of the canonical naming convention.
+# One spelling per marker: with IGNORECASE, listing both _bak and _Bak let a
+# long run of markers match exponentially many ways (ReDoS).
 NAME_SUFFIX_RE = re.compile(
-    r"(?:_copy|_Copy|_export|_Export|_bak|_Bak|_old|_Old)+\s*$",
+    r"(?:_(?:copy|export|bak|old))+\s*$",
     re.IGNORECASE,
 )
 
