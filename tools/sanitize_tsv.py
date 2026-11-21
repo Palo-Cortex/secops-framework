@@ -25,6 +25,7 @@ Exit codes:
 
 import argparse
 import csv
+import hashlib
 import ipaddress
 import json
 import os
@@ -142,18 +143,28 @@ NON_DOMAIN_EXTENSIONS = {
     ".zip", ".gz", ".tar", ".png", ".jpg", ".gif", ".svg",
 }
 
-# Keys whose values identify a vendor tenant, agent or device (CrowdStrike's
-# customer ID, agent and sensor IDs). The values are replaced wherever they
-# appear: in their own column, inside rawJSON, and inside composite IDs.
-VENDOR_ID_KEYS = (
-    "cid", "aid", "agent_id", "device_id", "sensor_id",
+# Keys whose values identify a vendor TENANT (CrowdStrike's customer ID). These
+# are always replaced: they say whose console the data came from. The values are
+# replaced wherever they appear: in their own column, inside rawJSON, and inside
+# composite IDs.
+TENANT_ID_KEYS = ("cid", "customer_id", "ccid")
+
+# Keys whose values identify a host's agent or sensor. A lab capture keeps these
+# as recorded, because they are what ties one host's detections together; they
+# are replaced only with --host-identifiers.
+HOST_ID_KEYS = (
+    "aid", "agent_id", "device_id", "sensor_id",
     "source_endpoint_sensor_id", "target_endpoint_sensor_id",
 )
-# The key, then the value: plain JSON quotes, or the doubled quotes of a JSON
-# string inside a TSV cell.
-VENDOR_ID_IN_JSON = re.compile(
-    r'"{1,2}(' + "|".join(VENDOR_ID_KEYS) + r')"{1,2}\s*:\s*"{1,2}([0-9a-fA-F]{32})"'
-)
+
+
+def _keyed_id_pattern(keys: tuple) -> re.Pattern:
+    """The key, then a 32-hex value: plain JSON quotes, or the doubled quotes of a JSON string inside a TSV cell."""
+    return re.compile(r'"{1,2}(' + "|".join(keys) + r')"{1,2}\s*:\s*"{1,2}([0-9a-fA-F]{32})"')
+
+
+TENANT_ID_IN_JSON = _keyed_id_pattern(TENANT_ID_KEYS)
+HOST_ID_IN_JSON = _keyed_id_pattern(HOST_ID_KEYS)
 HEX_ID = re.compile(r"^[0-9a-fA-F]{32}$")
 FABRICATED_HEX_ID = re.compile(r"^0{24}[0-9a-f]{8}$")
 
@@ -173,7 +184,7 @@ FABRICATED_SID_PREFIX = "S-1-5-21-1000000000-2000000000-"
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Counter for generating unique safe replacements
-_replacement_counters = {"ip": 1, "domain": 1, "uuid": 1, "vendor_id": 1, "mac": 1, "sid": 1}
+_replacement_counters = {"ip": 1, "domain": 1, "uuid": 1}
 _replacement_cache = {}  # original -> replacement for consistency within a run
 
 
@@ -215,71 +226,68 @@ def _safe_uuid_replacement(original: str) -> str:
     return _replacement_cache[original]
 
 
+def _digest(original: str) -> str:
+    """A stable hash of the original value.
+
+    Replacements for identifiers come from it, not from a counter, so the same
+    real value always gets the same replacement, and two files scrubbed in
+    separate runs never share one by accident (a counter restarts at 1 every
+    run, which once gave two scenarios' hosts the same agent ID).
+    """
+    return hashlib.sha256(original.encode()).hexdigest()
+
+
 def _safe_vendor_id(original: str) -> str:
     """Replace a 32-hex vendor ID with an obviously fabricated one of the same shape."""
-    if original not in _replacement_cache:
-        idx = _replacement_counters["vendor_id"]
-        _replacement_counters["vendor_id"] += 1
-        _replacement_cache[original] = f"{'0' * 24}{idx:08x}"
-    return _replacement_cache[original]
+    return f"{'0' * 24}{_digest(original)[:8]}"
 
 
 def _safe_mac(original: str) -> str:
     """Replace a MAC address with one from the documentation range, keeping its separator."""
-    if original not in _replacement_cache:
-        idx = _replacement_counters["mac"]
-        _replacement_counters["mac"] += 1
-        sep = original[2]
-        _replacement_cache[original] = f"{DOC_MAC_PREFIX}-{idx:02x}".replace("-", sep)
-    return _replacement_cache[original]
+    sep = original[2]
+    return f"{DOC_MAC_PREFIX}-{_digest(original)[:2]}".replace("-", sep)
 
 
 def _safe_domain_sid(original: str) -> str:
     """Replace a domain SID prefix with a fabricated one; accounts in one domain stay in one domain."""
-    if original not in _replacement_cache:
-        idx = _replacement_counters["sid"]
-        _replacement_counters["sid"] += 1
-        _replacement_cache[original] = f"{FABRICATED_SID_PREFIX}{3000000000 + idx}"
-    return _replacement_cache[original]
+    return f"{FABRICATED_SID_PREFIX}{3000000000 + int(_digest(original)[:7], 16)}"
 
 
-def _id_columns(content: str) -> list[int]:
-    """Indexes of the header columns named for vendor IDs."""
+def _keyed_ids(content: str, in_json: re.Pattern, keys: tuple) -> set:
+    """32-hex values of the given keys, inside JSON and in columns named for them."""
+    found = {value for _key, value in in_json.findall(content)}
     header = content.split("\n", 1)[0].split("\t")
-    return [i for i, name in enumerate(header) if name.strip().lower() in VENDOR_ID_KEYS]
-
-
-def find_identifiers(content: str) -> list[tuple[str, str]]:
-    """(category, value) for each real vendor ID, MAC address and domain SID in a file's text.
-
-    One list for both modes: the report flags these values and fix mode
-    replaces them, so the check and the scrub can't disagree.
-    """
-    found = set()
-    for _key, value in VENDOR_ID_IN_JSON.findall(content):
-        found.add(("VENDOR_ID", value))
-    columns = _id_columns(content)
+    columns = [i for i, name in enumerate(header) if name.strip().lower() in keys]
     for line in content.split("\n")[1:]:
         fields = line.split("\t")
-        for i in columns:
-            if i < len(fields) and HEX_ID.match(fields[i].strip()):
-                found.add(("VENDOR_ID", fields[i].strip()))
-    for match in MAC_PATTERN.finditer(content):
-        found.add(("MAC_ADDRESS", match.group()))
-    for match in DOMAIN_SID.finditer(content):
-        found.add(("DOMAIN_SID", match.group()))
-    return sorted(
-        (category, value) for category, value in found
-        if not (category == "VENDOR_ID" and FABRICATED_HEX_ID.match(value))
-        and not (category == "MAC_ADDRESS" and value.lower().replace(":", "-").startswith(DOC_MAC_PREFIX))
-        and not (category == "DOMAIN_SID" and value.startswith(FABRICATED_SID_PREFIX))
-    )
+        found.update(fields[i].strip() for i in columns if i < len(fields) and HEX_ID.match(fields[i].strip()))
+    return {value for value in found if not FABRICATED_HEX_ID.match(value)}
 
 
-def fix_identifiers(content: str) -> tuple[str, int]:
-    """Replace every real vendor ID, MAC address and domain SID, the same way each time."""
-    replace = {"VENDOR_ID": _safe_vendor_id, "MAC_ADDRESS": _safe_mac, "DOMAIN_SID": _safe_domain_sid}
-    found = find_identifiers(content)
+def find_identifiers(content: str, host_identifiers: bool = False) -> list[tuple[str, str]]:
+    """(category, value) for each real tenant ID in a file's text, and host identifiers when asked.
+
+    One list for both modes: the report flags these values and fix mode
+    replaces them, so the check and the scrub can't disagree. Host
+    identifiers (agent and sensor IDs, MAC addresses, domain SIDs) are what
+    ties a lab capture's detections together; they count only with
+    host_identifiers.
+    """
+    found = {("TENANT_ID", value) for value in _keyed_ids(content, TENANT_ID_IN_JSON, TENANT_ID_KEYS)}
+    if host_identifiers:
+        found |= {("VENDOR_ID", value) for value in _keyed_ids(content, HOST_ID_IN_JSON, HOST_ID_KEYS)}
+        found |= {("MAC_ADDRESS", m.group()) for m in MAC_PATTERN.finditer(content)
+                  if not m.group().lower().replace(":", "-").startswith(DOC_MAC_PREFIX)}
+        found |= {("DOMAIN_SID", m.group()) for m in DOMAIN_SID.finditer(content)
+                  if not m.group().startswith(FABRICATED_SID_PREFIX)}
+    return sorted(found)
+
+
+def fix_identifiers(content: str, host_identifiers: bool = False) -> tuple[str, int]:
+    """Replace every real tenant ID, and host identifiers when asked, the same way each time."""
+    replace = {"TENANT_ID": _safe_vendor_id, "VENDOR_ID": _safe_vendor_id,
+               "MAC_ADDRESS": _safe_mac, "DOMAIN_SID": _safe_domain_sid}
+    found = find_identifiers(content, host_identifiers)
     for category, value in found:
         content = content.replace(value, replace[category](value))
     return content, len(found)
@@ -504,9 +512,20 @@ def is_allowlisted(finding: Finding, allowlist: dict) -> bool:
 # FILE PROCESSING
 # ─────────────────────────────────────────────────────────────────────────────
 
-def scan_tsv(filepath: str, allowlist: dict,
-             verbose: bool = False) -> list[Finding]:
-    """Scan a single TSV file and return findings."""
+# What --tenant-only leaves alone: addresses, domains and IDs a lab capture
+# keeps as recorded.
+TENANT_ONLY_SKIPS = {"PUBLIC_IP", "REAL_DOMAIN", "REAL_UUID"}
+
+
+def scan_tsv(filepath: str, allowlist: dict, verbose: bool = False,
+             host_identifiers: bool = False, tenant_only: bool = False) -> list[Finding]:
+    """Scan a single TSV file and return findings.
+
+    Args:
+        host_identifiers: also flag agent and sensor IDs, MAC addresses and domain SIDs.
+        tenant_only: flag only what identifies a tenant (tenant IDs, Palo Alto hosts,
+            secrets, system fields), not addresses or domains.
+    """
     findings = []
     filename = os.path.basename(filepath)
 
@@ -587,10 +606,10 @@ def scan_tsv(filepath: str, allowlist: dict,
             severity="ERROR",
         ))
 
-    # Vendor IDs, MACs and SIDs are found across the whole file, inside JSON too
+    # Tenant IDs (and host identifiers when asked) are found across the whole file, inside JSON too
     try:
         content = Path(filepath).read_text(encoding="utf-8", errors="replace")
-        for category, value in find_identifiers(content):
+        for category, value in find_identifiers(content, host_identifiers):
             findings.append(Finding(
                 file=filename, row=0, col="", category=category, value=value,
                 message="Real identifier from a vendor tenant or a lab - replace with --fix",
@@ -600,13 +619,20 @@ def scan_tsv(filepath: str, allowlist: dict,
         pass  # the read error is already reported above
 
     # Filter allowlisted findings
-    findings = [f for f in findings if not is_allowlisted(f, allowlist)]
+    findings = [f for f in findings if not is_allowlisted(f, allowlist)
+                and not (tenant_only and f.category in TENANT_ONLY_SKIPS)]
 
     return findings
 
 
-def apply_fixes(filepath: str, output_path: str, allowlist: dict) -> int:
-    """Read a TSV, replace flagged values with safe equivalents, write output."""
+def apply_fixes(filepath: str, output_path: str, allowlist: dict,
+                host_identifiers: bool = False, tenant_only: bool = False) -> int:
+    """Read a TSV, replace flagged values with safe equivalents, write output.
+
+    Args:
+        host_identifiers: also replace agent and sensor IDs, MAC addresses and domain SIDs.
+        tenant_only: replace only what identifies a tenant; addresses stay as recorded.
+    """
     fix_count = 0
 
     with open(filepath, newline="", encoding="utf-8") as f:
@@ -620,8 +646,8 @@ def apply_fixes(filepath: str, output_path: str, allowlist: dict) -> int:
             content = content.replace(original, replacement)
             fix_count += 1
 
-    # Replace unsafe IPs
-    for ip_match in IP_PATTERN.finditer(content):
+    # Replace unsafe IPs, unless only the tenant's identity is being removed
+    for ip_match in ([] if tenant_only else IP_PATTERN.finditer(content)):
         ip_str = ip_match.group(1)
         if not is_safe_ip(ip_str):
             if ip_str not in [v for v in allowlist.get("ips", [])]:
@@ -629,8 +655,8 @@ def apply_fixes(filepath: str, output_path: str, allowlist: dict) -> int:
                 content = content.replace(ip_str, replacement)
                 fix_count += 1
 
-    # Replace vendor IDs, MAC addresses and domain SIDs
-    content, fixed = fix_identifiers(content)
+    # Replace tenant IDs, and host identifiers when asked
+    content, fixed = fix_identifiers(content, host_identifiers)
     fix_count += fixed
 
     # Replace real-looking UUIDs in system-field columns
@@ -670,7 +696,8 @@ def apply_fixes(filepath: str, output_path: str, allowlist: dict) -> int:
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def main():
+def main() -> None:
+    """Scan, and with --fix scrub, the replay files named on the command line."""
     parser = argparse.ArgumentParser(
         description="Scan and sanitize TSV replay files for public repo safety.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -699,6 +726,14 @@ def main():
     parser.add_argument(
         "--json-output", default=None,
         help="Write findings to JSON file (for CI integration)",
+    )
+    parser.add_argument(
+        "--host-identifiers", action="store_true",
+        help="Also flag and replace agent and sensor IDs, MAC addresses and domain SIDs",
+    )
+    parser.add_argument(
+        "--tenant-only", action="store_true",
+        help="Flag and replace only what identifies a tenant; a lab capture keeps addresses and hosts as recorded",
     )
     args = parser.parse_args()
 
@@ -729,7 +764,8 @@ def main():
     print(f"{'='*70}\n")
 
     for filepath in files_to_scan:
-        findings = scan_tsv(str(filepath), allowlist, args.verbose)
+        findings = scan_tsv(str(filepath), allowlist, args.verbose,
+                            host_identifiers=args.host_identifiers, tenant_only=args.tenant_only)
         all_findings.extend(findings)
 
         errors = [f for f in findings if f.severity == "ERROR"]
@@ -751,7 +787,8 @@ def main():
                 out_path = os.path.join(args.output_dir, filepath.name)
             else:
                 out_path = str(filepath)
-            fix_count = apply_fixes(str(filepath), out_path, allowlist)
+            fix_count = apply_fixes(str(filepath), out_path, allowlist,
+                                    host_identifiers=args.host_identifiers, tenant_only=args.tenant_only)
             print(f"    → Fixed {fix_count} issue(s) → {out_path}")
 
     # Summary
