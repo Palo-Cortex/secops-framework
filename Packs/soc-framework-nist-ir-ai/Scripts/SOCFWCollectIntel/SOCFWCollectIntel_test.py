@@ -37,7 +37,7 @@ def _dt(obj, path):
 
 class Tenant:
     def __init__(self):
-        self.context = {"DBotScore": [{"Indicator": "1.2.3.4", "Score": 3}], "IP": {"Address": "1.2.3.4"},
+        self.context = {"DBotScore": [{"Indicator": "203.0.113.4", "Score": 3}], "IP": {"Address": "203.0.113.4"},
                         "File": {}, "URL": "", "Whois": {"big": "x"}}
         self.set = {}
         self.results = []
@@ -62,7 +62,7 @@ def run(t, monkeypatch, **args):
 def test_resolved_roots_are_collected_and_empty_ones_left_out(t, monkeypatch):
     out = run(t, monkeypatch)
     assert json.loads(t.set["Assessment.Intel"]) == {
-        "DBotScore": [{"Indicator": "1.2.3.4", "Score": 3}], "IP": {"Address": "1.2.3.4"}}
+        "DBotScore": [{"Indicator": "203.0.113.4", "Score": 3}], "IP": {"Address": "203.0.113.4"}}
     assert out == "### Intel collected\n- 2 intel root(s): DBotScore, IP"
 
 

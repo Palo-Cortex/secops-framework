@@ -21,8 +21,8 @@ def test_remote_addresses_reach_endpoint_remote_ips():
 
 
 def test_several_remote_addresses_all_arrive():
-    w = normalize("endpoint", dict(C2, remoteip=["176.59.15.33", "91.52.62.64"]))
-    assert w["Endpoint.remote_ips"] == ["176.59.15.33", "91.52.62.64"]
+    w = normalize("endpoint", dict(C2, remoteip=["176.59.15.33", "198.51.100.64"]))
+    assert w["Endpoint.remote_ips"] == ["176.59.15.33", "198.51.100.64"]
 
 
 def test_lookups_reach_endpoint_dns_queries():

@@ -144,18 +144,18 @@ IP_LIVE = {"shadow": {"soc-block-network-indicator": {"analyst": False}}}
 
 
 def test_an_arg_that_embeds_the_target_follows_each_target():
-    d = _run(target="176.59.15.33,91.52.62.64", action="soc-block-network-indicator",
+    d = _run(target="176.59.15.33,198.51.100.64", action="soc-block-network-indicator",
              product=PANORAMA, tenant=IP_LIVE)
     calls = _calls(d, "pan-os-create-address")
     assert [(c["ip_netmask"], c["name"]) for c in calls] == [
-        ("176.59.15.33", "socfw-block-176.59.15.33"), ("91.52.62.64", "socfw-block-91.52.62.64")]
+        ("176.59.15.33", "socfw-block-176.59.15.33"), ("198.51.100.64", "socfw-block-198.51.100.64")]
 
 
 def test_the_issue_list_fans_out_with_matching_names():
-    d = _run(issue_ips=["176.59.15.33", "91.52.62.64"], action="soc-block-network-indicator",
+    d = _run(issue_ips=["176.59.15.33", "198.51.100.64"], action="soc-block-network-indicator",
              product=PANORAMA, tenant=IP_LIVE)
     assert [c["name"] for c in _calls(d, "pan-os-create-address")] == [
-        "socfw-block-176.59.15.33", "socfw-block-91.52.62.64"]
+        "socfw-block-176.59.15.33", "socfw-block-198.51.100.64"]
 
 
 def test_static_args_do_not_follow_the_target():
@@ -176,7 +176,7 @@ def test_an_endpoint_issue_reaches_every_enforcement_point():
 # dispatched on its own (two failed rows per assignment on a reference tenant, 30 Oct 2026).
 
 BODY = json.dumps({"request_data": {"incident_id": "51045",
-                                    "update_data": {"assigned_user_mail": "a@x.com"}}})
+                                    "update_data": {"assigned_user_mail": "a@example.com"}}})
 
 
 def _parse(raw):

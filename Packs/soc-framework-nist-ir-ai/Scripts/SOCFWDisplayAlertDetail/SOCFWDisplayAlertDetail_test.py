@@ -60,8 +60,8 @@ def test_only_the_groups_with_data_are_drawn(monkeypatch):
 
 
 def test_list_values_are_joined(monkeypatch):
-    html = render(monkeypatch, {"Email": {"To": ["a@x.com", "", "b@x.com"], "Subject": "hi"}})
-    assert "a@x.com, b@x.com" in html and ">Email</div>" in html
+    html = render(monkeypatch, {"Email": {"To": ["a@example.com", "", "b@example.com"], "Subject": "hi"}})
+    assert "a@example.com, b@example.com" in html and ">Email</div>" in html
 
 
 @pytest.mark.parametrize("artifacts", [None, {}, {"Process": {"Name": "", "PID": None}, "Email": {"To": []}}])

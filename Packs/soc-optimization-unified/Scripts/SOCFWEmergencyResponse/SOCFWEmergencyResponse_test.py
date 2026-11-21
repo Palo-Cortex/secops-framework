@@ -755,11 +755,11 @@ def test_protect_covers_destinations(entry, value):
 
 
 def test_each_destination_is_checked_on_its_own():
-    t = c2(ips=("176.59.15.33", "91.52.62.64", "10.20.20.102"), domains=(),
-           scores={"176.59.15.33": 3, "91.52.62.64": 1, "10.20.20.102": 3}).run()
+    t = c2(ips=("176.59.15.33", "198.51.100.64", "10.20.20.102"), domains=(),
+           scores={"176.59.15.33": 3, "198.51.100.64": 1, "10.20.20.102": 3}).run()
     st = t.statuses()
     assert blocks(t) == [("soc-block-network-indicator", "176.59.15.33")]
-    assert st["soc-block-network-indicator 91.52.62.64"] == "blocked"
+    assert st["soc-block-network-indicator 198.51.100.64"] == "blocked"
     assert st["soc-block-network-indicator 10.20.20.102"] == "blocked"
 
 

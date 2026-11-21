@@ -14,7 +14,7 @@
 #   Endpoint — SentinelOne          → sentinelone_edr_raw
 #   Network  — Zscaler ZPA       → zscaler_zpa_raw
 #
-# ZPA story: Carbon implant authenticates to ZPA from 185.220.101.47
+# ZPA story: Carbon implant authenticates to ZPA from 203.0.113.47
 # (Tor exit node) concurrent with C2 beacon. Tunnels lateral movement
 # across LDAP recon → SMB file access → lateral target → mgmt RPC →
 # admin console → backup server → wmimetricsq-relay C2 relay endpoint.
@@ -31,7 +31,7 @@ description: 'Full three-product Turla Carbon kill chain. ProofPoint TAP fires t
   Email Analysis path. SentinelOne fires the Endpoint path via sentinelone_edr_raw
   (dropper threat, orchestrator install, C2 network activity, lateral movement, data
   staging). Zscaler ZPA fires the Network path: Carbon implant authenticates to ZPA
-  from 185.220.101.47 (Tor exit node) and tunnels lateral movement across LDAP, SMB,
+  from 203.0.113.47 (Tor exit node) and tunnels lateral movement across LDAP, SMB,
   management, admin console, backup, and a wmimetricsq-relay C2 relay endpoint. soc-terminate-zpa-session
   + SentinelOne isolate fire in Shadow Mode simultaneously from one incident.'
 mitre_chain:
@@ -91,7 +91,7 @@ iocs:
   sender_ip: 198.51.100.45
   sender_email: noreply@sktlocal.it
   c2_ip: 203.0.113.45
-  attacker_src_ip: 185.220.101.47
+  attacker_src_ip: 203.0.113.47
   zpa_session_id: TurlaGunter-SessionCarbon25
   zpa_connector: skt-zpa-connector-east-01
   zpa_connector_ip: 10.61.10.20
@@ -364,13 +364,13 @@ events:
   collector: SystemXQLHTTPCollector
   soc_framework_category: Network
   mitre_technique_id: T1078
-  note: src=185.220.101.47 is a Tor exit node. ZPA session authenticated for gunter@sktlocal.it
+  note: src=203.0.113.47 is a Tor exit node. ZPA session authenticated for gunter@sktlocal.it
     from an IP that should never originate a ZPA session. Key pivot for soc-terminate-zpa-session.
   data:
     leefEventID: ZPN_STATUS_AUTHENTICATED
     cat: ZPA User Status
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     Connector: skt-zpa-connector-east-01
@@ -411,7 +411,7 @@ events:
     leefEventID: OPEN_OR_ACTIVE_CONNECTION
     cat: ZPA User Activity
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     ConnectionID: TurlaGunter-SessionCarbon25,conn-AD-001
@@ -442,7 +442,7 @@ events:
     leefEventID: OPEN_OR_ACTIVE_CONNECTION
     cat: ZPA User Activity
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     ConnectionID: TurlaGunter-SessionCarbon25,conn-FS-001
@@ -477,11 +477,11 @@ events:
     leefEventID: OPEN_OR_ACTIVE_CONNECTION
     cat: ZPA User Activity
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     ConnectionID: TurlaGunter-SessionCarbon25,conn-LM-001
-    ApplicationName: elnbsbsrv40.eln.gov.br
+    ApplicationName: app-01.partner.example
     ApplicationSegment: internal-servers-segment
     dst: 10.61.116.40
     dstPort: '445'
@@ -510,7 +510,7 @@ events:
     leefEventID: OPEN_OR_ACTIVE_CONNECTION
     cat: ZPA User Activity
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     ConnectionID: TurlaGunter-SessionCarbon25,conn-MGMT-001
@@ -539,7 +539,7 @@ events:
     leefEventID: OPEN_OR_ACTIVE_CONNECTION
     cat: ZPA User Activity
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     ConnectionID: TurlaGunter-SessionCarbon25,conn-ADMIN-001
@@ -568,7 +568,7 @@ events:
     leefEventID: OPEN_OR_ACTIVE_CONNECTION
     cat: ZPA User Activity
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     ConnectionID: TurlaGunter-SessionCarbon25,conn-BKUP-001
@@ -678,7 +678,7 @@ events:
     leefEventID: OPEN_OR_ACTIVE_CONNECTION
     cat: ZPA User Activity
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     ConnectionID: TurlaGunter-SessionCarbon25,conn-C2RELAY-001
@@ -709,7 +709,7 @@ events:
     leefEventID: ZPN_STATUS_DISCONNECTED
     cat: ZPA User Status
     usrName: gunter@sktlocal.it
-    src: 185.220.101.47
+    src: 203.0.113.47
     srcPreNAT: 10.61.76.31
     SessionID: TurlaGunter-SessionCarbon25
     Connector: skt-zpa-connector-east-01
