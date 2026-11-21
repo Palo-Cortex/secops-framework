@@ -105,6 +105,13 @@ jobs:
       - name: Scan — test data uses only allowed values
         run: python tools/check_test_data.py
 
+      # A changed Python file may not gain ruff findings against main (ruff.toml).
+      - name: Install ruff
+        run: pip install ruff==0.17.6
+
+      - name: Lint — no new ruff findings in changed files
+        run: python tools/check_ruff_no_new.py --base origin/main
+
   # ── JOB 1b: VERSION PLAN ────────────────────────────────────────
   # Reads the PR label and determines the bump level for this merge.
   # Defaults to patch with a warning if no label is present.
