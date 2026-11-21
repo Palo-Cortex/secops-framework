@@ -11,7 +11,6 @@ Every script under `tools/`, with what it does in its own words. `check_contribu
 | `build_campaign_from_tsv.py` | UNVERIFIED — no docstring |  |
 | `build_command_specs.py` | Record the arguments of every vendor command the framework calls. | `python3 tools/build_command_specs.py --content /tmp/content` |
 | `build_pack_catalog.py` | UNVERIFIED — no docstring |  |
-| `build_proofpoint_scenarios.py` | Build 6 realistic Proofpoint TAP TSV test scenario files. |  |
 | `build_unhappy_path_scenarios.py` | Build the unhappy-path TSVs for the close/leave branches. | `python3 tools/build_unhappy_path_scenarios.py` |
 | `bump_pack_version.py` | UNVERIFIED — no docstring |  |
 | `check_action_args.py` | Fail when an action names a vendor command or argument the vendor does not have. | `python3 tools/check_action_args.py`<br>`python3 tools/check_action_args.py --verbose` |
