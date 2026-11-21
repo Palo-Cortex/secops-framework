@@ -16,7 +16,7 @@
 #
 # ZPA story: After dropper executes on the endpoint, the Carbon implant
 # (or attacker with stolen session credentials) authenticates to Zscaler
-# ZPA from 185.220.101.47 — a known Tor exit node. The session tunnels
+# ZPA from 203.0.113.47 — a known Tor exit node. The session tunnels
 # lateral movement across multiple internal segments: LDAP recon → SMB
 # file access → lateral target server → mgmt RPC → admin console →
 # backup server → wmimetricsq-relay C2 relay endpoint.
@@ -39,7 +39,7 @@ description: >
   Analysis path. Trend Micro Vision One fires the Endpoint path via Workbench
   alerts (dropper, persistence, masquerading, C2, lateral movement, data staging).
   Zscaler ZPA fires the Network path: the Carbon implant authenticates to ZPA
-  from 185.220.101.47 (Tor exit node) and tunnels lateral movement across LDAP,
+  from 203.0.113.47 (Tor exit node) and tunnels lateral movement across LDAP,
   SMB, management, admin console, backup, and a wmimetricsq-relay C2 endpoint —
   all inside a single hijacked ZPA session (TurlaGunter-SessionCarbon25).
   soc-terminate-zpa-session in Shadow Mode kills the entire tunnel simultaneously.
@@ -109,7 +109,7 @@ iocs:
   sender_ip: "198.51.100.45"
   sender_email: "noreply@sktlocal.it"
   c2_ip: "203.0.113.45"               # TEST-NET-3 — safe for test data
-  attacker_src_ip: "185.220.101.47"   # Tor exit node — anomalous ZPA auth source
+  attacker_src_ip: "203.0.113.47"   # Tor exit node — anomalous ZPA auth source
   zpa_session_id: "TurlaGunter-SessionCarbon25"
   zpa_connector: "skt-zpa-connector-east-01"
   zpa_connector_ip: "10.61.10.20"
@@ -409,12 +409,12 @@ events:
     collector: SystemXQLHTTPCollector
     soc_framework_category: Network
     mitre_technique_id: "T1078"
-    note: "src=185.220.101.47 is a Tor exit node. ZPA session authenticated for gunter@sktlocal.it from an IP that should never originate a ZPA session. Key pivot for soc-terminate-zpa-session."
+    note: "src=203.0.113.47 is a Tor exit node. ZPA session authenticated for gunter@sktlocal.it from an IP that should never originate a ZPA session. Key pivot for soc-terminate-zpa-session."
     data:
       leefEventID: "ZPN_STATUS_AUTHENTICATED"
       cat: "ZPA User Status"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       Connector: "skt-zpa-connector-east-01"
@@ -450,7 +450,7 @@ events:
       leefEventID: "OPEN_OR_ACTIVE_CONNECTION"
       cat: "ZPA User Activity"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       ConnectionID: "TurlaGunter-SessionCarbon25,conn-AD-001"
@@ -482,7 +482,7 @@ events:
       leefEventID: "OPEN_OR_ACTIVE_CONNECTION"
       cat: "ZPA User Activity"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       ConnectionID: "TurlaGunter-SessionCarbon25,conn-FS-001"
@@ -574,11 +574,11 @@ events:
       leefEventID: "OPEN_OR_ACTIVE_CONNECTION"
       cat: "ZPA User Activity"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       ConnectionID: "TurlaGunter-SessionCarbon25,conn-LM-001"
-      ApplicationName: "elnbsbsrv40.eln.gov.br"
+      ApplicationName: "app-01.partner.example"
       ApplicationSegment: "internal-servers-segment"
       dst: "10.61.116.40"
       dstPort: "445"
@@ -606,7 +606,7 @@ events:
       leefEventID: "OPEN_OR_ACTIVE_CONNECTION"
       cat: "ZPA User Activity"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       ConnectionID: "TurlaGunter-SessionCarbon25,conn-MGMT-001"
@@ -636,7 +636,7 @@ events:
       leefEventID: "OPEN_OR_ACTIVE_CONNECTION"
       cat: "ZPA User Activity"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       ConnectionID: "TurlaGunter-SessionCarbon25,conn-ADMIN-001"
@@ -666,7 +666,7 @@ events:
       leefEventID: "OPEN_OR_ACTIVE_CONNECTION"
       cat: "ZPA User Activity"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       ConnectionID: "TurlaGunter-SessionCarbon25,conn-BKUP-001"
@@ -810,7 +810,7 @@ events:
       leefEventID: "OPEN_OR_ACTIVE_CONNECTION"
       cat: "ZPA User Activity"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       ConnectionID: "TurlaGunter-SessionCarbon25,conn-C2RELAY-001"
@@ -841,7 +841,7 @@ events:
       leefEventID: "ZPN_STATUS_DISCONNECTED"
       cat: "ZPA User Status"
       usrName: "gunter@sktlocal.it"
-      src: "185.220.101.47"
+      src: "203.0.113.47"
       srcPreNAT: "10.61.76.31"
       SessionID: "TurlaGunter-SessionCarbon25"
       Connector: "skt-zpa-connector-east-01"

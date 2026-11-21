@@ -16,61 +16,61 @@ a.demisto = demistomock
 
 
 def test_rank_least_loaded_then_email():
-    assert a.rank({"b@x.com": 1, "a@x.com": 1, "c@x.com": 0}) == ["c@x.com", "a@x.com", "b@x.com"]
+    assert a.rank({"b@example.com": 1, "a@example.com": 1, "c@example.com": 0}) == ["c@example.com", "a@example.com", "b@example.com"]
 
 
 def test_run_spreads_cases_by_counting_up(monkeypatch):
     monkeypatch.setattr(a, "assign", lambda cid, email, actor: ("simulated", "shadow"))
-    loads = {"a@x.com": 2, "b@x.com": 0}
+    loads = {"a@example.com": 2, "b@example.com": 0}
     cases = [{"case_id": i} for i in range(4)]
     decisions, left = a.run(cases, loads, "automation", lambda cid: "")
     picks = [d["assignee"] for d in decisions]
     assert left == 0
-    assert picks == ["b@x.com", "b@x.com", "a@x.com", "b@x.com"]
-    assert loads == {"a@x.com": 3, "b@x.com": 3}
+    assert picks == ["b@example.com", "b@example.com", "a@example.com", "b@example.com"]
+    assert loads == {"a@example.com": 3, "b@example.com": 3}
 
 
 def test_run_leaves_a_case_that_gained_an_owner(monkeypatch):
     called = []
     monkeypatch.setattr(a, "assign", lambda *x: called.append(x) or ("assigned", ""))
-    loads = {"a@x.com": 0}
-    d, _ = a.run([{"case_id": 7}], loads, "automation", lambda cid: "someone@x.com")
-    assert d[0]["status"] == "skipped" and called == [] and loads == {"a@x.com": 0}
+    loads = {"a@example.com": 0}
+    d, _ = a.run([{"case_id": 7}], loads, "automation", lambda cid: "someone@example.com")
+    assert d[0]["status"] == "skipped" and called == [] and loads == {"a@example.com": 0}
 
 
 def test_run_does_not_count_a_failed_assignment(monkeypatch):
     monkeypatch.setattr(a, "assign", lambda *x: ("failed", "bad email"))
-    loads = {"a@x.com": 0}
+    loads = {"a@example.com": 0}
     a.run([{"case_id": 1}], loads, "automation", lambda cid: "")
-    assert loads == {"a@x.com": 0}
+    assert loads == {"a@example.com": 0}
 
 
 def test_assign_reads_shadow_and_success(monkeypatch):
     shadow = [{"HumanReadable": "### SOC Framework - SHADOW MODE (Command Not Executed)",
                "Contents": {"action": a.ACTION, "shadow_mode": True, "success": False}}]
     monkeypatch.setattr(a.demisto, "executeCommand", lambda *x, **k: shadow)
-    assert a.assign(1, "a@x.com", "automation")[0] == "simulated"
+    assert a.assign(1, "a@example.com", "automation")[0] == "simulated"
     live = [{"HumanReadable": "### SOC Framework - Universal Command Resolved",
              "Contents": {"action": a.ACTION, "shadow_mode": False}},
             {"HumanReadable": "### SOC Framework - Command Success",
              "Contents": {"action": a.ACTION, "shadow_mode": False, "success": True}}]
     monkeypatch.setattr(a.demisto, "executeCommand", lambda *x, **k: live)
-    assert a.assign(1, "a@x.com", "analyst")[0] == "assigned"
+    assert a.assign(1, "a@example.com", "analyst")[0] == "assigned"
 
 
 def test_assign_passes_the_body_as_one_json_object(monkeypatch):
     seen = {}
     monkeypatch.setattr(a.demisto, "executeCommand", lambda cmd, args: seen.update(args) or [])
-    a.assign(51045, "a@x.com", "automation")
+    a.assign(51045, "a@example.com", "automation")
     body = json.loads(seen["target"])
-    assert body["request_data"] == {"incident_id": "51045", "update_data": {"assigned_user_mail": "a@x.com"}}
+    assert body["request_data"] == {"incident_id": "51045", "update_data": {"assigned_user_mail": "a@example.com"}}
 
 
 def test_run_stops_at_the_budget_and_records_as_it_goes(monkeypatch):
     monkeypatch.setattr(a, "assign", lambda *x: ("simulated", ""))
     ticks = iter([0, 10, 20, 30])
     recorded = []
-    decisions, left = a.run([{"case_id": i} for i in range(5)], {"a@x.com": 0}, "automation",
+    decisions, left = a.run([{"case_id": i} for i in range(5)], {"a@example.com": 0}, "automation",
                             lambda cid: "", deadline=25, on_decision=recorded.append,
                             clock=lambda: next(ticks))
     assert [d["case_id"] for d in decisions] == [0, 1, 2]
@@ -126,8 +126,8 @@ def test_window_filters_the_unassigned_search_only(monkeypatch):
 
 def test_online_users_reads_emails(monkeypatch):
     monkeypatch.setattr(a.demisto, "executeCommand",
-                        lambda cmd, args: [{"Type": 1, "Contents": [{"email": "A@x.com"}, {"name": "no email"}]}])
-    assert a.online_users() == {"a@x.com"}
+                        lambda cmd, args: [{"Type": 1, "Contents": [{"email": "A@example.com"}, {"name": "no email"}]}])
+    assert a.online_users() == {"a@example.com"}
 
 
 def test_online_users_unreadable_is_none(monkeypatch):
@@ -136,7 +136,7 @@ def test_online_users_unreadable_is_none(monkeypatch):
 
 
 def test_loads_counted_in_one_paged_search(monkeypatch):
-    pages = [[{"assigned_user_mail": "A@x.com"}] * 100, [{"assigned_user_mail": "b@x.com"}, {"assigned_user_mail": "z@x.com"}]]
+    pages = [[{"assigned_user_mail": "A@example.com"}] * 100, [{"assigned_user_mail": "b@example.com"}, {"assigned_user_mail": "z@example.com"}]]
     calls = []
 
     def fake(filters, start=0, size=100):
@@ -144,8 +144,8 @@ def test_loads_counted_in_one_paged_search(monkeypatch):
         return pages[start // 100], None
 
     monkeypatch.setattr(a, "search_cases", fake)
-    assert a.loads_of(["a@x.com", "b@x.com", "c@x.com"], ["Security"]) == {"a@x.com": 100, "b@x.com": 1, "c@x.com": 0}
-    assert calls == [(["a@x.com", "b@x.com", "c@x.com"], 0), (["a@x.com", "b@x.com", "c@x.com"], 100)]
+    assert a.loads_of(["a@example.com", "b@example.com", "c@example.com"], ["Security"]) == {"a@example.com": 100, "b@example.com": 1, "c@example.com": 0}
+    assert calls == [(["a@example.com", "b@example.com", "c@example.com"], 0), (["a@example.com", "b@example.com", "c@example.com"], 100)]
 
 
 def test_cap_values():
@@ -159,23 +159,23 @@ def test_cap_values():
 
 def test_cap_skips_full_analysts_and_stops_when_everyone_is_full(monkeypatch):
     monkeypatch.setattr(a, "assign", lambda *x: ("assigned", ""))
-    loads = {"a@x.com": 1, "b@x.com": 2}
+    loads = {"a@example.com": 1, "b@example.com": 2}
     decisions, _ = a.run([{"case_id": i} for i in range(5)], loads, "automation", lambda cid: "", cap=2)
-    assert [d["assignee"] for d in decisions[:1]] == ["a@x.com"]
+    assert [d["assignee"] for d in decisions[:1]] == ["a@example.com"]
     assert decisions[-1]["status"] == "skipped" and "holds 2 or more" in decisions[-1]["note"]
-    assert len(decisions) == 2 and loads == {"a@x.com": 2, "b@x.com": 2}
+    assert len(decisions) == 2 and loads == {"a@example.com": 2, "b@example.com": 2}
 
 
 def test_unlimited_cap_assigns_everything(monkeypatch):
     monkeypatch.setattr(a, "assign", lambda *x: ("assigned", ""))
-    decisions, _ = a.run([{"case_id": i} for i in range(25)], {"a@x.com": 0}, "automation", lambda cid: "")
+    decisions, _ = a.run([{"case_id": i} for i in range(25)], {"a@example.com": 0}, "automation", lambda cid: "")
     assert sum(d["status"] == "assigned" for d in decisions) == 25
 
 
 def test_a_case_the_framework_assigned_recently_is_left_alone(monkeypatch):
     called = []
     monkeypatch.setattr(a, "assign", lambda cid, *x: called.append(cid) or ("assigned", ""))
-    decisions, _ = a.run([{"case_id": 1}, {"case_id": 2}], {"a@x.com": 0}, "automation", lambda cid: "",
+    decisions, _ = a.run([{"case_id": 1}, {"case_id": 2}], {"a@example.com": 0}, "automation", lambda cid: "",
                          recently=lambda: {"1"})
     assert called == [2]
     assert decisions[0]["status"] == "skipped" and "last 15 minutes" in decisions[0]["note"]
@@ -225,7 +225,7 @@ def test_starred_filter_on_the_unassigned_search_only(monkeypatch):
     assert STARRED not in seen[-1]
     a.unassigned_cases(["Security"], 5, case_id="9")
     assert STARRED not in seen[-1]
-    a.loads_of(["a@x.com"], ["Security"])
+    a.loads_of(["a@example.com"], ["Security"])
     assert STARRED not in seen[-1]
 
 

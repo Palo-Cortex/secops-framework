@@ -233,7 +233,7 @@ def test_roster_only_from_the_role_fallback_warns_with_the_fix():
 
 
 def test_roster_with_the_customer_analysts_is_ok():
-    c = roster_check(rows=[{"email": "a@x.com", "source": "manual"}, {"email": "b@x.com", "source": "xsiam_role"}])
+    c = roster_check(rows=[{"email": "a@example.com", "source": "manual"}, {"email": "b@example.com", "source": "xsiam_role"}])
     assert c["status"] == "OK" and "1 manual" in c["detail"]
 
 

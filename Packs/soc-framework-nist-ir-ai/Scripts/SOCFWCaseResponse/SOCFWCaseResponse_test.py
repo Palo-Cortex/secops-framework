@@ -412,8 +412,8 @@ def _artifacts(**paths):
 @pytest.mark.parametrize("entity,ctx", [
     ({"type": "email", "name": "noreply@sktlocal.it"}, _artifacts(Email__From="noreply@sktlocal.it")),
     ({"type": "domain", "name": "zamstats.me"}, _artifacts(Network__DNS__Query=["zamstats.me"])),
-    ({"type": "domain", "name": "cdn.clubinfo.io"},
-     _artifacts(Network__Destination__Hostname="cdn.clubinfo.io")),
+    ({"type": "domain", "name": "cdn.attacker.example"},
+     _artifacts(Network__Destination__Hostname="cdn.attacker.example")),
     ({"type": "host", "name": "192.168.1.101"}, _artifacts(Endpoint__IPAddress="192.168.1.101")),
     ({"type": "identity", "name": "adalwolfa"}, _artifacts(Identity__User__SAM="SKT\\adalwolfa")),
     ({"type": "file", "name": "0ea7e9ce5fcca464"}, _artifacts(Process__SHA256="0ea7e9ce5fcca464")),
