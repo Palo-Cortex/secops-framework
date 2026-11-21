@@ -99,5 +99,5 @@ ruff check $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py
 | Unit tests pass | PR gate and `check_contribution` (`run_pack_tests.py`) | |
 | Lint | PR gate: `check_ruff_no_new.py`, which fails when a changed file has more findings for any rule than on `main`, and lists the existing findings of a high-risk file | |
 | Test data | PR gate: `check_test_data.py`, with exemptions and their reasons in `policies/test_data_allowed.json` | |
-| Tests first for fixes | Review: the pull request shows the failing run | A CI check that a fix's new tests fail on `main` |
+| Tests first for fixes | PR gate: `check_fix_test_fails_on_main.py`. For a pull request titled `fix...` that changes code, the tests it adds or changes must fail on `main` | |
 | Review checklist | The author, before opening the pull request | An automated reviewer, once a second regular contributor or a missed problem calls for one |
