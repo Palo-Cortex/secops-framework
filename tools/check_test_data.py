@@ -11,6 +11,9 @@ host, a public adversary-emulation indicator).
 Domains are recognised by common top-level domains, so a value under an
 unusual TLD can slip past; review still applies.
 
+Replay captures (``.tsv`` files and ``SOCFWPoVData_*`` lists) are refused
+outright: they are lab recordings and live only in the private attack library.
+
 Runs in the PR gate. Exit 1 with file:line and the value; exit 0 when clean.
 
 Usage::
@@ -36,9 +39,10 @@ TEST_FILES = (
     "Packs/*/Scripts/*/test_data/*",
     "scenarios/*.yml",
     "tools/test_*.py",
-    # Replay data shipped in the PoV test pack: events from a lab, so the same rules apply.
-    "Packs/soc-framework-pov-test/Lists/*/*_data.json",
 )
+
+# Lab replay captures. They belong in the private attack library, never in this repo.
+REPLAY_DATA_FILES = ("*.tsv", "*/Lists/SOCFWPoVData_*")
 
 RESERVED_DOMAINS = ("example", "test", "invalid", "local", "example.com", "example.net", "example.org")
 ALLOWED_NETWORKS = tuple(ipaddress.ip_network(n) for n in (
@@ -91,9 +95,20 @@ def findings(text: str, allowed: dict[str, str]) -> list[tuple[int, str, str]]:
     return found
 
 
-def _test_files() -> list[str]:
+def _tracked_files() -> list[str]:
+    """Return every path git tracks in the repo."""
     out = subprocess.run(["git", "ls-files"], cwd=REPO_ROOT, capture_output=True, text=True, check=True).stdout
-    return [p for p in out.splitlines() if any(fnmatch.fnmatch(p, g) for g in TEST_FILES)]
+    return out.splitlines()
+
+
+def _test_files() -> list[str]:
+    """Return the tracked paths that hold tests, test data or replay scenarios."""
+    return [p for p in _tracked_files() if any(fnmatch.fnmatch(p, g) for g in TEST_FILES)]
+
+
+def replay_data(paths: list[str]) -> list[str]:
+    """Return the paths that look like lab replay captures."""
+    return [p for p in paths if any(fnmatch.fnmatch(p.lower(), g.lower()) for g in REPLAY_DATA_FILES)]
 
 
 def main() -> int:
@@ -101,7 +116,7 @@ def main() -> int:
     allowed = {k.lower(): v for k, v in policy["allowed"].items()}
     skip = set(policy.get("skip_files", []))
 
-    failures = []
+    failures = [f"{rel}: replay capture; keep it in the private attack library" for rel in replay_data(_tracked_files())]
     for rel in _test_files():
         if rel in skip:
             continue

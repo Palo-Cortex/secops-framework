@@ -3,7 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from check_test_data import _test_files, findings  # noqa: E402
+from check_test_data import _tracked_files, findings, replay_data  # noqa: E402
 
 NO_EXEMPTIONS: dict[str, str] = {}
 
@@ -55,6 +55,23 @@ def test_a_lookalike_of_a_reserved_domain_is_flagged():
     assert values('to = "dc@notexample.com"; u = "https://notexample.org/x"') == ["notexample.com", "notexample.org"]
 
 
-def test_replay_data_lists_in_the_pov_test_pack_are_scanned():
-    scanned = _test_files()
-    assert any(p.endswith("SOCFWPoVData_CrowdStrike_TurlaCarbon_V1_data.json") for p in scanned)
+def test_replay_captures_are_refused_wherever_they_sit():
+    paths = [
+        "data/CrowdStrike-MITRE-Turla-Carbon-in-XSIAM.tsv",
+        "Packs/x/Lists/SOCFWPoVData_Foo_V1/SOCFWPoVData_Foo_V1_data.json",
+        "Packs/x/Scripts/S/test_data/input.TSV",
+    ]
+    assert replay_data(paths) == paths
+
+
+def test_ordinary_lists_and_test_data_are_not_replay_data():
+    paths = [
+        "Packs/x/Lists/SOCActionTimeMap_V3/SOCActionTimeMap_V3_data.json",
+        "Packs/x/Scripts/S/test_data/golden.json",
+        "tools/replay_scenario.py",
+    ]
+    assert replay_data(paths) == []
+
+
+def test_the_repo_holds_no_replay_data():
+    assert replay_data(_tracked_files()) == []
