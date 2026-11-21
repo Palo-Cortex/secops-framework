@@ -112,11 +112,15 @@ def replay_data(paths: list[str]) -> list[str]:
 
 
 def main() -> int:
+    """Check every tracked file and print each problem; return 1 if there were any."""
     policy = json.loads(POLICY.read_text())
     allowed = {k.lower(): v for k, v in policy["allowed"].items()}
     skip = set(policy.get("skip_files", []))
 
-    failures = [f"{rel}: replay capture; keep it in the private attack library" for rel in replay_data(_tracked_files())]
+    failures = [
+        f"{rel}: replay capture; keep it in the private attack library"
+        for rel in replay_data(_tracked_files())
+    ]
     for rel in _test_files():
         if rel in skip:
             continue
