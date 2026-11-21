@@ -55,7 +55,7 @@ def device_evidence(hostname, user, ip, remediation="none", detail=""):
         "healthStatus": "active", "riskScore": "low",
         "rbacGroupId": 1, "rbacGroupName": "Default",
         "onboardingStatus": "onboarded", "defenderAvStatus": "updated",
-        "lastIpAddress": ip, "lastExternalIpAddress": "20.124.230.220",
+        "lastIpAddress": ip, "lastExternalIpAddress": "198.51.100.1",
         "ipInterfaces": [ip, "127.0.0.1"], "vmMetadata": None,
         "loggedOnUsers": [{"accountName": user, "domainName": "SKT"}],
     }
@@ -87,7 +87,7 @@ def process_evidence(cmdline, fname, fpath, sha256, publisher, signer,
             "filePublisher": "Microsoft Windows Publisher",
             "signer": "Microsoft Windows Publisher", "issuer": None},
         "userAccount": {"accountName": user, "domainName": "SKT",
-                        "userSid": "S-1-5-21-4168186624-547105363-3065826963-2204"},
+                        "userSid": "S-1-5-21-1000000000-2000000000-3000000001-2204"},
         "riskScore": None,
     }
 
