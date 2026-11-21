@@ -12,6 +12,11 @@ name: SOC Packs — Fix dependency versions
 #
 # Scoped to the single pack changed in the PR (enforced by the
 # single-pack PR gate). Never touches other packs.
+#
+# This runs with a write token, so it only obeys the repo's owner, members
+# and collaborators, only works on branches in this repo (never a fork), and
+# runs the dependency tool from main: a pull request can't change the code
+# that runs here.
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -24,9 +29,11 @@ permissions:
 
 jobs:
   fix-deps:
-    # Only run on PR comments (not issue comments) containing a slash command
+    # Only run on PR comments (not issue comments) containing a slash command,
+    # from someone with write access to the repo
     if: |
       github.event.issue.pull_request != null &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
       (
         startsWith(github.event.comment.body, '/fix-deps') ||
         startsWith(github.event.comment.body, '/fix-dep ') ||
@@ -89,10 +96,14 @@ jobs:
 
           pr_data = subprocess.check_output(
               ["gh", "pr", "view", pr_number, "--repo", repo,
-               "--json", "headRefName,files"],
+               "--json", "headRefName,files,isCrossRepository"],
               text=True
           )
           pr = json.loads(pr_data)
+          if pr.get("isCrossRepository"):
+              print("::error::This pull request comes from a fork. Run "
+                    "tools/check_dependency_versions.py --fix locally and push the result.")
+              raise SystemExit(1)
           branch = pr["headRefName"]
 
           # Identify the single changed pack from the PR file list
@@ -123,6 +134,16 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The tool comes from main, never from the pull request
+      - name: Checkout the dependency tool from main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: main
+          path: .trusted
+          sparse-checkout: tools/check_dependency_versions.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.10"
@@ -150,7 +171,7 @@ jobs:
               print("::error::Could not determine the changed pack from this PR.")
               sys.exit(1)
 
-          base_cmd = ["python", "tools/check_dependency_versions.py", "--pack", pack]
+          base_cmd = ["python", ".trusted/tools/check_dependency_versions.py", "--pack", pack, "--root", "."]
 
           if mode == "fix-all":
               subprocess.run([*base_cmd, "--fix"], check=True)
