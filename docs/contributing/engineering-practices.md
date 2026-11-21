@@ -66,6 +66,22 @@ Every pull request gets one automated review pass before a person looks at it. T
 | An item whose comments are usually dismissed is cut, or turned into a rule | Noise teaches people to ignore the reviewer |
 | Docs and dashboards: comments only. High-risk paths: a person reads every line as well | Review effort follows the damage a mistake can do |
 
+## Conventions
+
+The rules people need every day, in one place. The reasons behind refactoring and lean settings are in [Refactoring and keeping the framework lean](refactoring.md); how pages are written is in [Writing documentation](writing-docs.md).
+
+| Area | Convention |
+|---|---|
+| Branches | One concern per branch, from current `main`. Bring a branch up to date with `git rebase origin/main`, not the GitHub "Update branch" button |
+| Commits | One logical step per commit, made before you start the next thing. The message says what changed and why; customer issues are described by what happened, not who |
+| Merges | Squash. `[skip release]` in the subject when the change should not cut a release; cut the release once a batch is gated and tested, rather than leaving merged work unreleased |
+| Before a pull request | Run `check_contribution.py` against a lab tenant, then run the change on that tenant: the happy path, the unhappy paths, a regression check on what already works, and the tenant's own traffic as noise |
+| Comments | Say what a block does and why a non-obvious choice was made. No change history or version notes in code: that is git's job |
+| Generated content | Never edit it by hand. A list emitted from `schemas/` is changed in the schema and re-emitted |
+| Playbooks | End with a `Done` title task. Changing actions go through the universal command and ship in Shadow Mode |
+| Correlation rules | Never write into an issue field the platform owns; `check_issue_field_targets.py` fails the gate if one does |
+| Names | New components use the `SOCFW` prefix and no `_V3`. Propose a new name, key, actor or list before building it |
+
 ## Lint
 
 `ruff.toml` at the repo root holds the settings: PEP 8 naming and layout, likely bugs, simpler forms, and limits on function size and complexity. Run it on the files you changed:
