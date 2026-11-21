@@ -1124,7 +1124,23 @@ def _record_duplicate(shared, vendor, command, inline_args, key, prior, terminal
     return {"vendor": vendor, "target": key, "outcome": "duplicate", "reason": note}
 
 
-def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, terminal):
+class _Call:
+    """One vendor command about to be dispatched for one target."""
+
+    __slots__ = ("vendor", "vendor_data", "command", "inline_args", "target")
+
+    def __init__(self, vendor: str, vendor_data: dict, command: str, inline_args: dict,
+                 target: str | None) -> None:
+        """Hold the vendor branch, its resolved command and args, and the target (None for a single target)."""
+        self.vendor = vendor
+        self.vendor_data = vendor_data
+        self.command = command
+        self.inline_args = inline_args
+        self.target = target
+
+
+def _dispatch_one(shared: dict, vendor: str, vendor_data: dict, command: str, inline_args: dict,
+                  target: str | None, terminal: bool) -> dict:
     """Dispatch one (vendor, target) pair: shadow or execute, record, dataset row.
 
     Behavior for the terminal case (single vendor, single target — every action
@@ -1138,406 +1154,363 @@ def _dispatch_one(shared, vendor, vendor_data, command, inline_args, target, ter
     simulated | no_instance | success | failed | skipped_no_artifact | integration_unavailable;
     the per-target loop adds duplicate for an action already taken on that target in the case.
     """
-    action = shared["action"]
-    args = shared["args"]
-    ctx = shared["ctx"]
-    tags = shared["tags"]
-    raw_tags = shared["raw_tags"]
-    output_key = shared["output_key"]
-    using = shared["using"]
-    shadow_mode = shared["shadow_mode"]
-    run_id = shared["run_id"]
-    timestamp = shared["timestamp"]
-    schema_entries = shared["schema_entries"]
-    issue = shared["issue"]
-    action_time_minutes = shared["action_time_minutes"]
-    action_time_category = shared["action_time_category"]
+    call = _Call(vendor, vendor_data, command, inline_args, target)
+    _log_resolved(shared, call)
 
+    if shared["shadow_mode"]:
+        return _dispatch_shadow(shared, call, terminal)
+
+    try:
+        result = _call_vendor(shared, call)
+        failed, error_msg = integration_failed(result)
+        if failed:
+            return _record_failure(shared, call, error_msg, terminal)
+        return _record_success(shared, call, result)
+    except Exception as e:
+        _record_exception(shared, call, e)
+        if terminal:
+            raise
+        return {"vendor": vendor, "target": target, "outcome": "failed", "reason": str(e)}
+
+
+def _log_resolved(shared: dict, call: _Call) -> None:
+    """Log the command as resolved, before anything is run or simulated."""
     resolved_payload = {
-        "run_id": run_id,
-        "action": action,
-        "vendor": vendor,
-        "command": command,
-        "args": inline_args,
-        "shadow_mode": shadow_mode,
-        "raw_tags": raw_tags,
-        "raw_tags_type": str(type(raw_tags)),
-        "tags": tags
+        "run_id": shared["run_id"],
+        "action": shared["action"],
+        "vendor": call.vendor,
+        "command": call.command,
+        "args": call.inline_args,
+        "shadow_mode": shared["shadow_mode"],
+        "raw_tags": shared["raw_tags"],
+        "raw_tags_type": str(type(shared["raw_tags"])),
+        "tags": shared["tags"]
     }
-    if target is not None:
-        resolved_payload["target"] = target
+    if call.target is not None:
+        resolved_payload["target"] = call.target
 
     warroom_log(
         "SOC Framework - Universal Command Resolved",
         resolved_payload,
-        tags
+        shared["tags"]
     )
 
+
+def _dispatch_record(shared: dict, call: _Call, *, success: bool, failed: bool = False,
+                     error: str | None = None, no_instance: bool = False) -> dict:
+    """The record of one dispatch for context and the War Room, keys in the order they are shown.
+
+    Args:
+        success: whether the vendor command ran and succeeded.
+        failed: whether to carry an "error" key; a failure always does, even when the message is empty.
+        error: the error message for a failure.
+        no_instance: shadow only - no enabled instance serves the command.
+    """
+    record = {
+        "run_id": shared["run_id"],
+        "action": shared["action"],
+        "vendor": call.vendor,
+        "command": call.command,
+        "args": call.inline_args,
+        "shadow_mode": bool(shared["shadow_mode"]),
+        "success": success,
+    }
+    if failed:
+        record["error"] = error
+    record["tags"] = shared["tags"]
+    record["timestamp"] = shared["timestamp"]
+    if no_instance:
+        record["no_instance"] = True
+    if call.target is not None:
+        record["target"] = call.target
+    return record
+
+
+def _row_values(shared: dict, call: _Call, *, status: str, minutes: int,
+                error_type: str = "", error_message: str | None = "") -> dict:
+    """The wrapper's own columns for this dispatch's dataset row, keys in the order they are posted.
+
+    Args:
+        status: the action_status column - simulated, no_instance, success, failed or integration_unavailable.
+        minutes: analyst time credited to the action; zero when nothing would have run.
+        error_type: empty for no error; otherwise integration_unavailable or command_execution.
+        error_message: the error text, empty when there is none.
+    """
+    shadow_mode = bool(shared["shadow_mode"])
+    actor = shared["args"].get("Action_Actor")
+    values = {
+        "timestamp": shared["timestamp"],
+        "event_type": "command",
+        "run_id": shared["run_id"],
+        "action": shared["action"],
+        "vendor": call.vendor,
+        "command": call.command,
+        "action_status": status,
+        "action_actor": normalize_action_actor(actor, shadow_mode),
+        "execution_mode": "shadow" if shadow_mode else "production",
+        "shadow_mode_state": "collected" if shadow_mode else "not_applicable",
+    }
     if shadow_mode:
-        # A shadow row says "this would have run". When no enabled instance
-        # serves the command it would not have: the row is kept so the tenant
-        # can see which integration the action needs, but it earns no time.
-        no_instance = command_served(command) is False
-        status = "no_instance" if no_instance else "simulated"
-        credited_minutes = 0 if no_instance else action_time_minutes
+        # Carried on the row so a dashboard or an export can say what to
+        # change, not just that something was suppressed.
+        values["shadow_disable_hint"] = shadow_go_live_command(shared["action"], actor)
+    values["has_error"] = bool(error_type)
+    values["error_type"] = error_type
+    values["error_message"] = error_message
+    values["action_time_minutes"] = minutes
+    values["action_time_category"] = shared["action_time_category"]
+    if call.target is not None:
+        values["action_target"] = call.target
+    elif shared.get("target_key"):
+        values["action_target"] = shared["target_key"]
+    return values
 
-        record = {
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": True,
-            "success": False,
-            "tags": tags,
-            "timestamp": timestamp
-        }
-        if no_instance:
-            record["no_instance"] = True
-        if target is not None:
-            record["target"] = target
 
-        if output_key:
-            append_context(output_key, record)
+def _post_row(shared: dict, values: dict) -> None:
+    """Post one dataset row: the payload the schema lists resolve from context, plus the wrapper's columns."""
+    ctx = shared["ctx"]
+    base_payload = resolve_schema_payload(shared["schema_entries"], ctx)
+    dataset_payload = enrich_payload(base_payload, ctx, shared["issue"], values, shared["args"])
+    post_dataset_payload(dataset_payload, shared["tags"])
 
-        base_payload = resolve_schema_payload(schema_entries, ctx)
 
-        wrapper_values = {
-            "timestamp": timestamp,
-            "event_type": "command",
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "action_status": status,
-            "action_actor": normalize_action_actor(args.get("Action_Actor"), True),
-            "execution_mode": "shadow",
-            "shadow_mode_state": "collected",
-            # Carried on the row so a dashboard or an export can say what to
-            # change, not just that something was suppressed.
-            "shadow_disable_hint": shadow_go_live_command(action, args.get("Action_Actor")),
-            "has_error": False,
-            "error_type": "",
-            "error_message": "",
-            "action_time_minutes": credited_minutes,
-            "action_time_category": action_time_category
-        }
-        if target is not None:
-            wrapper_values["action_target"] = target
-        elif shared.get("target_key"):
-            wrapper_values["action_target"] = shared["target_key"]
+def _append_record(shared: dict, record: dict) -> None:
+    """Append the record to the caller's output key, when the caller named one."""
+    if shared["output_key"]:
+        append_context(shared["output_key"], record)
 
-        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-        post_dataset_payload(dataset_payload, tags)
 
-        # Write sentinel UC.* keys so downstream conditions work in shadow mode
-        output_map = vendor_data.get("output_map", {})
-        fresh_ctx = demisto.context()
-        apply_output_map(output_map, fresh_ctx, shadow_mode=True)
+def _clear_outputs(call: _Call) -> None:
+    """Null the action's UC.* output keys, so later conditions take their default path instead of failing."""
+    output_map = call.vendor_data.get("output_map", {})
+    for dest_key in (output_map or {}).keys():
+        demisto.setContext(dest_key, None)
 
-        warroom_log(
-            "SOC Framework - SHADOW MODE (No Instance - Command Not Executed)" if no_instance
-            else "SOC Framework - SHADOW MODE (Command Not Executed)",
-            record,
-            tags,
-            footer=shadow_footer(action, args.get("Action_Actor"))
-        )
 
-        if terminal:
-            return_results(
-                f"Shadow Mode: command not executed — no enabled instance serves {command}"
-                if no_instance else "Shadow Mode: command not executed")
-        return {"vendor": vendor, "target": target, "outcome": status}
+def _dispatch_shadow(shared: dict, call: _Call, terminal: bool) -> dict:
+    """Record what the command would have done, without calling the vendor."""
+    action = shared["action"]
+    actor = shared["args"].get("Action_Actor")
+
+    # A shadow row says "this would have run". When no enabled instance
+    # serves the command it would not have: the row is kept so the tenant
+    # can see which integration the action needs, but it earns no time.
+    no_instance = command_served(call.command) is False
+    status = "no_instance" if no_instance else "simulated"
+    credited_minutes = 0 if no_instance else shared["action_time_minutes"]
+
+    record = _dispatch_record(shared, call, success=False, no_instance=no_instance)
+    _append_record(shared, record)
+    _post_row(shared, _row_values(shared, call, status=status, minutes=credited_minutes))
+
+    # Write sentinel UC.* keys so downstream conditions work in shadow mode
+    output_map = call.vendor_data.get("output_map", {})
+    fresh_ctx = demisto.context()
+    apply_output_map(output_map, fresh_ctx, shadow_mode=True)
+
+    warroom_log(
+        "SOC Framework - SHADOW MODE (No Instance - Command Not Executed)" if no_instance
+        else "SOC Framework - SHADOW MODE (Command Not Executed)",
+        record,
+        shared["tags"],
+        footer=shadow_footer(action, actor)
+    )
+
+    if terminal:
+        return_results(
+            f"Shadow Mode: command not executed — no enabled instance serves {call.command}"
+            if no_instance else "Shadow Mode: command not executed")
+    return {"vendor": call.vendor, "target": call.target, "outcome": status}
+
+
+def _call_vendor(shared: dict, call: _Call) -> list:
+    """Run the vendor command and return its result entries.
+
+    An unavailable brand is answered with the error the failure path already
+    recognizes, so the outcome, the record and the dataset row are identical
+    to a real error 23 - the only difference is that nothing was called.
+    """
+    # Drop args that failed context resolution — sending empty values
+    # to vendor APIs causes 4xx errors (e.g. Proofpoint TAP 400 when
+    # threatId/campaignId are present-but-empty).
+    execute_args = {
+        k: v for k, v in call.inline_args.items()
+        if v not in (None, "", [], {})
+    }
+    # A using= on the call overrides one from the tenant config.
+    if shared["using"]:
+        execute_args["using"] = shared["using"]
+
+    # Log exactly what is sent, so the instance shown is the one used.
+    warroom_log(
+        "SOC Framework - Executing Command",
+        {
+            "command": call.command,
+            "args": execute_args
+        },
+        shared["tags"]
+    )
+
+    if not brand_available(call.vendor):
+        return [{
+            "Type": entryTypes["error"],
+            "ContentsFormat": formats["text"],
+            "Contents": (f"Unsupported Command: {call.command} — no active instance "
+                         f"of brand '{call.vendor}' on this tenant."),
+        }]
+    return demisto.executeCommand(call.command, execute_args)
+
+
+def _record_failure(shared: dict, call: _Call, error_msg: str | None, terminal: bool) -> dict:
+    """Record a vendor command that reported an error, then soft-fail or stop the playbook.
+
+    An integration that is missing or disabled (error 23) soft-fails, so the
+    playbook continues in degraded mode. Shadow mode never reaches this path:
+    the vendor command is suppressed there.
+    """
+    integration_unavailable = (
+        "Unsupported Command" in (error_msg or "")
+        or "(23)" in (error_msg or "")
+    )
+
+    record = _dispatch_record(shared, call, success=False, failed=True, error=error_msg)
+    _append_record(shared, record)
+    _post_row(shared, _row_values(
+        shared, call,
+        status="integration_unavailable" if integration_unavailable else "failed",
+        minutes=shared["action_time_minutes"],
+        error_type="integration_unavailable" if integration_unavailable else "command_execution",
+        error_message=error_msg))
+
+    warroom_log(
+        "SOC Framework - Command Failure",
+        record,
+        shared["tags"]
+    )
+
+    if integration_unavailable:
+        return _soft_fail_unavailable(shared, call, error_msg)
+
+    # A read-only action that fails (a vendor 429, a timeout, a 5xx) costs the
+    # investigation one lookup; stopping the playbook would cost it everything
+    # after. Actions that change something still stop, so a failed isolate or
+    # block is never mistaken for one that ran.
+    if terminal and is_read_only(shared.get("action_entry") or {}):
+        return _soft_fail_read_only(shared, call, error_msg)
+
+    if terminal:
+        return_error(error_msg)
+    return {"vendor": call.vendor, "target": call.target,
+            "outcome": "failed", "reason": error_msg}
+
+
+def _soft_fail_unavailable(shared: dict, call: _Call, error_msg: str | None) -> dict:
+    """Tell the analyst the action needs an integration this tenant lacks, and let the playbook continue."""
+    action, command = shared["action"], call.command
+    # Null out UC.* output keys so downstream conditions evaluate cleanly
+    # (missing key → default/blocked path) rather than raising errors
+    _clear_outputs(call)
+
+    return_warning(
+        f"[SOCCommandWrapper] Integration not available for action '{action}'. "
+        f"Command: {command}. "
+        f"Install and configure the required integration to enable this action."
+    )
+    return_results(CommandResults(
+        readable_output=(
+            f"⚠️ Integration unavailable: `{command}`\n\n"
+            f"Action `{action}` requires an integration that is not installed or enabled. "
+            f"Playbook continues in degraded mode."
+        ),
+        outputs_prefix="UC",
+        outputs={"action": action, "status": "integration_unavailable", "command": command}
+    ))
+    return {"vendor": call.vendor, "target": call.target,
+            "outcome": "integration_unavailable", "reason": error_msg}
+
+
+def _soft_fail_read_only(shared: dict, call: _Call, error_msg: str | None) -> dict:
+    """Skip a failed read-only action and let the playbook continue without its result."""
+    action, command = shared["action"], call.command
+    _clear_outputs(call)
+
+    return_warning(
+        f"[SOCCommandWrapper] Read-only action '{action}' failed and was skipped. "
+        f"Command: {command}. Error: {error_msg}"
+    )
+    return_results(CommandResults(
+        readable_output=(
+            f"⚠️ Command failed: `{command}`\n\n"
+            f"Action `{action}` only reads, so the playbook continues without "
+            f"its result.\n\nError: {error_msg}"
+        ),
+        outputs_prefix="UC",
+        outputs={"action": action, "status": "failed", "command": command}
+    ))
+    return {"vendor": call.vendor, "target": call.target,
+            "outcome": "failed", "reason": error_msg}
+
+
+def _record_success(shared: dict, call: _Call, result: list) -> dict:
+    """Record a vendor command that succeeded, map its output to UC.* keys, and pass its result on."""
+    record = _dispatch_record(shared, call, success=True)
+
+    # Read what the vendor reported about the endpoint - containment state and
+    # role - from this call's own output, and return it on the record. A caller
+    # that dispatched the wrapper cannot see the vendor's context until it
+    # finishes, so the record is how a layout or a playbook step gets the
+    # answer in the same run.
+    entry_context = _extract_entry_context(result)
+    observed = read_observations(call.vendor_data, entry_context)
+    record.update(observed)
+    if observed and normalize_action_actor(shared["args"].get("Action_Actor"), False) != "layout":
+        # A render must not move what containment reads; any other caller
+        # refreshes the endpoint contract with the live value.
+        for key, ctx_key in (("status", "SOCFramework.Endpoint.containment_status"),
+                             ("role", "SOCFramework.Endpoint.role")):
+            if observed.get(key) not in (None, "", "unknown"):
+                demisto.setContext(ctx_key, observed[key])
+
+    _append_record(shared, record)
+    _post_row(shared, _row_values(shared, call, status="success", minutes=shared["action_time_minutes"]))
+
+    # Map vendor output to canonical UC.* context keys
+    output_map = call.vendor_data.get("output_map", {})
+    fresh_ctx = demisto.context()
+    apply_output_map(output_map, fresh_ctx, shadow_mode=False, entry_context=entry_context)
+
+    warroom_log(
+        "SOC Framework - Command Success",
+        record,
+        shared["tags"]
+    )
+
+    return_results(result)
+    return {"vendor": call.vendor, "target": call.target, "outcome": "success"}
+
+
+def _record_exception(shared: dict, call: _Call, error: Exception) -> None:
+    """Record an unexpected exception from the dispatch; the caller decides whether to re-raise it."""
+    tags = shared["tags"]
+    record = _dispatch_record(shared, call, success=False, failed=True, error=str(error))
+    _append_record(shared, record)
 
     try:
-        # Drop args that failed context resolution — sending empty values
-        # to vendor APIs causes 4xx errors (e.g. Proofpoint TAP 400 when
-        # threatId/campaignId are present-but-empty).
-        execute_args = {
-            k: v for k, v in inline_args.items()
-            if v not in (None, "", [], {})
-        }
-        # A using= on the call overrides one from the tenant config.
-        if using:
-            execute_args["using"] = using
-
-        # Log exactly what is sent, so the instance shown is the one used.
+        _post_row(shared, _row_values(
+            shared, call, status="failed", minutes=shared["action_time_minutes"],
+            error_type="command_execution", error_message=str(error)))
+    except Exception as enrich_e:
         warroom_log(
-            "SOC Framework - Executing Command",
-            {
-                "command": command,
-                "args": execute_args
-            },
+            "SOC Framework - Dataset Enrichment Error",
+            {"error": str(enrich_e)},
             tags
         )
 
-        # Ask the module registry before dispatching. An unavailable brand is
-        # shaped as the error the post-dispatch handler already recognizes, so
-        # the outcome, the record and the dataset row are identical to a real
-        # error 23 — the only difference is that nothing was called.
-        if not brand_available(vendor):
-            result = [{
-                "Type": entryTypes["error"],
-                "ContentsFormat": formats["text"],
-                "Contents": (f"Unsupported Command: {command} — no active instance "
-                             f"of brand '{vendor}' on this tenant."),
-            }]
-        else:
-            result = demisto.executeCommand(command, execute_args)
-
-        failed, error_msg = integration_failed(result)
-
-        if failed:
-            # Check for error 23 — integration not installed or not enabled in this tenant.
-            # Soft-fail so the playbook can continue in degraded mode rather than halting
-            # the entire lifecycle. Shadow mode never reaches this path (vendor command is
-            # suppressed), so this check is execute-only by construction.
-            integration_unavailable = (
-                    "Unsupported Command" in (error_msg or "")
-                    or "(23)" in (error_msg or "")
-            )
-
-            record = {
-                "run_id": run_id,
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "args": inline_args,
-                "shadow_mode": False,
-                "success": False,
-                "error": error_msg,
-                "tags": tags,
-                "timestamp": timestamp
-            }
-            if target is not None:
-                record["target"] = target
-
-            if output_key:
-                append_context(output_key, record)
-
-            base_payload = resolve_schema_payload(schema_entries, ctx)
-
-            wrapper_values = {
-                "timestamp": timestamp,
-                "event_type": "command",
-                "run_id": run_id,
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "action_status": "integration_unavailable" if integration_unavailable else "failed",
-                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
-                "execution_mode": "production",
-                "shadow_mode_state": "not_applicable",
-                "has_error": True,
-                "error_type": "integration_unavailable" if integration_unavailable else "command_execution",
-                "error_message": error_msg,
-                "action_time_minutes": action_time_minutes,
-                "action_time_category": action_time_category
-            }
-            if target is not None:
-                wrapper_values["action_target"] = target
-            elif shared.get("target_key"):
-                wrapper_values["action_target"] = shared["target_key"]
-
-            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-            post_dataset_payload(dataset_payload, tags)
-
-            warroom_log(
-                "SOC Framework - Command Failure",
-                record,
-                tags
-            )
-
-            if integration_unavailable:
-                # Null out UC.* output keys so downstream conditions evaluate cleanly
-                # (missing key → default/blocked path) rather than raising errors
-                output_map = vendor_data.get("output_map", {})
-                for dest_key in (output_map or {}).keys():
-                    demisto.setContext(dest_key, None)
-
-                return_warning(
-                    f"[SOCCommandWrapper] Integration not available for action '{action}'. "
-                    f"Command: {command}. "
-                    f"Install and configure the required integration to enable this action."
-                )
-                return_results(CommandResults(
-                    readable_output=(
-                        f"⚠️ Integration unavailable: `{command}`\n\n"
-                        f"Action `{action}` requires an integration that is not installed or enabled. "
-                        f"Playbook continues in degraded mode."
-                    ),
-                    outputs_prefix="UC",
-                    outputs={"action": action, "status": "integration_unavailable", "command": command}
-                ))
-                return {"vendor": vendor, "target": target,
-                        "outcome": "integration_unavailable", "reason": error_msg}
-
-            # A read-only action that fails (a vendor 429, a timeout, a 5xx) costs the
-            # investigation one lookup; stopping the playbook would cost it everything
-            # after. Actions that change something still stop, so a failed isolate or
-            # block is never mistaken for one that ran.
-            if terminal and is_read_only(shared.get("action_entry") or {}):
-                output_map = vendor_data.get("output_map", {})
-                for dest_key in (output_map or {}).keys():
-                    demisto.setContext(dest_key, None)
-
-                return_warning(
-                    f"[SOCCommandWrapper] Read-only action '{action}' failed and was skipped. "
-                    f"Command: {command}. Error: {error_msg}"
-                )
-                return_results(CommandResults(
-                    readable_output=(
-                        f"⚠️ Command failed: `{command}`\n\n"
-                        f"Action `{action}` only reads, so the playbook continues without "
-                        f"its result.\n\nError: {error_msg}"
-                    ),
-                    outputs_prefix="UC",
-                    outputs={"action": action, "status": "failed", "command": command}
-                ))
-                return {"vendor": vendor, "target": target,
-                        "outcome": "failed", "reason": error_msg}
-
-            if terminal:
-                return_error(error_msg)
-            return {"vendor": vendor, "target": target,
-                    "outcome": "failed", "reason": error_msg}
-
-        record = {
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": False,
-            "success": True,
-            "tags": tags,
-            "timestamp": timestamp
-        }
-        if target is not None:
-            record["target"] = target
-
-        # Read what the vendor reported about the endpoint - containment state and
-        # role - from this call's own output, and return it on the record. A caller
-        # that dispatched the wrapper cannot see the vendor's context until it
-        # finishes, so the record is how a layout or a playbook step gets the
-        # answer in the same run.
-        entry_context = _extract_entry_context(result)
-        observed = read_observations(vendor_data, entry_context)
-        record.update(observed)
-        if observed and normalize_action_actor(args.get("Action_Actor"), False) != "layout":
-            # A render must not move what containment reads; any other caller
-            # refreshes the endpoint contract with the live value.
-            for key, ctx_key in (("status", "SOCFramework.Endpoint.containment_status"),
-                                 ("role", "SOCFramework.Endpoint.role")):
-                if observed.get(key) not in (None, "", "unknown"):
-                    demisto.setContext(ctx_key, observed[key])
-
-        if output_key:
-            append_context(output_key, record)
-
-        base_payload = resolve_schema_payload(schema_entries, ctx)
-
-        wrapper_values = {
-            "timestamp": timestamp,
-            "event_type": "command",
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "action_status": "success",
-            "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
-            "execution_mode": "production",
-            "shadow_mode_state": "not_applicable",
-            "has_error": False,
-            "error_type": "",
-            "error_message": "",
-            "action_time_minutes": action_time_minutes,
-            "action_time_category": action_time_category
-        }
-        if target is not None:
-            wrapper_values["action_target"] = target
-        elif shared.get("target_key"):
-            wrapper_values["action_target"] = shared["target_key"]
-
-        dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-        post_dataset_payload(dataset_payload, tags)
-
-        # Map vendor output to canonical UC.* context keys
-        output_map = vendor_data.get("output_map", {})
-        fresh_ctx = demisto.context()
-        apply_output_map(output_map, fresh_ctx, shadow_mode=False, entry_context=entry_context)
-
-        warroom_log(
-            "SOC Framework - Command Success",
-            record,
-            tags
-        )
-
-        return_results(result)
-        return {"vendor": vendor, "target": target, "outcome": "success"}
-
-    except Exception as e:
-        record = {
-            "run_id": run_id,
-            "action": action,
-            "vendor": vendor,
-            "command": command,
-            "args": inline_args,
-            "shadow_mode": False,
-            "success": False,
-            "error": str(e),
-            "tags": tags,
-            "timestamp": timestamp
-        }
-        if target is not None:
-            record["target"] = target
-
-        if output_key:
-            append_context(output_key, record)
-
-        try:
-            base_payload = resolve_schema_payload(schema_entries, ctx)
-
-            wrapper_values = {
-                "timestamp": timestamp,
-                "event_type": "command",
-                "run_id": run_id,
-                "action": action,
-                "vendor": vendor,
-                "command": command,
-                "action_status": "failed",
-                "action_actor": normalize_action_actor(args.get("Action_Actor"), False),
-                "execution_mode": "production",
-                "shadow_mode_state": "not_applicable",
-                "has_error": True,
-                "error_type": "command_execution",
-                "error_message": str(e),
-                "action_time_minutes": action_time_minutes,
-                "action_time_category": action_time_category
-            }
-            if target is not None:
-                wrapper_values["action_target"] = target
-            elif shared.get("target_key"):
-                wrapper_values["action_target"] = shared["target_key"]
-
-            dataset_payload = enrich_payload(base_payload, ctx, issue, wrapper_values, args)
-            post_dataset_payload(dataset_payload, tags)
-        except Exception as enrich_e:
-            warroom_log(
-                "SOC Framework - Dataset Enrichment Error",
-                {"error": str(enrich_e)},
-                tags
-            )
-
-        warroom_log(
-            "SOC Framework - Command Execution Error",
-            record,
-            tags
-        )
-
-        if terminal:
-            raise
-        return {"vendor": vendor, "target": target, "outcome": "failed", "reason": str(e)}
+    warroom_log(
+        "SOC Framework - Command Execution Error",
+        record,
+        tags
+    )
 
 
 def parse_target_override(raw):
