@@ -1539,22 +1539,53 @@ def parse_target_override(raw):
     return out
 
 
-def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
+def _dispatch_vendor(shared: dict, vendor: str, vendor_data: dict, target_arg: str | None,
+                     single_vendor: bool) -> list:
     """Resolve one vendor branch's args and dispatch it once per target.
 
     target_arg names the inline arg that carries the thing being acted on;
     when its context reference resolves to a list, each usable element gets
     its own dispatch. Scalars behave exactly as before.
     """
-    action = shared["action"]
-    ctx = shared["ctx"]
-    tags = shared["tags"]
-    shadow_mode = shared["shadow_mode"]
-    output_key = shared["output_key"]
-
     command = vendor_data.get("command")
-    _inline_args_template = vendor_data.get("inline_args", {})
-    inline_args = _resolve_templates(_inline_args_template, ctx)
+    template = vendor_data.get("inline_args", {})
+    inline_args = _vendor_args(shared, vendor, vendor_data, target_arg)
+    branch = _Call(vendor, vendor_data, command, inline_args, None)
+
+    empty_evidence = _all_evidence_empty(template, inline_args)
+    if empty_evidence:
+        return _skip_no_evidence(shared, branch, empty_evidence)
+
+    missing = _missing_config(vendor_data, inline_args)
+    if missing:
+        return _skip_not_configured(shared, branch, missing, single_vendor)
+
+    targets = [None]
+    values = _target_values(shared, template, inline_args, target_arg)
+    if target_arg and isinstance(values, list):
+        targets = _usable_targets(values)
+        if not targets:
+            return _skip_no_targets(shared, branch, target_arg)
+
+    target_ref, followers = _target_followers(template, target_arg)
+    results = []
+    for t in targets:
+        call_args = dict(inline_args)
+        if t is not None:
+            call_args[target_arg] = t
+            for k, raw in followers.items():
+                call_args[k] = _resolve_templates({k: raw.replace(target_ref, str(t))}, shared["ctx"]).get(k)
+        terminal = single_vendor and len(targets) == 1
+        key = target_key(t, call_args, template)
+        shared["target_key"] = key
+        results.append(_dispatch_once(shared, _Call(vendor, vendor_data, command, call_args, t), terminal, key))
+    return results
+
+
+def _vendor_args(shared: dict, vendor: str, vendor_data: dict, target_arg: str | None) -> dict:
+    """The branch's inline args: resolved from context, filled from the tenant config, translated by its value map."""
+    template = vendor_data.get("inline_args", {})
+    inline_args = _resolve_templates(template, shared["ctx"])
 
     # Customer-specific values (a block-list ID, a proxy category) come from
     # the tenant config list, keyed by vendor then arg name. They fill
@@ -1562,8 +1593,8 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
     # evidence on the issue - so the registry stays upgradeable and the
     # customer's values survive every pack install.
     for k, v in (shared.get("tenant_config", {}).get(vendor) or {}).items():
-        if (k in _inline_args_template and _inline_args_template.get(k) in (None, "")
-                and not _is_ctx_template(_inline_args_template.get(k))):
+        if (k in template and template.get(k) in (None, "")
+                and not _is_ctx_template(template.get(k))):
             inline_args[k] = v
 
     override = shared.get("target_override")
@@ -1579,185 +1610,179 @@ def _dispatch_vendor(shared, vendor, vendor_data, target_arg, single_vendor):
         value = inline_args.get(arg)
         if isinstance(mapping, dict) and isinstance(value, str) and value.strip() in mapping:
             inline_args[arg] = mapping[value.strip()]
+    return inline_args
 
-    # Guard: the action declares argument templates but every CONTEXT-DERIVED
-    # one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
-    # when this alert carries no file hash). Firing a command with a missing required
-    # arg fails and hangs the lifecycle, so skip cleanly with a recorded reason --
-    # mirroring the Upon-Trigger enrichment, which only fires when the artifact is
-    # non-empty.
-    #
-    # Only context references count toward "is there anything to act on". A static
-    # literal carries no evidence, and letting it vote here keeps the dispatch alive
-    # after the identifying arg has already been dropped below. Observed on
-    # soc-enrich-user/Microsoft Graph User, where properties=displayName,... is static
-    # and user=${...Identity.User.UPN} resolved empty: the call fired with only
-    # properties, and Graph rejected the malformed path with
-    # "Unexpected segment DynamicPathSegment. Expected property/$value".
-    _ctx_arg_keys = [
-        k for k, raw in _inline_args_template.items() if _is_ctx_template(raw)
-    ]
-    _empty_ctx_args = [
-        k for k in _ctx_arg_keys
-        if inline_args.get(k) in (None, "", [], {}, "null", "None")
-    ]
 
-    if _ctx_arg_keys and len(_empty_ctx_args) == len(_ctx_arg_keys):
-        skip_record = {
-            "action": action, "vendor": vendor, "command": command,
-            "args": inline_args, "shadow_mode": shadow_mode, "success": False,
-            "skipped": True,
-            "skip_reason": (
-                "no non-empty artifact for command args: "
-                + ", ".join(sorted(_empty_ctx_args))
-            ),
-            "tags": tags or [], "run_id": shared["run_id"],
-            "timestamp": shared["timestamp"],
-        }
-        if output_key:
-            append_context(output_key, skip_record)
-        warroom_log(
-            f"SOC Framework - {action}: skipped (no artifact to act on)",
-            {"reason": "all context-derived command args resolved empty",
-             "empty_args": ", ".join(sorted(_empty_ctx_args)),
-             "action": action, "vendor": vendor, "command": command},
-            tags,
-        )
-        return_results(f"{action} skipped - no non-empty artifact for {command}")
-        return [{"vendor": vendor, "target": None,
-                 "outcome": "skipped_no_artifact",
-                 "reason": "all context-derived command args resolved empty"}]
+def _all_evidence_empty(template: dict, inline_args: dict) -> list:
+    """The context-bound args, sorted, when every one of them resolved empty; otherwise an empty list.
 
-    # Guard: a response branch may name args that are tenant facts rather than
-    # evidence - a block-list ID, a proxy category. Shipped empty, they are set
-    # per customer in the tenant config list. Until they are, the branch skips and says
-    # which value is missing, in shadow as well, because a simulation without
-    # them would show a call that could never succeed.
-    _missing_cfg = [
-        k for k in (vendor_data.get("required_args") or [])
-        if inline_args.get(k) in (None, "", [], {}, "null", "None")
-    ]
-    if _missing_cfg:
-        reason = (
-            "not configured: set " + ", ".join(_missing_cfg)
-            + f" for {vendor} in {TENANT_CONFIG_LIST}"
-        )
-        skip_record = {
-            "action": action, "vendor": vendor, "command": command,
-            "args": inline_args, "shadow_mode": shadow_mode, "success": False,
-            "skipped": True, "skip_reason": reason,
-            "tags": tags or [], "run_id": shared["run_id"],
-            "timestamp": shared["timestamp"],
-        }
-        if output_key:
-            append_context(output_key, skip_record)
-        warroom_log(
-            f"SOC Framework - {action}: skipped (vendor not configured)",
-            {"reason": reason, "action": action, "vendor": vendor, "command": command},
-            tags,
-        )
-        if single_vendor:
-            return_results(f"{action} skipped - {reason}")
-        return [{"vendor": vendor, "target": None,
-                 "outcome": "skipped_not_configured", "reason": reason}]
+    Guard: the action declares argument templates but every CONTEXT-DERIVED
+    one resolved empty (e.g. soc-enrich-file's sha256=${SOCFramework.Artifacts.Hash}
+    when this alert carries no file hash). Firing a command with a missing required
+    arg fails and hangs the lifecycle, so the branch skips cleanly with a recorded
+    reason -- mirroring the Upon-Trigger enrichment, which only fires when the
+    artifact is non-empty.
 
-    # Resolve the target arg's RAW context value. Template resolution above
-    # deliberately collapses a leaf list to its first non-empty scalar (the
-    # right rule for ordinary args) — which is exactly how multi-value issues
-    # lost all but one target. The target arg alone gets the list-preserving
-    # walk.
-    target_values = None
+    Only context references count toward "is there anything to act on". A static
+    literal carries no evidence, and letting it vote here keeps the dispatch alive
+    after the identifying arg has already been dropped below. Observed on
+    soc-enrich-user/Microsoft Graph User, where properties=displayName,... is static
+    and user=${...Identity.User.UPN} resolved empty: the call fired with only
+    properties, and Graph rejected the malformed path with
+    "Unexpected segment DynamicPathSegment. Expected property/$value".
+    """
+    ctx_arg_keys = [k for k, raw in template.items() if _is_ctx_template(raw)]
+    empty = [k for k in ctx_arg_keys if inline_args.get(k) in (None, "", [], {}, "null", "None")]
+    return sorted(empty) if ctx_arg_keys and len(empty) == len(ctx_arg_keys) else []
+
+
+def _missing_config(vendor_data: dict, inline_args: dict) -> list:
+    """The branch's required tenant-config args that are still empty.
+
+    Guard: a response branch may name args that are tenant facts rather than
+    evidence - a block-list ID, a proxy category. Shipped empty, they are set
+    per customer in the tenant config list. Until they are, the branch skips and says
+    which value is missing, in shadow as well, because a simulation without
+    them would show a call that could never succeed.
+    """
+    return [k for k in (vendor_data.get("required_args") or [])
+            if inline_args.get(k) in (None, "", [], {}, "null", "None")]
+
+
+def _log_skip(shared: dict, call: _Call, record_reason: str, title: str, body: dict) -> None:
+    """Record a skipped branch in the caller's output key and the War Room."""
+    tags = shared["tags"]
+    skip_record = {
+        "action": shared["action"], "vendor": call.vendor, "command": call.command,
+        "args": call.inline_args, "shadow_mode": shared["shadow_mode"], "success": False,
+        "skipped": True, "skip_reason": record_reason,
+        "tags": tags or [], "run_id": shared["run_id"],
+        "timestamp": shared["timestamp"],
+    }
+    _append_record(shared, skip_record)
+    warroom_log(f"SOC Framework - {shared['action']}: skipped ({title})", body, tags)
+
+
+def _skip_no_evidence(shared: dict, call: _Call, empty_args: list) -> list:
+    """Skip a branch whose every context-bound arg resolved empty: there is nothing to act on."""
+    action, reason = shared["action"], "all context-derived command args resolved empty"
+    _log_skip(shared, call, "no non-empty artifact for command args: " + ", ".join(empty_args),
+              "no artifact to act on",
+              {"reason": reason, "empty_args": ", ".join(empty_args),
+               "action": action, "vendor": call.vendor, "command": call.command})
+    return_results(f"{action} skipped - no non-empty artifact for {call.command}")
+    return [{"vendor": call.vendor, "target": None, "outcome": "skipped_no_artifact", "reason": reason}]
+
+
+def _skip_not_configured(shared: dict, call: _Call, missing: list, single_vendor: bool) -> list:
+    """Skip a branch the tenant hasn't configured yet, naming the values to set."""
+    action = shared["action"]
+    reason = (
+        "not configured: set " + ", ".join(missing)
+        + f" for {call.vendor} in {TENANT_CONFIG_LIST}"
+    )
+    _log_skip(shared, call, reason, "vendor not configured",
+              {"reason": reason, "action": action, "vendor": call.vendor, "command": call.command})
+    if single_vendor:
+        return_results(f"{action} skipped - {reason}")
+    return [{"vendor": call.vendor, "target": None, "outcome": "skipped_not_configured", "reason": reason}]
+
+
+def _skip_no_targets(shared: dict, call: _Call, target_arg: str) -> list:
+    """Skip a branch whose target list held no usable value."""
+    action = shared["action"]
+    reason = f"target list {target_arg} resolved to no usable values"
+    _log_skip(shared, call, reason, "no usable targets",
+              {"reason": reason, "action": action, "vendor": call.vendor, "command": call.command})
+    return_results(f"{action} skipped - no usable targets for {call.command}")
+    return [{"vendor": call.vendor, "target": None, "outcome": "skipped_no_artifact", "reason": reason}]
+
+
+def _target_values(shared: dict, template: dict, inline_args: dict, target_arg: str | None) -> list | None:
+    """Every value the target arg names, or None when the branch acts on one thing.
+
+    Resolves the target arg's RAW context value. Template resolution
+    deliberately collapses a leaf list to its first non-empty scalar (the
+    right rule for ordinary args) — which is exactly how multi-value issues
+    lost all but one target. The target arg alone gets the list-preserving
+    walk.
+    """
+    override = shared.get("target_override")
     if override and target_arg:
-        target_values = list(override)
-    elif target_arg:
-        raw_tmpl = _inline_args_template.get(target_arg)
-        if _is_ctx_template(raw_tmpl):
-            s = str(raw_tmpl).strip()
-            m = CTX_REF_RE.match(s)
-            target_values = _resolve_ctx_path_list(ctx, m.group(1) if m else s)
-        elif isinstance(inline_args.get(target_arg), list):
-            target_values = inline_args.get(target_arg)
+        return list(override)
+    if not target_arg:
+        return None
+    raw_tmpl = template.get(target_arg)
+    if _is_ctx_template(raw_tmpl):
+        s = str(raw_tmpl).strip()
+        m = CTX_REF_RE.match(s)
+        return _resolve_ctx_path_list(shared["ctx"], m.group(1) if m else s)
+    value = inline_args.get(target_arg)
+    return value if isinstance(value, list) else None
 
-    targets = [None]
-    if target_arg and isinstance(target_values, list):
-        usable, seen = [], set()
-        for t in target_values:
-            key = str(t)
-            if t in (None, "") or key in seen:
-                continue
-            seen.add(key)
-            usable.append(t)
-        if not usable:
-            skip_record = {
-                "action": action, "vendor": vendor, "command": command,
-                "args": inline_args, "shadow_mode": shadow_mode, "success": False,
-                "skipped": True,
-                "skip_reason": f"target list {target_arg} resolved to no usable values",
-                "tags": tags or [], "run_id": shared["run_id"],
-                "timestamp": shared["timestamp"],
-            }
-            if output_key:
-                append_context(output_key, skip_record)
-            warroom_log(
-                f"SOC Framework - {action}: skipped (no usable targets)",
-                {"reason": f"target list {target_arg} resolved to no usable values",
-                 "action": action, "vendor": vendor, "command": command},
-                tags,
-            )
-            return_results(f"{action} skipped - no usable targets for {command}")
-            return [{"vendor": vendor, "target": None,
-                     "outcome": "skipped_no_artifact",
-                     "reason": f"target list {target_arg} resolved to no usable values"}]
-        targets = usable
 
-    # An arg that embeds the target's reference - a firewall object named
-    # socfw-block-<address> - follows each target, or every call after the first
-    # would reuse the first target's name.
-    target_ref = str(_inline_args_template.get(target_arg) or "").strip() if target_arg else ""
+def _usable_targets(values: list) -> list:
+    """The target values with blanks and repeats dropped, in their first-seen order."""
+    usable, seen = [], set()
+    for t in values:
+        key = str(t)
+        if t in (None, "") or key in seen:
+            continue
+        seen.add(key)
+        usable.append(t)
+    return usable
+
+
+def _target_followers(template: dict, target_arg: str | None) -> tuple[str, dict]:
+    """The target's reference, and the other args that embed it.
+
+    An arg that embeds the target's reference - a firewall object named
+    socfw-block-<address> - follows each target, or every call after the first
+    would reuse the first target's name.
+    """
+    target_ref = str(template.get(target_arg) or "").strip() if target_arg else ""
     followers = {
-        k: raw for k, raw in _inline_args_template.items()
+        k: raw for k, raw in template.items()
         if k != target_arg and _is_ctx_template(target_ref)
         and isinstance(raw, str) and target_ref in raw
     }
+    return target_ref, followers
 
-    results = []
-    for t in targets:
-        call_args = dict(inline_args)
-        if t is not None:
-            call_args[target_arg] = t
-            for k, raw in followers.items():
-                call_args[k] = _resolve_templates({k: raw.replace(target_ref, str(t))}, ctx).get(k)
-        terminal = single_vendor and len(targets) == 1
-        key = target_key(t, call_args, _inline_args_template)
-        shared["target_key"] = key
-        entry = shared.get("action_entry") or {}
-        once = str(entry.get("phase") or "").strip().lower() in ONCE_PHASES
-        per_vendor = vendor if str(entry.get("dispatch") or "").strip().lower() == "all_applicable" else None
-        if once and key:
-            if "ledger" not in shared:
-                shared["ledger"] = read_ledger(shared["issue"], ctx)
-            prior = ledger_prior(shared["ledger"], action, key, per_vendor)
-            # A simulation never blocks a real action: a case worked in shadow
-            # can still be contained for real once the action goes live.
-            if prior and (prior.get("m") == "live" or shadow_mode):
-                results.append(_record_duplicate(shared, vendor, command, call_args, key, prior, terminal))
-                continue
-        outcome = _dispatch_one(shared, vendor, vendor_data, command, call_args, t, terminal)
-        results.append(outcome)
-        if key and outcome.get("outcome") in ("simulated", "success"):
-            done = {"m": "shadow" if shadow_mode else "live",
-                    "by": normalize_action_actor(shared["args"].get("Action_Actor"), shadow_mode),
-                    "at": shared["timestamp"]}
-            if once:
-                mark = dict(done, a=action, t=key)
-                if per_vendor:
-                    mark["v"] = per_vendor
-                write_ledger(shared["issue"], mark)
-                shared.setdefault("ledger", []).append(mark)
-            for undone in reversed_actions(action, shared.get("action_map")):
-                write_ledger(shared["issue"], dict(done, a=undone, t=key, reversed=True))
-    return results
 
+def _dispatch_once(shared: dict, call: _Call, terminal: bool, key: str) -> dict:
+    """Dispatch one target, unless the ledger says the action already ran on it; record it when done."""
+    entry = shared.get("action_entry") or {}
+    once = str(entry.get("phase") or "").strip().lower() in ONCE_PHASES
+    per_vendor = call.vendor if str(entry.get("dispatch") or "").strip().lower() == "all_applicable" else None
+    if once and key:
+        if "ledger" not in shared:
+            shared["ledger"] = read_ledger(shared["issue"], shared["ctx"])
+        prior = ledger_prior(shared["ledger"], shared["action"], key, per_vendor)
+        # A simulation never blocks a real action: a case worked in shadow
+        # can still be contained for real once the action goes live.
+        if prior and (prior.get("m") == "live" or shared["shadow_mode"]):
+            return _record_duplicate(shared, call.vendor, call.command, call.inline_args, key, prior, terminal)
+    outcome = _dispatch_one(shared, call.vendor, call.vendor_data, call.command, call.inline_args, call.target,
+                            terminal)
+    if key and outcome.get("outcome") in ("simulated", "success"):
+        _record_done(shared, key, once, per_vendor)
+    return outcome
+
+
+def _record_done(shared: dict, key: str, once: bool, per_vendor: str | None) -> None:
+    """Write the ledger: this action on this target (for once-only phases), and the actions it undoes."""
+    action, shadow_mode = shared["action"], shared["shadow_mode"]
+    done = {"m": "shadow" if shadow_mode else "live",
+            "by": normalize_action_actor(shared["args"].get("Action_Actor"), shadow_mode),
+            "at": shared["timestamp"]}
+    if once:
+        mark = dict(done, a=action, t=key)
+        if per_vendor:
+            mark["v"] = per_vendor
+        write_ledger(shared["issue"], mark)
+        shared.setdefault("ledger", []).append(mark)
+    for undone in reversed_actions(action, shared.get("action_map")):
+        write_ledger(shared["issue"], dict(done, a=undone, t=key, reversed=True))
 
 
 def main():
