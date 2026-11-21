@@ -422,6 +422,24 @@ def main() -> None:
                 ),
             ))
 
+        # ── Step 2.1: issue-field targets ─────────────────────────────────────
+        # A rule that writes into an issue field the platform owns (hostos, the
+        # run-state fields) saves, installs and alerts without error, but left
+        # about half the issues in a burst with their playbook never started.
+        field_check = Path("tools/check_issue_field_targets.py")
+        if field_check.exists():
+            results.append(run_step(
+                f"issue-field targets — {pack.name}",
+                [sys.executable, str(field_check), str(pack)],
+                args.ci,
+                remediation=(
+                    "Remove the named mapping from the vendor contract\n"
+                    "(schemas/vendors/<vendor>/<contract>.yaml), re-emit the rule with\n"
+                    "tools/generate_vendor_content.py emit, and gate again. The blocked\n"
+                    "list and the reason for each field: policies/restricted_issue_fields.json"
+                ),
+            ))
+
         # ── Step 2.5: playbook_condition_lint ─────────────────────────────────
         # Catches playbook YAML patterns that parse cleanly but silently fail:
         # broken ${X / Y} context interpolations and AND-impossible conditions.
