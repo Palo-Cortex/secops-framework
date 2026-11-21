@@ -11,5 +11,6 @@
 - [ ] One concern, and only what was asked.
 - [ ] A fix or a change in behaviour has a test that fails on `main` and passes here.
 - [ ] `ruff check` on the changed files adds no findings.
-- [ ] Test data uses reserved domains and IP ranges only. No customer or tenant names, case or issue ids, keys or collector URLs.
+- [ ] Test data uses reserved domains and IP ranges only. No customer or tenant names, case or issue ids, keys or collector URLs, here or in the commits.
+- [ ] The automated review against `.github/review-checklist.md` has run, and its comments are answered.
 - [ ] Touches a high-risk path (see `docs/contributing/engineering-practices.md`): a person has read every line. <!-- who -->
