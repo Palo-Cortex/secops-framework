@@ -100,34 +100,10 @@ jobs:
       - name: Check — vendor command arguments
         run: python tools/check_action_args.py
 
-      - name: Load forbidden patterns
-        id: patterns
-        run: |
-          if [ -f Lists/customer-identifiers.json ]; then
-            PATTERNS=$(python -c "
-          import json, sys
-          data = json.load(open('Lists/customer-identifiers.json'))
-          items = data if isinstance(data, list) else data.get('identifiers', [])
-          print('|'.join(str(i) for i in items if i))
-          ")
-            echo "patterns=$PATTERNS" >> "$GITHUB_OUTPUT"
-          else
-            echo "patterns=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Scan diff for forbidden patterns
-        run: |
-          DIFF="$(git diff origin/main HEAD)"
-          PATTERNS="${{ steps.patterns.outputs.patterns }}"
-          if [ -z "$PATTERNS" ]; then
-            echo "No customer identifiers configured — scan skipped."
-            exit 0
-          fi
-          if echo "$DIFF" | grep -Eq "$PATTERNS"; then
-            echo "::error::Customer data found in diff. Remove before merging."
-            exit 1
-          fi
-          echo "Scan passed — no customer data found."
+      # Tests, test data and scenarios use only reserved names and addresses,
+      # or values listed with a reason in policies/test_data_allowed.json.
+      - name: Scan — test data uses only allowed values
+        run: python tools/check_test_data.py
 
   # ── JOB 1b: VERSION PLAN ────────────────────────────────────────
   # Reads the PR label and determines the bump level for this merge.
