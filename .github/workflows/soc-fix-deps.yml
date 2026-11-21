@@ -16,7 +16,10 @@ name: SOC Packs — Fix dependency versions
 # This runs with a write token, so it only obeys the repo's owner, members
 # and collaborators, only works on branches in this repo (never a fork), and
 # runs the dependency tool from main: a pull request can't change the code
-# that runs here.
+# that runs here. It checks out the commit that was the PR's head when the
+# command was read, pushes back only onto that branch (a push that landed in
+# between makes it fail), and runs Python in isolated mode (-I), so nothing in
+# the PR's files is imported.
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -48,7 +51,7 @@ jobs:
         env:
           COMMENT: ${{ github.event.comment.body }}
         run: |
-          python - << 'PY'
+          python -I - << 'PY'
           import os, re, sys
 
           comment = os.environ["COMMENT"].strip()
@@ -86,7 +89,7 @@ jobs:
           REPO: ${{ github.repository }}
           PACKS_DIR: Packs
         run: |
-          python - << 'PY'
+          python -I - << 'PY'
           import os, subprocess, json
           from pathlib import Path
 
@@ -96,7 +99,7 @@ jobs:
 
           pr_data = subprocess.check_output(
               ["gh", "pr", "view", pr_number, "--repo", repo,
-               "--json", "headRefName,files,isCrossRepository"],
+               "--json", "headRefName,headRefOid,files,isCrossRepository"],
               text=True
           )
           pr = json.loads(pr_data)
@@ -124,13 +127,14 @@ jobs:
 
           out = open(os.environ["GITHUB_OUTPUT"], "a")
           out.write(f"branch={branch}\n")
+          out.write(f"sha={pr['headRefOid']}\n")
           out.write(f"pack={pack}\n")
           PY
 
       # ── Checkout the PR branch ───────────────────────────────────
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
-          ref: ${{ steps.pr.outputs.branch }}
+          ref: ${{ steps.pr.outputs.sha }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -158,7 +162,7 @@ jobs:
           PACK:       ${{ steps.pr.outputs.pack }}
           ACTOR:      ${{ github.event.comment.user.login }}
         run: |
-          python - << 'PY'
+          python -I - << 'PY'
           import os, subprocess, sys
 
           mode       = os.environ["MODE"]
@@ -171,7 +175,7 @@ jobs:
               print("::error::Could not determine the changed pack from this PR.")
               sys.exit(1)
 
-          base_cmd = ["python", ".trusted/tools/check_dependency_versions.py", "--pack", pack, "--root", "."]
+          base_cmd = ["python", "-I", ".trusted/tools/check_dependency_versions.py", "--pack", pack, "--root", "."]
 
           if mode == "fix-all":
               subprocess.run([*base_cmd, "--fix"], check=True)
@@ -202,6 +206,7 @@ jobs:
           MODE:      ${{ steps.cmd.outputs.mode }}
           DEP:       ${{ steps.cmd.outputs.dep }}
           PACK:      ${{ steps.pr.outputs.pack }}
+          BRANCH:    ${{ steps.pr.outputs.branch }}
         run: |
           if git diff --quiet && git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -223,7 +228,9 @@ jobs:
           fi
 
           git commit -m "$MSG"
-          git push
+          # The checkout is the exact commit the command was read against; a
+          # push that landed since makes this non-fast-forward, and it fails.
+          git push origin HEAD:refs/heads/"$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       # ── Post result comment ──────────────────────────────────────
@@ -238,7 +245,7 @@ jobs:
           PACK:       ${{ steps.pr.outputs.pack }}
           CHANGED:    ${{ steps.commit.outputs.changed }}
         run: |
-          python - << 'PY'
+          python -I - << 'PY'
           import os, subprocess
 
           mode       = os.environ["MODE"]
