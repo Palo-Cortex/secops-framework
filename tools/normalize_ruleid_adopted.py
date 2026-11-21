@@ -137,22 +137,35 @@ def _is_list_json(path: str) -> bool:
     return "/lists/" in low and low.endswith(".json")
 
 
+# Scripts/<Name>/<file>: the directory two levels above a script's own file is Scripts.
+_SCRIPT_FILE_DEPTH = 3
+
+
+def _in_script_dir(path: str) -> bool:
+    """True when the file sits directly in a script's own directory: Scripts/<Name>/<file>.
+
+    Files deeper down, such as Scripts/<Name>/test_data/, are the script's test
+    data, not its metadata, and must never be rewritten.
+    """
+    parts = _norm(path).split("/")
+    return len(parts) >= _SCRIPT_FILE_DEPTH and parts[-_SCRIPT_FILE_DEPTH] == "scripts"
+
+
 def _is_script_json(path: str) -> bool:
     """
-    Returns True if this is a JSON file under a Scripts/* directory.
+    Returns True if this is a JSON file directly in a Scripts/<Name>/ directory.
     Example: Packs/.../Scripts/MyScript/MyScript.json
     """
-    low = _norm(path)
-    return "/scripts/" in low and low.endswith(".json")
+    return _in_script_dir(path) and _norm(path).endswith(".json")
 
 
 def _is_script_yaml(path: str) -> bool:
     """
-    Returns True if this is a YAML file under a Scripts/* directory.
+    Returns True if this is a YAML file directly in a Scripts/<Name>/ directory.
     Example: Packs/.../Scripts/MyScript/MyScript.yml
     """
     low = _norm(path)
-    return "/scripts/" in low and (low.endswith(".yml") or low.endswith(".yaml"))
+    return _in_script_dir(path) and (low.endswith(".yml") or low.endswith(".yaml"))
 
 # ------------------------------------------------------------
 # YAML transforms (correlation rules, playbooks, scripts)
