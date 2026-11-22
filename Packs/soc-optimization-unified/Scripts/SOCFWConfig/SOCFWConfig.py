@@ -895,51 +895,70 @@ def _check_entries(field, values, kinds):
                 raise ConfigError(f"{field} entry {v!r}: {rest.strip()} is not a range like 10.0.5.0/24")
 
 
-def _settings_from_args(args):
-    """{setting: value or None for default} for the settings this command names."""
+HOST_ENTRY_KINDS = ("host", "ip", "cidr", "list")
+
+
+def _protect_entries(value: object) -> list[str]:
+    """protect: hosts, addresses, ranges, accounts, domains or lists never to contain, as kind:<value>."""
+    entries = _split(value)
+    _check_entries("protect", entries, ENTRY_KINDS)
+    return entries
+
+
+def _containable_host_entries(value: object) -> list[str]:
+    """containable_hosts: hosts, addresses, ranges or lists that may be contained, as kind:<value>."""
+    entries = _split(value)
+    _check_entries("containable_hosts", entries, HOST_ENTRY_KINDS)
+    return entries
+
+
+def _containable_roles(value: object) -> list[str]:
+    """containable_roles: host roles that may be contained; any on its own turns the role check off."""
+    roles = [r.lower() for r in _split(value)]
+    unknown = [r for r in roles if r not in ROLES]
+    if unknown:
+        raise ConfigError(f"containable_roles {', '.join(unknown)} is not one of " + ", ".join(ROLES))
+    if "any" in roles and len(roles) > 1:
+        raise ConfigError("containable_roles=any turns the role check off; give it on its own")
+    return roles
+
+
+def _role_entries(value: object) -> list[str]:
+    """role: host:<name or pattern>:<role> entries that say what a host is."""
+    entries = _split(value)
+    host_roles = ROLES[:-1]
+    for entry in entries:
+        parts = entry.split(":")
+        well_formed = (len(parts) == 3 and parts[0].lower() == "host" and parts[1]
+                       and parts[2].lower() in host_roles)
+        if not well_formed:
+            raise ConfigError(f"role entry {entry!r} must be host:<name or pattern>:<"
+                              + "|".join(host_roles) + ">")
+    return entries
+
+
+def _escalate_severity(value: object) -> str:
+    """escalate_severity: the severity a case is raised to when containment is blocked."""
+    severity = str(value).strip().lower()
+    if severity not in SEVERITIES:
+        raise ConfigError("escalate_severity must be one of " + ", ".join(SEVERITIES))
+    return severity
+
+
+# Checked in this order, so the first bad setting named is the one reported.
+SETTING_PARSERS = {"protect": _protect_entries, "containable_hosts": _containable_host_entries,
+                   "containable_roles": _containable_roles, "role": _role_entries,
+                   "escalate_severity": _escalate_severity}
+
+
+def _settings_from_args(args: dict) -> dict:
+    """{setting: value, or None for default} for the emergency settings this command names, validated."""
     edit = {}
-    for field in ("protect", "containable_hosts"):
-        raw = str(args.get(field) or "").strip()
-        if raw:
-            if raw.lower() == "default":
-                edit[field] = None
-                continue
-            values = _split(args.get(field))
-            kinds = ENTRY_KINDS if field == "protect" else ("host", "ip", "cidr", "list")
-            _check_entries(field, values, kinds)
-            edit[field] = values
-    raw = str(args.get("containable_roles") or "").strip()
-    if raw:
-        if raw.lower() == "default":
-            edit["containable_roles"] = None
-        else:
-            roles = [r.lower() for r in _split(args.get("containable_roles"))]
-            bad = [r for r in roles if r not in ROLES]
-            if bad:
-                raise ConfigError(f"containable_roles {', '.join(bad)} is not one of " + ", ".join(ROLES))
-            if "any" in roles and len(roles) > 1:
-                raise ConfigError("containable_roles=any turns the role check off; give it on its own")
-            edit["containable_roles"] = roles
-    raw = str(args.get("role") or "").strip()
-    if raw:
-        if raw.lower() == "default":
-            edit["role"] = None
-        else:
-            values = _split(args.get("role"))
-            for v in values:
-                parts = v.split(":")
-                if len(parts) != 3 or parts[0].lower() != "host" or not parts[1] or parts[2].lower() not in ROLES[:-1]:
-                    raise ConfigError(f"role entry {v!r} must be host:<name or pattern>:<"
-                                      + "|".join(ROLES[:-1]) + ">")
-            edit["role"] = values
-    raw = str(args.get("escalate_severity") or "").strip().lower()
-    if raw:
-        if raw == "default":
-            edit["escalate_severity"] = None
-        elif raw not in SEVERITIES:
-            raise ConfigError("escalate_severity must be one of " + ", ".join(SEVERITIES))
-        else:
-            edit["escalate_severity"] = raw
+    for setting, parse in SETTING_PARSERS.items():
+        raw = str(args.get(setting) or "").strip()
+        if not raw:
+            continue
+        edit[setting] = None if raw.lower() == "default" else parse(args.get(setting))
     return edit
 
 
