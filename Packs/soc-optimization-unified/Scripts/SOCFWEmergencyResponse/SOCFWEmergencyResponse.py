@@ -393,38 +393,60 @@ def host_role(settings, f):
     return "unknown", "no source reported one"
 
 
-def gate(scope, settings, f):
-    """(go, outcome, why) for one action on this issue's host or account."""
+GO = (True, "", "")
+
+
+def _not_containable(settings: dict, f: dict) -> str:
+    """Why this host may not be contained, or '' when it may: in containable_hosts when that is
+    set, otherwise a role in containable_roles (any turns the role check off)."""
+    listed, why = _entries(settings, "containable_hosts")
+    if why:
+        return why
+    if listed:
+        return "" if host_matches(listed, f) else \
+            f"not in containable_hosts ({settings.get('containable_hosts_from')})"
+    roles = [r.lower() for r in _as_list(settings.get("containable_roles"))]
+    if "any" in roles:
+        return ""
+    role, source = host_role(settings, f)
+    if role in roles:
+        return ""
+    return f"role {role} ({source}) is not in containable_roles {'/'.join(roles) or '(none)'}"
+
+
+def _host_gate(protect: list, settings: dict, f: dict) -> tuple[bool, str, str]:
+    """A host action: not protected, containable, and not already contained by the EDR."""
+    hit = host_matches(protect, f)
+    if hit:
+        return False, "blocked", f"protected ({settings.get('protect_from')}: {hit})"
+    refused = _not_containable(settings, f)
+    if refused:
+        return False, "blocked", refused
+    if f["containment_status"] in CONTAINED_STATES:
+        return False, "already", f"the EDR reports the host {f['containment_status']}"
+    return GO
+
+
+def _identity_gate(protect: list, settings: dict, f: dict) -> tuple[bool, str, str]:
+    """An account action: the account is not protected."""
+    hit = account_matches(protect, f)
+    if hit:
+        return False, "blocked", f"protected ({settings.get('protect_from')}: {hit})"
+    return GO
+
+
+def gate(scope: str, settings: dict, f: dict) -> tuple[bool, str, str]:
+    """(go, outcome, why) for one action on this issue's host or account.
+
+    Actions on anything else go. A protect setting that cannot be read blocks both kinds.
+    """
     if scope not in (HOST_SCOPE, IDENTITY_SCOPE):
-        return True, "", ""
+        return GO
     protect, why = _entries(settings, "protect")
     if why:
         return False, "blocked", why
-    if scope == HOST_SCOPE:
-        hit = host_matches(protect, f)
-        if hit:
-            return False, "blocked", f"protected ({settings.get('protect_from')}: {hit})"
-        listed, why = _entries(settings, "containable_hosts")
-        if why:
-            return False, "blocked", why
-        if listed:
-            hit = host_matches(listed, f)
-            if not hit:
-                return False, "blocked", f"not in containable_hosts ({settings.get('containable_hosts_from')})"
-        else:
-            roles = [r.lower() for r in _as_list(settings.get("containable_roles"))]
-            if "any" not in roles:
-                role, source = host_role(settings, f)
-                if role not in roles:
-                    return False, "blocked", (f"role {role} ({source}) is not in containable_roles "
-                                              f"{'/'.join(roles) or '(none)'}")
-        if f["containment_status"] in CONTAINED_STATES:
-            return False, "already", f"the EDR reports the host {f['containment_status']}"
-    elif scope == IDENTITY_SCOPE:
-        hit = account_matches(protect, f)
-        if hit:
-            return False, "blocked", f"protected ({settings.get('protect_from')}: {hit})"
-    return True, "", ""
+    check = _host_gate if scope == HOST_SCOPE else _identity_gate
+    return check(protect, settings, f)
 
 
 def network_paths(row):
