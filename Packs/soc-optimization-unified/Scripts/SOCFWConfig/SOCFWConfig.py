@@ -552,6 +552,7 @@ def _with_value(cfg: dict, vendor: str, arg: str, value: str, remove: bool) -> d
 
 
 def _set_result(outputs: dict, slot: dict, remove: bool) -> CommandResults:
+    """The War Room table and notes for set, with outputs as SOCFWConfig.Set."""
     vendor, arg = outputs["vendor"], outputs["arg"]
     if not outputs["changed"]:
         md = [f"### {vendor} {arg}: already set — nothing to change"]
@@ -568,6 +569,7 @@ def _set_result(outputs: dict, slot: dict, remove: bool) -> CommandResults:
 
 
 def set_value(args: dict) -> CommandResults:
+    """Set one customer value in SOCFWTenantConfig, or remove it with value=default. Dry run unless apply=yes."""
     slots = value_slots(load_actions())
     vendor, arg = _pick_slot(slots, str(args.get("vendor") or "").strip(),
                              str(args.get("arg") or "").strip())
