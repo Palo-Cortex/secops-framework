@@ -1095,51 +1095,77 @@ def _emergency_table(views):
     return md
 
 
-def _edit_from_args(args, actions, shipped):
-    """The fields this command sets on the policy, validated."""
-    edit = {}
+def _subject_fields(args: dict, shipped: bool) -> dict:
+    """Which issues the policy is about: about, entity_type and source lowercased, rule_id, name_contains, tactic.
+
+    rule_id and name_contains are refused on a shipped policy: rule ids are local to a tenant and names change.
+    """
+    fields = {}
     for field in ("about", "entity_type", "source"):
         if _split(args.get(field)):
-            edit[field] = [v.lower() for v in _split(args.get(field))]
+            fields[field] = [v.lower() for v in _split(args.get(field))]
     for field in ("rule_id", "name_contains"):
         if _split(args.get(field)):
             if shipped:
                 raise ConfigError(f"{field} belongs on a policy of this tenant's own, not on the "
                                   f"shipped {args.get('policy')}: rule ids are local to a tenant "
                                   "and names change. Give the new policy its own label.")
-            edit[field] = _split(args.get(field))
+            fields[field] = _split(args.get(field))
     if _split(args.get("tactic")):
-        edit["tactic"] = _split(args.get("tactic"))
+        fields["tactic"] = _split(args.get("tactic"))
+    return fields
+
+
+def _gate_fields(args: dict) -> dict:
+    """The assessment gate: verdict and exposure lists and the confidence floor, each checked against its values."""
+    fields = {}
     for field, allowed in (("verdict", VERDICTS), ("exposure", EXPOSURES)):
         values = [v.lower() for v in _split(args.get(field))]
         bad = [v for v in values if v not in allowed]
         if bad:
             raise ConfigError(f"{field} {', '.join(bad)} is not one of " + ", ".join(allowed))
         if values:
-            edit[field] = values
+            fields[field] = values
     confidence = str(args.get("confidence") or "").strip().lower()
     if confidence:
         if confidence not in CONFIDENCES:
             raise ConfigError("confidence must be one of " + ", ".join(CONFIDENCES))
-        edit["confidence"] = confidence
+        fields["confidence"] = confidence
+    return fields
+
+
+def _policy_actions(args: dict, actions: dict) -> list[str]:
+    """The actions named, each one that exists and is a containment action; empty when none is named."""
     wanted = _split(args.get("action"))
-    if wanted:
-        unknown = [a for a in wanted if a not in actions]
-        if unknown:
-            raise ConfigError(f"unknown action {', '.join(unknown)}; run !SOCFWConfig "
-                              "command=status to list them")
-        not_containment = [a for a in wanted
-                           if str(actions[a].get("phase") or "").lower() != "containment"]
-        if not_containment:
-            raise ConfigError(f"{', '.join(not_containment)} is not a containment action; emergency "
-                              "response runs containment only - eradication and recovery wait for the case")
-        edit["actions"] = wanted
+    unknown = [a for a in wanted if a not in actions]
+    if unknown:
+        raise ConfigError(f"unknown action {', '.join(unknown)}; run !SOCFWConfig "
+                          "command=status to list them")
+    not_containment = [a for a in wanted
+                       if str(actions[a].get("phase") or "").lower() != "containment"]
+    if not_containment:
+        raise ConfigError(f"{', '.join(not_containment)} is not a containment action; emergency "
+                          "response runs containment only - eradication and recovery wait for the case")
+    return wanted
+
+
+def _policy_enabled(args: dict) -> bool | None:
+    """enabled=on or off as a bool; None when not given or default (default is handled by the caller)."""
     enabled = str(args.get("enabled") or "").strip().lower()
-    if enabled:
-        if enabled not in ENABLED_VALUES:
-            raise ConfigError("enabled must be on, off or default")
-        if ENABLED_VALUES[enabled] is not None:
-            edit["enabled"] = ENABLED_VALUES[enabled]
+    if enabled and enabled not in ENABLED_VALUES:
+        raise ConfigError("enabled must be on, off or default")
+    return ENABLED_VALUES.get(enabled)
+
+
+def _edit_from_args(args: dict, actions: dict, shipped: bool) -> dict:
+    """The fields this command sets on the policy, validated, in the order they are shown."""
+    edit = {**_subject_fields(args, shipped), **_gate_fields(args)}
+    wanted = _policy_actions(args, actions)
+    if wanted:
+        edit["actions"] = wanted
+    enabled = _policy_enabled(args)
+    if enabled is not None:
+        edit["enabled"] = enabled
     return edit
 
 
