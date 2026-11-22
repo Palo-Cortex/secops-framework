@@ -13,6 +13,7 @@ import builtins
 import importlib
 import json
 import os
+import re
 import sys
 import types
 
@@ -737,6 +738,27 @@ def test_emergency_name_only_policy_is_flagged():
 def test_emergency_bad_arguments_name_the_fix(args, message):
     with pytest.raises(RuntimeError, match=message):
         run(em_tenant({}), command="emergency", **args)
+
+
+SHIPPED_LABELS = "identity_compromise, endpoint_execution, email_delivered, endpoint_c2"
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"confidence": "low"},
+     f"policy is required to change one: the label of a shipped policy ({SHIPPED_LABELS}) or a new one"),
+    ({"policy": "new_one"}, f"no policy new_one; shipped: {SHIPPED_LABELS}. To add one"),
+])
+def test_an_unlabelled_shipped_policy_is_left_out_of_the_refusal(args, message):
+    """
+    Given a shipped policy list that also holds a policy with no label
+    When emergency refuses an edit and names the shipped policies
+    Then it names the labelled ones only, as the listing does, instead of failing on the unlabelled one
+    """
+    policy_list = json.loads(json.dumps(POLICY))
+    policy_list["phases"]["triage"]["emergency"]["policies"].append(
+        {"about": ["email"], "actions": ["soc-retract-email"]})
+    with pytest.raises(RuntimeError, match=re.escape(message)):
+        run(Tenant(**{PL: policy_list, NEW: {}}), command="emergency", **args)
 
 
 @pytest.mark.parametrize("command, args, message", [
