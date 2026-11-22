@@ -619,32 +619,38 @@ def load_jobs():
     return {j.get("name"): j for j in (data or []) if isinstance(j, dict) and j.get("name") in JOBS}
 
 
-def load_users():
-    """Lowercased usernames and emails of the tenant's users, or None if unreadable."""
+USER_KEYS = ("username", "email", "id")
+
+
+def _user_records(entry: object) -> list[dict]:
+    """The user objects in one getUsers entry: its contents when that is a list, else its context values."""
+    if not isinstance(entry, dict):
+        return []
+    if isinstance(entry.get("Contents"), list):
+        records = entry["Contents"]
+    else:
+        records = []
+        for value in (entry.get("EntryContext") or {}).values():
+            records += value if isinstance(value, list) else [value]
+    return [r for r in records if isinstance(r, dict)]
+
+
+def load_users() -> set[str] | None:
+    """Lowercased usernames, emails and ids of the tenant's users, or None if unreadable.
+
+    A reply with no user objects in it (a markdown table only) is unreadable, not an empty tenant.
+    """
     try:
-        res = demisto.executeCommand("getUsers", {})
+        entries = demisto.executeCommand("getUsers", {})
     except Exception as e:  # noqa: BLE001
         demisto.debug(f"SOCFWConfig: getUsers failed: {e}")
         return None
-    if _is_error(res):
+    if _is_error(entries):
         return None
-    users, readable = set(), False
-    for e in res or []:
-        if not isinstance(e, dict):
-            continue
-        found = []
-        if isinstance(e.get("Contents"), list):
-            found = e["Contents"]
-        else:
-            for value in (e.get("EntryContext") or {}).values():
-                found += value if isinstance(value, list) else [value]
-        for u in found:
-            if isinstance(u, dict):
-                readable = True
-                for key in ("username", "email", "id"):
-                    if u.get(key):
-                        users.add(str(u[key]).strip().lower())
-    return users if readable else None
+    records = [r for entry in entries or [] for r in _user_records(entry)]
+    if not records:
+        return None
+    return {str(r[key]).strip().lower() for r in records for key in USER_KEYS if r.get(key)}
 
 
 def _owner_ok(owner, users):
