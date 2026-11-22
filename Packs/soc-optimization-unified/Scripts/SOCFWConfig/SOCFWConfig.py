@@ -61,6 +61,7 @@ SOCFWCloseWithoutAssessment reads:
 
 import json
 import re
+from functools import partial
 
 CONTRACT_VERSION = 2
 
@@ -1464,52 +1465,83 @@ def shipped_assignment():
     return {key: fields.get(field) for key, field in ASSIGNMENT_FIELDS.items()}
 
 
-def assignment_value(key, raw):
+def _names_value(key: str, text: str) -> str:
+    """roles or groups: a comma list of names, or none for no fallback."""
+    names = [x.strip() for x in text.split(",") if x.strip()]
+    if not names and text.lower() not in ("none", ""):
+        raise ConfigError(f"{key} must be a comma list of names, none (no {key}) or default")
+    return ", ".join(names) if names else "none"
+
+
+def _cases_value(text: str) -> str:
+    """cases: starred or all."""
+    cases = text.lower()
+    if cases not in ("starred", "all"):
+        raise ConfigError("cases must be starred, all or default")
+    return cases
+
+
+def _domains_value(text: str) -> str:
+    """domains: all, or a comma list of security, posture and health (a domain_ prefix is accepted)."""
+    if text.lower() == "all":
+        return "all"
+    domains = [x.strip().lower() for x in text.split(",") if x.strip()]
+    unknown = [x for x in domains if x.removeprefix("domain_") not in ASSIGNMENT_DOMAINS]
+    if not domains or unknown:
+        raise ConfigError("domains must be all, or a comma list of " + ", ".join(ASSIGNMENT_DOMAINS)
+                          + ", or default")
+    return ",".join(domains)
+
+
+def _window_value(text: str) -> str:
+    """window: how recent a case must be, as "<n> hours|days|months", or all."""
+    window = text.lower()
+    if window in ("all", "all time"):
+        return "all"
+    match = re.fullmatch(r"(\d+)\s*(hour|day|month)s?", window)
+    if not match or int(match.group(1)) < 1:
+        raise ConfigError("window must be a number of hours, days or months (24 hours, 7 days, "
+                          "3 months), all or default")
+    return f"{match.group(1)} {match.group(2)}s"
+
+
+def _max_per_analyst_value(text: str) -> int | str:
+    """max_per_analyst: open cases one analyst may hold, or unlimited (0, none and no limit mean the same)."""
+    limit = text.lower()
+    if limit in ("0", "unlimited", "none", "no limit"):
+        return "unlimited"
+    if not limit.isdigit():
+        raise ConfigError("max_per_analyst must be a whole number, unlimited or default")
+    return int(limit)
+
+
+def _online_only_value(text: str) -> bool:
+    """online_only: only analysts logged in now, as true/yes/1 or false/no/0."""
+    answer = text.lower()
+    if answer in ("true", "yes", "1"):
+        return True
+    if answer in ("false", "no", "0"):
+        return False
+    raise ConfigError("online_only must be true, false or default")
+
+
+# Each takes the stripped text; roles and groups share a parser that names the setting in its refusal.
+ASSIGNMENT_PARSERS = {"roles": partial(_names_value, "roles"), "groups": partial(_names_value, "groups"),
+                      "cases": _cases_value,
+                      "domains": _domains_value, "window": _window_value,
+                      "max_per_analyst": _max_per_analyst_value, "online_only": _online_only_value}
+
+
+def assignment_value(key: str, raw: object) -> object:
     """What to store for key, or None to remove. Same checks the scripts make, so a
     value that would stop the JOB is refused here instead."""
     text = str(raw).strip()
-    low = text.lower()
-    if low == "default":
+    if text.lower() == "default":
         return None
-    if key in ("roles", "groups"):
-        items = [x.strip() for x in text.split(",") if x.strip()]
-        if not items and low not in ("none", ""):
-            raise ConfigError(f"{key} must be a comma list of names, none (no {key}) or default")
-        return ", ".join(items) if items else "none"
-    if key == "cases":
-        if low not in ("starred", "all"):
-            raise ConfigError("cases must be starred, all or default")
-        return low
-    if key == "domains":
-        if low == "all":
-            return "all"
-        items = [x.strip().lower() for x in text.split(",") if x.strip()]
-        bad = [x for x in items if x.removeprefix("domain_") not in ASSIGNMENT_DOMAINS]
-        if not items or bad:
-            raise ConfigError("domains must be all, or a comma list of " + ", ".join(ASSIGNMENT_DOMAINS)
-                              + ", or default")
-        return ",".join(items)
-    if key == "window":
-        if low in ("all", "all time"):
-            return "all"
-        m = re.fullmatch(r"(\d+)\s*(hour|day|month)s?", low)
-        if not m or int(m.group(1)) < 1:
-            raise ConfigError("window must be a number of hours, days or months (24 hours, 7 days, "
-                              "3 months), all or default")
-        return f"{m.group(1)} {m.group(2)}s"
-    if key == "max_per_analyst":
-        if low in ("0", "unlimited", "none", "no limit"):
-            return "unlimited"
-        if not low.isdigit():
-            raise ConfigError("max_per_analyst must be a whole number, unlimited or default")
-        return int(low)
-    if key == "online_only":
-        if low in ("true", "yes", "1"):
-            return True
-        if low in ("false", "no", "0"):
-            return False
-        raise ConfigError("online_only must be true, false or default")
-    raise ConfigError(f"unknown assignment setting {key}")
+    parse = ASSIGNMENT_PARSERS.get(key)
+    if parse is None:
+        raise ConfigError(f"unknown assignment setting {key}")
+    return parse(text)
 
 
 def _assignment_section(cfg):
