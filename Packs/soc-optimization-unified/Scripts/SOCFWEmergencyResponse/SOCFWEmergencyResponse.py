@@ -500,67 +500,132 @@ def _off(policy):
     return policy.get("enabled") is False or str(policy.get("enabled")).strip().lower() == "false"
 
 
-def evaluate(policy, f):
+# Each check returns (holds, detail): what held, for the trail, or why the
+# policy does not match. A condition the policy does not name holds with no detail.
+
+def _unusable(policy: dict) -> str:
+    """Why this policy can never fire (turned off, no subject, no actions), or ''."""
+    if _off(policy):
+        return "turned off"
+    if not any(_as_list(policy.get(k)) for k in SUBJECT_FIELDS):
+        return "names no subject (about, source, rule_id, name_contains or tactic)"
+    if not _as_list(policy.get("actions")):
+        return "lists no actions"
+    return ""
+
+
+def _about(policy: dict, f: dict) -> tuple[bool, str]:
+    """The issue's product category is one the policy is about."""
+    about = [v.lower() for v in _as_list(policy.get("about"))]
+    if not about:
+        return True, ""
+    if f["category"] not in about:
+        return False, f"about {'/'.join(about)}, issue is category {f['category'] or '(none)'}"
+    return True, f"category {f['category']}"
+
+
+def _entity_type(policy: dict, f: dict) -> tuple[bool, str]:
+    """The assessment's primary entity type is one the policy names."""
+    entities = [v.lower() for v in _as_list(policy.get("entity_type"))]
+    if not entities:
+        return True, ""
+    if f["entity_type"] not in entities:
+        return False, f"entity {f['entity_type'] or '(none)'} not in {', '.join(entities)}"
+    return True, f"entity {f['entity_type']}"
+
+
+def _source(policy: dict, f: dict) -> tuple[bool, str]:
+    """The issue's source key is one the policy names."""
+    sources = [v.lower() for v in _as_list(policy.get("source"))]
+    if not sources:
+        return True, ""
+    if f["source"] not in sources:
+        return False, f"source {f['source'] or '(none)'} not in {', '.join(sources)}"
+    return True, f"source {f['source']}"
+
+
+def _rule_id(policy: dict, f: dict) -> tuple[bool, str]:
+    """The issue's detection rule id is one the policy names (exact, as rule ids are)."""
+    rule_ids = _as_list(policy.get("rule_id"))
+    if not rule_ids:
+        return True, ""
+    if not f["rule_id"] or f["rule_id"] not in rule_ids:
+        return False, f"rule id {f['rule_id'] or '(none)'} not in {', '.join(rule_ids)}"
+    return True, f"rule {f['rule_id']}"
+
+
+def _name_contains(policy: dict, f: dict) -> tuple[bool, str]:
+    """The issue name contains one of the policy's texts, case-insensitive."""
+    contains = _as_list(policy.get("name_contains"))
+    if not contains:
+        return True, ""
+    hit = next((c for c in contains if c.lower() in f["name"].lower()), None)
+    if not hit:
+        return False, f"issue name contains none of {', '.join(contains)}"
+    return True, f"name contains {hit!r}"
+
+
+def _tactic(policy: dict, f: dict) -> tuple[bool, str]:
+    """One of the issue's MITRE tactics, by id or name, is one the policy names."""
+    tactics = [t.lower() for t in _as_list(policy.get("tactic"))]
+    if not tactics:
+        return True, ""
+    hit = next((t for t in tactics if t in f["tactics"]), None)
+    if not hit:
+        return False, f"tactic {'/'.join(f['tactics']) or '(none)'} not in {', '.join(tactics)}"
+    return True, f"tactic {hit}"
+
+
+def _verdict(policy: dict, f: dict) -> tuple[bool, str]:
+    """The assessment's verdict is one the policy allows (default malicious; any drops the check)."""
+    verdicts = [v.lower() for v in (_as_list(policy.get("verdict")) or DEFAULT_VERDICT)]
+    if "any" in verdicts:
+        return True, ""
+    if f["verdict"] not in verdicts:
+        return False, f"verdict {f['verdict'] or '(none)'}, needs {'/'.join(verdicts)}"
+    return True, f["verdict"]
+
+
+def _confidence(policy: dict, f: dict) -> tuple[bool, str]:
+    """The assessment's confidence is at least the policy's floor (default high; any drops the check)."""
+    floor = str(policy.get("confidence") or DEFAULT_CONFIDENCE).strip().lower()
+    if floor == "any":
+        return True, ""
+    if floor not in CONFIDENCE:
+        return False, f"confidence {floor!r} is not low, medium, high or any"
+    if CONFIDENCE.get(f["confidence"], 0) < CONFIDENCE[floor]:
+        return False, f"confidence {f['confidence'] or '(none)'}, needs {floor} or higher"
+    return True, f"{f['confidence']} confidence"
+
+
+def _exposure(policy: dict, f: dict) -> tuple[bool, str]:
+    """The assessment's exposure is one the policy allows (default any)."""
+    exposures = [v.lower() for v in _as_list(policy.get("exposure"))]
+    if not exposures or "any" in exposures:
+        return True, ""
+    if f["exposure"] not in exposures:
+        return False, f"exposure {f['exposure'] or '(none)'}, needs {'/'.join(exposures)}"
+    return True, f"exposure {f['exposure']}"
+
+
+# Which issues first, then the assessment gate; the first that fails is the one reported.
+POLICY_CHECKS = (_about, _entity_type, _source, _rule_id, _name_contains, _tactic,
+                 _verdict, _confidence, _exposure)
+
+
+def evaluate(policy: dict, f: dict) -> tuple[bool, str]:
     """(matched, detail). Every condition the policy names must hold."""
     name = policy.get("policy") or "unnamed"
-    if _off(policy):
-        return False, f"{name}: turned off"
-    if not any(_as_list(policy.get(k)) for k in SUBJECT_FIELDS):
-        return False, f"{name}: names no subject (about, source, rule_id, name_contains or tactic)"
-    if not _as_list(policy.get("actions")):
-        return False, f"{name}: lists no actions"
-
+    unusable = _unusable(policy)
+    if unusable:
+        return False, f"{name}: {unusable}"
     held = []
-    about = [v.lower() for v in _as_list(policy.get("about"))]
-    if about:
-        if f["category"] not in about:
-            return False, f"{name}: about {'/'.join(about)}, issue is category {f['category'] or '(none)'}"
-        held.append(f"category {f['category']}")
-    entities = [v.lower() for v in _as_list(policy.get("entity_type"))]
-    if entities:
-        if f["entity_type"] not in entities:
-            return False, f"{name}: entity {f['entity_type'] or '(none)'} not in {', '.join(entities)}"
-        held.append(f"entity {f['entity_type']}")
-    sources = [v.lower() for v in _as_list(policy.get("source"))]
-    if sources:
-        if f["source"] not in sources:
-            return False, f"{name}: source {f['source'] or '(none)'} not in {', '.join(sources)}"
-        held.append(f"source {f['source']}")
-    rule_ids = _as_list(policy.get("rule_id"))
-    if rule_ids:
-        if not f["rule_id"] or f["rule_id"] not in rule_ids:
-            return False, f"{name}: rule id {f['rule_id'] or '(none)'} not in {', '.join(rule_ids)}"
-        held.append(f"rule {f['rule_id']}")
-    contains = _as_list(policy.get("name_contains"))
-    if contains:
-        hit = next((c for c in contains if c.lower() in f["name"].lower()), None)
-        if not hit:
-            return False, f"{name}: issue name contains none of {', '.join(contains)}"
-        held.append(f"name contains {hit!r}")
-    tactics = [t.lower() for t in _as_list(policy.get("tactic"))]
-    if tactics:
-        hit = next((t for t in tactics if t in f["tactics"]), None)
-        if not hit:
-            return False, f"{name}: tactic {'/'.join(f['tactics']) or '(none)'} not in {', '.join(tactics)}"
-        held.append(f"tactic {hit}")
-
-    verdicts = [v.lower() for v in (_as_list(policy.get("verdict")) or DEFAULT_VERDICT)]
-    if "any" not in verdicts:
-        if f["verdict"] not in verdicts:
-            return False, f"{name}: verdict {f['verdict'] or '(none)'}, needs {'/'.join(verdicts)}"
-        held.append(f["verdict"])
-    floor = str(policy.get("confidence") or DEFAULT_CONFIDENCE).strip().lower()
-    if floor != "any":
-        if floor not in CONFIDENCE:
-            return False, f"{name}: confidence {floor!r} is not low, medium, high or any"
-        if CONFIDENCE.get(f["confidence"], 0) < CONFIDENCE[floor]:
-            return False, f"{name}: confidence {f['confidence'] or '(none)'}, needs {floor} or higher"
-        held.append(f"{f['confidence']} confidence")
-    exposures = [v.lower() for v in _as_list(policy.get("exposure"))]
-    if exposures and "any" not in exposures:
-        if f["exposure"] not in exposures:
-            return False, f"{name}: exposure {f['exposure'] or '(none)'}, needs {'/'.join(exposures)}"
-        held.append(f"exposure {f['exposure']}")
+    for check in POLICY_CHECKS:
+        holds, detail = check(policy, f)
+        if not holds:
+            return False, f"{name}: {detail}"
+        if detail:
+            held.append(detail)
     return True, f"{name}: " + ", ".join(held)
 
 
