@@ -2084,7 +2084,112 @@ def _mode_listing(modes, cfg, actions, jobs):
     return md
 
 
-def mode(args):
+def _mode_listing_result(modes: dict, cfg: dict, actions: dict, jobs: dict | None,
+                         current: str | None) -> CommandResults:
+    """Every mode against this tenant, and which one it matches."""
+    md = _mode_listing(modes, cfg, actions, jobs)
+    md += ["", f"This tenant matches: **{current or 'custom'}**", "",
+           "Apply one: `!SOCFWConfig command=mode mode=<name> owner=<email>` — add `apply=yes` to write."]
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mode",
+                          outputs={"contract_version": CONTRACT_VERSION, "command": "mode",
+                                   "modes": list(modes), "current": current or "custom"})
+
+
+def _check_mode_args(name: str, who: str, modes: dict, actions: dict) -> None:
+    """Refuse an unknown mode, a modes list naming actions not installed, and an owner that is not an email."""
+    if name != DEFAULT_MODE and name not in modes:
+        raise ConfigError(f"unknown mode {name}; use one of: " + ", ".join(list(modes) + [DEFAULT_MODE]))
+    missing = sorted({a for a, _ in mode_switches(modes) if a not in actions})
+    if missing:
+        raise ConfigError(f"{MODES_LIST} names actions not in {ACTIONS_LIST}: {', '.join(missing)}")
+    if who and "@" not in who:
+        raise ConfigError("owner is the email of a user on this tenant")
+
+
+def _mode_shadow_changes(cfg: dict, new_cfg: dict, modes: dict, actions: dict) -> list[dict]:
+    """One row per switch any mode sets: live or shadow now and after, and whether the tenant value moves."""
+    changes = []
+    for action, actor in mode_switches(modes):
+        row = actions[action]
+        before, after = effective(cfg, action, row, actor)[0], effective(new_cfg, action, row, actor)[0]
+        changes.append({"action": action, "actor": actor, "from": _state(before), "to": _state(after),
+                        "changed": tenant_value(cfg, action, actor) != tenant_value(new_cfg, action, actor)})
+    return changes
+
+
+def _mode_job_plan(modes: dict, name: str, jobs: dict | None, who: str,
+                   users: set | None) -> tuple[list[dict], list[str]]:
+    """(plan, notes): for each JOB a mode names, its owner and schedule now and after, and the update to send.
+
+    A JOB that is not installed, or that could not be read, is noted and left alone. A JOB the mode
+    wants on stays off, with a note, while its owner is not a user on this tenant.
+    """
+    plan, notes = [], []
+    for job_name in mode_jobs(modes):
+        want_on = name != DEFAULT_MODE and (modes[name].get("jobs") or {}).get(job_name) == "on"
+        if jobs is None:
+            notes.append(f"{job_name}: could not read the jobs (Core REST API integration); not changed.")
+            continue
+        job_now = jobs.get(job_name)
+        if job_now is None:
+            notes.append(f"{job_name} is not installed; not changed.")
+            continue
+        owner_now = job_now.get("owner") or ""
+        owner_after = who or owner_now
+        if want_on and _owner_ok(owner_after, users) is False:
+            notes.append(f"{job_name} stays off: it needs an owner who is a user on this tenant (now "
+                         f"{_plain(owner_now)}). Run again with owner=<email>.")
+            want_on = False
+        change = [f"owner: {_plain(owner_now)} -> {owner_after}"] if owner_after != owner_now else []
+        if bool(job_now.get("scheduled")) != want_on:
+            change.append(f"schedule: {_on_off(job_now.get('scheduled'))} -> {_on_off(want_on)}")
+        plan.append({"job": job_name,
+                     "from": {"owner": owner_now, "scheduled": bool(job_now.get("scheduled"))},
+                     "to": {"owner": owner_after, "scheduled": want_on}, "changed": bool(change),
+                     "change": "; ".join(change),
+                     "updated": dict(job_now, scheduled=want_on, owner=owner_after)})
+    return plan, notes
+
+
+def _write_mode_jobs(plan: list[dict], name: str) -> list[dict]:
+    """Send each changed JOB, read it back, and return its config_change rows. A JOB that did not change
+    on the tenant is an error: the shadow settings are already written by then."""
+    rows = []
+    for p in plan:
+        if not p["changed"]:
+            continue
+        _core_api("/xsoar/public/v1/jobs", p["updated"])
+        back = load_jobs().get(p["job"]) or {}
+        landed = {"owner": back.get("owner") or "", "scheduled": bool(back.get("scheduled"))}
+        if landed != p["to"]:
+            raise ConfigError(f"the shadow settings were written, but {p['job']} did not change on "
+                              f"the tenant (read back owner {_plain(landed['owner'])}, schedule "
+                              f"{_on_off(landed['scheduled'])})")
+        rows.append({"vendor": "SOCFramework", "job": p["job"], "action_status": f"mode {name}",
+                     "action_taken": f"{p['job']}: {p['change']}"})
+    return rows
+
+
+def _mode_result(outputs: dict, plan: list[dict]) -> CommandResults:
+    """The War Room table: each switch and JOB now and after, then the notes."""
+    title = ("nothing to change" if not outputs["changed"] else "applied" if outputs["applied"]
+             else "dry run, nothing written")
+    md = [f"### Mode {outputs['mode']}: {title}", "", f"This tenant matched: {outputs['from_mode']}", "",
+          "| Setting | Now | After |", "|---|---|---|"]
+    md += [f"| {c['action']} ({c['actor']}) | {c['from']} | {c['to']}{'' if c['changed'] else ' (no change)'} |"
+           for c in outputs["changes"]]
+    for p in plan:
+        md.append(f"| {p['job']} JOB | {_on_off(p['from']['scheduled'])}, owner {_shown(p['from']['owner'])} | "
+                  f"{_on_off(p['to']['scheduled'])}, owner {_shown(p['to']['owner'])} |")
+    if outputs["notes"]:
+        md += [""] + [f"- {n}" for n in outputs["notes"]]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mode", outputs=outputs)
+
+
+def mode(args: dict) -> CommandResults:
+    """List the modes against this tenant, or apply one: its shadow settings and JOBs (owner=<email>
+    optional). mode=default removes them and turns the JOBs off. Dry run unless apply=yes."""
     modes = load_modes()
     actions = load_actions()
     cfg, exists = load_tenant_config()
@@ -2100,101 +2205,38 @@ def mode(args):
     if not name:
         if who:
             raise ConfigError("owner goes with a mode: !SOCFWConfig command=mode mode=<name> owner=<email>")
-        md = _mode_listing(modes, cfg, actions, jobs)
-        md += ["", f"This tenant matches: **{current or 'custom'}**", "",
-               "Apply one: `!SOCFWConfig command=mode mode=<name> owner=<email>` — add `apply=yes` to write."]
-        return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mode",
-                              outputs={"contract_version": CONTRACT_VERSION, "command": "mode",
-                                       "modes": list(modes), "current": current or "custom"})
-
-    if name != DEFAULT_MODE and name not in modes:
-        raise ConfigError(f"unknown mode {name}; use one of: " + ", ".join(list(modes) + [DEFAULT_MODE]))
-    missing = sorted({a for a, _ in mode_switches(modes) if a not in actions})
-    if missing:
-        raise ConfigError(f"{MODES_LIST} names actions not in {ACTIONS_LIST}: {', '.join(missing)}")
-    if who and "@" not in who:
-        raise ConfigError("owner is the email of a user on this tenant")
+        return _mode_listing_result(modes, cfg, actions, jobs, current)
+    _check_mode_args(name, who, modes, actions)
 
     new_cfg = _apply_mode_shadow(cfg, modes, name)
-    changes = []
-    for action, actor in mode_switches(modes):
-        row = actions[action]
-        before, after = effective(cfg, action, row, actor)[0], effective(new_cfg, action, row, actor)[0]
-        changes.append({"action": action, "actor": actor, "from": _state(before), "to": _state(after),
-                        "changed": tenant_value(cfg, action, actor) != tenant_value(new_cfg, action, actor)})
-
+    changes = _mode_shadow_changes(cfg, new_cfg, modes, actions)
     users = load_users() if (who or name != DEFAULT_MODE) else None
     if who and _owner_ok(who, users) is not True:
         raise ConfigError(f"{who} is not a user on this tenant" if users is not None
                           else "could not read the tenant's users (getUsers) to check the owner")
-    job_plan, notes = [], []
-    for job_name in mode_jobs(modes):
-        want_on = name != DEFAULT_MODE and (modes[name].get("jobs") or {}).get(job_name) == "on"
-        j = (jobs or {}).get(job_name)
-        if jobs is None:
-            notes.append(f"{job_name}: could not read the jobs (Core REST API integration); not changed.")
-            continue
-        if j is None:
-            notes.append(f"{job_name} is not installed; not changed.")
-            continue
-        owner_now = j.get("owner") or ""
-        owner_after = who or owner_now
-        if want_on and _owner_ok(owner_after, users) is False:
-            notes.append(f"{job_name} stays off: it needs an owner who is a user on this tenant (now "
-                         f"{_plain(owner_now)}). Run again with owner=<email>.")
-            want_on = False
-        updated = dict(j, scheduled=want_on, owner=owner_after)
-        change = [f"owner: {_plain(owner_now)} -> {owner_after}"] if owner_after != owner_now else []
-        if bool(j.get("scheduled")) != want_on:
-            change.append(f"schedule: {_on_off(j.get('scheduled'))} -> {_on_off(want_on)}")
-        job_plan.append({"job": job_name, "from": {"owner": owner_now, "scheduled": bool(j.get("scheduled"))},
-                         "to": {"owner": owner_after, "scheduled": want_on}, "changed": bool(change),
-                         "change": "; ".join(change), "updated": updated})
+    plan, notes = _mode_job_plan(modes, name, jobs, who, users)
 
-    changed = any(c["changed"] for c in changes) or any(p["changed"] for p in job_plan)
+    shadow_changed = any(c["changed"] for c in changes)
+    changed = shadow_changed or any(p["changed"] for p in plan)
     owner_arg = f" owner={who}" if who else ""
     outputs = {"contract_version": CONTRACT_VERSION, "command": "mode", "mode": name,
                "dry_run": not apply, "applied": False, "changed": changed, "from_mode": current or "custom",
-               "changes": changes, "jobs": [{k: v for k, v in p.items() if k != "updated"} for p in job_plan],
+               "changes": changes, "jobs": [{k: v for k, v in p.items() if k != "updated"} for p in plan],
                "notes": notes, "tenant_config_list": TENANT_CONFIG_LIST, "creates_list": False,
                "recorded": False, "apply_command": f"!SOCFWConfig command=mode mode={name}{owner_arg} apply=yes"}
 
     if changed and apply:
         rows = []
-        if any(c["changed"] for c in changes):
+        if shadow_changed:
             outputs["creates_list"] = not exists
             write_tenant_config(new_cfg, exists)
             rows += [{"universal_command": c["action"], "action_actor": c["actor"],
                       "shadow_mode_state": c["to"], "action_status": f"mode {name}",
                       "action_taken": f"{c['from']} -> {c['to']}"} for c in changes if c["changed"]]
-        for p in job_plan:
-            if not p["changed"]:
-                continue
-            _core_api("/xsoar/public/v1/jobs", p["updated"])
-            back = load_jobs().get(p["job"]) or {}
-            landed = {"owner": back.get("owner") or "", "scheduled": bool(back.get("scheduled"))}
-            if landed != p["to"]:
-                raise ConfigError(f"the shadow settings were written, but {p['job']} did not change on "
-                                  f"the tenant (read back owner {_plain(landed['owner'])}, schedule "
-                                  f"{_on_off(landed['scheduled'])})")
-            rows.append({"vendor": "SOCFramework", "job": p["job"], "action_status": f"mode {name}",
-                         "action_taken": f"{p['job']}: {p['change']}"})
+        rows += _write_mode_jobs(plan, name)
         outputs["applied"] = True
         outputs["recorded"] = _record(rows)
-
-    title = ("nothing to change" if not changed else "applied" if outputs["applied"]
-             else "dry run, nothing written")
-    md = [f"### Mode {name}: {title}", "", f"This tenant matched: {current or 'custom'}", "",
-          "| Setting | Now | After |", "|---|---|---|"]
-    md += [f"| {c['action']} ({c['actor']}) | {c['from']} | {c['to']}{'' if c['changed'] else ' (no change)'} |"
-           for c in changes]
-    for p in job_plan:
-        md.append(f"| {p['job']} JOB | {_on_off(p['from']['scheduled'])}, owner {_shown(p['from']['owner'])} | "
-                  f"{_on_off(p['to']['scheduled'])}, owner {_shown(p['to']['owner'])} |")
-    if notes:
-        md += [""] + [f"- {n}" for n in notes]
-    md += _write_notes(outputs)
-    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Mode", outputs=outputs)
+    return _mode_result(outputs, plan)
 
 
 # ── entry ────────────────────────────────────────────────────────────────────
