@@ -502,12 +502,9 @@ def test_every_command_ends_both_ways():
     """
     Given the golden file
     When the way each run ended is collected per command
-    Then every command has a run that returned and one that was refused, and only the known crash crashes
+    Then every command has a run that returned and one that was refused, and none crashed
     """
-    crashed = sorted(n for n, run in _golden().items() if "crash" in run)
-    # An unlabelled shipped policy puts None into the label list emergency joins into its error text.
-    assert crashed == ["emergency_policy_fields_without_label", "policy_label_only_unknown",
-                       "policy_reset_unknown"]
+    assert sorted(n for n, run in _golden().items() if "crash" in run) == []
     commands = ("status", "shadow", "set", "job", "owner", "emergency", "triage",
                 "assignment", "case", "close", "mode")
     ends = {c: set() for c in commands}

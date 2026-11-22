@@ -1218,6 +1218,11 @@ def _given(args: dict, names: tuple | list) -> list[str]:
     return [n for n in names if str(args.get(n) or "").strip()]
 
 
+def _shipped_policy_names(section: dict) -> list[str]:
+    """The shipped policies' labels, in list order; one with no label is skipped, as merge_policies does."""
+    return [p["policy"] for p in (section.get("policies") or []) if isinstance(p, dict) and p.get("policy")]
+
+
 def _emergency_listing(section: dict, actions: dict, cfg: dict) -> CommandResults:
     """Every policy, shipped and this tenant's, with each action's state for issue_emergency, and the settings."""
     views = [_policy_view(p, actions, cfg) for p in merge_policies(section, cfg)]
@@ -1324,7 +1329,7 @@ def emergency_policy(args: dict, actions: dict, section: dict, cfg: dict, exists
     """Edit one policy by its label, add one, or return one to what shipped with enabled=default."""
     label = str(args.get("policy") or "").strip()
     apply = _yes(args.get("apply"))
-    shipped_names = [p.get("policy") for p in (section.get("policies") or []) if isinstance(p, dict)]
+    shipped_names = _shipped_policy_names(section)
     shipped = label in shipped_names
     edit = _edit_from_args(args, actions, shipped)
     reset = str(args.get("enabled") or "").strip().lower() == "default"
@@ -1362,7 +1367,7 @@ def emergency(args: dict) -> CommandResults:
     section = load_emergency_section()
     cfg, exists = load_tenant_config()
     label = str(args.get("policy") or "").strip()
-    shipped_names = [p.get("policy") for p in (section.get("policies") or []) if isinstance(p, dict)]
+    shipped_names = _shipped_policy_names(section)
 
     setting_args = _given(args, SECTION_SETTINGS)
     if setting_args:
