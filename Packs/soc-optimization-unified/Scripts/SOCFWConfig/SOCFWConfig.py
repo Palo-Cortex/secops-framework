@@ -296,33 +296,27 @@ def _current_value(cfg, vendor, arg):
 
 # ── status ───────────────────────────────────────────────────────────────────
 
-def status(args):
-    actions = load_actions()
-    cfg, exists = load_tenant_config()
-
-    wanted = _split(args.get("action"))
-    unknown = [a for a in wanted if a not in actions]
-    if unknown:
-        raise ConfigError(f"unknown action {', '.join(unknown)}; run !SOCFWConfig "
-                          "command=status to list them")
-
+def _status_actors(cfg: dict) -> list[str]:
+    """The framework's actors, then any other actor the tenant config names, old names read as new."""
     named = set()
     section = cfg.get("shadow")
     if isinstance(section, dict):
         for per_action in section.values():
             if isinstance(per_action, dict):
                 named |= {_shadow_actor(str(a).lower(), {}) for a in per_action}
-    actors = list(ACTORS) + sorted(named - set(ACTORS))
+    return list(ACTORS) + sorted(named - set(ACTORS))
 
+
+def _shadow_status(actions: dict, cfg: dict, wanted: list[str], actors: list[str]) -> tuple[list, list, int]:
+    """(rows, table, read_only): one row per action and actor, one table line per action, and how
+    many actions are read-only. Without wanted, read-only actions are counted but not listed."""
     rows, table, read_only = [], [], 0
     for name in sorted(actions):
         row = actions[name]
         ro = is_read_only(row)
         read_only += ro
-        if wanted:
-            if name not in wanted:
-                continue
-        elif ro:
+        listed = name in wanted if wanted else not ro
+        if not listed:
             continue
         cells = []
         for actor in actors:
@@ -332,18 +326,23 @@ def status(args):
                          "field": field, "read_only": ro})
             cells.append(_state(shadow) + MARK[decided_by])
         table.append([name] + cells)
+    return rows, table, read_only
 
+
+def _customer_values(actions: dict, cfg: dict) -> list[dict]:
+    """Every customer value an action leaves empty: what the tenant has, and whether it is required."""
     values = []
     for (vendor, arg), slot in sorted(value_slots(actions).items()):
         current = _current_value(cfg, vendor, arg)
         values.append({"vendor": vendor, "arg": arg, "value": current,
                        "set": current not in (None, ""), "required": slot["required"],
                        "used_by": slot["used_by"]})
+    return values
 
-    outputs = {"contract_version": CONTRACT_VERSION, "command": "status",
-               "tenant_config_list": TENANT_CONFIG_LIST, "tenant_config_exists": exists,
-               "actors": actors, "rows": rows, "values": values}
 
+def _shadow_and_values_md(actors: list[str], table: list, values: list[dict], listed_all: bool,
+                          read_only: int, exists: bool) -> list[str]:
+    """The live-or-simulated table and the customer values table, with how to change each."""
     md = ["### SOC Framework — live or simulated, by actor", "",
           "| Action | " + " | ".join(actors) + " |",
           "|---|" + "---|" * len(actors)]
@@ -352,7 +351,7 @@ def status(args):
            f"✱ `{TENANT_CONFIG_LIST}` → `shadow.<action>.<actor>`",
            f"(no mark) `{ACTIONS_LIST}` → `<action>.shadow_mode_by_actor.<actor>`",
            f"† `{ACTIONS_LIST}` → `<action>.shadow_mode`, one setting for every actor"]
-    if not wanted:
+    if listed_all:
         md.append(f"{read_only} read-only actions (enrichment, investigation) always run "
                   "live and are not listed.")
     md += ["", "Change one: `!SOCFWConfig command=shadow action=<action> actor=<actor> "
@@ -368,50 +367,89 @@ def status(args):
                "value=<value>` — add `apply=yes` to write."]
     if not exists:
         md += ["", f"{TENANT_CONFIG_LIST} does not exist yet; the first `apply=yes` creates it."]
+    return md
+
+
+# Each status section below returns (outputs key, value, markdown lines), or raises
+# ConfigError when what it reads is missing or malformed; status then says so and goes on.
+
+def _mode_status(cfg: dict, job_rows: list[dict]) -> tuple[str, str, list[str]]:
+    """The mode this tenant's settings match, judged with the installed JOBs when they could be read."""
+    jobs_by_name = {r["job"]: {"scheduled": r.get("scheduled")} for r in job_rows if r.get("installed")}
+    current = matching_mode(cfg, load_modes(), jobs_by_name if job_rows else None) or "custom"
+    return "mode", current, ["", "### Mode", "", f"This tenant matches: **{current}**. See the modes: "
+                                                 "`!SOCFWConfig command=mode`"]
+
+
+def _triage_status(cfg: dict) -> tuple[str, dict, list[str]]:
+    """Auto Triage's threshold and window: shipped, this tenant's, and what the JOB uses."""
+    view = _triage_view(cfg, shipped_triage())
+    return "triage", view, ["", "### Auto Triage settings", ""] + _triage_table(view) + [
+        "", "Change one: `!SOCFWConfig command=triage score_threshold=<n|off|default> "
+            "window_hours=<n|default>` — add `apply=yes` to write."]
+
+
+def _assignment_status(cfg: dict) -> tuple[str, dict, list[str]]:
+    """The analyst assignment settings: shipped, this tenant's, and what assignment uses."""
+    view = _assignment_view(cfg, shipped_assignment())
+    return "assignment", view, (["", "### Analyst assignment settings", ""] + _assignment_table(view)
+                                + ["", ASSIGNMENT_USAGE])
+
+
+def _case_status(cfg: dict) -> tuple[str, dict, list[str]]:
+    """Which cases Case Analysis looks at: shipped, this tenant's, and what it uses."""
+    view = _case_view(cfg, shipped_case())
+    return "case", view, ["", "### Case Analysis settings", ""] + _case_table(view) + ["", CASE_USAGE]
+
+
+def _emergency_status(cfg: dict) -> tuple[str, dict, list[str]]:
+    """Whether emergency response is on, and how many policies it has, edited or added here."""
+    section = load_emergency_section()
+    policies = merge_policies(section, cfg)
+    local = sum(1 for p in policies if p.get("origin") != "shipped")
+    on = section.get("enabled") is True
+    summary = {"enabled": on, "policies": len(policies), "tenant_policies": local}
+    return "emergency", summary, [
+        "", "### Emergency response", "",
+        f"{'On' if on else 'Off'}: {len(policies)} policies, "
+        f"{local} edited or added on this tenant. See them: `!SOCFWConfig command=emergency`"]
+
+
+def status(args: dict) -> CommandResults:
+    """Which mutating actions are live or simulated per actor and why, the customer values, and the
+    JOB, mode, triage, assignment, case and emergency settings. Reads only."""
+    actions = load_actions()
+    cfg, exists = load_tenant_config()
+
+    wanted = _split(args.get("action"))
+    unknown = [a for a in wanted if a not in actions]
+    if unknown:
+        raise ConfigError(f"unknown action {', '.join(unknown)}; run !SOCFWConfig "
+                          "command=status to list them")
+
+    actors = _status_actors(cfg)
+    rows, table, read_only = _shadow_status(actions, cfg, wanted, actors)
+    values = _customer_values(actions, cfg)
+    outputs = {"contract_version": CONTRACT_VERSION, "command": "status",
+               "tenant_config_list": TENANT_CONFIG_LIST, "tenant_config_exists": exists,
+               "actors": actors, "rows": rows, "values": values}
+    md = _shadow_and_values_md(actors, table, values, not wanted, read_only, exists)
 
     outputs["jobs"], job_md = _job_status()
     md += job_md
-    try:
-        jobs_by_name = {r["job"]: {"scheduled": r.get("scheduled")} for r in outputs["jobs"]
-                        if r.get("installed")}
-        current = matching_mode(cfg, load_modes(), jobs_by_name if outputs["jobs"] else None)
-        outputs["mode"] = current or "custom"
-        md += ["", "### Mode", "", f"This tenant matches: **{current or 'custom'}**. See the modes: "
-                   "`!SOCFWConfig command=mode`"]
-    except ConfigError as e:
-        md += ["", f"Modes unreadable: {e}"]
-    try:
-        triage_view = _triage_view(cfg, shipped_triage())
-        outputs["triage"] = triage_view
-        md += ["", "### Auto Triage settings", ""] + _triage_table(triage_view) + [
-               "", "Change one: `!SOCFWConfig command=triage score_threshold=<n|off|default> "
-                   "window_hours=<n|default>` — add `apply=yes` to write."]
-    except ConfigError as e:
-        md += ["", f"Auto Triage settings unreadable: {e}"]
-    try:
-        assignment_view = _assignment_view(cfg, shipped_assignment())
-        outputs["assignment"] = assignment_view
-        md += ["", "### Analyst assignment settings", ""] + _assignment_table(assignment_view) + [
-               "", ASSIGNMENT_USAGE]
-    except ConfigError as e:
-        md += ["", f"Analyst assignment settings unreadable: {e}"]
-    try:
-        case_view = _case_view(cfg, shipped_case())
-        outputs["case"] = case_view
-        md += ["", "### Case Analysis settings", ""] + _case_table(case_view) + ["", CASE_USAGE]
-    except ConfigError as e:
-        md += ["", f"Case Analysis settings unreadable: {e}"]
-    try:
-        section = load_emergency_section()
-        policies = merge_policies(section, cfg)
-        local = sum(1 for p in policies if p.get("origin") != "shipped")
-        outputs["emergency"] = {"enabled": section.get("enabled") is True,
-                                "policies": len(policies), "tenant_policies": local}
-        md += ["", "### Emergency response", "",
-               f"{'On' if section.get('enabled') is True else 'Off'}: {len(policies)} policies, "
-               f"{local} edited or added on this tenant. See them: `!SOCFWConfig command=emergency`"]
-    except ConfigError as e:
-        md += ["", f"Emergency response policies unreadable: {e}"]
+    sections = ((partial(_mode_status, cfg, outputs["jobs"]), "Modes unreadable"),
+                (partial(_triage_status, cfg), "Auto Triage settings unreadable"),
+                (partial(_assignment_status, cfg), "Analyst assignment settings unreadable"),
+                (partial(_case_status, cfg), "Case Analysis settings unreadable"),
+                (partial(_emergency_status, cfg), "Emergency response policies unreadable"))
+    for build, unreadable in sections:
+        try:
+            key, value, lines = build()
+        except ConfigError as e:
+            md += ["", f"{unreadable}: {e}"]
+            continue
+        outputs[key] = value
+        md += lines
     return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Status",
                           outputs=outputs)
 
