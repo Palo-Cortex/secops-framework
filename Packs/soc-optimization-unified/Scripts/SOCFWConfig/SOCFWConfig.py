@@ -525,33 +525,21 @@ def _shadow_result(o):
 
 # ── set ──────────────────────────────────────────────────────────────────────
 
-def set_value(args):
-    actions = load_actions()
-    vendor_arg = str(args.get("vendor") or "").strip()
-    arg_arg = str(args.get("arg") or "").strip()
-    raw_value = args.get("value")
-    value = "" if raw_value is None else str(raw_value).strip()
-    apply = _yes(args.get("apply"))
-
-    slots = value_slots(actions)
-    valid = ", ".join(f"{v} {a}" for v, a in sorted(slots))
+def _pick_slot(slots: dict, vendor_arg: str, arg_arg: str) -> tuple[str, str]:
+    """The (vendor, arg) slot the arguments name, matched without regard to case."""
+    settable = ", ".join(f"{v} {a}" for v, a in sorted(slots))
     if not vendor_arg or not arg_arg:
-        raise ConfigError(f"vendor and arg are required; settable values: {valid}")
+        raise ConfigError(f"vendor and arg are required; settable values: {settable}")
     match = [(v, a) for v, a in slots
              if v.lower() == vendor_arg.lower() and a.lower() == arg_arg.lower()]
     if not match:
         raise ConfigError(f"{vendor_arg} {arg_arg} is not a customer value any action uses; "
-                          f"settable values: {valid}")
-    vendor, arg = match[0]
-    if value == "":
-        raise ConfigError("value is required; use value=default to remove the setting")
-    remove = value.lower() == "default"
+                          f"settable values: {settable}")
+    return match[0]
 
-    cfg, exists = load_tenant_config()
-    if vendor in cfg and not isinstance(cfg[vendor], dict):
-        raise ConfigError(f"'{vendor}' in {TENANT_CONFIG_LIST} is not an object; fix it in "
-                          "Settings > Lists")
-    before = _current_value(cfg, vendor, arg)
+
+def _with_value(cfg: dict, vendor: str, arg: str, value: str, remove: bool) -> dict:
+    """A copy of cfg with vendor.arg set to value, or removed (and the vendor with it once empty)."""
     new_cfg = json.loads(json.dumps(cfg))
     per_vendor = new_cfg.setdefault(vendor, {})
     if remove:
@@ -560,7 +548,43 @@ def set_value(args):
             new_cfg.pop(vendor, None)
     else:
         per_vendor[arg] = value
-    after = _current_value(new_cfg, vendor, arg)
+    return new_cfg
+
+
+def _set_result(outputs: dict, slot: dict, remove: bool) -> CommandResults:
+    """The War Room table and notes for set, with outputs as SOCFWConfig.Set."""
+    vendor, arg = outputs["vendor"], outputs["arg"]
+    if not outputs["changed"]:
+        md = [f"### {vendor} {arg}: already set — nothing to change"]
+    else:
+        md = [f"### {vendor} {arg}: " + ("applied" if outputs["applied"] else "dry run, nothing written")]
+    md += ["", "| Now | After | Used by |", "|---|---|---|",
+           f"| {_shown(outputs['from'])} | {_shown(outputs['to'])} | {', '.join(slot['used_by'])} |"]
+    if remove and slot["required"] and outputs["changed"]:
+        md += ["", f"Without it, {', '.join(slot['used_by'])} skip for {vendor} with "
+                   "\"not configured\"."]
+    md += _write_notes(outputs)
+    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Set",
+                          outputs=outputs)
+
+
+def set_value(args: dict) -> CommandResults:
+    """Set one customer value in SOCFWTenantConfig, or remove it with value=default. Dry run unless apply=yes."""
+    slots = value_slots(load_actions())
+    vendor, arg = _pick_slot(slots, str(args.get("vendor") or "").strip(),
+                             str(args.get("arg") or "").strip())
+    value = "" if args.get("value") is None else str(args.get("value")).strip()
+    if value == "":
+        raise ConfigError("value is required; use value=default to remove the setting")
+    remove = value.lower() == "default"
+    apply = _yes(args.get("apply"))
+
+    cfg, exists = load_tenant_config()
+    if vendor in cfg and not isinstance(cfg[vendor], dict):
+        raise ConfigError(f"'{vendor}' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    new_cfg = _with_value(cfg, vendor, arg, value, remove)
+    before, after = _current_value(cfg, vendor, arg), _current_value(new_cfg, vendor, arg)
 
     slot = slots[(vendor, arg)]
     outputs = {"contract_version": CONTRACT_VERSION, "command": "set",
@@ -580,21 +604,7 @@ def set_value(args):
             outputs["recorded"] = _record([{
                 "vendor": vendor, "action_status": f"set {arg}",
                 "action_taken": f"{arg}: {_plain(before)} -> {_plain(after)}"}])
-
-    md = []
-    if not outputs["changed"]:
-        md.append(f"### {vendor} {arg}: already set — nothing to change")
-    else:
-        md.append(f"### {vendor} {arg}: " + ("applied" if outputs["applied"]
-                                              else "dry run, nothing written"))
-    md += ["", "| Now | After | Used by |", "|---|---|---|",
-           f"| {_shown(before)} | {_shown(after)} | {', '.join(slot['used_by'])} |"]
-    if remove and slot["required"] and outputs["changed"]:
-        md += ["", f"Without it, {', '.join(slot['used_by'])} skip for {vendor} with "
-                   "\"not configured\"."]
-    md += _write_notes(outputs)
-    return CommandResults(readable_output="\n".join(md), outputs_prefix="SOCFWConfig.Set",
-                          outputs=outputs)
+    return _set_result(outputs, slot, remove)
 
 
 # ── job ──────────────────────────────────────────────────────────────────────
