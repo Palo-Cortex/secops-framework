@@ -481,7 +481,7 @@ def _with_shadow(cfg: dict, action: str, row: dict, actors: list[str], value: st
 
 
 def shadow(args: dict) -> CommandResults:
-    """Take one action on or off shadow for named actors, or back to SOCFrameworkActions_V3. Dry run unless apply=yes."""
+    """Take one action on or off shadow for named actors, or back to what shipped. Dry run unless apply=yes."""
     actions = load_actions()
     action = str(args.get("action") or "").strip()
     actors = [a.lower() for a in _split(args.get("actor"))]
