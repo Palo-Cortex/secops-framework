@@ -417,13 +417,16 @@ def status(args):
 
 # ── shadow ───────────────────────────────────────────────────────────────────
 
-def shadow(args):
-    actions = load_actions()
-    action = str(args.get("action") or "").strip()
-    actors = [a.lower() for a in _split(args.get("actor"))]
-    value = str(args.get("value") or "").strip().lower()
-    apply = _yes(args.get("apply"))
+def _valid_actors(actions: dict) -> set[str]:
+    """The actors shadow accepts: the framework's own and any an action names, without the old names."""
+    valid = set(ACTORS)
+    for row in actions.values():
+        valid |= {str(a).lower() for a in (row.get("shadow_mode_by_actor") or {})}
+    return valid - set(LEGACY_ACTOR_ALIASES)
 
+
+def _check_shadow_args(actions: dict, action: str, actors: list[str], value: str) -> None:
+    """Refuse a missing or unknown action, value or actor, and an old actor name, naming the fix."""
     if not action:
         raise ConfigError("action is required, e.g. action=soc-star-case")
     if action not in actions:
@@ -435,14 +438,56 @@ def shadow(args):
     renamed = [f"{a} is now {LEGACY_ACTOR_ALIASES[a]}" for a in actors if a in LEGACY_ACTOR_ALIASES]
     if renamed:
         raise ConfigError("; ".join(renamed) + " - use that name instead")
-    valid_actors = set(ACTORS)
-    for r in actions.values():
-        valid_actors |= {str(a).lower() for a in (r.get("shadow_mode_by_actor") or {})}
-    valid_actors -= set(LEGACY_ACTOR_ALIASES)
-    unknown = [a for a in actors if a not in valid_actors]
+    unknown = [a for a in actors if a not in _valid_actors(actions)]
     if unknown:
         raise ConfigError(f"unknown actor {', '.join(unknown)}; use one or more of "
                           + ", ".join(ACTORS))
+
+
+def _with_shadow(cfg: dict, action: str, row: dict, actors: list[str], value: str) -> tuple[dict, list[dict]]:
+    """A copy of cfg with value set for each actor on action, and one change row per actor.
+
+    default removes the actor's setting; an action or a shadow section left empty is removed too.
+    """
+    new_cfg = json.loads(json.dumps(cfg))
+    section = new_cfg.setdefault("shadow", {})
+    if not isinstance(section, dict):
+        raise ConfigError(f"'shadow' in {TENANT_CONFIG_LIST} is not an object; fix it in "
+                          "Settings > Lists")
+    per_action = section.setdefault(action, {})
+    if not isinstance(per_action, dict):
+        raise ConfigError(f"'shadow.{action}' in {TENANT_CONFIG_LIST} is not an object; fix it "
+                          "in Settings > Lists")
+
+    changes = []
+    for actor in actors:
+        before, before_by, _ = effective(cfg, action, row, actor)
+        if SHADOW_VALUES[value] is None:
+            per_action.pop(actor, None)
+        else:
+            per_action[actor] = SHADOW_VALUES[value]
+        after, after_by, after_field = effective(new_cfg, action, row, actor)
+        changes.append({
+            "actor": actor, "from": _state(before), "to": _state(after),
+            "decided_by_before": before_by, "decided_by_after": after_by,
+            "field_after": after_field,
+            "changed": (before, before_by) != (after, after_by)})
+
+    if not per_action:
+        section.pop(action, None)
+    if not section:
+        new_cfg.pop("shadow", None)
+    return new_cfg, changes
+
+
+def shadow(args: dict) -> CommandResults:
+    """Take one action on or off shadow for named actors, or back to SOCFrameworkActions_V3. Dry run unless apply=yes."""
+    actions = load_actions()
+    action = str(args.get("action") or "").strip()
+    actors = [a.lower() for a in _split(args.get("actor"))]
+    value = str(args.get("value") or "").strip().lower()
+    apply = _yes(args.get("apply"))
+    _check_shadow_args(actions, action, actors, value)
 
     row = actions[action]
     outputs = {"contract_version": CONTRACT_VERSION, "command": "shadow",
@@ -460,34 +505,7 @@ def shadow(args):
         return _shadow_result(outputs)
 
     cfg, exists = load_tenant_config()
-    new_cfg = json.loads(json.dumps(cfg))
-    section = new_cfg.setdefault("shadow", {})
-    if not isinstance(section, dict):
-        raise ConfigError(f"'shadow' in {TENANT_CONFIG_LIST} is not an object; fix it in "
-                          "Settings > Lists")
-    per_action = section.setdefault(action, {})
-    if not isinstance(per_action, dict):
-        raise ConfigError(f"'shadow.{action}' in {TENANT_CONFIG_LIST} is not an object; fix it "
-                          "in Settings > Lists")
-
-    for actor in actors:
-        before, before_by, before_field = effective(cfg, action, row, actor)
-        if SHADOW_VALUES[value] is None:
-            per_action.pop(actor, None)
-        else:
-            per_action[actor] = SHADOW_VALUES[value]
-        after, after_by, after_field = effective(new_cfg, action, row, actor)
-        outputs["changes"].append({
-            "actor": actor, "from": _state(before), "to": _state(after),
-            "decided_by_before": before_by, "decided_by_after": after_by,
-            "field_after": after_field,
-            "changed": (before, before_by) != (after, after_by)})
-
-    if not per_action:
-        section.pop(action, None)
-    if not section:
-        new_cfg.pop("shadow", None)
-
+    new_cfg, outputs["changes"] = _with_shadow(cfg, action, row, actors, value)
     if not any(c["changed"] for c in outputs["changes"]):
         return _shadow_result(outputs)
 
