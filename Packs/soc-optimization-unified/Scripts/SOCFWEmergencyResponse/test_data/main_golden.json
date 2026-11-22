@@ -1,0 +1,5251 @@
+{
+ "already_contained": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "already_contained",
+      "decision_reason": "the assessment says the issue is already contained",
+      "verdict": "malicious",
+      "confidence": "high"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — the assessment says the issue is already contained."
+  ]
+ },
+ "assessment_as_text": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | simulated (shadow mode) |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "assessment_not_json": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "unavailable",
+      "decision_reason": "no assessment at `Assessment.Text`"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — no assessment at `Assessment.Text`."
+  ]
+ },
+ "by_rule_and_identity": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.close_notes",
+    "Contained by SOC Framework emergency response (identity, by_rule): soc-clear-sessions (executed). Assessment: malicious, high confidence."
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-close-issue-contained",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "identity, by_rule",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=executed",
+      "contained": true,
+      "close_status": "executed",
+      "decision_reason": "ran on Okta v2",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user",
+      "rule_id": "r-1"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity",
+     "by_rule"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity, by_rule\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ✅ executed | ran on Okta v2 |\n\n**Closed** as true positive, contained (soc-close-issue-contained).\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- match — by_rule: entity user, source ds_okta_systemlog, rule r-1, malicious, high confidence (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "by_rule_from_custom_fields": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity, by_rule",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user",
+      "rule_id": "r-1"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity",
+     "by_rule"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity, by_rule\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | simulated (shadow mode) |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- match — by_rule: entity user, source ds_okta_systemlog, rule r-1, malicious, high confidence (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "c2_malicious_destinations": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-block-domain",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "bad.example.com"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "c2",
+      "action": "soc-block-domain,soc-block-network-indicator",
+      "action_status": "soc-block-domain bad.example.com=executed; soc-block-domain c2.example.net=blocked; soc-block-domain printer=blocked; soc-block-domain files.partner.example=blocked; soc-block-network-indicator 203.0.113.7=blocked; soc-block-network-indicator 10.20.20.99=blocked",
+      "blocked_reason": "soc-block-domain c2.example.net: no malicious reputation (score 2) - a person decides; soc-block-domain printer: internal destination - one of this network's own; a person decides; soc-block-domain files.partner.example: protected (shipped: domain partner.example); soc-block-network-indicator 203.0.113.7: internal destination - one of this network's own; a person decides; soc-block-network-indicator 10.20.20.99: internal destination - one of this network's own; a person decides",
+      "escalation": "star executed; severity executed (case 500 medium -> high (ran on Okta v2))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-block-domain c2.example.net, soc-block-domain printer, soc-block-domain files.partner.example, soc-block-network-indicator 203.0.113.7, soc-block-network-indicator 10.20.20.99 did not run for real, so the issue is not contained",
+      "verdict": "suspicious",
+      "confidence": "medium",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "c2"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — c2\n\n| Action | Outcome | |\n|---|---|---|\n| soc-block-domain bad.example.com | ✅ executed | ran on Okta v2 |\n| soc-block-domain c2.example.net | ⛔ blocked | no malicious reputation (score 2) - a person decides |\n| soc-block-domain printer | ⛔ blocked | internal destination - one of this network's own; a person decides |\n| soc-block-domain files.partner.example | ⛔ blocked | protected (shipped: domain partner.example) |\n| soc-block-network-indicator 203.0.113.7 | ⛔ blocked | internal destination - one of this network's own; a person decides |\n| soc-block-network-indicator 10.20.20.99 | ⛔ blocked | internal destination - one of this network's own; a person decides |\n\n**Escalated** for a person to contain: star executed; severity executed (case 500 medium -> high (ran on Okta v2)).\n\n**Close:** not_attempted — not closed: soc-block-domain c2.example.net, soc-block-domain printer, soc-block-domain files.partner.example, soc-block-network-indicator 203.0.113.7, soc-block-network-indicator 10.20.20.99 did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- no — endpoint: verdict suspicious, needs malicious (shipped)\n- match — c2: category endpoint, tactic ta0011, suspicious, medium confidence (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "c2_nothing_to_block": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "c2",
+      "action": "soc-block-domain,soc-block-network-indicator",
+      "action_status": "soc-block-domain=none; soc-block-network-indicator=none",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed:  did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "c2"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — c2\n\n| Action | Outcome | |\n|---|---|---|\n| soc-block-domain | ∅ none | nothing to block (SOCFramework.Artifacts.Network.DNS.Query, SOCFramework.Endpoint.dns_queries empty) |\n| soc-block-network-indicator | ∅ none | nothing to block (SOCFramework.Artifacts.Network.Destination.IP, SOCFramework.Endpoint.remote_ips empty) |\n\n**Close:** not_attempted — not closed:  did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- no — endpoint: exposure attempted, needs executed (shipped)\n- match — c2: category endpoint, tactic ta0011, malicious, high confidence (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "c2_protect_unreadable": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "Gone"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "c2",
+      "action": "soc-block-domain,soc-block-network-indicator",
+      "action_status": "soc-block-domain bad.example.com=blocked; soc-block-network-indicator=none",
+      "blocked_reason": "soc-block-domain bad.example.com: protect cannot be read (list Gone does not exist) - a person decides",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-block-domain bad.example.com did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "c2"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — c2\n\n| Action | Outcome | |\n|---|---|---|\n| soc-block-domain bad.example.com | ⛔ blocked | protect cannot be read (list Gone does not exist) - a person decides |\n| soc-block-network-indicator | ∅ none | nothing to block (SOCFramework.Artifacts.Network.Destination.IP, SOCFramework.Endpoint.remote_ips empty) |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-block-domain bad.example.com did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- no — endpoint: exposure attempted, needs executed (shipped)\n- match — c2: category endpoint, tactic ta0011, malicious, high confidence (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "c2_tactic_other": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "no_match",
+      "decision_reason": "no policy matched",
+      "verdict": "malicious",
+      "confidence": "high"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — no policy matched.\n- no — identity: about identity, issue is category endpoint (shipped)\n- no — endpoint: exposure attempted, needs executed (shipped)\n- no — c2: tactic ta0001 not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "disabled": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "disabled",
+      "decision_reason": "phases.triage.emergency.enabled is not true in SOCFrameworkPhasePolicy_V3",
+      "verdict": "malicious",
+      "confidence": "high"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — phases.triage.emergency.enabled is not true in SOCFrameworkPhasePolicy_V3."
+  ]
+ },
+ "email_close_off": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-retract-email",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "mail",
+      "action": "soc-retract-email,soc-block-domain",
+      "action_status": "soc-retract-email=executed; soc-block-domain=none",
+      "contained": true,
+      "close_status": "not_attempted",
+      "decision_reason": "closing is off (phases.triage.emergency.close_when_contained)",
+      "verdict": "benign",
+      "confidence": "low",
+      "exposure": "delivered",
+      "entity_type": "email"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "mail"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — mail\n\n| Action | Outcome | |\n|---|---|---|\n| soc-retract-email | ✅ executed | ran on Okta v2 |\n| soc-block-domain | ∅ none | nothing to block (SOCFramework.Artifacts.Network.DNS.Query, SOCFramework.Endpoint.dns_queries empty) |\n\n**Close:** not_attempted — closing is off (phases.triage.emergency.close_when_contained).\n\nPolicies:\n- no — identity: about identity, issue is category email (shipped)\n- no — endpoint: about endpoint, issue is category email (shipped)\n- no — c2: about endpoint, issue is category email (shipped)\n- match — mail: category email (shipped)\n- no — by_rule: entity email not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category email (shipped)"
+  ]
+ },
+ "email_no_close_action": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-retract-email",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "mail",
+      "action": "soc-retract-email,soc-block-domain",
+      "action_status": "soc-retract-email=executed; soc-block-domain=none",
+      "contained": true,
+      "close_status": "skipped",
+      "decision_reason": "soc-close-issue-contained is not in SOCFrameworkActions_V3",
+      "verdict": "benign",
+      "confidence": "low",
+      "exposure": "delivered",
+      "entity_type": "email"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "mail"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — mail\n\n| Action | Outcome | |\n|---|---|---|\n| soc-retract-email | ✅ executed | ran on Okta v2 |\n| soc-block-domain | ∅ none | nothing to block (SOCFramework.Artifacts.Network.DNS.Query, SOCFramework.Endpoint.dns_queries empty) |\n\n**Close:** skipped — soc-close-issue-contained is not in SOCFrameworkActions_V3.\n\nPolicies:\n- no — identity: about identity, issue is category email (shipped)\n- no — endpoint: about endpoint, issue is category email (shipped)\n- no — c2: about endpoint, issue is category email (shipped)\n- match — mail: category email (shipped)\n- no — by_rule: entity email not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category email (shipped)"
+  ]
+ },
+ "email_retract_and_block": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-retract-email",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-block-domain",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "bad.example.com"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.close_notes",
+    "Contained by SOC Framework emergency response (mail): soc-retract-email (executed), soc-block-domain bad.example.com (executed). Assessment: benign, low confidence."
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-close-issue-contained",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "mail",
+      "action": "soc-retract-email,soc-block-domain",
+      "action_status": "soc-retract-email=executed; soc-block-domain bad.example.com=executed",
+      "contained": true,
+      "close_status": "executed",
+      "decision_reason": "ran on Okta v2",
+      "verdict": "benign",
+      "confidence": "low",
+      "exposure": "delivered",
+      "entity_type": "email"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "mail"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — mail\n\n| Action | Outcome | |\n|---|---|---|\n| soc-retract-email | ✅ executed | ran on Okta v2 |\n| soc-block-domain bad.example.com | ✅ executed | ran on Okta v2 |\n\n**Closed** as true positive, contained (soc-close-issue-contained).\n\nPolicies:\n- no — identity: about identity, issue is category email (shipped)\n- no — endpoint: about endpoint, issue is category email (shipped)\n- no — c2: about endpoint, issue is category email (shipped)\n- match — mail: category email (shipped)\n- no — by_rule: entity email not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category email (shipped)"
+  ]
+ },
+ "enabled_not_true": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "disabled",
+      "decision_reason": "phases.triage.emergency.enabled is not true in SOCFrameworkPhasePolicy_V3",
+      "verdict": "malicious",
+      "confidence": "high"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — phases.triage.emergency.enabled is not true in SOCFrameworkPhasePolicy_V3."
+  ]
+ },
+ "endpoint_already_contained_by_edr": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=already; soc-kill-process=excluded; soc-missing=skipped",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ☑️ already | the EDR reports the host containment_pending |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_by_name": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-isolate-endpoint",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Endpoint.containment_status",
+    "containment_pending"
+   ],
+   [
+    "setIssue",
+    {
+     "endpointisolationstatus": "containment_pending"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.close_notes",
+    "Contained by SOC Framework emergency response (by_name): soc-isolate-endpoint (executed). Assessment: malicious, high confidence."
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-close-issue-contained",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "by_name",
+      "action": "soc-isolate-endpoint",
+      "action_status": "soc-isolate-endpoint=executed",
+      "contained": true,
+      "close_status": "executed",
+      "decision_reason": "ran on Okta v2",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "by_name"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — by_name\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ✅ executed | ran on Okta v2 |\n\n**Closed** as true positive, contained (soc-close-issue-contained).\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- no — endpoint: exposure attempted, needs executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- match — by_name: name contains 'Ransom', malicious, high confidence (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_containable_hosts_hit": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-isolate-endpoint",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Endpoint.containment_status",
+    "containment_pending"
+   ],
+   [
+    "setIssue",
+    {
+     "endpointisolationstatus": "containment_pending"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=executed; soc-kill-process=excluded; soc-missing=skipped",
+      "escalation": "star executed; severity executed (case 500 medium -> high (ran on Okta v2))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ✅ executed | ran on Okta v2 |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star executed; severity executed (case 500 medium -> high (ran on Okta v2)).\n\n**Close:** not_attempted — not closed: soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_containable_hosts_list_missing": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "Gone"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: containable_hosts cannot be read (list Gone does not exist) - a person decides",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | containable_hosts cannot be read (list Gone does not exist) - a person decides |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_containable_hosts_miss": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: not in containable_hosts (this tenant)",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | not in containable_hosts (this tenant) |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_dc_protected": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: role server (operating system (Windows Server 2019)) is not in containable_roles workstation",
+      "escalation": "star executed; severity executed (case 500 medium -> high (ran on Okta v2))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "bannik"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | role server (operating system (Windows Server 2019)) is not in containable_roles workstation |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star executed; severity executed (case 500 medium -> high (ran on Okta v2)).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_edr_role_wins": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: role server (EDR) is not in containable_roles workstation",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | role server (EDR) is not in containable_roles workstation |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_not_executed_exposure": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "no_match",
+      "decision_reason": "no policy matched",
+      "verdict": "malicious",
+      "confidence": "high"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — no policy matched.\n- no — identity: about identity, issue is category endpoint (shipped)\n- no — endpoint: exposure attempted, needs executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_protect_ip": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: protected (this tenant: ip 10.20.20.5)",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | protected (this tenant: ip 10.20.20.5) |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_protect_list": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "VIPs"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: protected (this tenant: host hobgoblin)",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | protected (this tenant: host hobgoblin) |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_protect_list_unreadable": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "VIPs"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: protect cannot be read (list VIPs is unreadable (getList failed: Failed to get list VIPs: denied)) - a person decides",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | protect cannot be read (list VIPs is unreadable (getList failed: Failed to get list VIPs: denied)) - a person decides |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_roles_any": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-isolate-endpoint",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Endpoint.containment_status",
+    "containment_pending"
+   ],
+   [
+    "setIssue",
+    {
+     "endpointisolationstatus": "containment_pending"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=executed; soc-kill-process=excluded; soc-missing=skipped",
+      "escalation": "star executed; severity executed (case 500 medium -> high (ran on Okta v2))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "tux01"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ✅ executed | ran on Okta v2 |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star executed; severity executed (case 500 medium -> high (ran on Okta v2)).\n\n**Close:** not_attempted — not closed: soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_server_role_refused": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: role server (operating system (Windows Server 2022)) is not in containable_roles workstation",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "app01"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | role server (operating system (Windows Server 2022)) is not in containable_roles workstation |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_tenant_role_entry": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-isolate-endpoint",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Endpoint.containment_status",
+    "containment_pending"
+   ],
+   [
+    "setIssue",
+    {
+     "endpointisolationstatus": "containment_pending"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=executed; soc-kill-process=excluded; soc-missing=skipped",
+      "escalation": "star executed; severity executed (case 500 medium -> high (ran on Okta v2))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "bannik"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ✅ executed | ran on Okta v2 |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star executed; severity executed (case 500 medium -> high (ran on Okta v2)).\n\n**Close:** not_attempted — not closed: soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_unknown_role": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=blocked; soc-kill-process=excluded; soc-missing=skipped",
+      "blocked_reason": "soc-isolate-endpoint: role unknown (no source reported one) is not in containable_roles workstation",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "tux01"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ⛔ blocked | role unknown (no source reported one) is not in containable_roles workstation |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_workstation_executed": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-isolate-endpoint",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Endpoint.containment_status",
+    "containment_pending"
+   ],
+   [
+    "setIssue",
+    {
+     "endpointisolationstatus": "containment_pending"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=executed; soc-kill-process=excluded; soc-missing=skipped",
+      "escalation": "star executed; severity executed (case 500 medium -> high (ran on Okta v2))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | ✅ executed | ran on Okta v2 |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star executed; severity executed (case 500 medium -> high (ran on Okta v2)).\n\n**Close:** not_attempted — not closed: soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "endpoint_workstation_shadow": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-isolate-endpoint",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "endpoint",
+      "action": "soc-isolate-endpoint,soc-kill-process,soc-missing",
+      "action_status": "soc-isolate-endpoint=shadow; soc-kill-process=excluded; soc-missing=skipped",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "executed",
+      "entity_type": "host",
+      "entity_value": "hobgoblin"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "endpoint"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — endpoint\n\n| Action | Outcome | |\n|---|---|---|\n| soc-isolate-endpoint | 🟡 shadow | simulated (shadow mode) |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n| soc-missing | ⚪ skipped | not in SOCFrameworkActions_V3 |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-isolate-endpoint, soc-missing did not run for real, so the issue is not contained.\n\nPolicies:\n- no — identity: about identity, issue is category endpoint (shipped)\n- match — endpoint: category endpoint, malicious, high confidence, exposure executed (shipped)\n- no — c2: tactic (none) not in ta0011 (shipped)\n- no — mail: about email, issue is category endpoint (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: about identity, issue is category endpoint (shipped)"
+  ]
+ },
+ "entity_other": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "host",
+      "rule_id": "r-1"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | simulated (shadow mode) |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: entity host not in user (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "escalate_bad_severity": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star failed; severity skipped (escalate_severity 'informational' is not low, medium, high or critical)",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | 401 Unauthorized |\n\n**Escalated** for a person to contain: star failed; severity skipped (escalate_severity 'informational' is not low, medium, high or critical).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "escalate_case_already_higher": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star failed; severity no_change (case 500 already critical)",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | 401 Unauthorized |\n\n**Escalated** for a person to contain: star failed; severity no_change (case 500 already critical).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "escalate_case_unreadable": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star failed; severity skipped (case 500 severity unreadable - not raising blind)",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | 401 Unauthorized |\n\n**Escalated** for a person to contain: star failed; severity skipped (case 500 severity unreadable - not raising blind).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "escalate_default_severity": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "critical"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star failed; severity failed (case 500 medium -> critical (401 Unauthorized))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | 401 Unauthorized |\n\n**Escalated** for a person to contain: star failed; severity failed (case 500 medium -> critical (401 Unauthorized)).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "escalate_no_case": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star failed; severity skipped (the issue has no case yet)",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | 401 Unauthorized |\n\n**Escalated** for a person to contain: star failed; severity skipped (the issue has no case yet).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_duplicate_live": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.close_notes",
+    "Contained by SOC Framework emergency response (identity): soc-clear-sessions (already). Assessment: malicious, high confidence."
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-close-issue-contained",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=already",
+      "contained": true,
+      "close_status": "shadow",
+      "decision_reason": "simulated (shadow mode)",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ☑️ already | already done by case response |\n\n**Close:** shadow — simulated (shadow mode).\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_duplicate_shadow": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | already simulated by case response |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_executed_and_closed": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.close_notes",
+    "Contained by SOC Framework emergency response (identity): soc-clear-sessions (executed). Assessment: malicious, high confidence."
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-close-issue-contained",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=executed",
+      "contained": true,
+      "close_status": "executed",
+      "decision_reason": "ran on Okta v2",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ✅ executed | ran on Okta v2 |\n\n**Closed** as true positive, contained (soc-close-issue-contained).\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_failed_escalates": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star failed; severity failed (case 500 medium -> high (401 Unauthorized))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | 401 Unauthorized |\n\n**Escalated** for a person to contain: star failed; severity failed (case 500 medium -> high (401 Unauthorized)).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_no_record": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=no_record",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ⚠️ no_record | the wrapper reported nothing for it |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_protected_account": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=blocked",
+      "blocked_reason": "soc-clear-sessions: protected (shipped: account svc_*)",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ⛔ blocked | protected (shipped: account svc_*) |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_shadow": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | simulated (shadow mode) |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_skipped": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=skipped",
+      "escalation": "star skipped; severity skipped (case 500 medium -> high (all context-derived command args resolved empty))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ⚪ skipped | all context-derived command args resolved empty |\n\n**Escalated** for a person to contain: star skipped; severity skipped (case 500 medium -> high (all context-derived command args resolved empty)).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "identity_wrapper_error": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star failed; severity failed (case 500 medium -> high (soc-raise-case-severity takes no target))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | soc-clear-sessions takes no target |\n\n**Escalated** for a person to contain: star failed; severity failed (case 500 medium -> high (soc-raise-case-severity takes no target)).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "no_assessment": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "unavailable",
+      "decision_reason": "no assessment at `Assessment.AI`"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — no assessment at `Assessment.AI`."
+  ]
+ },
+ "no_match": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "no_match",
+      "decision_reason": "no policy matched",
+      "verdict": "benign",
+      "confidence": "high"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — no policy matched.\n- no — identity: verdict benign, needs malicious (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: verdict benign, needs malicious (shipped)"
+  ]
+ },
+ "no_match_low_confidence": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "no_match",
+      "decision_reason": "no policy matched",
+      "verdict": "malicious",
+      "confidence": "low"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — no policy matched.\n- no — identity: confidence low, needs high or higher (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "no_match_no_verdict": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "no_match",
+      "decision_reason": "no policy matched"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — no policy matched.\n- no — identity: verdict (none), needs malicious (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: verdict (none), needs malicious (shipped)"
+  ]
+ },
+ "policy_list_missing": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "disabled",
+      "decision_reason": "phases.triage.emergency.enabled is not true in SOCFrameworkPhasePolicy_V3",
+      "verdict": "malicious",
+      "confidence": "high"
+     }
+    }
+   ]
+  ],
+  "war_room": [
+   "⚪ **No emergency response** — phases.triage.emergency.enabled is not true in SOCFrameworkPhasePolicy_V3."
+  ]
+ },
+ "rule_id_other": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user",
+      "rule_id": "r-2"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | simulated (shadow mode) |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id r-2 not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "source_other": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user",
+      "rule_id": "r-1"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | simulated (shadow mode) |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: source ds_azure_signin not in ds_okta_systemlog (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "tenant_config_empty": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.close_notes",
+    "Contained by SOC Framework emergency response (identity): soc-clear-sessions (executed). Assessment: malicious, high confidence."
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-close-issue-contained",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=executed",
+      "contained": true,
+      "close_status": "executed",
+      "decision_reason": "ran on Okta v2",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ✅ executed | ran on Okta v2 |\n\n**Closed** as true positive, contained (soc-close-issue-contained).\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "tenant_config_not_json": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=blocked",
+      "blocked_reason": "soc-clear-sessions: SOCFWTenantConfig is unreadable (not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)) - a person decides",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ⛔ blocked | SOCFWTenantConfig is unreadable (not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)) - a person decides |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "tenant_config_not_object": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=blocked",
+      "blocked_reason": "soc-clear-sessions: SOCFWTenantConfig is unreadable (not a JSON object) - a person decides",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ⛔ blocked | SOCFWTenantConfig is unreadable (not a JSON object) - a person decides |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "tenant_config_unreadable": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=blocked",
+      "blocked_reason": "soc-clear-sessions: SOCFWTenantConfig is unreadable (getList failed: Failed to get list SOCFWTenantConfig: denied) - a person decides",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ⛔ blocked | SOCFWTenantConfig is unreadable (getList failed: Failed to get list SOCFWTenantConfig: denied) - a person decides |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "tenant_policies_not_object": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=shadow",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🟡 shadow | simulated (shadow mode) |\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "tenant_policy_edit_and_own": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.close_notes",
+    "Contained by SOC Framework emergency response (lab_own): soc-clear-sessions (executed), soc-kill-process (excluded). Assessment: malicious, high confidence."
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-close-issue-contained",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "contained",
+      "policy": "lab_own",
+      "action": "soc-clear-sessions,soc-kill-process",
+      "action_status": "soc-clear-sessions=executed; soc-kill-process=excluded",
+      "contained": true,
+      "close_status": "executed",
+      "decision_reason": "ran on Okta v2",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "lab_own"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    true
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    false
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — lab_own\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | ✅ executed | ran on Okta v2 |\n| soc-kill-process | ➖ excluded | eradication action - emergency response runs containment only |\n\n**Closed** as true positive, contained (soc-close-issue-contained).\n\nPolicies:\n- no — identity: turned off (shipped, edited on this tenant)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)\n- match — lab_own: source ds_okta_systemlog, malicious, high confidence (this tenant)"
+  ]
+ },
+ "wrapper_raises": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | the wrapper raised: the wrapper is down |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ },
+ "wrapper_success_unconfirmed": {
+  "events": [
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkPhasePolicy_V3"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFWTenantConfig"
+    }
+   ],
+   [
+    "getList",
+    {
+     "listName": "SOCFrameworkActions_V3"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-clear-sessions",
+     "Phase": "containment",
+     "Action_Actor": "issue_emergency",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-star-case",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch"
+    }
+   ],
+   [
+    "core-api-post",
+    {
+     "uri": "/public_api/v1/case/search",
+     "body": "{\"request_data\": {\"filters\": [{\"field\": \"case_id\", \"operator\": \"in\", \"value\": [500]}]}}"
+    }
+   ],
+   [
+    "SOCCommandWrapper",
+    {
+     "action": "soc-raise-case-severity",
+     "Phase": "triage",
+     "Action_Actor": "automation",
+     "output_key": "SOCFramework.Emergency.Dispatch",
+     "target": "high"
+    }
+   ],
+   [
+    "socfw-post-to-dataset",
+    {
+     "using": "socfw_ir_execution_writer",
+     "JSON": {
+      "event_type": "emergency_decision",
+      "phase": "triage",
+      "action_actor": "issue_emergency",
+      "decided_at": "<now>",
+      "incident_id": "100",
+      "status": "responded",
+      "policy": "identity",
+      "action": "soc-clear-sessions",
+      "action_status": "soc-clear-sessions=failed",
+      "escalation": "star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode)))",
+      "contained": false,
+      "close_status": "not_attempted",
+      "decision_reason": "not closed: soc-clear-sessions did not run for real, so the issue is not contained",
+      "verdict": "malicious",
+      "confidence": "high",
+      "exposure": "attempted",
+      "entity_type": "user"
+     }
+    }
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.policies",
+    [
+     "identity"
+    ]
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.contained",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.closed",
+    false
+   ],
+   [
+    "setContext",
+    "SOCFramework.Emergency.escalated",
+    true
+   ]
+  ],
+  "war_room": [
+   "### 🚨 Emergency response — identity\n\n| Action | Outcome | |\n|---|---|---|\n| soc-clear-sessions | 🔴 failed | the wrapper did not report success |\n\n**Escalated** for a person to contain: star shadow; severity shadow (case 500 medium -> high (simulated (shadow mode))).\n\n**Close:** not_attempted — not closed: soc-clear-sessions did not run for real, so the issue is not contained.\n\nPolicies:\n- match — identity: category identity, malicious, high confidence (shipped)\n- no — endpoint: about endpoint, issue is category identity (shipped)\n- no — c2: about endpoint, issue is category identity (shipped)\n- no — mail: about email, issue is category identity (shipped)\n- no — by_rule: rule id (none) not in r-1 (shipped)\n- no — by_name: issue name contains none of Ransom (shipped)\n- no — off: turned off (shipped)\n- no — off_text: turned off (shipped)\n- no — no_subject: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — no_actions: lists no actions (shipped)\n- no — empty: names no subject (about, source, rule_id, name_contains or tactic) (shipped)\n- no — bad_confidence: confidence 'certain' is not low, medium, high or any (shipped)"
+  ]
+ }
+}
