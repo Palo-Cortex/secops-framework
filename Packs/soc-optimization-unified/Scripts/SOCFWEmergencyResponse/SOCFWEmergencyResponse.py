@@ -813,7 +813,92 @@ def _assessment(ctx, source_key):
     return obj if isinstance(obj, dict) else {}
 
 
-def main():
+def _block_each(action: str, paths: list[str], ctx: dict, settings: dict, f: dict) -> list[tuple]:
+    """Block each network destination the issue carries, each checked on its own; none is 'none'."""
+    seen = [q for p in paths for q in (p,) + NETWORK_PATHS[p]]
+    values = _values(ctx, *seen)
+    if not values:
+        return [(action, "none", f"nothing to block ({', '.join(seen)} empty)")]
+    results = []
+    for value in values:
+        go, outcome, why = gate_indicator(value, settings, f)
+        if go:
+            outcome, why, _ = _dispatch(action, "containment", target=value)
+        results.append((f"{action} {value}", outcome, why))
+    return results
+
+
+def _contain(action: str, row: dict, settings: dict, f: dict) -> tuple:
+    """Gate and run one host, account or other action. A host really isolated is marked
+    containment_pending, so the next issue on it - and the analyst - see it is under way."""
+    go, outcome, why = gate(row.get("entity_scope"), settings, f)
+    if not go:
+        return action, outcome, why
+    status, why, _ = _dispatch(action, "containment")
+    if status == "executed" and row.get("entity_scope") == HOST_SCOPE:
+        demisto.setContext("SOCFramework.Endpoint.containment_status", "containment_pending")
+        demisto.executeCommand("setIssue", {"endpointisolationstatus": "containment_pending"})
+    return action, status, why
+
+
+def _take(action: str, rows: dict, ctx: dict, settings: dict, f: dict, cfg_problem: str | None) -> list[tuple]:
+    """(action, outcome, why) for each thing one action did: held when the tenant config cannot be
+    read, skipped when it is not an action, excluded when it is not containment, else run."""
+    if cfg_problem:
+        return [(action, "blocked", f"{TENANT_CONFIG_LIST} is unreadable ({cfg_problem}) - a person decides")]
+    row = rows.get(action)
+    if not isinstance(row, dict) or "responses" not in row:
+        return [(action, "skipped", f"not in {ACTIONS_LIST}")]
+    if str(row.get("phase") or "").lower() != "containment":
+        return [(action, "excluded", f"{row.get('phase')} action - emergency response runs containment only")]
+    paths = network_paths(row) if row.get("entity_scope") == ARTIFACT_SCOPE else []
+    if paths:
+        return _block_each(action, paths, ctx, settings, f)
+    return [_contain(action, row, settings, f)]
+
+
+DONE = ("executed", "already", "excluded", "none")
+NEEDS_PERSON = ("blocked", "failed", "skipped", "no_record")
+
+
+def _close(section: dict, contained: bool, results: list[tuple], rows: dict, names: str,
+           f: dict) -> tuple[str, str]:
+    """(close status, why). Closes as contained, through the close action as automation, only
+    when every action really ran and closing is on; records the closing note first."""
+    if section.get("close_when_contained", True) is not True:
+        return "not_attempted", "closing is off (phases.triage.emergency.close_when_contained)"
+    if not contained:
+        held = [a for a, s, _ in results if s not in DONE]
+        return "not_attempted", ("not closed: " + ", ".join(held) + " did not run for real, so the "
+                                 "issue is not contained")
+    if CLOSE_ACTION not in rows:
+        return "skipped", f"{CLOSE_ACTION} is not in {ACTIONS_LIST}"
+    demisto.setContext(NOTES_KEY, (
+        f"Contained by SOC Framework emergency response ({names}): "
+        + ", ".join(f"{a} ({s})" for a, s, _ in results)
+        + f". Assessment: {f['verdict']}, {f['confidence']} confidence."))
+    status, why, _ = _dispatch(CLOSE_ACTION, "triage", actor=TRIAGE_ACTOR)
+    return status, why
+
+
+def _report(names: str, results: list[tuple], escalation: str, close_status: str, close_why: str,
+            trail_md: str) -> str:
+    """The War Room table: each action's outcome, the escalation, the close, and the policy trail."""
+    md = [f"### 🚨 Emergency response — {names}", "", "| Action | Outcome | |", "|---|---|---|"]
+    md += [f"| {a} | {ICON.get(s, '')} {s} | {w} |" for a, s, w in results]
+    if escalation:
+        md += ["", f"**Escalated** for a person to contain: {escalation}."]
+    if close_status == "executed":
+        md += ["", f"**Closed** as true positive, contained ({CLOSE_ACTION})."]
+    else:
+        md += ["", f"**Close:** {close_status} — {close_why}."]
+    md += ["", "Policies:" + trail_md]
+    return "\n".join(md)
+
+
+def main() -> None:
+    """Contain the issue now when an emergency policy matches; escalate what could not be
+    contained; close it as contained only when every action really ran."""
     args = demisto.args() or {}
     ctx = demisto.context() or {}
     incident = demisto.incident() or {}
@@ -852,68 +937,17 @@ def main():
 
     rows = _get_list(ACTIONS_LIST)
     names = ", ".join(p["policy"] for p in matched)
-    results = []
-    for action in actions:
-        if cfg_problem:
-            results.append((action, "blocked", f"{TENANT_CONFIG_LIST} is unreadable ({cfg_problem}) "
-                                               "- a person decides"))
-            continue
-        row = rows.get(action)
-        if not isinstance(row, dict) or "responses" not in row:
-            results.append((action, "skipped", f"not in {ACTIONS_LIST}"))
-            continue
-        if str(row.get("phase") or "").lower() != "containment":
-            results.append((action, "excluded", f"{row.get('phase')} action - emergency response runs "
-                                                "containment only"))
-            continue
-        paths = network_paths(row) if row.get("entity_scope") == ARTIFACT_SCOPE else []
-        if paths:
-            seen = [q for p in paths for q in (p,) + NETWORK_PATHS[p]]
-            values = _values(ctx, *seen)
-            if not values:
-                results.append((action, "none", f"nothing to block ({', '.join(seen)} empty)"))
-            for value in values:
-                go, outcome, why = gate_indicator(value, settings, f)
-                if go:
-                    outcome, why, _ = _dispatch(action, "containment", target=value)
-                results.append((f"{action} {value}", outcome, why))
-            continue
-        go, outcome, why = gate(row.get("entity_scope"), settings, f)
-        if not go:
-            results.append((action, outcome, why))
-            continue
-        status, why, record = _dispatch(action, "containment")
-        results.append((action, status, why))
-        if status == "executed" and row.get("entity_scope") == HOST_SCOPE:
-            # Tell the next issue on this host - and the analyst - that it is under way.
-            demisto.setContext("SOCFramework.Endpoint.containment_status", "containment_pending")
-            demisto.executeCommand("setIssue", {"endpointisolationstatus": "containment_pending"})
+    results = [r for action in actions for r in _take(action, rows, ctx, settings, f, cfg_problem)]
 
-    done = ("executed", "already", "excluded", "none")
     contained = (any(s in ("executed", "already") for _, s, _ in results)
-                 and all(s in done for _, s, _ in results))
-    needs_person = [(a, s, w) for a, s, w in results if s in ("blocked", "failed", "skipped", "no_record")]
+                 and all(s in DONE for _, s, _ in results))
+    needs_person = [(a, s, w) for a, s, w in results if s in NEEDS_PERSON]
     escalation = ""
     if needs_person:
         star, sev, note = escalate(incident, settings.get("escalate_severity"),
                                    [w for _, _, w in needs_person])
         escalation = f"star {star}; severity {sev} ({note})"
-
-    close_status, close_why = "not_attempted", ""
-    if section.get("close_when_contained", True) is not True:
-        close_why = "closing is off (phases.triage.emergency.close_when_contained)"
-    elif not contained:
-        held = [a for a, s, _ in results if s not in done]
-        close_why = ("not closed: " + ", ".join(held) + " did not run for real, so the "
-                     "issue is not contained")
-    elif CLOSE_ACTION not in rows:
-        close_status, close_why = "skipped", f"{CLOSE_ACTION} is not in {ACTIONS_LIST}"
-    else:
-        demisto.setContext(NOTES_KEY, (
-            f"Contained by SOC Framework emergency response ({names}): "
-            + ", ".join(f"{a} ({s})" for a, s, _ in results)
-            + f". Assessment: {f['verdict']}, {f['confidence']} confidence."))
-        close_status, close_why, _ = _dispatch(CLOSE_ACTION, "triage", actor=TRIAGE_ACTOR)
+    close_status, close_why = _close(section, contained, results, rows, names, f)
 
     _row(incident_id=issue_id, status="contained" if contained else "responded",
          policy=names, action=",".join(actions),
@@ -930,17 +964,9 @@ def main():
     demisto.setContext("SOCFramework.Emergency.contained", contained)
     demisto.setContext("SOCFramework.Emergency.closed", close_status == "executed")
     demisto.setContext("SOCFramework.Emergency.escalated", bool(needs_person))
-
-    md = [f"### 🚨 Emergency response — {names}", "", "| Action | Outcome | |", "|---|---|---|"]
-    md += [f"| {a} | {ICON.get(s, '')} {s} | {w} |" for a, s, w in results]
-    if escalation:
-        md += ["", f"**Escalated** for a person to contain: {escalation}."]
-    if close_status == "executed":
-        md += ["", f"**Closed** as true positive, contained ({CLOSE_ACTION})."]
-    else:
-        md += ["", f"**Close:** {close_status} — {close_why}."]
-    md += ["", "Policies:" + trail_md]
-    return_results(CommandResults(readable_output="\n".join(md)))
+    return_results(CommandResults(readable_output=_report(names, results, escalation, close_status,
+                                                          close_why, trail_md)))
+    return None
 
 
 if __name__ in ("__main__", "__builtin__", "builtins"):
