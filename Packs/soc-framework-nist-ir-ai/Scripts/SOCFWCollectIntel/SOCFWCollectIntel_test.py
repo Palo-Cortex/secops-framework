@@ -111,13 +111,47 @@ def test_an_unreadable_budget_uses_the_default(t, monkeypatch, bad):
 
 
 def test_values_that_are_not_json_are_written_as_text(t, monkeypatch):
+    """A value json cannot encode is written as its text rather than failing the write."""
     class Odd:
         def __str__(self):
             return "odd"
     t.context = {"A": {"when": Odd()}}
-    monkeypatch.setattr(ci, "_trim", lambda obj, n: (obj, []))
+    monkeypatch.setattr(ci, "_trim", lambda obj, n, keep=(): (obj, []))
     run(t, monkeypatch, roots="A")
     assert json.loads(t.set["Assessment.Intel"]) == {"A": {"when": "odd"}}
+
+
+def test_roots_the_enrichment_reported_are_collected_too(t, monkeypatch):
+    """Roots SOCEnrichFromList reported are collected after the configured ones."""
+    t.context["SOCFramework"] = {"EnrichFromList": {"intel_roots": ["DBotScore", "VirusTotal"]}}
+    t.context["VirusTotal"] = {"IP": {"id": "203.0.113.4"}}
+    run(t, monkeypatch)
+    assert list(json.loads(t.set["Assessment.Intel"])) == ["DBotScore", "IP", "VirusTotal"]
+
+
+def test_reported_roots_from_every_enrichment_run_are_collected(t, monkeypatch):
+    """Each run of the enrichment adds its roots; repeats are collected once."""
+    t.context["SOCFramework"] = {"EnrichFromList": [{"intel_roots": ["A"]}, {"intel_roots": ["B", "A"]}, {}]}
+    t.context.update({"A": 1, "B": 2})
+    run(t, monkeypatch, roots="IP")
+    assert list(json.loads(t.set["Assessment.Intel"])) == ["IP", "A", "B"]
+
+
+def test_reported_roots_are_added_to_a_roots_argument(t, monkeypatch):
+    """A roots argument does not shut out the reported roots."""
+    t.context["SOCFramework"] = {"EnrichFromList": {"intel_roots": ["Whois"]}}
+    run(t, monkeypatch, roots="IP")
+    assert list(json.loads(t.set["Assessment.Intel"])) == ["IP", "Whois"]
+
+
+def test_over_budget_drops_reported_roots_before_configured_ones(t, monkeypatch):
+    """A reported root goes before a larger configured one, and the drop is declared."""
+    t.context = {"A": "x" * 100, "V": "y" * 60,
+                 "SOCFramework": {"EnrichFromList": {"intel_roots": ["A", "V"]}}}
+    out = run(t, monkeypatch, roots="A", max_chars="120")
+    payload = json.loads(t.set["Assessment.Intel"])
+    assert payload == {"A": "x" * 100, "coverage_note": "Dropped for size, not absent: V"}
+    assert out.endswith("dropped for size: V")
 
 
 @pytest.mark.xfail(strict=True, reason=(

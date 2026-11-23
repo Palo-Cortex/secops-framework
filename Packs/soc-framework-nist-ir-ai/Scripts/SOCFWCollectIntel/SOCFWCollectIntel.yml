@@ -7,18 +7,19 @@ type: python
 subtype: python3
 dockerimage: demisto/python3:3.11.10.116949
 comment: Gathers reputation and threat-intel context roots into a single key so the
-  issue assessment prompt can read them. Roots come from CaseIntelRoots.
+  issue assessment prompt can read them. Roots come from CaseIntelRoots, plus
+  the roots SOCEnrichFromList saw this issue's enrichment answers write.
 tags:
 - socfw
 enabled: true
 args:
 - name: roots
-  description: Comma-separated context roots to collect. Defaults to CaseIntelRoots.
+  description: Comma-separated context roots to collect. Defaults to CaseIntelRoots. The roots in SOCFramework.EnrichFromList.intel_roots are always added.
 - name: output_key
   description: Context path to write the collected intel to.
   defaultValue: Assessment.Intel
 - name: max_chars
-  description: Serialised size budget. Whole roots are dropped largest-first to fit.
+  description: Serialised size budget. Whole roots are dropped largest-first to fit, reported roots before configured ones.
   defaultValue: '20000'
 scripttarget: 0
 runonce: false
