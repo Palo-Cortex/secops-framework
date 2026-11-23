@@ -117,7 +117,8 @@ def with_catalogue(payload):
         return payload
 
 
-def main():
+def main() -> None:
+    """Write the current case's fields to context for the case analysis task, or stop if none resolved."""
     case = current_case(demisto.args().get('case'))
 
     if not case.get('ID'):
@@ -155,9 +156,15 @@ def main():
     except Exception as e:
         demisto.debug(f'SOCFWCaseIterationSetup: could not clear Analysis.AI: {e}')
 
+    # The Payload arrives as JSON text from SOCFWBuildCasePayload, but count an
+    # object too: json.loads() on a dict raises, and the summary read 0 shapes.
     shapes = 0
     try:
-        shapes = len((json.loads(case.get('Payload') or '{}')).get('shapes') or [])
+        payload = case.get('Payload') or '{}'
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        if isinstance(payload, dict):
+            shapes = len(payload.get('shapes') or [])
     except Exception:
         pass
 
