@@ -106,67 +106,92 @@ def reasoning(assessment):
     return out
 
 
-def decide(a, incident, policy, category, policy_problem=None):
+def decide(a: dict, incident: dict, policy: dict, category: str | None,
+           policy_problem: str | None = None) -> tuple[bool, str]:
     """Return (may_close, reason). Recorded whichever way it goes.
 
     policy_problem is set when SOCFWClosurePolicy exists but could not be read;
-    nothing closes until it is fixed."""
+    nothing closes until it is fixed. The holds are checked in order: the
+    guards, then a remediation still owed, then an unreadable policy, then the
+    tuning in the policy, so the reason recorded is the first that applies."""
     if not a:
         return False, "no assessment"
+    hold = (_guard_hold(a, incident)
+            or _remediation_hold(a)
+            or _unreadable_policy_hold(policy_problem)
+            or _tuning_hold(a, policy, category))
+    if hold:
+        return False, hold
+    return True, "policy satisfied"
 
+
+def _guard_hold(a: dict, incident: dict) -> str | None:
+    """Why a guard holds the issue for a person, or None. Deliberately not in the policy list."""
     # A truncated reply is not a shorter answer, it is an unfinished one. Both
     # _salvage implementations flag it; read either so an older promoted object
     # still trips the guard.
     if _is_truncated(a):
-        return False, "assessment reply was truncated — blockers may be missing"
-
-    # Guards. Deliberately not in the policy list.
+        return "assessment reply was truncated — blockers may be missing"
     if str(incident.get("starred") or "").lower() in ("true", "1"):
-        return False, "starred — a person closes this"
+        return "starred — a person closes this"
     if incident.get("owner"):
-        return False, "assigned to an analyst"
+        return "assigned to an analyst"
     if str(a.get("verdict") or "").lower() == "malicious":
-        return False, "a true-positive verdict is never auto-closed"
-
+        return "a true-positive verdict is never auto-closed"
     if not a.get("closure_recommended"):
-        return False, "assessment did not recommend closure"
+        return "assessment did not recommend closure"
+    return None
 
-    # Something that reached the asset still needs removing, and removing it is a
-    # case-scope action. Enforced here as well as in the prompt so a model that
-    # ignores the instruction still cannot close one. "attempted" and "none" are
-    # fine: nothing landed, so nothing is owed.
-    # ...unless the verdict is benign. "It executed" is only a remediation debt
-    # when the thing that executed was bad. A legitimate admin tool that ran is
-    # benign AND exposure "executed", and that is the shape of most real false
-    # positives — an FP is an FP precisely because the activity happened and was
-    # fine. Without this exemption the close path is reachable only for activity
-    # that never ran, which is a small minority of what a SOC actually closes.
+
+def _remediation_hold(a: dict) -> str | None:
+    """Why something that reached the asset still has to be removed first, or None.
+
+    Removing it is a case-scope action. Enforced here as well as in the prompt
+    so a model that ignores the instruction still cannot close one. "attempted"
+    and "none" are fine: nothing landed, so nothing is owed.
+
+    ...unless the verdict is benign. "It executed" is only a remediation debt
+    when the thing that executed was bad. A legitimate admin tool that ran is
+    benign AND exposure "executed", and that is the shape of most real false
+    positives — an FP is an FP precisely because the activity happened and was
+    fine. Without this exemption the close path is reachable only for activity
+    that never ran, which is a small minority of what a SOC actually closes.
+    """
     landed = str(a.get("exposure") or "").lower() in ("delivered", "executed")
     benign = str(a.get("verdict") or "").lower() == "benign"
     if landed and not benign and not a.get("already_contained"):
-        return False, f"{a.get('exposure')} and not contained — a remediation is owed"
+        return f"{a.get('exposure')} and not contained — a remediation is owed"
+    return None
 
+
+def _unreadable_policy_hold(policy_problem: str | None) -> str | None:
+    """Why an unreadable policy list holds every issue for a person, or None."""
     if policy_problem:
-        return False, f"{POLICY_LIST} unreadable ({policy_problem}) - a person decides"
+        return f"{POLICY_LIST} unreadable ({policy_problem}) - a person decides"
+    return None
 
-    # Tuning. A category override loosens or tightens one category without
-    # changing the rule everywhere else.
+
+def _tuning_hold(a: dict, policy: dict, category: str | None) -> str | None:
+    """Why the policy's tuning holds the issue, or None.
+
+    A category override loosens or tightens one category without changing the
+    rule everywhere else.
+    """
     override = (policy.get("category_overrides") or {}).get(str(category or "").lower()) or {}
     if override.get("skip"):
-        return False, f"{category} is excluded by policy"
+        return f"{category} is excluded by policy"
 
     if override.get("require_no_blockers", policy.get("require_no_blockers", True)):
         blockers = [b for b in (a.get("closure_blockers") or []) if b]
         if blockers:
-            return False, f"{len(blockers)} outstanding blocker(s)"
+            return f"{len(blockers)} outstanding blocker(s)"
 
     want = str(override.get("min_closure_confidence",
                             policy.get("min_closure_confidence", "high"))).lower()
     got = str(a.get("closure_confidence") or "").lower()
     if CONFIDENCE_RANK.get(got, 0) < CONFIDENCE_RANK.get(want, 3):
-        return False, f"closure confidence {got or 'none'} below {want}"
-
-    return True, "policy satisfied"
+        return f"closure confidence {got or 'none'} below {want}"
+    return None
 
 
 def main():
