@@ -30,6 +30,7 @@ import argparse
 import os
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import yaml
@@ -59,13 +60,18 @@ def cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render_table(rows: list[dict], link_for) -> list[str]:
-    out = ["| Capability | What it does | Page |", "|---|---|---|"]
+def render_table(rows: list[dict], link_for: Callable[[str], str]) -> list[str]:
+    """One pack's catalog as Markdown table lines, led by what people ask for.
+
+    ``link_for`` turns a ``docs/`` page path into the link the target needs
+    (relative on the site, absolute in a README). A row with no page says so.
+    """
+    out = ["| Often asked for as | Capability | What it does | Page |", "|---|---|---|---|"]
     for row in rows:
         name = cell(row["name"])
         page = row.get("page")
         link = f"[{name}]({link_for(page)})" if page else "page pending"
-        out.append(f"| {name} | {cell(row['does'])} | {link} |")
+        out.append(f"| {cell(row.get('asked_for', ''))} | {name} | {cell(row['does'])} | {link} |")
     return out
 
 
@@ -100,6 +106,7 @@ def splice(path: Path, block: str, check: bool) -> tuple[bool, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Check the catalog, then write it (or, with ``--check``, report drift) into every target."""
     p = argparse.ArgumentParser(description="Render the capability catalog into docs and READMEs.")
     p.add_argument("--check", action="store_true", help="CI mode — exit 1 if anything would change")
     args = p.parse_args(argv)
@@ -110,6 +117,9 @@ def main(argv: list[str] | None = None) -> int:
     packs = yaml.safe_load(CATALOG.read_text()) or {}
     for pack_id, entry in packs.items():
         for row in entry.get("capabilities") or []:
+            if not row.get("asked_for"):
+                print(f"ERROR: {pack_id} / {row.get('name')}: no asked_for", file=sys.stderr)
+                return 2
             page = row.get("page")
             if page and not (DOCS_DIR / page).is_file():
                 print(f"ERROR: {pack_id} / {row.get('name')}: page {page} does not exist under docs/",
