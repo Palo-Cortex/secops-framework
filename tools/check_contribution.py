@@ -267,7 +267,8 @@ def abort_if_failed(results: list, gate_name: str) -> None:
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
-def main() -> None:
+def _parse_args() -> argparse.Namespace:
+    """The gate's command line."""
     parser = argparse.ArgumentParser(
         description="SOC Framework pre-merge contribution validator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -289,22 +290,25 @@ def main() -> None:
         "--ci", action="store_true",
         help="CI mode — emit GitHub Actions annotations",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # ── Resolve packs to validate ─────────────────────────────────────────────
-    if args.input:
-        input_path = Path(args.input)
-        if not input_path.exists():
-            print(ERR(f"✗ not found: {input_path}"))
-            sys.exit(1)
-        if not (input_path / "pack_metadata.json").exists():
-            print(ERR(f"✗ not a pack directory (no pack_metadata.json): {input_path}"))
-            sys.exit(1)
-        packs = [input_path]
-    else:
-        packs = git_changed_packs(args.base)
 
-    # ── Header ────────────────────────────────────────────────────────────────
+def _packs_in_scope(args: argparse.Namespace) -> list[Path]:
+    """The pack named by --input, or the packs this branch changes. Exits on an --input that is not a pack."""
+    if not args.input:
+        return git_changed_packs(args.base)
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(ERR(f"✗ not found: {input_path}"))
+        sys.exit(1)
+    if not (input_path / "pack_metadata.json").exists():
+        print(ERR(f"✗ not a pack directory (no pack_metadata.json): {input_path}"))
+        sys.exit(1)
+    return [input_path]
+
+
+def _print_header(args: argparse.Namespace) -> None:
+    """The banner: what is in scope and whether it uploads."""
     print()
     print("━" * 62)
     print("  check_contribution.py — SOC Framework pre-merge validator")
@@ -316,251 +320,232 @@ def main() -> None:
         print(f"  upload : {WARN('skipped (--no-upload)')}")
     print("━" * 62)
 
-    if not packs:
-        print(WARN("\n  No changed packs found."))
-        print(DIM(
-            "  Run 'git fetch origin' if you expected changes,\n"
-            "  or use --input <pack> to target a specific pack."
-        ))
-        sys.exit(0)
 
-    print(f"\n  {len(packs)} pack(s) in scope: "
-          + ", ".join(INFO(p.name) for p in packs))
+def _packs_to_normalize(base: str) -> list[Path]:
+    """Packs with new files on this branch, then any other pack holding a contributor _copy file.
 
-    # ── Step 1: Normalize ─────────────────────────────────────────────────────
-    # Runs on any pack that has either:
-    #   (a) genuinely new (Added) files per git diff, or
-    #   (b) a `*_copy.yml` or `*_copy.json` on disk — the contributor
-    #       submission convention that must be merged and cleaned up.
-    # Both signals mean "there's content here that needs to be merged into
-    # canonical form before anything downstream runs." The second branch
-    # catches the case where a _copy file was committed on a previous
-    # branch and never processed — git diff won't flag it as new, but it
-    # still needs normalize to collapse it into the canonical file.
-    results: list[StepResult] = []
+    Both signals mean "there's content here that needs to be merged into
+    canonical form before anything downstream runs." The second catches the
+    case where a _copy file was committed on a previous branch and never
+    processed — git diff won't flag it as new, but it still needs normalize to
+    collapse it into the canonical file.
+    """
+    packs = list(git_new_packs(base))
+    for p in packs_with_contributor_copies():
+        if p not in packs:
+            packs.append(p)
+    return packs
 
+
+def _normalize_step(target: str | Path, name: str, ci_mode: bool) -> StepResult:
+    """Run normalize_contribution on one pack."""
+    return run_step(
+        name,
+        [sys.executable, "tools/normalize_contribution.py", "--input", str(target)],
+        ci_mode,
+        remediation=(
+            "Normalize output above names the offending file(s). Common causes:\n"
+            "  • MISLOCATION — file in wrong directory (move as instructed)\n"
+            "  • missing/empty file — re-export from tenant\n"
+            "  • non-UTF-8 encoding — re-export from tenant\n"
+            "Re-run:\n"
+            f"  python3 tools/normalize_contribution.py --input {target}"
+        ),
+    )
+
+
+def _normalize(args: argparse.Namespace) -> list[StepResult]:
+    """Step 1: merge new and _copy content into canonical form before anything else reads it.
+
+    An explicit --input pack is always normalized; the caller knows what they
+    are doing. Otherwise only packs with new files or a lingering _copy file.
+    """
     if args.input:
-        # Explicit pack: always normalize — caller knows what they're doing
-        normalize_cmd = [sys.executable, "tools/normalize_contribution.py",
-                         "--input", str(args.input)]
+        return [_normalize_step(args.input, "Normalize contribution", args.ci)]
+    packs = _packs_to_normalize(args.base)
+    if not packs:
+        print(f"\n  {OK('✓')}  Normalize — no new files or _copy artifacts (skipped)")
+        return []
+    return [_normalize_step(pack, f"Normalize contribution — {pack.name}", args.ci) for pack in packs]
+
+
+def _optional_steps(pack: Path, base: str, ci_mode: bool) -> list[StepResult]:
+    """Steps 2 to 2.5: the per-pack checks whose tools may be absent from an older checkout."""
+    results = []
+    preflight_script = Path("tools/correlation_rule_preflight.py")
+    if preflight_script.exists():
         results.append(run_step(
-            "Normalize contribution", normalize_cmd, args.ci,
+            f"correlation_rule_preflight — {pack.name}",
+            # --tenant validates each changed rule's XQL against the live
+            # dataset schema. A field the tenant does not know fails the pack
+            # install as a bare 101704 with no field name, which every static
+            # check misses (soc-crowdstrike-saas shipped broken this way).
+            # --changed-only keeps it off the tenant unless a rule moved.
+            [sys.executable, str(preflight_script), str(pack),
+             "--tenant", "--changed-only", base],
+            ci_mode,
             remediation=(
-                "Normalize output above names the offending file(s). Common causes:\n"
-                "  • MISLOCATION — file in wrong directory (move as instructed)\n"
-                "  • missing/empty file — re-export from tenant\n"
-                "  • non-UTF-8 encoding — re-export from tenant\n"
-                "Re-run:\n"
-                f"  python3 tools/normalize_contribution.py --input {args.input}"
-            ),
-        ))
-    else:
-        new_packs = git_new_packs(args.base)
-        copy_packs = packs_with_contributor_copies()
-        # Union, preserving order (git-new first, then any copy-only packs)
-        packs_to_normalize = list(new_packs)
-        for p in copy_packs:
-            if p not in packs_to_normalize:
-                packs_to_normalize.append(p)
-
-        if packs_to_normalize:
-            for pack in packs_to_normalize:
-                normalize_cmd = [sys.executable, "tools/normalize_contribution.py",
-                                  "--input", str(pack)]
-                results.append(run_step(
-                    f"Normalize contribution — {pack.name}",
-                    normalize_cmd, args.ci,
-                    remediation=(
-                        "Normalize output above names the offending file(s). Common causes:\n"
-                        "  • MISLOCATION — file in wrong directory (move as instructed)\n"
-                        "  • missing/empty file — re-export from tenant\n"
-                        "  • non-UTF-8 encoding — re-export from tenant\n"
-                        "Re-run:\n"
-                        f"  python3 tools/normalize_contribution.py --input {pack}"
-                    ),
-                ))
-        else:
-            print(f"\n  {OK('✓')}  Normalize — no new files or _copy artifacts (skipped)")
-
-    # ── Gate: if normalize broke, stop before pack_prep ───────────────────────
-    # pack_prep and everything downstream assumes normalized content.
-    abort_if_failed(results, "normalize")
-
-    # ── Per-pack steps ────────────────────────────────────────────────────────
-    for pack in packs:
-        print(f"\n{'─' * 62}")
-        print(f"  Pack: {BOLD(pack.name)}")
-        print(f"{'─' * 62}")
-
-        # ── Step 2: correlation_rule_preflight ────────────────────────────────
-        preflight_script = Path("tools/correlation_rule_preflight.py")
-        if preflight_script.exists():
-            results.append(run_step(
-                f"correlation_rule_preflight — {pack.name}",
-                # --tenant validates each changed rule's XQL against the live
-                # dataset schema. A field the tenant does not know fails the pack
-                # install as a bare 101704 with no field name, which every static
-                # check misses (soc-crowdstrike-saas shipped broken this way).
-                # --changed-only keeps it off the tenant unless a rule moved.
-                [sys.executable, str(preflight_script), str(pack),
-                 "--tenant", "--changed-only", args.base],
-                args.ci,
-                remediation=(
-                    "Preflight output above names the offending rule(s) and field(s).\n"
-                    "If it reports fields missing from the tenant dataset schema, the\n"
-                    "pack install will fail with 101704. When the tenant simply has no\n"
-                    "data for that product, read those fields from rawJSON and alias\n"
-                    "back to the canonical names — see the compatibility shim in\n"
-                    "schemas/vendors/crowdstrike-saas (7 fields) or crowdstrike-idp (11).\n"
-                    "Common fixes per SOC Framework correlation rule schema rules:\n"
-                    "  • remove top-level 'rule_id: 0'\n"
-                    "  • add 'fromversion: 8.0.0' (unquoted)\n"
-                    "  • both 'id:' and 'ruleid:' must be present, same value\n"
-                    "  • 'alert_category: User Defined' (not 'OTHER')\n"
-                    "Re-run after editing:\n"
-                    f"  python3 tools/correlation_rule_preflight.py {pack}"
-                ),
-            ))
-
-        # ── Step 2.1: issue-field targets ─────────────────────────────────────
-        # A rule that writes into an issue field the platform owns (hostos, the
-        # run-state fields) saves, installs and alerts without error, but left
-        # about half the issues in a burst with their playbook never started.
-        field_check = Path("tools/check_issue_field_targets.py")
-        if field_check.exists():
-            results.append(run_step(
-                f"issue-field targets — {pack.name}",
-                [sys.executable, str(field_check), str(pack)],
-                args.ci,
-                remediation=(
-                    "Remove the named mapping from the vendor contract\n"
-                    "(schemas/vendors/<vendor>/<contract>.yaml), re-emit the rule with\n"
-                    "tools/generate_vendor_content.py emit, and gate again. The blocked\n"
-                    "list and the reason for each field: policies/restricted_issue_fields.json"
-                ),
-            ))
-
-        # ── Step 2.5: playbook_condition_lint ─────────────────────────────────
-        # Catches playbook YAML patterns that parse cleanly but silently fail:
-        # broken ${X / Y} context interpolations and AND-impossible conditions.
-        # The XSIAM Playbook Editor UI prevents these by construction; hand-written
-        # YAML bypasses that guardrail.
-        condition_lint = Path("tools/playbook_condition_lint.py")
-        if condition_lint.exists():
-            results.append(run_step(
-                f"playbook_condition_lint — {pack.name}",
-                [sys.executable, str(condition_lint), str(pack), "--quiet"],
-                args.ci,
-                remediation=(
-                    "Auto-fix available for stale-numeric-key issues:\n"
-                    f"  python3 tools/playbook_condition_lint.py {pack} --fix\n"
-                    "Other findings (broken interpolations, AND-impossible conditions,\n"
-                    "broken task refs, duplicate content) require manual review — see\n"
-                    "the tool output above for file paths and offending lines."
-                ),
-            ))
-
-        # ── Step 3: pack_prep ─────────────────────────────────────────────────
-        results.append(run_step(
-            f"pack_prep — {pack.name}",
-            [sys.executable, "tools/pack_prep.py", str(pack)],
-            args.ci,
-            remediation=(
-                "pack_prep chains several checks (rule ID normalization, JSON\n"
-                "validity, dependency versions, xsoar_config preflight, SDK validate).\n"
-                "Review the output above for which sub-step failed and its specific\n"
-                "error. The SDK validate output is written to:\n"
-                "  output/sdk_errors.txt\n"
-                "Auto-fixes for common BA101/BA106/PA128 errors:\n"
-                "  python3 tools/fix_errors.py output/sdk_errors.txt"
+                "Preflight output above names the offending rule(s) and field(s).\n"
+                "If it reports fields missing from the tenant dataset schema, the\n"
+                "pack install will fail with 101704. When the tenant simply has no\n"
+                "data for that product, read those fields from rawJSON and alias\n"
+                "back to the canonical names — see the compatibility shim in\n"
+                "schemas/vendors/crowdstrike-saas (7 fields) or crowdstrike-idp (11).\n"
+                "Common fixes per SOC Framework correlation rule schema rules:\n"
+                "  • remove top-level 'rule_id: 0'\n"
+                "  • add 'fromversion: 8.0.0' (unquoted)\n"
+                "  • both 'id:' and 'ruleid:' must be present, same value\n"
+                "  • 'alert_category: User Defined' (not 'OTHER')\n"
+                "Re-run after editing:\n"
+                f"  python3 tools/correlation_rule_preflight.py {pack}"
             ),
         ))
 
-        # ── Step 4: fix_errors (report only) ──────────────────────────────────
-        # fix_errors reads from output/sdk_errors.txt produced by pack_prep.
-        # We run it in report mode — it prints what it would fix but makes no
-        # changes. If it fires, normalize missed something worth investigating.
-        sdk_errors = Path("output/sdk_errors.txt")
-        if sdk_errors.exists() and sdk_errors.stat().st_size > 0:
-            results.append(run_step(
-                f"fix_errors report — {pack.name}",
-                [sys.executable, "tools/fix_errors.py", str(sdk_errors), "--dry-run"],
-                args.ci,
-                allow_fail=True,   # report only — not a hard block
-            ))
-        else:
-            print(f"\n  {OK('✓')}  fix_errors — no SDK errors to report")
-
-        # ── Step 5: check_contracts ───────────────────────────────────────────
+    # A rule that writes into an issue field the platform owns (hostos, the
+    # run-state fields) saves, installs and alerts without error, but left
+    # about half the issues in a burst with their playbook never started.
+    field_check = Path("tools/check_issue_field_targets.py")
+    if field_check.exists():
         results.append(run_step(
-            f"check_contracts — {pack.name}",
-            [sys.executable, "tools/check_contracts.py", "--input", str(pack)],
-            args.ci,
+            f"issue-field targets — {pack.name}",
+            [sys.executable, str(field_check), str(pack)],
+            ci_mode,
             remediation=(
-                "check_contracts validates SOC Framework layer contracts: EP vs\n"
-                "Lifecycle, Foundation vs Workflow, context key namespaces. Review\n"
-                "the output above — it names the specific playbook and contract\n"
-                "violation. Fix by editing the playbook to match the expected\n"
-                "namespace or call pattern, then re-run:\n"
-                f"  python3 tools/check_contracts.py --input {pack}"
+                "Remove the named mapping from the vendor contract\n"
+                "(schemas/vendors/<vendor>/<contract>.yaml), re-emit the rule with\n"
+                "tools/generate_vendor_content.py emit, and gate again. The blocked\n"
+                "list and the reason for each field: policies/restricted_issue_fields.json"
             ),
         ))
 
-        # ── Step 5a: unit tests ───────────────────────────────────────────────
-        # The pack's test files, each in its own pytest process - the same
-        # runner the PR gate uses, so a branch that passes here passes there.
+    # Catches playbook YAML patterns that parse cleanly but silently fail:
+    # broken ${X / Y} context interpolations and AND-impossible conditions.
+    # The XSIAM Playbook Editor UI prevents these by construction; hand-written
+    # YAML bypasses that guardrail.
+    condition_lint = Path("tools/playbook_condition_lint.py")
+    if condition_lint.exists():
         results.append(run_step(
-            f"unit tests — {pack.name}",
-            [sys.executable, "tools/run_pack_tests.py", pack.name],
-            args.ci,
+            f"playbook_condition_lint — {pack.name}",
+            [sys.executable, str(condition_lint), str(pack), "--quiet"],
+            ci_mode,
             remediation=(
-                "A test file in this pack failed or ran no tests. The output above\n"
-                "names it. Run that file on its own from its directory to see the\n"
-                "failure, fix the code or the test, then re-run:\n"
-                f"  python3 tools/run_pack_tests.py {pack.name}"
+                "Auto-fix available for stale-numeric-key issues:\n"
+                f"  python3 tools/playbook_condition_lint.py {pack} --fix\n"
+                "Other findings (broken interpolations, AND-impossible conditions,\n"
+                "broken task refs, duplicate content) require manual review — see\n"
+                "the tool output above for file paths and offending lines."
             ),
         ))
+    return results
 
-        # ── Step 5b: docs coverage ────────────────────────────────────────────
-        # A script, list or list key added to a pack must be mentioned in the
-        # pack's README, docs/capabilities.yml, or a hand-authored page under
-        # docs/<pack>/. Only packs whose README carries the capabilities
-        # markers are gated; the script skips the rest.
-        results.append(run_step(
-            f"check_readme_coverage — {pack.name}",
-            [sys.executable, "tools/check_readme_coverage.py", str(pack)],
-            args.ci,
-            remediation=(
-                "Something this branch adds to the pack is not documented.\n"
-                "The output above names it. Add it to the capability page it\n"
-                "belongs to (docs/<pack>/*.md), to docs/capabilities.yml, or to\n"
-                "the pack README, then re-run:\n"
-                f"  python3 tools/check_readme_coverage.py {pack}"
-            ),
-        ))
 
-    # ── Step 5c: private content (once, whole tree) ───────────────────────────
+def _fix_errors_report(pack: Path, ci_mode: bool) -> list[StepResult]:
+    """Step 4: what fix_errors would change in pack_prep's SDK errors, reported and never blocking.
+
+    It runs in report mode and makes no changes. If it fires, normalize missed
+    something worth investigating.
+    """
+    sdk_errors = Path("output/sdk_errors.txt")
+    if not (sdk_errors.exists() and sdk_errors.stat().st_size > 0):
+        print(f"\n  {OK('✓')}  fix_errors — no SDK errors to report")
+        return []
+    return [run_step(
+        f"fix_errors report — {pack.name}",
+        [sys.executable, "tools/fix_errors.py", str(sdk_errors), "--dry-run"],
+        ci_mode,
+        allow_fail=True,
+    )]
+
+
+def _pack_checks(pack: Path, base: str, ci_mode: bool) -> list[StepResult]:
+    """Steps 2 to 5b for one pack, in order."""
+    print(f"\n{'─' * 62}")
+    print(f"  Pack: {BOLD(pack.name)}")
+    print(f"{'─' * 62}")
+
+    results = _optional_steps(pack, base, ci_mode)
+    results.append(run_step(
+        f"pack_prep — {pack.name}",
+        [sys.executable, "tools/pack_prep.py", str(pack)],
+        ci_mode,
+        remediation=(
+            "pack_prep chains several checks (rule ID normalization, JSON\n"
+            "validity, dependency versions, xsoar_config preflight, SDK validate).\n"
+            "Review the output above for which sub-step failed and its specific\n"
+            "error. The SDK validate output is written to:\n"
+            "  output/sdk_errors.txt\n"
+            "Auto-fixes for common BA101/BA106/PA128 errors:\n"
+            "  python3 tools/fix_errors.py output/sdk_errors.txt"
+        ),
+    ))
+    results.extend(_fix_errors_report(pack, ci_mode))
+    results.append(run_step(
+        f"check_contracts — {pack.name}",
+        [sys.executable, "tools/check_contracts.py", "--input", str(pack)],
+        ci_mode,
+        remediation=(
+            "check_contracts validates SOC Framework layer contracts: EP vs\n"
+            "Lifecycle, Foundation vs Workflow, context key namespaces. Review\n"
+            "the output above — it names the specific playbook and contract\n"
+            "violation. Fix by editing the playbook to match the expected\n"
+            "namespace or call pattern, then re-run:\n"
+            f"  python3 tools/check_contracts.py --input {pack}"
+        ),
+    ))
+    # The pack's test files, each in its own pytest process - the same
+    # runner the PR gate uses, so a branch that passes here passes there.
+    results.append(run_step(
+        f"unit tests — {pack.name}",
+        [sys.executable, "tools/run_pack_tests.py", pack.name],
+        ci_mode,
+        remediation=(
+            "A test file in this pack failed or ran no tests. The output above\n"
+            "names it. Run that file on its own from its directory to see the\n"
+            "failure, fix the code or the test, then re-run:\n"
+            f"  python3 tools/run_pack_tests.py {pack.name}"
+        ),
+    ))
+    # A script, list or list key added to a pack must be mentioned in the
+    # pack's README, docs/capabilities.yml, or a hand-authored page under
+    # docs/<pack>/. Only packs whose README carries the capabilities
+    # markers are gated; the script skips the rest.
+    results.append(run_step(
+        f"check_readme_coverage — {pack.name}",
+        [sys.executable, "tools/check_readme_coverage.py", str(pack)],
+        ci_mode,
+        remediation=(
+            "Something this branch adds to the pack is not documented.\n"
+            "The output above names it. Add it to the capability page it\n"
+            "belongs to (docs/<pack>/*.md), to docs/capabilities.yml, or to\n"
+            "the pack README, then re-run:\n"
+            f"  python3 tools/check_readme_coverage.py {pack}"
+        ),
+    ))
+    return results
+
+
+def _repo_checks(ci_mode: bool) -> list[StepResult]:
+    """Steps 5c to 7: the checks that run once over the whole repository, not per pack."""
     # The AI Prompt recipes live in the private socfw-nist-ir-ai repo. Fail
     # before anything else if a recipe path or a prompt fingerprint is here.
-    results.append(run_step(
+    results = [run_step(
         "check_private_content",
         [sys.executable, "tools/check_private_content.py"],
-        args.ci,
+        ci_mode,
         remediation=(
             "Private content (an AI Prompt recipe, AI_PROMPTS.md, or a file carrying a\n"
             "prompt fingerprint) is in the public tree. Remove it; the recipes belong in\n"
             "Palo-Cortex/socfw-nist-ir-ai. Patterns: policies/private_content.json."
         ),
-    ))
+    )]
 
-    # ── Step 5d: vendor command arguments (once, whole list) ─────────────────
     # Every response in SOCFrameworkActions_V3 against the commands the vendors
     # define (policies/vendor_command_specs.json). A wrong argument name only
     # shows up the first time an action runs live, so it is caught here.
     results.append(run_step(
         "check_action_args",
         [sys.executable, "tools/check_action_args.py"],
-        args.ci,
+        ci_mode,
         remediation=(
             "A response in SOCFrameworkActions_V3 names a command or argument the vendor\n"
             "does not have. Fix the mapping. If you mapped a new command, rebuild the spec\n"
@@ -568,17 +553,16 @@ def main() -> None:
         ),
     ))
 
-    # ── Step 6: validate_shadow_mode (once, --all) ────────────────────────────
-    # Always runs across the entire framework — shadow mode consistency is a
-    # global property, not per-pack. One broken action affects every playbook.
     print(f"\n{'─' * 62}")
-    print(f"  Framework-wide checks")
+    print("  Framework-wide checks")
     print(f"{'─' * 62}")
 
+    # Shadow mode consistency is a global property, not per-pack. One broken
+    # action affects every playbook.
     results.append(run_step(
         "validate_shadow_mode --all",
         [sys.executable, "tools/validate_shadow_mode.py", "--all"],
-        args.ci,
+        ci_mode,
         remediation=(
             "Shadow mode is the PoV safety contract — actions must be gated.\n"
             "Output above names the playbook and task where an action runs with\n"
@@ -591,7 +575,6 @@ def main() -> None:
         ),
     ))
 
-    # ── Step 7: prep_docs --check (once, framework-wide) ──────────────────────
     # Drift gate for the MkDocs site. Wraps four generators that read schemas,
     # pack metadata, and pack_catalog.json to produce docs/ and mkdocs.yml. A
     # schema or pack edit without a doc regen will fail here. Runs after
@@ -602,7 +585,7 @@ def main() -> None:
     results.append(run_step(
         "prep_docs --check",
         [sys.executable, "tools/prep_docs.py", "--check"],
-        args.ci,
+        ci_mode,
         remediation=(
             "Documentation generators detected drift between committed docs/\n"
             "and what the generators would produce from current schemas, pack\n"
@@ -612,42 +595,38 @@ def main() -> None:
             "alongside the schema or pack edit that triggered them."
         ),
     ))
+    return results
 
-    # ── Gate: abort before upload if any validation failed ────────────────────
-    # No point shipping content that's known-broken. Halt here so the user fixes
-    # issues locally instead of waiting for the upload to fail (or worse,
-    # succeed and silently break the tenant).
-    abort_if_failed(results, "pre-upload validation")
 
-    # ── Step 8: upload ────────────────────────────────────────────────────────
-    if not args.no_upload:
-        for pack in packs:
-            results.append(run_step(
-                f"upload — {pack.name}",
-                ["bash", "tools/upload_package.sh", str(pack)],
-                args.ci,
-            ))
-        # --override-existing makes a pack's changes land, and on this tenant it can
-        # also remove another pack's content. Silent when it happens; surfaces hours
-        # later as a missing script or an unparseable list. Check while the cause is
-        # still obvious.
-        results.append(run_step(
-            "verify tenant content",
-            ["python3", "tools/verify_tenant_content.py", *[str(p) for p in packs]],
-            args.ci,
-        ))
-    else:
+def _upload(packs: list[Path], args: argparse.Namespace) -> list[StepResult]:
+    """Step 8: deploy each pack to the review tenant, then check no other pack's content went missing."""
+    if args.no_upload:
         print(f"\n  {DIM('⊘  Upload skipped (--no-upload)')}")
+        return []
+    results = [run_step(f"upload — {pack.name}", ["bash", "tools/upload_package.sh", str(pack)], args.ci)
+               for pack in packs]
+    # --override-existing makes a pack's changes land, and on this tenant it can
+    # also remove another pack's content. Silent when it happens; surfaces hours
+    # later as a missing script or an unparseable list. Check while the cause is
+    # still obvious.
+    results.append(run_step(
+        "verify tenant content",
+        ["python3", "tools/verify_tenant_content.py", *[str(p) for p in packs]],
+        args.ci,
+    ))
+    return results
 
-    # ── Summary ───────────────────────────────────────────────────────────────
+
+def _summary(results: list[StepResult], packs: list[Path], uploaded: bool) -> int:
+    """Print the outcome and return the exit code: 0 when every step passed."""
     print()
     print("━" * 62)
     failures = [r for r in results if not r.passed]
 
     if not failures:
         print(OK(f"  ✓ All checks passed — {len(packs)} pack(s) validated"))
-        if not args.no_upload:
-            print(OK(f"  ✓ Uploaded to tenant — review and open PR"))
+        if uploaded:
+            print(OK("  ✓ Uploaded to tenant — review and open PR"))
     else:
         print(ERR(f"  ✗ {len(failures)} check(s) failed:"))
         for f in failures:
@@ -657,8 +636,41 @@ def main() -> None:
 
     print("━" * 62)
     print()
+    return 0 if not failures else 1
 
-    sys.exit(0 if not failures else 1)
+
+def main() -> None:
+    """Validate the changed packs, stop at the first gate that fails, and upload what passes."""
+    args = _parse_args()
+    packs = _packs_in_scope(args)
+    _print_header(args)
+
+    if not packs:
+        print(WARN("\n  No changed packs found."))
+        print(DIM(
+            "  Run 'git fetch origin' if you expected changes,\n"
+            "  or use --input <pack> to target a specific pack."
+        ))
+        sys.exit(0)
+
+    print(f"\n  {len(packs)} pack(s) in scope: "
+          + ", ".join(INFO(p.name) for p in packs))
+
+    # pack_prep and everything downstream assumes normalized content.
+    results = _normalize(args)
+    abort_if_failed(results, "normalize")
+
+    for pack in packs:
+        results.extend(_pack_checks(pack, args.base, args.ci))
+    results.extend(_repo_checks(args.ci))
+
+    # No point shipping content that's known-broken. Halt here so the user fixes
+    # issues locally instead of waiting for the upload to fail (or worse,
+    # succeed and silently break the tenant).
+    abort_if_failed(results, "pre-upload validation")
+
+    results.extend(_upload(packs, args))
+    sys.exit(_summary(results, packs, uploaded=not args.no_upload))
 
 
 if __name__ == "__main__":
