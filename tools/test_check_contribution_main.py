@@ -129,7 +129,9 @@ def _run(name: str, root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.
     monkeypatch.setattr(sys, "argv", ["check_contribution.py", *spec["argv"]])
     with pytest.raises(SystemExit) as stopped:
         cc.main()
-    return {"exit": stopped.value.code, "calls": calls, "output": capsys.readouterr().out.splitlines()}
+    # The gate prints each command, so the interpreter path is replaced as it is in calls.
+    output = capsys.readouterr().out.replace(sys.executable, "python").splitlines()
+    return {"exit": stopped.value.code, "calls": calls, "output": output}
 
 
 def _golden() -> dict:
