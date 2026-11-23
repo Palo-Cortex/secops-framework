@@ -10,6 +10,29 @@ The two AI Prompts the lifecycle binds to are not in this repository: their bodi
 
 Requires `soc-optimization-unified`, which carries the universal command and the configuration list.
 
+## Capabilities
+
+<!-- capabilities:begin -->
+<!-- generated from docs/capabilities.yml by tools/generate_capability_catalog.py; edit the yml -->
+
+| Often asked for as | Capability | What it does | Page |
+|---|---|---|---|
+| Run incident response the NIST 800-61 way. | NIST IR AI | The lifecycle in one picture: issue assessment on every issue, scheduled case analysis, and which framework actions each phase calls. | [NIST IR AI](https://palo-cortex.github.io/secops-framework/soc-framework-nist-ir-ai/nist-ir-ai/) |
+| Triage every new alert automatically. | AI Entry Point | Stamps the lifecycle, runs the Foundation chain, collects intel, runs the issue-assessment prompt and renders the verdict; then emergency response, elevate and close by policy. | [AI Entry Point](https://palo-cortex.github.io/secops-framework/soc-framework-nist-ir-ai/entry-point/) |
+| Tell the analyst whether an alert is real, and why. | Issue Assessment | Disposition prompt per issue: verdict, confidence, exposure, whether already contained, whether to escalate, whether it may close; promoted into the contract. | [Issue Assessment](https://palo-cortex.github.io/secops-framework/soc-framework-nist-ir-ai/issue-assessment/) |
+| Close the benign alerts automatically, but never one a person has picked up. | AI Close Decision | Decides whether the assessment may close the issue; hard guards (starred, assigned, truncated, true positive) and a confidence bar per category. | [AI Close Decision](https://palo-cortex.github.io/secops-framework/soc-framework-nist-ir-ai/close-decision/) |
+| Look at the whole incident, not one alert at a time. | Case analysis job | Selects settled cases, collapses each to distinct alert shapes and entities, runs the case-analysis prompt and reports one verdict per case. | page pending |
+| One current verdict per case, not a pile of old ones. | Case verdict report | One War Room entry per case tagged socfw-case-verdict; earlier ones marked superseded. | page pending |
+| Contain, clean up and recover in the right order across a whole case. | Case response job | `SOC Case Response` (ships off) runs each case's containment, eradication and recovery plans from the Analysis contract, in that order, through the phase executor inside the issue that evidences each step; steps that need a person are recorded as awaiting and never dispatched. | page pending |
+| Verdict, evidence and next actions on one screen. | Issue and case layouts | Two-tab issue layout (assessment, buttons, feedback, work plan, notes, export) and a Case Analysis tab on the case. | page pending |
+| Let analysts tell us when the AI got it wrong. | Analyst feedback | Correct, wrong or missing-context against the verdict as it stood, with an optional note. | page pending |
+| Give analysts a contain button that only offers what works on this tenant. | Containment options from the layout | Computes at click time which actions the tenant can run for this issue and offers them as buttons. | page pending |
+| A printable record of the incident for the report. | War Room export | Exports the issue War Room verbatim to a printable HTML file attached to the issue. | page pending |
+| Prove our time to detect and respond improved. | Value Driver and Value Metrics dashboards | MTTD, MTTI, MTTC, cases eradicated and recovered, alerts by source, ingestion lag, cases auto-triaged, time saved by category. | page pending |
+| Add our own step to the incident response lifecycle. | Phase contract | Declares per-phase reads, writes and routing for the lifecycle; consumers validate and build rows from it. | page pending |
+
+<!-- capabilities:end -->
+
 ## Contents
 
 | Item | What it is |
