@@ -49,6 +49,18 @@ def api(uri, body):
     return res
 
 
+def is_verdict(entry: dict, case_id: str) -> bool:
+    """Whether a War Room entry is a verdict this script wrote for the case.
+
+    Tagged since verdicts were tagged; before that, untagged and recognised by
+    the header every verdict opens with, so the verdicts already on a case are
+    superseded too.
+    """
+    if VERDICT_TAG in (entry.get('tags') or []):
+        return True
+    return f'**CASE {case_id}** —' in str(entry.get('contents') or '')
+
+
 def supersede_prior(case_id: str) -> int:
     """Mark earlier verdict entries on this case as superseded.
 
@@ -56,14 +68,13 @@ def supersede_prior(case_id: str) -> int:
     verdict is made findable by tag instead. Without this a re-analysed case
     accumulates verdicts with no indication which one is live.
     """
-    # Two id shapes. The investigation read takes the bare id (INCIDENT-<id>
-    # returns an empty shell and creates it); the entry tags endpoint takes
-    # INCIDENT-<id>. Tagging with the bare id missed every entry.
+    # INCIDENT-<id> is where the case War Room's entries are: on deathstar
+    # (23 Nov) it held the verdicts while the bare id read back no entries.
     bare = str(case_id).replace('INCIDENT-', '', 1)
     tagged = 0
     try:
         # No paging arguments: page is ignored and pageSize silently caps the read.
-        res = api(f'/xsoar/public/v1/investigation/{bare}', {})
+        res = api(f'/xsoar/public/v1/investigation/INCIDENT-{bare}', {})
         if isinstance(res, list):
             res = res[0] if res else {}
         entries = demisto.get(res, 'Contents.response.entries') or \
@@ -73,12 +84,13 @@ def supersede_prior(case_id: str) -> int:
         return tagged
     for e in entries:
         tags = e.get('tags') or []
-        if VERDICT_TAG not in tags or SUPERSEDED_TAG in tags:
+        if not is_verdict(e, bare) or SUPERSEDED_TAG in tags:
             continue
         try:
+            # The tags endpoint replaces the entry's tags, so send them all.
             api('/xsoar/public/v1/entry/tags',
                 {'id': e.get('id'), 'investigationId': f'INCIDENT-{bare}',
-                 'tags': tags + [SUPERSEDED_TAG]})
+                 'tags': [x for x in tags if x != VERDICT_TAG] + [VERDICT_TAG, SUPERSEDED_TAG]})
             tagged += 1
         except Exception as err:
             # Counted only when the tag landed, so the run row's
@@ -324,7 +336,7 @@ def member_issue(case_id, payload):
     return ''
 
 
-def post_to_case(case_id, markdown):
+def post_to_case(case_id: str, markdown: str) -> tuple[bool, str]:
     """Write the verdict entry to the case's own War Room.
 
     The JOB runs in its own investigation, so a return_results here lands where
@@ -340,15 +352,35 @@ def post_to_case(case_id, markdown):
         # INCIDENT-<case_id>, not the bare id. Both are addressable and both
         # accept entries, but only this one is what the case War Room renders -
         # entries written to the bare investigation exist and are invisible.
-        api('/xsoar/public/v1/entry', {
+        res = api('/xsoar/public/v1/entry', {
             'investigationId': f'INCIDENT-{case_id}',
             'data': markdown,
             'markdown': True,
         })
-        return True, ''
     except Exception as e:
         demisto.debug(f'SOCFWCaseVerdictReport: could not write to case {case_id}: {e}')
         return False, str(e)[:120]
+    return True, tag_as_verdict(case_id, res)
+
+
+def tag_as_verdict(case_id: str, res: object) -> str:
+    """Tag the entry just written as this case's verdict; '' when it took, else why not.
+
+    /entry ignores a tags field (deathstar, 23 Nov), so the tag goes on
+    afterwards by the id the write returns. Untagged, the next analysis of the
+    case still finds it by its header, so a failure here is reported, not fatal.
+    """
+    entry = res[0] if isinstance(res, list) and res else res
+    entry_id = demisto.get(entry, 'Contents.response.id') or demisto.get(entry, 'response.id')
+    if not entry_id:
+        return 'entry not tagged: the write returned no entry id'
+    try:
+        api('/xsoar/public/v1/entry/tags',
+            {'id': entry_id, 'investigationId': f'INCIDENT-{case_id}', 'tags': [VERDICT_TAG]})
+        return ''
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseVerdictReport: could not tag the verdict on case {case_id}: {e}')
+        return f'entry not tagged: {str(e)[:100]}'
 
 
 # Markers the AI gateway and the task runner use when a prompt call fails.
@@ -562,7 +594,8 @@ def mark_case_title(case_id, issue):
         return False, str(e)[:80]
 
 
-def main():
+def main() -> None:
+    """Report one case verdict: supersede earlier ones, then write the contract, War Room entry and row."""
     args = demisto.args()
 
     # Scalars only. An object or array argument makes XSIAM run this task once
@@ -799,6 +832,8 @@ def main():
         written, err = post_to_case(case_id, body)
 
     row['case_warroom_written'] = written
+    # Written but untagged, or why the write failed.
+    row['case_warroom_note'] = err or None
     row['case_contract_written'] = contract_written
     row['case_contract_note'] = contract_note
     row['prior_verdicts_superseded'] = superseded
@@ -834,7 +869,8 @@ def main():
         trace = (f"\n\n  ↳ case {case_id}: contract {contract_note}, War Room entry written"
                  f"{f', title {mark_note}' if marked else ''}"
                  f"{f', {star_note}' if starred else ''}"
-                 f"{f', {superseded} prior verdict(s) superseded' if superseded else ''}")
+                 f"{f', {superseded} prior verdict(s) superseded' if superseded else ''}"
+                 f"{f', {err}' if err else ''}")
     else:
         trace = f"\n\n  ⚫ case write failed: {err}"
 
