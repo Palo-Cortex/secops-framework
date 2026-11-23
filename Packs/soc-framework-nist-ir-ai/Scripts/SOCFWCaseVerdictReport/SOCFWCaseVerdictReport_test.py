@@ -68,6 +68,7 @@ class Tenant:
         self.results = []
 
     def execute(self, cmd, args):
+        """Answer one executeCommand call the way the tenant does, and record it."""
         if cmd == "getList":
             self.calls.append((cmd, None, args))
             return [{"Type": 1, "Contents": json.dumps(PHASE_CONTRACT)}]
@@ -213,6 +214,11 @@ def test_only_tags_that_landed_are_counted(t, monkeypatch):
 
 
 def test_a_failed_read_supersedes_nothing_and_never_raises(t):
+    """
+    Given a case whose War Room read fails
+    When earlier verdicts are superseded
+    Then nothing is superseded and nothing raises
+    """
     t.fail.add("/xsoar/public/v1/investigation/INCIDENT-42")
     assert vr.supersede_prior("42") == 0
 
@@ -229,9 +235,10 @@ def test_an_untagged_verdict_written_before_tagging_is_superseded(t):
         {"id": "d1", "tags": None, "contents": "!DeleteContext key=SOCFramework.Analysis.AI"},
         {"id": "o1", "tags": None, "contents": "**CASE 420** — another case quoted in a note"},
     ]
-    assert vr.supersede_prior("42") == 2
+    verdicts = ["v1", "v2"]
+    assert vr.supersede_prior("42") == len(verdicts)
     tagged = t.sent("/xsoar/public/v1/entry/tags")
-    assert [b["id"] for b in tagged] == ["v1", "v2"]
+    assert [b["id"] for b in tagged] == verdicts
     assert all(b["tags"] == [vr.VERDICT_TAG, vr.SUPERSEDED_TAG] for b in tagged)
 
 

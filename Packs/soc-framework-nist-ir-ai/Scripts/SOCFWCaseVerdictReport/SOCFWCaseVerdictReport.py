@@ -595,7 +595,7 @@ def mark_case_title(case_id, issue):
 
 
 def main() -> None:
-    """Report one case verdict: supersede the earlier ones, write the contract, the War Room entry and the dataset row."""
+    """Report one case verdict: supersede earlier ones, then write the contract, War Room entry and row."""
     args = demisto.args()
 
     # Scalars only. An object or array argument makes XSIAM run this task once
