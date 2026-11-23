@@ -19,6 +19,9 @@ LIST CONVENTION
         actions: [soc-enrich-user, soc-enrich-user-manager]
         fire_when: [Artifacts.Identity.User.UPN, ...]
 
+  Every lane's answers go to the assessment (see OUTPUTS). An object lane can
+  keep its answers out with intel: false.
+
   UC actions resolve their own arguments from SOCFramework.Artifacts.* inside
   the wrapper, so an override lane passes no values. Its source paths are only
   a firing condition: an alert with no identity skips the lane and costs
@@ -41,7 +44,12 @@ ARGS
 
 OUTPUTS
   SOCFramework.EnrichFromList — execution summary (lanes fired, lanes skipped,
-                                values per lane, list name resolved).
+                                values per lane, list name resolved). Each lane
+                                record carries roots: the top-level context
+                                keys its answers wrote. intel_roots gathers
+                                those of every lane not marked intel: false,
+                                which SOCFWCollectIntel collects for the
+                                assessment.
 
 DESIGN NOTES
   - Read-only by definition: no shadow_mode concept here. Enrichment is
@@ -171,28 +179,47 @@ def public_ips_only(values):
     return kept
 
 
-def fire_lane(lane_name, values):
+def context_roots(result: list | None, roots: list) -> list:
+    """Add to roots the top-level context keys a command's answers wrote, in order.
+
+    Each answer's EntryContext names where it landed, e.g.
+    "VirusTotal.IP(val.id && val.id == obj.id)" is under VirusTotal. The
+    framework's own keys are left out: they record the call, not its answer.
     """
-    Call the built-in reputation command for this lane. The lane key IS the
-    command name AND the argument name by convention.
-    Returns (ok: bool, message: str).
+    for entry in result if isinstance(result, list) else []:
+        context = entry.get("EntryContext") if isinstance(entry, dict) else None
+        for key in context if isinstance(context, dict) else {}:
+            root = str(key).split("(", 1)[0].split(".", 1)[0].strip()
+            if root and root != "SOCFramework" and root not in roots:
+                roots.append(root)
+    return roots
+
+
+def fire_lane(lane_name: str, values: list) -> tuple[bool, str, list]:
+    """Call the built-in reputation command for this lane.
+
+    The lane key is both the command name and its argument name. Returns
+    (ok, message, roots), where roots are the context keys the answers wrote.
+    A lane where one feed errored still reports what the others wrote.
     """
+    roots = []
     try:
         result = demisto.executeCommand(
             lane_name,
             {lane_name: ",".join(values)}
         )
+        context_roots(result, roots)
         # Best-effort error detection — failures are non-fatal for enrichment
         if isinstance(result, list):
             for entry in result:
                 if isinstance(entry, dict) and entry.get("Type") == entryTypes.get("error", 4):
-                    return False, str(entry.get("Contents", ""))[:200]
-        return True, f"{len(values)} value(s) enriched"
+                    return False, str(entry.get("Contents", ""))[:200], roots
+        return True, f"{len(values)} value(s) enriched", roots
     except Exception as e:
-        return False, str(e)[:200]
+        return False, str(e)[:200], roots
 
 
-def fire_actions(actions):
+def fire_actions(actions: list) -> tuple[bool, list, str, list]:
     """Run an override lane's universal commands through SOCCommandWrapper.
 
     No values are passed. The wrapper resolves each action's vendor arguments
@@ -200,9 +227,10 @@ def fire_actions(actions):
     category, so this stays vendor-agnostic.
 
     One action failing does not stop the lane — a tenant missing a manager
-    integration should still get the user record.
+    integration should still get the user record. Returns (ok, actions that
+    ran, message, roots), where roots are the context keys the answers wrote.
     """
-    ok, failures = [], []
+    ok, failures, roots = [], [], []
     for action in actions:
         try:
             result = demisto.executeCommand("SOCCommandWrapper", {
@@ -211,6 +239,7 @@ def fire_actions(actions):
                 "Phase": "Enrichment",
                 "tags": "Enrichment",
             })
+            context_roots(result, roots)
             err = ""
             if isinstance(result, list):
                 for entry in result:
@@ -226,8 +255,32 @@ def fire_actions(actions):
 
     if failures:
         return False, ok, f"{len(ok)} ran, {len(failures)} failed: " + \
-            "; ".join(f"{f['action']} ({f['error']})" for f in failures)
-    return True, ok, f"{len(ok)} action(s) ran"
+            "; ".join(f"{f['action']} ({f['error']})" for f in failures), roots
+    return True, ok, f"{len(ok)} action(s) ran", roots
+
+
+def lane_parts(lane_spec: object) -> tuple[list | None, list, bool, str]:
+    """(actions, source paths, feeds intel, skip reason) for one lane of the list.
+
+    A lane is either a list of source paths (built-in reputation command) or an
+    object naming universal commands to dispatch instead. actions is None for a
+    built-in lane. Every lane's answers reach the assessment unless an object
+    lane opts out with intel: false; SOCFWCollectIntel's size budget drops these
+    before its configured roots.
+    """
+    if isinstance(lane_spec, dict):
+        actions = lane_spec.get("actions") or []
+        if not actions:
+            return actions, [], False, "no actions in list"
+        source_paths = lane_spec.get("fire_when") or []
+        feeds_intel = lane_spec.get("intel") is not False
+    elif isinstance(lane_spec, list):
+        actions, source_paths, feeds_intel = None, lane_spec, True
+    else:
+        return None, [], False, "unrecognized lane shape"
+    if not source_paths:
+        return actions, source_paths, feeds_intel, "no source_paths in list"
+    return actions, source_paths, feeds_intel, ""
 
 
 def warroom_log(title, payload):
@@ -246,7 +299,8 @@ def warroom_log(title, payload):
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
+def main() -> None:
+    """Fire every lane of the lifecycle's enrichment list that has something to look up."""
     args = demisto.args() or {}
     lifecycle = (args.get("lifecycle") or "nist_ir").strip() or "nist_ir"
     list_name = (args.get("list_name") or "").strip() \
@@ -265,25 +319,14 @@ def main():
     fired = []
     skipped_empty = []
     errored = []
+    # Where the lanes' answers landed, for SOCFWCollectIntel. A new feed or a new
+    # lane is picked up here from what it wrote, with no list to keep in step.
+    intel_roots = []
 
     for lane_name, lane_spec in lanes.items():
-        # A lane is either a list of source paths (built-in reputation command)
-        # or an object naming universal commands to dispatch instead.
-        if isinstance(lane_spec, dict):
-            actions = lane_spec.get("actions") or []
-            source_paths = lane_spec.get("fire_when") or []
-            if not actions:
-                skipped_empty.append({"lane": lane_name, "reason": "no actions in list"})
-                continue
-        elif isinstance(lane_spec, list):
-            actions = None
-            source_paths = lane_spec
-        else:
-            skipped_empty.append({"lane": lane_name, "reason": "unrecognized lane shape"})
-            continue
-
-        if not source_paths:
-            skipped_empty.append({"lane": lane_name, "reason": "no source_paths in list"})
+        actions, source_paths, feeds_intel, reason = lane_parts(lane_spec)
+        if reason:
+            skipped_empty.append({"lane": lane_name, "reason": reason})
             continue
 
         values = resolve_paths(source_paths, ctx)
@@ -300,13 +343,15 @@ def main():
                 continue
 
         if actions:
-            ok, ran, msg = fire_actions(actions)
+            ok, ran, msg, roots = fire_actions(actions)
             record = {"lane": lane_name, "actions": ran, "value_count": len(values),
-                      "message": msg}
+                      "message": msg, "roots": roots}
         else:
-            ok, msg = fire_lane(lane_name, values)
+            ok, msg, roots = fire_lane(lane_name, values)
             record = {"lane": lane_name, "values": values, "value_count": len(values),
-                      "message": msg}
+                      "message": msg, "roots": roots}
+        if feeds_intel:
+            intel_roots.extend(r for r in roots if r not in intel_roots)
 
         if ok:
             fired.append(record)
@@ -322,6 +367,7 @@ def main():
         "fired": fired,
         "skipped_empty": skipped_empty,
         "errored": errored,
+        "intel_roots": intel_roots,
     }
 
     readable_lines = [

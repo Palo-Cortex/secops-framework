@@ -6,8 +6,10 @@ into SOCFramework.Artifacts. A prompt variable binds a single path, so the roots
 are gathered here into one object.
 
 Which roots to read comes from SOCOptimizationConfig_V3 CaseIntelRoots, so the
-issue path and the case JOB stay on one list — adding Recorded Future or GTI
-there reaches both.
+issue path and the case JOB stay on one list. On top of those, the roots
+SOCEnrichFromList saw this issue's enrichment answers write
+(SOCFramework.EnrichFromList.intel_roots) are collected too, so a feed that
+writes its own root is picked up without editing the list.
 
 Args:
   roots       comma-separated context roots (default: the CaseIntelRoots value)
@@ -35,21 +37,39 @@ def collect(context, roots):
     return out
 
 
-def _trim(obj, max_chars):
+def reported_roots(context: dict) -> list:
+    """The roots SOCEnrichFromList recorded, across every time it ran on this issue."""
+    runs = demisto.dt(context, "SOCFramework.EnrichFromList")
+    roots = []
+    for run in runs if isinstance(runs, list) else [runs]:
+        listed = run.get("intel_roots") if isinstance(run, dict) else None
+        for root in listed if isinstance(listed, list) else []:
+            root = str(root).strip()
+            if root and root not in roots:
+                roots.append(root)
+    return roots
+
+
+def _trim(obj: dict, max_chars: int, keep: list | tuple = ()) -> tuple[dict, list]:
     """Drop whole roots, largest first, until the payload fits the budget.
+
+    Roots not in keep go first, so a large vendor root a feed reported never
+    pushes out the configured roots such as DBotScore.
 
     Losing a root entirely is honest; a truncated JSON string would read to the
     model as corrupt evidence.
     """
     dropped = []
     while len(json.dumps(obj)) > max_chars and obj:
-        biggest = max(obj, key=lambda k: len(json.dumps(obj[k])))
+        extra = [k for k in obj if k not in keep]
+        biggest = max(extra or obj, key=lambda k: len(json.dumps(obj[k])))
         obj.pop(biggest)
         dropped.append(biggest)
     return obj, dropped
 
 
-def main():
+def main() -> None:
+    """Write the configured and reported intel roots to output_key for the assessment prompt."""
     args = demisto.args() or {}
     output_key = args.get("output_key") or "Assessment.Intel"
     try:
@@ -61,9 +81,11 @@ def main():
     roots = args.get("roots") or demisto.dt(context, "SOCFramework.Case.Config.CaseIntelRoots") or DEFAULT_ROOTS
     if isinstance(roots, list):
         roots = ",".join(str(r) for r in roots)
+    configured = [r.strip() for r in str(roots).split(",") if r.strip()]
+    roots = configured + [r for r in reported_roots(context) if r not in configured]
 
-    found = collect(context, str(roots).split(","))
-    found, dropped = _trim(found, max_chars)
+    found = collect(context, roots)
+    found, dropped = _trim(found, max_chars, keep=configured)
 
     if not found:
         demisto.setContext(output_key, "no content")
