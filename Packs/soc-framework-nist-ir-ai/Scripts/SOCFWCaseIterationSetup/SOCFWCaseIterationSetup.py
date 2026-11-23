@@ -30,6 +30,15 @@ PRIOR_FIELDS = ('verdict', 'confidence', 'response_recommended',
                 'mitre_tactic', 'issue_count', 'analysed_at')
 
 
+# The case's Analysis contract, asked for by context query. The $ is sent as the
+# JSON escape \u0024. With a literal ${SOCFramework.Analysis.AI} in the body,
+# every read made from the JOB came back {"response": ""}, while the same call
+# from outside returned the contract: the ${...} is resolved against the
+# calling investigation's own context before the call goes out. The endpoint
+# decodes the escape back to the same query.
+CONTRACT_QUERY_BODY = json.dumps({'query': '${SOCFramework.Analysis.AI}'}).replace('$', '\\u0024')
+
+
 def current_case(raw):
     """Return the case object for this iteration, from whatever shape arrives."""
     if isinstance(raw, str):
@@ -42,7 +51,7 @@ def current_case(raw):
     return raw if isinstance(raw, dict) else {}
 
 
-def read_prior_verdict(case_id):
+def read_prior_verdict(case_id: str) -> dict:
     """Read the verdict this case already carries, if any.
 
     A growing case is re-analysed, and what an analyst wants is not a fresh
@@ -57,7 +66,7 @@ def read_prior_verdict(case_id):
     try:
         res = demisto.executeCommand('core-api-post', {
             'uri': f'/xsoar/public/v1/investigation/INCIDENT-{case_id}/context',
-            'body': json.dumps({'query': '${SOCFramework.Analysis.AI}'}),
+            'body': CONTRACT_QUERY_BODY,
         })
         if isinstance(res, list):
             res = res[0] if res else {}

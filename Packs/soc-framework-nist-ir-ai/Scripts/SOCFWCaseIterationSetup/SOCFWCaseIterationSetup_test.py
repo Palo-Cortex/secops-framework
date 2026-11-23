@@ -146,6 +146,19 @@ def test_the_prior_verdict_rides_along_without_its_story(t, monkeypatch):
     assert uri == "/xsoar/public/v1/investigation/INCIDENT-42/context"
 
 
+def test_the_prior_verdict_read_never_sends_a_raw_dollar_brace(t, monkeypatch):
+    """
+    Given a case to pin
+    When its prior verdict is read
+    Then the body carries no ${ for the platform to resolve against the JOB's own context,
+    and still decodes to the context query
+    """
+    run(t, monkeypatch, CASE)
+    body = [a for c, a in t.calls if c == "core-api-post"][0]["body"]
+    assert "${" not in body
+    assert json.loads(body) == {"query": "${SOCFramework.Analysis.AI}"}
+
+
 @pytest.mark.parametrize("prior", [{}, {"confidence": "high"}, [{"verdict": ""}]])
 def test_no_verdict_on_the_case_means_no_prior(t, monkeypatch, prior):
     t.prior = prior

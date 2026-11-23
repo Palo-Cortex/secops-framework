@@ -126,7 +126,8 @@ def by_case(rows):
     return out
 
 
-def main():
+def main() -> None:
+    """Collapse each candidate case into a payload, and write the payloads and the execution rows."""
     args = demisto.args()
     max_shapes = int(args.get('max_shapes') or 40)
     # Noise is many issues of one shape - two hundred scan alerts from one
@@ -364,6 +365,11 @@ def main():
         'min_coverage_pct': min_coverage_pct,
         'cases_single_shape': len(single_shape),
         'skipped_unchanged': stats.get('skipped_unchanged'),
+        'skipped_unchanged_on_case': stats.get('skipped_unchanged_on_case'),
+        'case_reads': stats.get('case_reads'),
+        'case_reads_empty': stats.get('case_reads_empty'),
+        'case_reads_failed': stats.get('case_reads_failed'),
+        'case_read_note': stats.get('case_read_note'),
         # Renamed from skipped_terminal when selection inverted to an allow-list.
         # A case skipped for status has to stay distinguishable from one skipped
         # by the watermark, and the breakdown names the statuses so a status the
