@@ -285,7 +285,8 @@ def test_the_job_records_a_run_that_selected_no_case(t):
     instead of closing without a row
     """
     import yaml
-    job = yaml.safe_load(open(os.path.join(HERE, "..", "..", "Playbooks", "JOB_-_SOC_Case_Analysis.yml")))
+    with open(os.path.join(HERE, "..", "..", "Playbooks", "JOB_-_SOC_Case_Analysis.yml")) as f:
+        job = yaml.safe_load(f)
     tasks = job["tasks"]
 
     def name(task_id):
