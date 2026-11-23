@@ -27,7 +27,6 @@ UPDATE = os.environ.get("SOCFW_UPDATE_GOLDEN") == "1"
 
 VENDOR_DATA = {
     "command": "vendor-isolate",
-    "output_map": {"UC.Isolate.Status": "Vendor.Device.Status"},
     "status": {"path": "Vendor.Device.Status", "values": {"contained": "contained", "normal": "normal"}},
 }
 
@@ -62,7 +61,7 @@ class Recorder:
     def install(self, *, enrich_fails=False):
         """Stub every platform call _dispatch_one makes; enrich_fails makes dataset enrichment raise."""
         for name in ("warroom_log", "append_context", "post_dataset_payload",
-                     "return_results", "return_warning", "return_error", "apply_output_map"):
+                     "return_results", "return_warning", "return_error"):
             self.hook(name)
         self.script.resolve_schema_payload = lambda entries, ctx: {"schema": "base"}
 

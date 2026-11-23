@@ -237,7 +237,7 @@ def append_context(key, record):
     demisto.setContext(key, existing)
 
 
-def _extract_entry_context(result):
+def _extract_entry_context(result: list | None) -> dict:
     """
     Pull the merged EntryContext dict from an executeCommand result list.
     Commands may return multiple entries; merge all EntryContext dicts.
@@ -246,8 +246,8 @@ def _extract_entry_context(result):
     for dedup/append control, e.g.:
         "MsGraph.Hunt(val.query && val.query == obj.query)": [...]
 
-    We strip the DT parenthetical so output_map can resolve against the
-    clean base path. The raw value (what the command actually returned)
+    We strip the DT parenthetical so a branch's reads can resolve against
+    the clean base path. The raw value (what the command actually returned)
     is preserved — it is NOT the accumulated array from investigation
     context, just this execution's output.
     """
@@ -265,7 +265,7 @@ def _extract_entry_context(result):
     return merged
 
 
-def _resolve_from_entry_context(ec, path):
+def _resolve_from_entry_context(ec: dict | None, path: str | None) -> object:
     """
     Resolve a dotted path against a flat-key EntryContext dict.
 
@@ -279,11 +279,11 @@ def _resolve_from_entry_context(ec, path):
     if not ec or not isinstance(ec, dict) or not path:
         return None
 
-    # Exact match — output_map source == EntryContext key
+    # Exact match — the path is an EntryContext key
     if path in ec:
         return ec[path]
 
-    # Sub-path: output_map asks for "MsGraph.Hunt.results" but EC key is "MsGraph.Hunt"
+    # Sub-path: the path is "MsGraph.Hunt.results" but the EC key is "MsGraph.Hunt"
     # Find the longest matching EC key that is a prefix of path
     best_key = ""
     for ec_key in ec:
@@ -337,62 +337,6 @@ def read_observations(vendor_data, entry_context):
         out[key] = values.get(raw.lower(), "unknown") if raw else "unknown"
         out[f"{key}_raw"] = raw
     return out
-
-
-def apply_output_map(output_map, ctx, shadow_mode, entry_context=None):
-    """
-    Write UC.* canonical keys from vendor-specific context paths.
-
-    output_map format (defined per vendor response in SOCFrameworkActions_V3):
-      { "UC.Email.Forensics.behavior": "Proofpoint.Report.Behavior", ... }
-
-    In shadow mode: writes "shadow_mode" sentinel so downstream conditions
-    can use isExists(UC.*) without erroring.
-
-    In execute mode: resolves each source path from the executeCommand
-    EntryContext (fresh return value), falling back to investigation context
-    only if entry_context lookup fails. Skips entries where source
-    resolves empty.
-    """
-    if not output_map or not isinstance(output_map, dict):
-        return
-
-    for dest_key, source_path in output_map.items():
-        if not dest_key or not source_path:
-            continue
-
-        if shadow_mode:
-            demisto.setContext(dest_key, "shadow_mode")
-            demisto.debug(f"apply_output_map shadow: {dest_key} = shadow_mode")
-            continue
-
-        # Resolve source path — strip filter expressions (e.g. path[key=val].count)
-        # Use the base path only; playbook transformers handle filtering
-        base_path = re.split(r'[\[\.]', source_path)[0] if '[' in source_path else source_path
-        # Re-add dotted sub-path if no filter was present
-        if '[' not in source_path:
-            base_path = source_path
-
-        value = None
-
-        # 1. Try fresh EntryContext from this executeCommand's return value
-        if entry_context:
-            value = _resolve_from_entry_context(entry_context, base_path)
-            if value not in (None, "", [], {}):
-                demisto.debug(f"apply_output_map: {dest_key} <- {base_path} (from EntryContext)")
-
-        # 2. Fallback: investigation context (stale but covers side-effect writes)
-        if value in (None, "", [], {}):
-            value = demisto.get(ctx, base_path)
-            if value not in (None, "", [], {}):
-                demisto.debug(f"apply_output_map: {dest_key} <- {base_path} (from investigation context fallback)")
-
-        if value in (None, "", [], {}):
-            demisto.debug(f"apply_output_map: {dest_key} skipped — source {base_path} empty in both contexts")
-            continue
-
-        demisto.setContext(dest_key, value)
-        demisto.debug(f"apply_output_map: {dest_key} set successfully")
 
 
 def integration_failed(result):
@@ -1280,13 +1224,6 @@ def _append_record(shared: dict, record: dict) -> None:
         append_context(shared["output_key"], record)
 
 
-def _clear_outputs(call: _Call) -> None:
-    """Null the action's UC.* output keys, so later conditions take their default path instead of failing."""
-    output_map = call.vendor_data.get("output_map", {})
-    for dest_key in (output_map or {}).keys():
-        demisto.setContext(dest_key, None)
-
-
 def _dispatch_shadow(shared: dict, call: _Call, terminal: bool) -> dict:
     """Record what the command would have done, without calling the vendor."""
     action = shared["action"]
@@ -1302,11 +1239,6 @@ def _dispatch_shadow(shared: dict, call: _Call, terminal: bool) -> dict:
     record = _dispatch_record(shared, call, success=False, no_instance=no_instance)
     _append_record(shared, record)
     _post_row(shared, _row_values(shared, call, status=status, minutes=credited_minutes))
-
-    # Write sentinel UC.* keys so downstream conditions work in shadow mode
-    output_map = call.vendor_data.get("output_map", {})
-    fresh_ctx = demisto.context()
-    apply_output_map(output_map, fresh_ctx, shadow_mode=True)
 
     warroom_log(
         "SOC Framework - SHADOW MODE (No Instance - Command Not Executed)" if no_instance
@@ -1407,10 +1339,6 @@ def _record_failure(shared: dict, call: _Call, error_msg: str | None, terminal: 
 def _soft_fail_unavailable(shared: dict, call: _Call, error_msg: str | None) -> dict:
     """Tell the analyst the action needs an integration this tenant lacks, and let the playbook continue."""
     action, command = shared["action"], call.command
-    # Null out UC.* output keys so downstream conditions evaluate cleanly
-    # (missing key → default/blocked path) rather than raising errors
-    _clear_outputs(call)
-
     return_warning(
         f"[SOCCommandWrapper] Integration not available for action '{action}'. "
         f"Command: {command}. "
@@ -1422,8 +1350,7 @@ def _soft_fail_unavailable(shared: dict, call: _Call, error_msg: str | None) -> 
             f"Action `{action}` requires an integration that is not installed or enabled. "
             f"Playbook continues in degraded mode."
         ),
-        outputs_prefix="UC",
-        outputs={"action": action, "status": "integration_unavailable", "command": command}
+        raw_response={"action": action, "status": "integration_unavailable", "command": command}
     ))
     return {"vendor": call.vendor, "target": call.target,
             "outcome": "integration_unavailable", "reason": error_msg}
@@ -1432,8 +1359,6 @@ def _soft_fail_unavailable(shared: dict, call: _Call, error_msg: str | None) -> 
 def _soft_fail_read_only(shared: dict, call: _Call, error_msg: str | None) -> dict:
     """Skip a failed read-only action and let the playbook continue without its result."""
     action, command = shared["action"], call.command
-    _clear_outputs(call)
-
     return_warning(
         f"[SOCCommandWrapper] Read-only action '{action}' failed and was skipped. "
         f"Command: {command}. Error: {error_msg}"
@@ -1444,15 +1369,14 @@ def _soft_fail_read_only(shared: dict, call: _Call, error_msg: str | None) -> di
             f"Action `{action}` only reads, so the playbook continues without "
             f"its result.\n\nError: {error_msg}"
         ),
-        outputs_prefix="UC",
-        outputs={"action": action, "status": "failed", "command": command}
+        raw_response={"action": action, "status": "failed", "command": command}
     ))
     return {"vendor": call.vendor, "target": call.target,
             "outcome": "failed", "reason": error_msg}
 
 
 def _record_success(shared: dict, call: _Call, result: list) -> dict:
-    """Record a vendor command that succeeded, map its output to UC.* keys, and pass its result on."""
+    """Record a vendor command that succeeded and pass its result on."""
     record = _dispatch_record(shared, call, success=True)
 
     # Read what the vendor reported about the endpoint - containment state and
@@ -1473,11 +1397,6 @@ def _record_success(shared: dict, call: _Call, result: list) -> dict:
 
     _append_record(shared, record)
     _post_row(shared, _row_values(shared, call, status="success", minutes=shared["action_time_minutes"]))
-
-    # Map vendor output to canonical UC.* context keys
-    output_map = call.vendor_data.get("output_map", {})
-    fresh_ctx = demisto.context()
-    apply_output_map(output_map, fresh_ctx, shadow_mode=False, entry_context=entry_context)
 
     warroom_log(
         "SOC Framework - Command Success",
