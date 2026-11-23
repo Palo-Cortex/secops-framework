@@ -3,7 +3,7 @@
 Sources are the responses of the soc-sync-on-duty action, run through the
 Universal Command with dispatch all_applicable: every source with a configured
 integration answers, and each response row says where its people are
-(output_map) and which of their fields are the email and name (roster_fields).
+(roster_path) and which of their fields are the email and name (roster_fields).
 analysts= is the manual source, for a customer with no schedule system: those
 people become this run's manual set and no other source is called.
 
@@ -223,17 +223,17 @@ def wrapper_outcomes(entries):
     return out
 
 
-def people_from(ec, response):
+def people_from(ec: dict, response: dict) -> list[dict]:
     """[{email, name}] from one source's output, using its roster_fields."""
-    paths = list((response.get("output_map") or {}).values())
+    path = response.get("roster_path")
     fields = response.get("roster_fields") or {}
-    if not paths or not fields.get("email"):
+    if not path or not fields.get("email"):
         return []
-    found = ec.get(paths[0])
+    found = ec.get(path)
     if found is None:
         for key, value in ec.items():
-            if paths[0].startswith(key + ".") and isinstance(value, dict):
-                found = value.get(paths[0][len(key) + 1:])
+            if path.startswith(key + ".") and isinstance(value, dict):
+                found = value.get(path[len(key) + 1:])
     items = found if isinstance(found, list) else ([found] if isinstance(found, dict) else [])
     people = []
     for item in items:

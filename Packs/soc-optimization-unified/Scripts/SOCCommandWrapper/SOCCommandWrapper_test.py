@@ -106,10 +106,11 @@ def load_script():
 
     class CommandResults:
         def __init__(self, readable_output=None, outputs_prefix=None,
-                     outputs=None, **kwargs):
+                     outputs=None, raw_response=None, **kwargs):
             self.readable_output = readable_output
             self.outputs_prefix = outputs_prefix
             self.outputs = outputs
+            self.raw_response = raw_response
 
     def register_module_line(*args, **kwargs):
         return None
@@ -445,8 +446,7 @@ def test_main_production_rate_limited_soft_fails():
     Reproduces the Proofpoint TAP 429 that halted EP_IR_NIST (800-61)_V3.
 
     A transient vendor API refusal must NOT kill the lifecycle. The wrapper
-    should record the failure (context record + dataset row), null the UC.*
-    output keys so downstream conditions evaluate cleanly, and return —
+    should record the failure (context record + dataset row) and return,
     letting Containment/Eradication/Recovery still run.
 
     soc-get-email-forensics is an investigation action, so it only reads.
@@ -477,10 +477,6 @@ def test_main_production_rate_limited_soft_fails():
                             "Proofpoint TAP v2": {
                                 "command": "proofpoint-get-forensics",
                                 "inline_args": {"threatId": "abc123"},
-                                "output_map": {
-                                    "UC.Email.Forensics.behavior":
-                                        "Proofpoint.Report.Behavior"
-                                },
                             }
                         },
                     }
@@ -509,9 +505,8 @@ def test_main_production_rate_limited_soft_fails():
     assert record["success"] is False
     assert "429" in record["error"]
 
-    # UC.* nulled so downstream conditions take the default path
-    # rather than erroring on a missing key.
-    assert demisto._context["UC"]["Email"]["Forensics"]["behavior"] is None
+    # Nothing is written under UC; the record above is the result.
+    assert "UC" not in demisto._context
 
     # Telemetry still lands.
     posted = [

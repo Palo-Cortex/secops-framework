@@ -15,7 +15,7 @@ import SOCFWOnDutySync as s  # noqa: E402
 
 s.demisto = demistomock
 
-PD = {"output_map": {"SOCFramework.OnDuty.Sources.PagerDuty": "PagerDutyUser"},
+PD = {"roster_path": "PagerDutyUser",
       "roster_fields": {"email": "Email", "name": "DisplayName"}}
 USERS = {"a@example.com": "A", "b@example.com": "B", "c@example.com": "C", "d@example.com": "D"}
 NOW = "2026-10-30T00:00:00+00:00"
@@ -32,7 +32,8 @@ def test_people_from_reads_every_user_not_just_the_first():
 
 
 def test_people_from_without_roster_fields_finds_nobody():
-    assert s.people_from({"PagerDutyUser": [{"Email": "a@example.com"}]}, {"output_map": {"k": "PagerDutyUser"}}) == []
+    """A source that says where its people are but not which field is the email yields nobody."""
+    assert s.people_from({"PagerDutyUser": [{"Email": "a@example.com"}]}, {"roster_path": "PagerDutyUser"}) == []
 
 
 def test_wrapper_outcomes_reads_success_skip_and_unavailable():
