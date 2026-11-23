@@ -247,6 +247,43 @@ def fetch_page(search_from, batch_size, cutoff_ms):
     return incidents or []
 
 
+def changes(record: dict, alert_count: int) -> tuple[bool, bool]:
+    """(grew, incomplete) since a recorded analysis: new issues joined, or some issues had no contract yet."""
+    grew = alert_count > record['alert_count']
+    incomplete = record['total_issues'] > 0 and record['covered_issues'] < record['total_issues']
+    return grew, incomplete
+
+
+def case_record(case_id: str) -> dict | None:
+    """What the case's own Analysis contract says was analysed, or None when it says nothing usable.
+
+    The watermark is read from the execution dataset, where a verdict row becomes
+    queryable only minutes after it is written. A case analysed late in one run
+    was still missing from the watermark when the next run started, and was
+    analysed again with nothing changed. The contract on the case is written with
+    the verdict, so it has no such lag. analysed_at is the barrier
+    SOCFWCaseVerdictReport writes last: without it the contract is cleared or
+    mid-write, and says nothing.
+    """
+    try:
+        res = demisto.executeCommand('core-api-post', {
+            'uri': f'/xsoar/public/v1/investigation/INCIDENT-{case_id}/context',
+            'body': json.dumps({'query': '${SOCFramework.Analysis.AI}'}),
+        })
+        entry = res[0] if isinstance(res, list) and res else res
+        contract = demisto.get(entry, 'Contents.response') or demisto.get(entry, 'response')
+        if isinstance(contract, list):
+            contract = contract[-1] if contract else None
+        if not isinstance(contract, dict) or not contract.get('analysed_at'):
+            return None
+        return {'alert_count': int(contract.get('analysed_issue_count') or 0),
+                'covered_issues': int(contract.get('analysed_covered_issues') or 0),
+                'total_issues': int(contract.get('analysed_total_issues') or 0)}
+    except Exception as e:
+        demisto.debug(f'SOCFWCaseSelect: case {case_id} contract unreadable, using the watermark: {e}')
+        return None
+
+
 def tenant_case_settings():
     """The case section of SOCFWTenantConfig, written by !SOCFWConfig command=case.
 
@@ -268,7 +305,8 @@ def tenant_case_settings():
         return {}
 
 
-def main():
+def main() -> None:
+    """Choose the cases to analyse this run and write them, with the selection counts, to context."""
     args = demisto.args()
     tenant = tenant_case_settings()
     batch_size = min(int(args.get('batch_size') or 100), MAX_PAGE)
@@ -311,6 +349,7 @@ def main():
     seen_cases = []
     scanned = 0
     skipped_unchanged = 0
+    skipped_unchanged_on_case = 0
     skipped_status = 0
     status_breakdown = {}
     skipped_domain = 0
@@ -402,15 +441,21 @@ def main():
                 if wm is not None and wm.get('attempts', 0) >= max_attempts:
                     skipped_max_attempts += 1
                     continue
+                grew = incomplete = False
                 if wm is not None:
-                    grew = alert_count > wm['alert_count']
-                    incomplete = (wm['total_issues'] > 0
-                                  and wm['covered_issues'] < wm['total_issues'])
+                    grew, incomplete = changes(wm, alert_count)
                     if not grew and not incomplete:
                         skipped_unchanged += 1
                         continue
-                    if not grew and incomplete:
-                        recheck_coverage += 1
+                # The watermark lags the case by minutes; the case's own
+                # contract does not. Read only for a case about to be selected.
+                record = case_record(case_id)
+                if record is not None and not any(changes(record, alert_count)):
+                    skipped_unchanged += 1
+                    skipped_unchanged_on_case += 1
+                    continue
+                if wm is not None and not grew and incomplete:
+                    recheck_coverage += 1
 
                 candidates.append({
                     'case_id': case_id,
@@ -455,6 +500,8 @@ def main():
         'scanned': scanned,
         'candidates': len(candidates),
         'skipped_unchanged': skipped_unchanged,
+        # Of those, the ones the watermark had not caught up with yet.
+        'skipped_unchanged_on_case': skipped_unchanged_on_case,
         'skipped_ineligible_status': skipped_status,
         # Named, not just counted. An allow-list fails closed, so a status
         # nobody anticipated stops being analysed silently - this is the only

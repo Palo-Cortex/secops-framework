@@ -361,6 +361,19 @@ def test_execution_rows_carry_the_run_and_one_row_per_case(t, monkeypatch):
     assert case_rows[0]["payload_bytes"] == len(ctx["SOCFramework.Case.Payloads"][0]["Payload"])
 
 
+def test_the_run_row_counts_cases_the_watermark_had_not_caught_up_with(t, monkeypatch):
+    """
+    Given a selection that skipped one unchanged case on its own contract
+    When the payloads are built
+    Then the run row carries that count beside skipped_unchanged
+    """
+    t.context["SOCFramework"] = {"Case": {"SelectStats": {"skipped_unchanged": 3, "skipped_unchanged_on_case": 1}}}
+    ctx = run(t, monkeypatch, [cand("1")], shapes=[shape("1", "a", 2), shape("1", "b", 2)],
+              cov=[coverage("1", 4, 4)])
+    run_row = ctx["SOCFramework.Case.ExecutionRows"][0]
+    assert (run_row["skipped_unchanged"], run_row["skipped_unchanged_on_case"]) == (3, 1)
+
+
 def test_the_raw_aggregate_rows_are_cleared_after_collapsing(t, monkeypatch):
     run(t, monkeypatch, [cand("1")], shapes=[shape("1", "a", 1), shape("1", "b", 1)],
         cov=[coverage("1", 2, 2)])
