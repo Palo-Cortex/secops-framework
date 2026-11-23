@@ -216,12 +216,13 @@ def post_row(payload):
         demisto.debug("SOCFWPhaseExecutor: dataset post failed ({})".format(e))
 
 
-def decide(step, actions, env, policy, brands, ctx, ledger, tenant_config=None):
+def decide(step: dict, actions: dict, env: dict, policy: dict, brands: set | None, ctx: dict,
+           ledger: set, tenant_config: dict | None = None) -> dict:
     """One step, one verdict. Order of checks is the order of authority.
 
     Ledger first (already done is a fact), then environment deny (customer
     prohibition), then contract, then reachability, then authority. Anything
-    that is not 'dispatch' still produces a row, because a step that did not run
+    that is not dispatch still produces a row, because a step that did not run
     is the finding.
 
     Mode and authority gate a live run only. When the wrapper would simulate the
@@ -231,86 +232,101 @@ def decide(step, actions, env, policy, brands, ctx, ledger, tenant_config=None):
     """
     name = step.get("action")
     entry = actions.get(name) or {}
-    scope = entry.get("entity_scope") or "artifact"
-    entity = step.get("entity_value") or ""
-    etype = step.get("entity_type") or scope
-    out = {
+    out = _blank_verdict(step, entry)
+    if not entry:
+        return _settle(out, "content_gap", "no registry entry for this action", gap_kind="content_gap")
+    if (name, out["entity_value"]) in ledger:
+        return _settle(out, "duplicate", "already performed on this entity for this case")
+
+    ruling, tier, rule, note = env_ruling(env, out["entity_type"], out["entity_value"], name)
+    out["asset_tier"] = tier
+    if ruling == "denied":
+        return _settle(out, "environment_denied", note or "denied by {}".format(rule),
+                       gap_kind="policy", matched_rule=rule)
+
+    phase_cfg = (policy.get("phases") or {}).get(step.get("phase")) or {}
+    if not phase_cfg.get("enabled", False):
+        return _settle(out, "policy_blocked", "phase disabled in policy")
+
+    vendor, reachable = pick_vendor(entry, brands, ctx)
+    out["vendor"] = vendor
+    gap = _binding_gap(entry, vendor, reachable, ctx)
+    if gap:
+        out.update(gap)
+        return out
+
+    out["authority"] = step_authority(step, entry, phase_cfg, ruling)
+    return _dispatch_or_hold(out, phase_cfg, would_simulate(name, entry, tenant_config))
+
+
+def _blank_verdict(step: dict, entry: dict) -> dict:
+    """The fields every verdict carries, before any check has settled it."""
+    name = step.get("action")
+    return {
         "action": name,
         "capability": entry.get("capability") or name,
-        "entity_type": etype,
-        "entity_value": entity,
+        "entity_type": step.get("entity_type") or entry.get("entity_scope") or "artifact",
+        "entity_value": step.get("entity_value") or "",
         "rationale": step.get("rationale") or "",
         "evidence_warning": step.get("evidence_warning"),
     }
 
-    if not entry:
-        out.update(status="content_gap", gap_kind="content_gap",
-                   reason="no registry entry for this action")
-        return out
 
-    if (name, entity) in ledger:
-        out.update(status="duplicate", reason="already performed on this entity for this case")
-        return out
+def _settle(out: dict, status: str, reason: str | None = None, **fields: object) -> dict:
+    """Give the verdict its status, and its reason when there is one."""
+    out.update(status=status, **fields)
+    if reason is not None:
+        out["reason"] = reason
+    return out
 
-    ruling, tier, rule, note = env_ruling(env, etype, entity, name)
-    out["asset_tier"] = tier
-    if ruling == "denied":
-        out.update(status="environment_denied", gap_kind="policy",
-                   reason=note or "denied by {}".format(rule), matched_rule=rule)
-        return out
 
-    phase_cfg = (policy.get("phases") or {}).get(step.get("phase")) or {}
-    if not phase_cfg.get("enabled", False):
-        out.update(status="policy_blocked", reason="phase disabled in policy")
-        return out
+def _binding_gap(entry: dict, vendor: str | None, reachable: bool, ctx: dict) -> dict | None:
+    """Why the chosen vendor binding cannot run, as verdict fields; None when it can.
 
-    vendor, reachable = pick_vendor(entry, brands, ctx)
-    out["vendor"] = vendor
+    Reachability first. With no enabled vendor there is no binding whose
+    arguments are meaningful, and checking them anyway reported a contract gap
+    for an action that simply has nowhere to run.
+    """
     if vendor is None:
-        out.update(status="content_gap", gap_kind="content_gap",
-                   reason="action has no vendor bindings")
-        return out
-
-    # Reachability first. With no enabled vendor there is no binding whose
-    # arguments are meaningful, and checking them anyway reported a contract gap
-    # for an action that simply has nowhere to run.
+        return {"status": "content_gap", "gap_kind": "content_gap",
+                "reason": "action has no vendor bindings"}
     if not reachable:
-        out.update(status="integration_unavailable", gap_kind="config_gap",
-                   reason="no enabled integration for this capability",
-                   required_brands=sorted(entry.get("responses") or {}))
-        return out
-
+        return {"status": "integration_unavailable", "gap_kind": "config_gap",
+                "reason": "no enabled integration for this capability",
+                "required_brands": sorted(entry.get("responses") or {})}
     missing = unresolved_args(entry, vendor, ctx)
     if missing:
-        out.update(status="contract_gap", gap_kind="contract_gap",
-                   reason="unresolved arguments: {}".format(", ".join(missing)),
-                   required_keys=missing)
-        return out
+        return {"status": "contract_gap", "gap_kind": "contract_gap",
+                "reason": "unresolved arguments: {}".format(", ".join(missing)),
+                "required_keys": missing}
+    return None
 
+
+def step_authority(step: dict, entry: dict, phase_cfg: dict, ruling: str | None) -> str:
+    """The stricter of the phase policy for the action's scope and the environment tier.
+
+    A step the plan marks requires_human needs at least approval.
+    """
+    scope = entry.get("entity_scope") or "artifact"
     authority = stricter(
         (phase_cfg.get("authority_by_scope") or {}).get(scope),
         ruling if ruling in AUTHORITY_RANK else None)
     if str(step.get("requires_human")).lower() == "true":
         authority = stricter(authority, "approve")
-    out["authority"] = authority
+    return authority
 
-    if would_simulate(name, entry, tenant_config):
-        out.update(status="dispatch", shadow=True)
-        return out
 
+def _dispatch_or_hold(out: dict, phase_cfg: dict, simulated: bool) -> dict:
+    """Send a simulated step to the wrapper; hold a live one to the phase mode and its authority."""
+    if simulated:
+        return _settle(out, "dispatch", shadow=True)
     if phase_cfg.get("mode") != "execute":
-        out.update(status="direction", reason="phase runs in {} mode".format(
-            phase_cfg.get("mode")))
-        return out
-    if authority == "recommend_only":
-        out.update(status="direction", reason="policy permits recommendation only")
-        return out
-    if authority == "approve":
-        out.update(status="awaiting_approval", reason="analyst approval required")
-        return out
-
-    out.update(status="dispatch")
-    return out
+        return _settle(out, "direction", "phase runs in {} mode".format(phase_cfg.get("mode")))
+    if out["authority"] == "recommend_only":
+        return _settle(out, "direction", "policy permits recommendation only")
+    if out["authority"] == "approve":
+        return _settle(out, "awaiting_approval", "analyst approval required")
+    return _settle(out, "dispatch")
 
 
 def records_from(action, entries):
