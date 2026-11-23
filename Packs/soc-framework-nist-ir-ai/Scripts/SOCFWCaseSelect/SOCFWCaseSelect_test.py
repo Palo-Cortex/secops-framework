@@ -280,3 +280,28 @@ def test_a_run_whose_reads_all_worked_has_no_note():
     ctx = run([case(1, alert_count=4)], records={"1": contract(4)})
     stats = ctx["SOCFramework.Case.SelectStats"]
     assert stats["case_reads"] == 1 and stats["case_read_note"] is None
+
+
+def test_the_case_read_never_sends_a_raw_dollar_brace():
+    """
+    Given a case to read
+    When selection reads its contract
+    Then the body carries no ${ for the platform to resolve against the JOB's own context,
+    and still decodes to the context query
+    """
+    ctx = run([case(52251, alert_count=46)], records={"52251": contract(46)})
+    body = [a["body"] for c, a in ctx["calls"] if "/investigation/" in str(a.get("uri"))][0]
+    assert "${" not in body
+    assert json.loads(body) == {"query": "${SOCFramework.Analysis.AI}"}
+
+
+def test_the_reply_seen_inside_the_job_reads_as_empty():
+    """
+    Given the reply a JOB got on deathstar for a blank query, {"response": ""}
+    When selection reads it
+    Then it counts as empty and the case is selected
+    """
+    ctx = run([case(52254, alert_count=8)], records={"52254": ""})
+    stats = ctx["SOCFramework.Case.SelectStats"]
+    assert picked(ctx) == ["52254"]
+    assert stats["case_reads_empty"] == 1 and "{'response': ''}" in stats["case_read_note"]

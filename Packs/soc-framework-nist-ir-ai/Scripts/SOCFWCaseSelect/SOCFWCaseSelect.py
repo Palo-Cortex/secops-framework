@@ -247,6 +247,15 @@ def fetch_page(search_from, batch_size, cutoff_ms):
     return incidents or []
 
 
+# The case's Analysis contract, asked for by context query. The $ is sent as the
+# JSON escape \u0024. With a literal ${SOCFramework.Analysis.AI} in the body,
+# every read made from the JOB came back {"response": ""}, while the same call
+# from outside returned the contract: the ${...} is resolved against the
+# calling investigation's own context before the call goes out. The endpoint
+# decodes the escape back to the same query.
+CONTRACT_QUERY_BODY = json.dumps({'query': '${SOCFramework.Analysis.AI}'}).replace('$', '\\u0024')
+
+
 def changes(record: dict, alert_count: int) -> tuple[bool, bool]:
     """(grew, incomplete) since a recorded analysis: new issues joined, or some issues had no contract yet."""
     grew = alert_count > record['alert_count']
@@ -273,7 +282,7 @@ def case_record(case_id: str) -> tuple[dict | None, str | None, str | None]:
     try:
         res = demisto.executeCommand('core-api-post', {
             'uri': f'/xsoar/public/v1/investigation/INCIDENT-{case_id}/context',
-            'body': json.dumps({'query': '${SOCFramework.Analysis.AI}'}),
+            'body': CONTRACT_QUERY_BODY,
         })
     except Exception as e:
         return None, 'failed', f'raised {e}'
