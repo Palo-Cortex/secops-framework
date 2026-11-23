@@ -87,6 +87,10 @@ class Tenant:
                 {"reply": {"incidents": [{"description": self.title}]}})}]
         if uri == "/xsoar/public/v1/entry/execute/sync" and "SOCFWCaseContractWrite" in body["data"]:
             return [{"Type": 1, "Contents": self.contract_reply}]
+        if uri == "/xsoar/public/v1/entry":
+            # As deathstar answers: the new entry, its id carrying the investigation.
+            return [{"Type": 1, "Contents": {"response": {
+                "id": f"new1@{body['investigationId']}", "contents": body["data"], "tags": None}}}]
         return [{"Type": 1, "Contents": "ok"}]
 
     def sent(self, uri, contains=""):
@@ -146,14 +150,20 @@ def test_only_a_model_call_failure_is_reported_as_one():
 
 # -- superseding earlier verdicts ---------------------------------------------
 
-def test_earlier_verdicts_are_read_from_the_bare_case_id_and_tagged_once(t):
+def test_earlier_verdicts_are_read_from_the_case_investigation_and_tagged_once(t):
+    """
+    Given a tagged verdict, an already superseded one and an unrelated entry
+    When earlier verdicts are superseded
+    Then INCIDENT-<id> is read, where the case War Room's entries are (deathstar, 23 Nov),
+    and only the live verdict is tagged superseded
+    """
     t.entries = [
         {"id": "e1", "tags": [vr.VERDICT_TAG]},
         {"id": "e2", "tags": [vr.VERDICT_TAG, vr.SUPERSEDED_TAG]},
         {"id": "e3", "tags": ["other"]},
     ]
     assert vr.supersede_prior("42") == 1
-    assert t.sent("/xsoar/public/v1/investigation/42")
+    assert t.sent("/xsoar/public/v1/investigation/INCIDENT-42")
     tagged = t.sent("/xsoar/public/v1/entry/tags")
     assert [b["id"] for b in tagged] == ["e1"]
     assert tagged[0]["tags"] == [vr.VERDICT_TAG, vr.SUPERSEDED_TAG]
@@ -168,18 +178,18 @@ def test_the_superseded_tag_is_written_to_the_case_investigation(t):
 def test_the_read_asks_for_every_entry(t):
     """page is ignored and pageSize caps the read silently, so no paging arguments."""
     vr.supersede_prior("42")
-    assert t.sent("/xsoar/public/v1/investigation/42") == [{}]
+    assert t.sent("/xsoar/public/v1/investigation/INCIDENT-42") == [{}]
 
 
-def test_a_prefixed_case_id_is_read_bare_and_tagged_prefixed(t):
+def test_a_prefixed_case_id_is_not_prefixed_twice(t):
     """
     Given a case id with the INCIDENT- prefix
     When earlier verdicts are superseded
-    Then the investigation is read by the bare id and the tag is written with the prefix
+    Then the investigation read and the tag both use INCIDENT-42
     """
     t.entries = [{"id": "e1", "tags": [vr.VERDICT_TAG]}]
     assert vr.supersede_prior("INCIDENT-42") == 1
-    assert t.sent("/xsoar/public/v1/investigation/42")
+    assert t.sent("/xsoar/public/v1/investigation/INCIDENT-42")
     assert t.sent("/xsoar/public/v1/entry/tags")[0]["investigationId"] == "INCIDENT-42"
 
 
@@ -203,8 +213,26 @@ def test_only_tags_that_landed_are_counted(t, monkeypatch):
 
 
 def test_a_failed_read_supersedes_nothing_and_never_raises(t):
-    t.fail.add("/xsoar/public/v1/investigation/42")
+    t.fail.add("/xsoar/public/v1/investigation/INCIDENT-42")
     assert vr.supersede_prior("42") == 0
+
+
+def test_an_untagged_verdict_written_before_tagging_is_superseded(t):
+    """
+    Given two verdict entries written before verdicts were tagged (case 52251, 23 Nov), and other entries
+    When earlier verdicts are superseded
+    Then both verdicts are tagged as verdicts and superseded, and nothing else is touched
+    """
+    t.entries = [
+        {"id": "v1", "tags": None, "contents": "🔴 **CASE 42** — MALICIOUS ●●● high"},
+        {"id": "v2", "tags": None, "contents": "🟠 **CASE 42** — SUSPICIOUS"},
+        {"id": "d1", "tags": None, "contents": "!DeleteContext key=SOCFramework.Analysis.AI"},
+        {"id": "o1", "tags": None, "contents": "**CASE 420** — another case quoted in a note"},
+    ]
+    assert vr.supersede_prior("42") == 2
+    tagged = t.sent("/xsoar/public/v1/entry/tags")
+    assert [b["id"] for b in tagged] == ["v1", "v2"]
+    assert all(b["tags"] == [vr.VERDICT_TAG, vr.SUPERSEDED_TAG] for b in tagged)
 
 
 # -- the case contract --------------------------------------------------------
@@ -281,6 +309,28 @@ def test_the_entry_goes_to_the_case_war_room_as_markdown(t):
     assert sent == {"investigationId": "INCIDENT-42", "data": "## verdict", "markdown": True}
 
 
+def test_the_new_verdict_entry_is_tagged_as_the_verdict(t):
+    """
+    Given a verdict entry written to the case
+    When the write returns the new entry
+    Then that entry is tagged socfw-case-verdict, since /entry ignores tags (deathstar, 23 Nov)
+    """
+    assert vr.post_to_case("42", "## verdict") == (True, "")
+    assert t.sent("/xsoar/public/v1/entry/tags") == [
+        {"id": "new1@INCIDENT-42", "investigationId": "INCIDENT-42", "tags": [vr.VERDICT_TAG]}]
+
+
+def test_a_verdict_entry_that_could_not_be_tagged_is_written_but_says_so(t):
+    """
+    Given a verdict entry that lands but whose tag write fails
+    When the entry is written
+    Then it counts as written, and the note says it went untagged
+    """
+    t.fail.add("/xsoar/public/v1/entry/tags")
+    ok, note = vr.post_to_case("42", "## verdict")
+    assert ok and "not tagged" in note and "boom" in note
+
+
 def test_a_failed_entry_write_is_reported_not_raised(t):
     t.fail.add("/xsoar/public/v1/entry")
     ok, err = vr.post_to_case("42", "x")
@@ -344,6 +394,28 @@ def test_a_verdict_writes_the_contract_the_entry_the_title_and_the_row(t, monkey
     assert row["case_contract_written"] and row["case_warroom_written"] and row["case_title_marked"]
     assert not row["case_star_requested"]
     assert "**CASE 42** — MALICIOUS" in out and "ledger row:" in out
+
+
+def test_an_untagged_verdict_entry_is_named_on_the_row_and_in_the_war_room(t, monkeypatch):
+    """
+    Given a verdict whose War Room entry lands but cannot be tagged
+    When the case verdict is reported
+    Then the row and the run's own output say the entry went untagged
+    """
+    t.fail.add("/xsoar/public/v1/entry/tags")
+    row, out = run_main(t, monkeypatch, ai_output=json.dumps(ANSWER))
+    assert row["case_warroom_written"] and "not tagged" in row["case_warroom_note"]
+    assert "not tagged" in out
+
+
+def test_a_tagged_verdict_entry_leaves_no_note(t, monkeypatch):
+    """
+    Given a verdict whose War Room entry lands and is tagged
+    When the case verdict is reported
+    Then the row carries no War Room note
+    """
+    row, _ = run_main(t, monkeypatch, ai_output=json.dumps(ANSWER))
+    assert row["case_warroom_note"] is None
 
 
 def test_a_verdict_that_needs_a_person_stars_the_case(t, monkeypatch):
