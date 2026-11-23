@@ -369,6 +369,11 @@ def test_the_raw_aggregate_rows_are_cleared_after_collapsing(t, monkeypatch):
 
 
 def test_every_downstream_path_is_assigned(t, monkeypatch):
+    """
+    Given a run with no query results
+    When the payload is built
+    Then every context path the playbook reads downstream is still assigned
+    """
     ctx = run(t, monkeypatch, [])
     for key in ("Payloads", "Uncontracted", "SingleShape", "ExecutionRows", "QueryCost"):
         assert f"SOCFramework.Case.{key}" in ctx

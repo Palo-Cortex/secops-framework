@@ -49,7 +49,7 @@ def api(uri, body):
     return res
 
 
-def supersede_prior(case_id):
+def supersede_prior(case_id: str) -> int:
     """Mark earlier verdict entries on this case as superseded.
 
     Entries cannot be deleted - the delete endpoints return 303 - so the current

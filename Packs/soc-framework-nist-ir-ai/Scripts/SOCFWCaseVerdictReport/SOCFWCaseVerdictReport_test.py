@@ -172,6 +172,11 @@ def test_the_read_asks_for_every_entry(t):
 
 
 def test_a_prefixed_case_id_is_read_bare_and_tagged_prefixed(t):
+    """
+    Given a case id with the INCIDENT- prefix
+    When earlier verdicts are superseded
+    Then the investigation is read by the bare id and the tag is written with the prefix
+    """
     t.entries = [{"id": "e1", "tags": [vr.VERDICT_TAG]}]
     assert vr.supersede_prior("INCIDENT-42") == 1
     assert t.sent("/xsoar/public/v1/investigation/42")
@@ -179,6 +184,11 @@ def test_a_prefixed_case_id_is_read_bare_and_tagged_prefixed(t):
 
 
 def test_only_tags_that_landed_are_counted(t, monkeypatch):
+    """
+    Given two earlier verdicts and a tag write that fails for one
+    When earlier verdicts are superseded
+    Then only the tag that landed is counted
+    """
     t.entries = [{"id": "e1", "tags": [vr.VERDICT_TAG]}, {"id": "e2", "tags": [vr.VERDICT_TAG]}]
     real = t.execute
 

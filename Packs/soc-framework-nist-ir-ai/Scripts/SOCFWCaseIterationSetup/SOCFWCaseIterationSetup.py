@@ -117,7 +117,8 @@ def with_catalogue(payload):
         return payload
 
 
-def main():
+def main() -> None:
+    """Write the current case's fields to context for the case analysis task, or stop if none resolved."""
     case = current_case(demisto.args().get('case'))
 
     if not case.get('ID'):

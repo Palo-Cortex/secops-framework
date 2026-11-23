@@ -32,7 +32,7 @@ QUERY_NAMES = {
 ARRAY_DELIM = '|'
 
 
-def collect_results(context):
+def collect_results(context: dict) -> tuple[dict, set, dict]:
     """Pull the XQL result rows out of context, keyed by our query names.
 
     The XQL integration nests results under its own output root and the exact

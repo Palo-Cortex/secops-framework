@@ -164,7 +164,7 @@ def fetch_contract(issue_id, roots=DEFAULT_INTEL_ROOTS):
     return contract, ''
 
 
-def budget_note(dropped, kept, total, limit):
+def budget_note(dropped: int, kept: int, total: int, limit: int) -> list[str]:
     """The note for shapes dropped to fit the character limit, if any were."""
     if not dropped:
         return []
@@ -172,7 +172,7 @@ def budget_note(dropped, kept, total, limit):
             f'character prompt limit. {kept} of {total} carried.']
 
 
-def finish_payload(payload, shapes, total, coverage, notes):
+def finish_payload(payload: dict, shapes: list, total: int, coverage: float, notes: list) -> dict:
     """The payload as sent: the carried shapes, the counts, and every note."""
     out = dict(payload)
     out['shapes'] = shapes
@@ -184,7 +184,8 @@ def finish_payload(payload, shapes, total, coverage, notes):
     return out
 
 
-def main():
+def main() -> None:
+    """Fetch each case's shape contracts and write the payloads the case analysis prompt reads."""
     args = demisto.args()
 
     payloads = args.get('payloads')
