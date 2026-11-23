@@ -51,7 +51,7 @@ def current_case(raw):
     return raw if isinstance(raw, dict) else {}
 
 
-def read_prior_verdict(case_id):
+def read_prior_verdict(case_id: str) -> dict:
     """Read the verdict this case already carries, if any.
 
     A growing case is re-analysed, and what an analyst wants is not a fresh
