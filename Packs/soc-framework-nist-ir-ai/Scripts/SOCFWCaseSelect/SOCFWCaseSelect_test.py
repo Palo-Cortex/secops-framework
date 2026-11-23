@@ -22,6 +22,15 @@ def case(case_id, starred=False, alert_count=3):
             "creation_time": OLD_MS, "modification_time": OLD_MS, "hosts": [], "users": []}
 
 
+def case_reply(record):
+    """What the case context read returns: the record, an error entry for a ("error", text) tuple, or a raise."""
+    if isinstance(record, Exception):
+        raise record
+    if isinstance(record, tuple):
+        return [{"Type": 4, "Contents": record[1]}]
+    return [{"Type": 1, "Contents": {"response": record}}]
+
+
 def run(page, tenant=None, records=None, **args):
     """Run main() on one page of cases; records maps a case id to its Analysis contract, or an exception to raise."""
     context, calls = {}, []
@@ -34,12 +43,7 @@ def run(page, tenant=None, records=None, **args):
                 return [{"Type": 4, "Contents": "Item not found (8)"}]
             return [{"Type": 1, "Contents": json.dumps(tenant)}]
         if command == "core-api-post" and "/investigation/INCIDENT-" in cmd_args["uri"]:
-            record = records.get(cmd_args["uri"].split("INCIDENT-")[1].split("/")[0])
-            if isinstance(record, Exception):
-                raise record
-            if isinstance(record, tuple):  # an error entry, as the platform returns a failed call
-                return [{"Type": 4, "Contents": record[1]}]
-            return [{"Type": 1, "Contents": {"response": record}}]
+            return case_reply(records.get(cmd_args["uri"].split("INCIDENT-")[1].split("/")[0]))
         if command == "core-api-post":
             return [{"Type": 1, "Contents": {"response": {"reply": {"incidents": page}}}}]
         return []
