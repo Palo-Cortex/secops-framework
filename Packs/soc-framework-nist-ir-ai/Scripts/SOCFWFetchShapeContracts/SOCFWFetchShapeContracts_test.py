@@ -86,6 +86,17 @@ def run(t, monkeypatch, payloads, **args):
     return t.context
 
 
+def test_a_run_with_no_payloads_writes_none_and_reads_nothing(t, monkeypatch):
+    """
+    Given a JOB run that selected no case, so there are no payloads
+    When shape contracts are attached
+    Then no payloads are written and no issue is read
+    """
+    ctx = run(t, monkeypatch, [])
+    assert ctx["SOCFramework.Case.Payloads"] == []
+    assert not t.calls
+
+
 def body(ctx, i=0):
     return json.loads(ctx["SOCFramework.Case.Payloads"][i]["Payload"])
 

@@ -257,6 +257,46 @@ def test_unreadable_candidates_mean_no_cases(t, monkeypatch):
     assert "No candidate cases had aggregate results" in t.results[-1]["readable_output"]
 
 
+def test_a_run_that_selected_no_case_still_has_its_run_row(t, monkeypatch):
+    """
+    Given a JOB run whose selection chose no case, so no aggregate query ran
+    When the payloads are built
+    Then the only row is the run row, carrying what selection found, so a quiet run is recorded
+    """
+    t.context["SOCFramework"] = {"Case": {"SelectStats": {
+        "scanned": 74, "candidates": 0, "skipped_unchanged": 2, "skipped_unchanged_on_case": 1,
+        "case_reads": 1, "case_reads_empty": 0, "case_reads_failed": 0, "case_read_note": None}}}
+    monkeypatch.setattr(demisto, "args", lambda: {"candidates": []}, raising=False)
+    bcp.main()
+    rows = t.context["SOCFramework.Case.ExecutionRows"]
+    assert [r["event_type"] for r in rows] == ["case_analysis_run"]
+    run_row = rows[0]
+    assert (run_row["cases_scanned"], run_row["cases_candidates"], run_row["cases_analysed"],
+            run_row["xql_queries"]) == (74, 0, 0, 0)
+    assert (run_row["skipped_unchanged_on_case"], run_row["case_reads"]) == (1, 1)
+    assert t.context["SOCFramework.Case.Payloads"] == []
+
+
+def test_the_job_records_a_run_that_selected_no_case(t):
+    """
+    Given the JOB playbook
+    When no case is selected
+    Then it goes to the payload step and on to the post, skipping the aggregate queries,
+    instead of closing without a row
+    """
+    import yaml
+    with open(os.path.join(HERE, "..", "..", "Playbooks", "JOB_-_SOC_Case_Analysis.yml")) as f:
+        job = yaml.safe_load(f)
+    tasks = job["tasks"]
+
+    def name(task_id):
+        return tasks[task_id]["task"]["name"]
+    no_case = tasks["115"]["nexttasks"]["#default#"]
+    assert [name(i) for i in no_case] == ["Build case payloads"]
+    assert tasks["167"]["nexttasks"]["#default#"] == ["177"]
+    assert name("177") == "Post Case Analysis to Execution Dataset"
+
+
 # ── the payload ──────────────────────────────────────────────────────────────
 
 def analysed(t, monkeypatch, **kw):
