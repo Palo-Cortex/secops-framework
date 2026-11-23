@@ -60,12 +60,12 @@ def cell(text: str) -> str:
 
 
 def render_table(rows: list[dict], link_for) -> list[str]:
-    out = ["| Capability | Use it when | What it does | Page |", "|---|---|---|---|"]
+    out = ["| Often asked for as | Capability | What it does | Page |", "|---|---|---|---|"]
     for row in rows:
         name = cell(row["name"])
         page = row.get("page")
         link = f"[{name}]({link_for(page)})" if page else "page pending"
-        out.append(f"| {name} | {cell(row.get('use_when', ''))} | {cell(row['does'])} | {link} |")
+        out.append(f"| {cell(row.get('asked_for', ''))} | {name} | {cell(row['does'])} | {link} |")
     return out
 
 
@@ -110,8 +110,8 @@ def main(argv: list[str] | None = None) -> int:
     packs = yaml.safe_load(CATALOG.read_text()) or {}
     for pack_id, entry in packs.items():
         for row in entry.get("capabilities") or []:
-            if not row.get("use_when"):
-                print(f"ERROR: {pack_id} / {row.get('name')}: no use_when", file=sys.stderr)
+            if not row.get("asked_for"):
+                print(f"ERROR: {pack_id} / {row.get('name')}: no asked_for", file=sys.stderr)
                 return 2
             page = row.get("page")
             if page and not (DOCS_DIR / page).is_file():
