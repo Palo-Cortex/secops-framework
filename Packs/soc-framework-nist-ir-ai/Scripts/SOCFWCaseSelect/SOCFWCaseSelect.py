@@ -254,8 +254,13 @@ def changes(record: dict, alert_count: int) -> tuple[bool, bool]:
     return grew, incomplete
 
 
-def case_record(case_id: str) -> dict | None:
-    """What the case's own Analysis contract says was analysed, or None when it says nothing usable.
+def case_record(case_id: str) -> tuple[dict | None, str | None, str | None]:
+    """(record, finding, detail) from the case's own Analysis contract.
+
+    record is what the contract says was analysed, or None when it says nothing
+    usable. finding is None for a good read, else "empty" or "failed", with
+    detail saying what came back, so a run row can show why the check did not
+    skip a case.
 
     The watermark is read from the execution dataset, where a verdict row becomes
     queryable only minutes after it is written. A case analysed late in one run
@@ -270,18 +275,23 @@ def case_record(case_id: str) -> dict | None:
             'uri': f'/xsoar/public/v1/investigation/INCIDENT-{case_id}/context',
             'body': json.dumps({'query': '${SOCFramework.Analysis.AI}'}),
         })
-        entry = res[0] if isinstance(res, list) and res else res
-        contract = demisto.get(entry, 'Contents.response') or demisto.get(entry, 'response')
-        if isinstance(contract, list):
-            contract = contract[-1] if contract else None
-        if not isinstance(contract, dict) or not contract.get('analysed_at'):
-            return None
+    except Exception as e:
+        return None, 'failed', f'raised {e}'
+    entry = res[0] if isinstance(res, list) and res else res
+    if isinstance(entry, dict) and entry.get('Type') == entryTypes['error']:
+        return None, 'failed', f'error entry: {str(entry.get("Contents"))[:200]}'
+    contract = demisto.get(entry, 'Contents.response') or demisto.get(entry, 'response')
+    if isinstance(contract, list):
+        contract = contract[-1] if contract else None
+    if not isinstance(contract, dict) or not contract.get('analysed_at'):
+        contents = entry.get('Contents') if isinstance(entry, dict) else entry
+        return None, 'empty', f'reply {type(contents).__name__}: {str(contents)[:200]}'
+    try:
         return {'alert_count': int(contract.get('analysed_issue_count') or 0),
                 'covered_issues': int(contract.get('analysed_covered_issues') or 0),
-                'total_issues': int(contract.get('analysed_total_issues') or 0)}
-    except Exception as e:
-        demisto.debug(f'SOCFWCaseSelect: case {case_id} contract unreadable, using the watermark: {e}')
-        return None
+                'total_issues': int(contract.get('analysed_total_issues') or 0)}, None, None
+    except (TypeError, ValueError) as e:
+        return None, 'failed', f'unreadable counts: {e}'
 
 
 def tenant_case_settings():
@@ -350,6 +360,10 @@ def main() -> None:
     scanned = 0
     skipped_unchanged = 0
     skipped_unchanged_on_case = 0
+    # Every case read is reported, found or not. A check that silently reads
+    # nothing looks exactly like one that found every case changed.
+    case_reads = {'read': 0, 'empty': 0, 'failed': 0}
+    case_read_note = None
     skipped_status = 0
     status_breakdown = {}
     skipped_domain = 0
@@ -449,7 +463,11 @@ def main() -> None:
                         continue
                 # The watermark lags the case by minutes; the case's own
                 # contract does not. Read only for a case about to be selected.
-                record = case_record(case_id)
+                record, finding, detail = case_record(case_id)
+                case_reads['read'] += 1
+                if finding:
+                    case_reads[finding] += 1
+                    case_read_note = case_read_note or f'case {case_id}: {finding}: {detail}'
                 if record is not None and not any(changes(record, alert_count)):
                     skipped_unchanged += 1
                     skipped_unchanged_on_case += 1
@@ -502,6 +520,11 @@ def main() -> None:
         'skipped_unchanged': skipped_unchanged,
         # Of those, the ones the watermark had not caught up with yet.
         'skipped_unchanged_on_case': skipped_unchanged_on_case,
+        'case_reads': case_reads['read'],
+        'case_reads_empty': case_reads['empty'],
+        'case_reads_failed': case_reads['failed'],
+        # The first read that came back empty or failed, and what it returned.
+        'case_read_note': case_read_note,
         'skipped_ineligible_status': skipped_status,
         # Named, not just counted. An allow-list fails closed, so a status
         # nobody anticipated stops being analysed silently - this is the only

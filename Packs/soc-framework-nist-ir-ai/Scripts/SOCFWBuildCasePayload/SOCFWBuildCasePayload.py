@@ -366,6 +366,10 @@ def main() -> None:
         'cases_single_shape': len(single_shape),
         'skipped_unchanged': stats.get('skipped_unchanged'),
         'skipped_unchanged_on_case': stats.get('skipped_unchanged_on_case'),
+        'case_reads': stats.get('case_reads'),
+        'case_reads_empty': stats.get('case_reads_empty'),
+        'case_reads_failed': stats.get('case_reads_failed'),
+        'case_read_note': stats.get('case_read_note'),
         # Renamed from skipped_terminal when selection inverted to an allow-list.
         # A case skipped for status has to stay distinguishable from one skipped
         # by the watermark, and the breakdown names the statuses so a status the

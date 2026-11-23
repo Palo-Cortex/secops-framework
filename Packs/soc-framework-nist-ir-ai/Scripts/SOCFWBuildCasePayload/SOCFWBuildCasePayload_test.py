@@ -365,13 +365,18 @@ def test_the_run_row_counts_cases_the_watermark_had_not_caught_up_with(t, monkey
     """
     Given a selection that skipped one unchanged case on its own contract
     When the payloads are built
-    Then the run row carries that count beside skipped_unchanged
+    Then the run row carries that count beside skipped_unchanged, and what each case read found
     """
-    t.context["SOCFramework"] = {"Case": {"SelectStats": {"skipped_unchanged": 3, "skipped_unchanged_on_case": 1}}}
+    note = "case 7: empty: reply str: SOCFramework.Analysis.AI"
+    t.context["SOCFramework"] = {"Case": {"SelectStats": {
+        "skipped_unchanged": 3, "skipped_unchanged_on_case": 1, "case_reads": 4,
+        "case_reads_empty": 1, "case_reads_failed": 0, "case_read_note": note}}}
     ctx = run(t, monkeypatch, [cand("1")], shapes=[shape("1", "a", 2), shape("1", "b", 2)],
               cov=[coverage("1", 4, 4)])
     run_row = ctx["SOCFramework.Case.ExecutionRows"][0]
     assert (run_row["skipped_unchanged"], run_row["skipped_unchanged_on_case"]) == (3, 1)
+    assert (run_row["case_reads"], run_row["case_reads_empty"], run_row["case_reads_failed"]) == (4, 1, 0)
+    assert run_row["case_read_note"] == note
 
 
 def test_the_raw_aggregate_rows_are_cleared_after_collapsing(t, monkeypatch):

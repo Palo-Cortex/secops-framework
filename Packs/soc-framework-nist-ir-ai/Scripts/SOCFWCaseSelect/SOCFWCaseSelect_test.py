@@ -37,6 +37,8 @@ def run(page, tenant=None, records=None, **args):
             record = records.get(cmd_args["uri"].split("INCIDENT-")[1].split("/")[0])
             if isinstance(record, Exception):
                 raise record
+            if isinstance(record, tuple):  # an error entry, as the platform returns a failed call
+                return [{"Type": 4, "Contents": record[1]}]
             return [{"Type": 1, "Contents": {"response": record}}]
         if command == "core-api-post":
             return [{"Type": 1, "Contents": {"response": {"reply": {"incidents": page}}}}]
@@ -218,3 +220,59 @@ def test_a_case_the_watermark_already_skips_is_not_read():
     assert picked(ctx) == []
     assert ctx["SOCFramework.Case.SelectStats"]["skipped_unchanged_on_case"] == 0
     assert not [c for c in ctx["calls"] if "/investigation/" in str(c[1].get("uri"))]
+
+
+def test_each_case_read_is_counted_by_what_it_found():
+    """
+    Given three cases to select: one with a contract, one without, one whose read fails
+    When selection runs
+    Then the stats count the reads, the empty ones and the failed ones
+    """
+    ctx = run([case(1, alert_count=4), case(2), case(3)],
+              records={"1": contract(4), "2": None, "3": ("error", "Failed to execute core-api-post: 404")})
+    stats = ctx["SOCFramework.Case.SelectStats"]
+    assert (stats["case_reads"], stats["case_reads_empty"], stats["case_reads_failed"]) == (3, 1, 1)
+
+
+def test_the_first_failed_read_is_named_with_its_case_and_reply():
+    """
+    Given a case whose read returns an error entry
+    When selection runs
+    Then the note names the case and what came back, so a run row says why the check did nothing
+    """
+    ctx = run([case(3)], records={"3": ("error", "Failed to execute core-api-post: 404")})
+    note = ctx["SOCFramework.Case.SelectStats"]["case_read_note"]
+    assert "case 3" in note and "404" in note
+
+
+def test_an_empty_read_is_named_with_the_shape_of_the_reply():
+    """
+    Given a case whose read returns no contract
+    When selection runs
+    Then the note names the case and the shape of what came back
+    """
+    ctx = run([case(2)], records={"2": "SOCFramework.Analysis.AI"})
+    note = ctx["SOCFramework.Case.SelectStats"]["case_read_note"]
+    assert "case 2" in note and "SOCFramework.Analysis.AI" in note
+
+
+def test_a_raised_read_is_counted_as_failed():
+    """
+    Given a case whose read raises
+    When selection runs
+    Then it counts as failed and the note carries the exception
+    """
+    ctx = run([case(3)], records={"3": RuntimeError("timeout")})
+    stats = ctx["SOCFramework.Case.SelectStats"]
+    assert stats["case_reads_failed"] == 1 and "timeout" in stats["case_read_note"]
+
+
+def test_a_run_whose_reads_all_worked_has_no_note():
+    """
+    Given a case whose read returns its contract
+    When selection runs
+    Then there is nothing to report
+    """
+    ctx = run([case(1, alert_count=4)], records={"1": contract(4)})
+    stats = ctx["SOCFramework.Case.SelectStats"]
+    assert stats["case_reads"] == 1 and stats["case_read_note"] is None
