@@ -339,7 +339,36 @@ def read_observations(vendor_data, entry_context):
     return out
 
 
-def apply_output_map(output_map, ctx, shadow_mode, entry_context=None):
+OUTPUT_EMPTY = (None, "", [], {})
+
+
+def _output_source(source_path: str) -> str:
+    """The context path an output_map source is read from.
+
+    A filter expression (Vendor.Report[type=x].count) is not applied here - playbook
+    transformers do the filtering - and such a source is read from its first segment.
+    """
+    if "[" in source_path:
+        return re.split(r"[\[\.]", source_path)[0]
+    return source_path
+
+
+def _output_value(dest_key: str, path: str, ctx: dict, entry_context: dict | None) -> object:
+    """The value at path: from this command's EntryContext first (fresh), else from the
+    investigation context (stale, but it covers what the command wrote as a side effect)."""
+    value = None
+    if entry_context:
+        value = _resolve_from_entry_context(entry_context, path)
+        if value not in OUTPUT_EMPTY:
+            demisto.debug(f"apply_output_map: {dest_key} <- {path} (from EntryContext)")
+    if value in OUTPUT_EMPTY:
+        value = demisto.get(ctx, path)
+        if value not in OUTPUT_EMPTY:
+            demisto.debug(f"apply_output_map: {dest_key} <- {path} (from investigation context fallback)")
+    return value
+
+
+def apply_output_map(output_map: dict, ctx: dict, shadow_mode: bool, entry_context: dict | None = None) -> None:
     """
     Write UC.* canonical keys from vendor-specific context paths.
 
@@ -360,37 +389,15 @@ def apply_output_map(output_map, ctx, shadow_mode, entry_context=None):
     for dest_key, source_path in output_map.items():
         if not dest_key or not source_path:
             continue
-
         if shadow_mode:
             demisto.setContext(dest_key, "shadow_mode")
             demisto.debug(f"apply_output_map shadow: {dest_key} = shadow_mode")
             continue
-
-        # Resolve source path — strip filter expressions (e.g. path[key=val].count)
-        # Use the base path only; playbook transformers handle filtering
-        base_path = re.split(r'[\[\.]', source_path)[0] if '[' in source_path else source_path
-        # Re-add dotted sub-path if no filter was present
-        if '[' not in source_path:
-            base_path = source_path
-
-        value = None
-
-        # 1. Try fresh EntryContext from this executeCommand's return value
-        if entry_context:
-            value = _resolve_from_entry_context(entry_context, base_path)
-            if value not in (None, "", [], {}):
-                demisto.debug(f"apply_output_map: {dest_key} <- {base_path} (from EntryContext)")
-
-        # 2. Fallback: investigation context (stale but covers side-effect writes)
-        if value in (None, "", [], {}):
-            value = demisto.get(ctx, base_path)
-            if value not in (None, "", [], {}):
-                demisto.debug(f"apply_output_map: {dest_key} <- {base_path} (from investigation context fallback)")
-
-        if value in (None, "", [], {}):
-            demisto.debug(f"apply_output_map: {dest_key} skipped — source {base_path} empty in both contexts")
+        path = _output_source(source_path)
+        value = _output_value(dest_key, path, ctx, entry_context)
+        if value in OUTPUT_EMPTY:
+            demisto.debug(f"apply_output_map: {dest_key} skipped — source {path} empty in both contexts")
             continue
-
         demisto.setContext(dest_key, value)
         demisto.debug(f"apply_output_map: {dest_key} set successfully")
 
