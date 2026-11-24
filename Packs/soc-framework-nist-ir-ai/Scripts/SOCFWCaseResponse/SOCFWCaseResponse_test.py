@@ -490,11 +490,11 @@ LARGE_LEDGER = 5000
 
 
 def test_candidates_are_found_behind_a_large_ledger() -> None:
-    """The ledger grows with every pass; on deathstar 721 rows once hid every candidate."""
+    """The ledger grows with every pass; a few hundred rows once hid every candidate."""
     ctx = {"PaloAltoNetworksXQL": {"GenericQuery": [
-        _result_set("socfw_response_candidates", [{"case_id": "52255"}, {"case_id": "52256"}]),
+        _result_set("socfw_response_candidates", [{"case_id": "1"}, {"case_id": "2"}]),
         _result_set("socfw_response_ledger", _ledger_rows(LARGE_LEDGER))]}}
-    assert cr.query_results(ctx, "socfw_response_candidates") == [{"case_id": "52255"}, {"case_id": "52256"}]
+    assert cr.query_results(ctx, "socfw_response_candidates") == [{"case_id": "1"}, {"case_id": "2"}]
     assert len(cr.query_results(ctx, "socfw_response_ledger")) == LARGE_LEDGER
 
 
