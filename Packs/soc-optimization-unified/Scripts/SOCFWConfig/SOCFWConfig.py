@@ -1799,7 +1799,8 @@ def _case_table(view):
 
 CASE_HELP = ("window_hours: only cases changed within this many hours are analysed. max_analyses: "
              "passes per case - 1 is one pass, more re-analyses a case only when it has changed. "
-             "cases: unstarred leaves the cases analysts already own to them; all analyses every case.")
+             "cases: all analyses every case, starred or not; unstarred leaves starred cases to the "
+             "analysts who own them.")
 CASE_USAGE = ("Change one: `!SOCFWConfig command=case window_hours=<n> max_analyses=<n> "
               "cases=<unstarred|all>` — any subset, `default` removes one, add `apply=yes` to write.")
 

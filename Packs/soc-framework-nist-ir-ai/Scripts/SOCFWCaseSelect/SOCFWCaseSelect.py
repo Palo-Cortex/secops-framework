@@ -353,11 +353,12 @@ def main() -> None:
     # continuously active case still gets a verdict - and well inside the six-hour
     # auto-close window, or the closure veto never applies.
     max_wait_minutes = int(args.get('max_wait_minutes') or 120)
-    # A starred case belongs to an analyst. Analysing it anyway overlaps their
-    # work and can contradict it, so by default the AI lane takes only the cases
-    # nobody owns yet. Anything but an explicit "all" reads as unstarred.
-    cases = str(tenant.get('cases') or args.get('cases') or 'unstarred').strip().lower()
-    unstarred_only = cases != 'all'
+    # A starred case is one an analyst is working, and the framework itself stars
+    # a malicious case. It keeps growing, so by default it keeps getting a verdict:
+    # the analysis posts to the War Room beside the analyst and changes no owner.
+    # Only an explicit "unstarred" leaves starred cases out.
+    cases = str(tenant.get('cases') or args.get('cases') or 'all').strip().lower()
+    unstarred_only = cases == 'unstarred'
     sibling_window_minutes = int(args.get('sibling_window_minutes')
                                  or DEFAULT_SIBLING_WINDOW_MINUTES)
 

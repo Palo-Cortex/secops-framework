@@ -231,7 +231,7 @@ Auto-close is **not** built yet — the assessment writes a verdict and does not
 | --- | --- | --- |
 | `CaseDomain` | DOMAIN_SECURITY | Lifecycle scope. Posture cases have their own lifecycle |
 | `CaseWindowHours` | 6 | Only consider cases modified within this window |
-| `CaseCases` | unstarred | `unstarred` leaves cases an analyst owns to them; `all` analyses every case |
+| `CaseCases` | all | `all` analyses every case, starred or not; `unstarred` leaves starred cases to analysts. |
 | `CaseMinIssues` | 2 | Single-issue cases go to the per-category prompts instead |
 | `CaseMinShapes` | 2 | Repetition is not a chain |
 | `CaseCampaignIssues` | 20 | Above this, a single-shape case is a campaign and is analysed |
