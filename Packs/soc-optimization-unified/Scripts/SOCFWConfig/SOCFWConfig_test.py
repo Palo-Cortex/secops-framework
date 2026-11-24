@@ -1301,7 +1301,8 @@ def test_assignment_arg_on_another_command_is_refused():
 
 # ── case ─────────────────────────────────────────────────────────────────────
 
-def test_case_lists_shipped_values_when_nothing_is_set():
+def test_case_lists_shipped_values_when_nothing_is_set() -> None:
+    """With no tenant setting, command=case shows what ships: starred cases are analysed too."""
     r = run(triage_tenant(), command="case")
     s = r.outputs["settings"]
     assert s["window_hours"] == {"shipped": "6", "tenant": None, "effective": "6", "from": "shipped"}
