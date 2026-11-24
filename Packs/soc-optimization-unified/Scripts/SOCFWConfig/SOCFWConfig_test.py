@@ -1306,7 +1306,7 @@ def test_case_lists_shipped_values_when_nothing_is_set():
     s = r.outputs["settings"]
     assert s["window_hours"] == {"shipped": "6", "tenant": None, "effective": "6", "from": "shipped"}
     assert s["max_analyses"]["effective"] == "2"
-    assert s["cases"]["effective"] == "unstarred"
+    assert s["cases"]["effective"] == "all"
     assert r.outputs["dry_run"] and "command=case" in r.readable_output
 
 

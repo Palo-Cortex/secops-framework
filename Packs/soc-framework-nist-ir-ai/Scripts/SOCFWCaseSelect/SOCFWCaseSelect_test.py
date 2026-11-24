@@ -88,27 +88,33 @@ def picked(ctx):
     return [c["case_id"] for c in ctx["SOCFramework.Case.Candidates"]]
 
 
-def test_starred_cases_are_left_to_analysts_by_default():
+def test_starred_cases_are_analysed_by_default() -> None:
+    """A starred case keeps getting a verdict as it grows; the analyst works beside it, not instead of it."""
     ctx = run([case(1), case(2, starred=True)])
+    assert picked(ctx) == ["1", "2"]
+    assert ctx["SOCFramework.Case.SelectStats"]["skipped_starred"] == 0
+    assert ctx["SOCFramework.Case.SelectStats"]["cases"] == "all"
+
+
+def test_unstarred_leaves_starred_cases_to_analysts() -> None:
+    """A tenant that wants the AI off analyst-owned cases says unstarred."""
+    ctx = run([case(1), case(2, starred=True)], cases="unstarred")
     assert picked(ctx) == ["1"]
     assert ctx["SOCFramework.Case.SelectStats"]["skipped_starred"] == 1
     assert ctx["SOCFramework.Case.SelectStats"]["cases"] == "unstarred"
 
 
-def test_all_takes_starred_cases_too():
-    ctx = run([case(1), case(2, starred=True)], cases="all")
-    assert picked(ctx) == ["1", "2"]
-
-
-def test_tenant_setting_wins_over_the_job_argument():
-    ctx = run([case(1), case(2, starred=True)], tenant={"case": {"cases": "all"}}, cases="unstarred")
-    assert picked(ctx) == ["1", "2"]
+def test_tenant_setting_wins_over_the_job_argument() -> None:
+    """What SOCFWConfig command=case set on the tenant beats the JOB's own argument."""
+    ctx = run([case(1), case(2, starred=True)], tenant={"case": {"cases": "unstarred"}}, cases="all")
+    assert picked(ctx) == ["1"]
     assert ctx["SOCFramework.Case.SelectStats"]["settings_from_tenant"] == "cases"
 
 
-def test_unknown_value_reads_as_unstarred():
+def test_unknown_value_reads_as_the_default() -> None:
+    """Only an explicit unstarred narrows the selection."""
     ctx = run([case(1), case(2, starred=True)], cases="every")
-    assert picked(ctx) == ["1"]
+    assert picked(ctx) == ["1", "2"]
 
 
 def test_tenant_window_reaches_the_job_queries():
