@@ -418,6 +418,9 @@ def run_step(step, entity, phase, case_id, issue):
                  "entity_value": entity.get("name") or "",
                  "rationale": step.get("why") or "",
                  "requires_human": str(step.get("requires_human")).lower() == "true"}
+    if step.get("shadow_only"):
+        # Undoing what ran only in shadow: the executor must not run it live.
+        plan_step["shadow_only"] = True
     blob = json.dumps([plan_step], separators=(",", ":")).replace("`", "'")
     try:
         res = api("/xsoar/public/v1/entry/execute/sync",
@@ -462,37 +465,55 @@ def reversed_actions(actions: dict) -> dict:
     return undoes
 
 
-def live_targets(results: list, finished: dict) -> set:
-    """(action, target) pairs that ran for real, this pass or the last.
+def contained(results: list, finished: dict) -> dict:
+    """(action, target) -> "live" or "shadow" for each containment step that happened, this pass or the last.
 
-    Only "executed" counts. A shadow step never happened; a wrapper duplicate
-    ("done") or a contract written before the shadow flag was kept cannot show
-    which, so recovery does not treat them as something to undo.
+    "live" only for executed. A shadow step, a wrapper duplicate ("done") and a
+    contract written before the mode was kept ("dispatched") show the action
+    happened but not that it happened for real, so they count as shadow.
     """
-    live = {(r.get("action"), r.get("target")) for r in results or [] if r.get("status") == "executed"}
-    live |= {(key[0], key[1]) for key, prior in (finished or {}).items()
-             if isinstance(prior, dict) and prior.get("status") == "executed"}
-    return live
+    out = {}
+    rows = [(r.get("action"), r.get("target"), r.get("status")) for r in results or []]
+    rows += [(key[0], key[1], (prior or {}).get("status")) for key, prior in (finished or {}).items()]
+    for action, target, status in rows:
+        if status in RAN:
+            mode = "live" if status == "executed" else "shadow"
+            if out.get((action, target)) != "live":
+                out[(action, target)] = mode
+    return out
 
 
-def nothing_live_to_undo(phase: str, cfg: dict, undoes: set | None, target: str, live: set | None) -> bool:
-    """True when recovery would undo a containment action that never ran live on this target.
+def recovery_gate(cfg: dict, undoes: set | None, target: str, done_before: dict) -> tuple:
+    """What the recovery policy says about a step that undoes containment: (settled row or None, shadow_only).
 
-    The phase policy's reverse_only_live_actions asks for this: in shadow mode
-    the isolation was only simulated, so a deisolation would undo nothing.
+    reverse_only_live_actions: nothing contained on the target means nothing to
+    undo, and what ran only in shadow is undone only in shadow. require_verification:
+    the target comes back only once every eradication step on it has run.
     """
-    if phase != "recovery" or not cfg.get("reverse_only_live_actions") or not undoes:
-        return False
-    return not any((action, target) in (live or set()) for action in undoes)
+    if not undoes:
+        return None, False
+    modes = {mode for (action, aimed), mode in (done_before.get("contained") or {}).items()
+             if action in undoes and aimed == target}
+    if cfg.get("reverse_only_live_actions") and not modes:
+        return {"status": "not_needed",
+                "reason": "nothing was contained on {}, so there is nothing to undo".format(target)}, False
+    if cfg.get("require_verification"):
+        pending = [r for r in done_before.get("eradication") or []
+                   if r.get("target") == target and r.get("status") not in RAN]
+        if pending:
+            return {"status": "waiting", "reason": "eradication on {} is not finished: {} ({})".format(
+                target, pending[0].get("action"), pending[0].get("status"))}, False
+    return None, bool(cfg.get("reverse_only_live_actions")) and "live" not in modes
 
 
 def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: dict, actions: dict,
               brands: set | None, members: list, contexts: dict, prior_outstanding: int,
-              live: set | None = None) -> tuple:
+              done_before: dict | None = None) -> tuple:
     """Every step of one phase. Returns (results, outstanding).
 
-    live holds the (action, target) pairs containment ran for real; recovery
-    reads it to leave alone what was only simulated.
+    done_before holds what earlier phases did this pass: "contained" (from
+    contained()) and the "eradication" rows. Recovery reads it to undo only what
+    was contained, in the mode it ran in, once the target's eradication is done.
     """
     cfg = (policy.get("phases") or {}).get(phase) or {}
     executes = cfg.get("enabled", False) and cfg.get("mode") == "execute"
@@ -514,9 +535,11 @@ def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: d
         # because a different host had been isolated. Who else acted on the same
         # target is the wrapper's ledger, which answers a repeat with duplicate.
         quiet = False
-        if nothing_live_to_undo(phase, cfg, undoes.get(action), entity.get("name"), live):
-            row.update(status="not_needed",
-                       reason="containment was simulated, so there is nothing to undo")
+        settled, shadow_only = (recovery_gate(cfg, undoes.get(action), entity.get("name"), done_before or {})
+                                if phase == "recovery" else (None, False))
+        if settled:
+            row.update(settled)
+            outstanding += 1 if settled["status"] == "waiting" else 0
         elif step_seen(step, entity, members, no_instance):
             row.update(status="integration_unavailable",
                        reason="simulated with no enabled instance for the command; no time credited")
@@ -539,7 +562,8 @@ def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: d
                            vendor=prior.get("vendor"))
                 quiet = True
             else:
-                decision = run_step(step, entity, phase, case_id, issue)
+                decision = run_step(dict(step, shadow_only=True) if shadow_only else step,
+                                    entity, phase, case_id, issue)
                 row.update(status=decision.get("status"), reason=decision.get("reason"),
                            vendor=decision.get("vendor"), issue=issue,
                            shadow=bool(decision.get("shadow")))
@@ -761,12 +785,14 @@ def respond(case_id: str, ledger_rows: list, policy: dict, actions: dict, declar
     summary, lines, outstanding, changed = {}, ["## Response - case {}".format(case_id), ""], 0, False
     telemetry = case_telemetry(members, contexts)
     report = ([], [], telemetry)
-    live = set()
+    done_before = {}
     for phase in PHASES:
         results, outstanding = run_phase(phase, contract, case_id, ledger, policy, actions, brands,
-                                         members, contexts, outstanding, live=live)
+                                         members, contexts, outstanding, done_before=done_before)
         if phase == "containment":
-            live = live_targets(results, (contract.get("finished") or {}).get("containment"))
+            done_before["contained"] = contained(results, (contract.get("finished") or {}).get("containment"))
+        elif phase == "eradication":
+            done_before["eradication"] = results
         if phase == "eradication":
             report = artifact_report(contract, results, telemetry)
         state = phase_state(results, outstanding)
