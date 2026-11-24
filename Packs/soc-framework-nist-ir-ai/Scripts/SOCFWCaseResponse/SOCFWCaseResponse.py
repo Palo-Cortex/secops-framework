@@ -419,7 +419,9 @@ def plan_step_for(step: dict, entity: dict, phase: str) -> dict:
                  "rationale": step.get("why") or "",
                  "requires_human": str(step.get("requires_human")).lower() == "true"}
     if step.get("shadow_only"):
-        # Undoing what ran only in shadow: the executor must not run it live.
+        # Undoing what ran only in shadow must itself stay in shadow. The executor does
+        # not read this marker yet; until it does, recovery's recommend_only authority
+        # in the phase policy is what keeps the step from running live.
         plan_step["shadow_only"] = True
     return plan_step
 
