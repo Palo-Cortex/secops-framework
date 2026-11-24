@@ -411,8 +411,8 @@ def step_seen(step, entity, members, keys):
     return any((str(ref), step.get("action")) in keys for ref in refs)
 
 
-def run_step(step, entity, phase, case_id, issue):
-    """One step, inside the issue that evidences it. Returns the executor's decision."""
+def plan_step_for(step: dict, entity: dict, phase: str) -> dict:
+    """The one-step plan the executor reads, from a case plan step and its scope entity."""
     plan_step = {"action": step.get("action"), "phase": phase,
                  "entity_type": ENTITY_TYPE.get(entity.get("type"), "artifact"),
                  "entity_value": entity.get("name") or "",
@@ -421,6 +421,12 @@ def run_step(step, entity, phase, case_id, issue):
     if step.get("shadow_only"):
         # Undoing what ran only in shadow: the executor must not run it live.
         plan_step["shadow_only"] = True
+    return plan_step
+
+
+def run_step(step: dict, entity: dict, phase: str, case_id: str, issue: str) -> dict:
+    """One step, inside the issue that evidences it. Returns the executor's decision."""
+    plan_step = plan_step_for(step, entity, phase)
     blob = json.dumps([plan_step], separators=(",", ":")).replace("`", "'")
     try:
         res = api("/xsoar/public/v1/entry/execute/sync",
@@ -483,14 +489,14 @@ def contained(results: list, finished: dict) -> dict:
     return out
 
 
-def recovery_gate(cfg: dict, undoes: set | None, target: str, done_before: dict) -> tuple:
+def recovery_gate(phase: str, cfg: dict, undoes: set | None, target: str, done_before: dict) -> tuple:
     """What the recovery policy says about a step that undoes containment: (settled row or None, shadow_only).
 
     reverse_only_live_actions: nothing contained on the target means nothing to
     undo, and what ran only in shadow is undone only in shadow. require_verification:
     the target comes back only once every eradication step on it has run.
     """
-    if not undoes:
+    if phase != "recovery" or not undoes:
         return None, False
     modes = {mode for (action, aimed), mode in (done_before.get("contained") or {}).items()
              if action in undoes and aimed == target}
@@ -535,11 +541,10 @@ def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: d
         # because a different host had been isolated. Who else acted on the same
         # target is the wrapper's ledger, which answers a repeat with duplicate.
         quiet = False
-        settled, shadow_only = (recovery_gate(cfg, undoes.get(action), entity.get("name"), done_before or {})
-                                if phase == "recovery" else (None, False))
+        settled, shadow_only = recovery_gate(phase, cfg, undoes.get(action), entity.get("name"), done_before or {})
         if settled:
             row.update(settled)
-            outstanding += 1 if settled["status"] == "waiting" else 0
+            outstanding += settled["status"] == "waiting"
         elif step_seen(step, entity, members, no_instance):
             row.update(status="integration_unavailable",
                        reason="simulated with no enabled instance for the command; no time credited")
@@ -768,6 +773,15 @@ def post_to_case(case_id, markdown):
         demisto.debug("SOCFWCaseResponse: War Room post failed ({})".format(e))
 
 
+def carried_forward(phase: str, results: list, contract: dict) -> dict:
+    """What a finished phase hands to the phases after it: what was contained, and the eradication rows."""
+    if phase == "containment":
+        return {"contained": contained(results, (contract.get("finished") or {}).get("containment"))}
+    if phase == "eradication":
+        return {"eradication": results}
+    return {}
+
+
 def respond(case_id: str, ledger_rows: list, policy: dict, actions: dict, declared: dict,
             brands: set | None) -> dict:
     """Work one case's response plan phase by phase, write what changed to the case and post its row."""
@@ -789,10 +803,7 @@ def respond(case_id: str, ledger_rows: list, policy: dict, actions: dict, declar
     for phase in PHASES:
         results, outstanding = run_phase(phase, contract, case_id, ledger, policy, actions, brands,
                                          members, contexts, outstanding, done_before=done_before)
-        if phase == "containment":
-            done_before["contained"] = contained(results, (contract.get("finished") or {}).get("containment"))
-        elif phase == "eradication":
-            done_before["eradication"] = results
+        done_before.update(carried_forward(phase, results, contract))
         if phase == "eradication":
             report = artifact_report(contract, results, telemetry)
         state = phase_state(results, outstanding)
