@@ -473,3 +473,56 @@ def test_last_reported_reads_every_step_of_the_record():
         "not a row"])
     assert got == {("soc-disable-user", "frieda"): ("contract_gap", "r"),
                    ("soc-isolate-endpoint", "ws-01"): ("shadow", None)}
+
+
+def _result_set(name, rows):
+    return {"execution_id": name, "query_name": name, "status": "SUCCESS", "results": rows}
+
+
+def _ledger_rows(n):
+    return [{"_id": str(i), "_raw_log": "{}", "_time": i, "_vendor": "v", "_product": "p", "_tag": [],
+             "_insert_time": i, "incident_id": str(i), "case_id": "9", "phase": "containment",
+             "universal_command": "soc-isolate-endpoint", "action_status": "shadow",
+             "execution_mode": "shadow", "action_actor": "automation"} for i in range(n)]
+
+
+LARGE_LEDGER = 5000
+
+
+def test_candidates_are_found_behind_a_large_ledger() -> None:
+    """The ledger grows with every pass; a few hundred rows once hid every candidate."""
+    ctx = {"PaloAltoNetworksXQL": {"GenericQuery": [
+        _result_set("socfw_response_candidates", [{"case_id": "1"}, {"case_id": "2"}]),
+        _result_set("socfw_response_ledger", _ledger_rows(LARGE_LEDGER))]}}
+    assert cr.query_results(ctx, "socfw_response_candidates") == [{"case_id": "1"}, {"case_id": "2"}]
+    assert len(cr.query_results(ctx, "socfw_response_ledger")) == LARGE_LEDGER
+
+
+def _main(monkeypatch, candidates, still_open, ledger=()):
+    ctx = {"PaloAltoNetworksXQL": {"GenericQuery": [
+        _result_set("socfw_response_candidates", [{"case_id": c} for c in candidates]),
+        _result_set("socfw_response_ledger", list(ledger))]}}
+    returned = []
+    monkeypatch.setattr(cr.demisto, "args", lambda: {}, raising=False)
+    monkeypatch.setattr(cr.demisto, "context", lambda: ctx, raising=False)
+    monkeypatch.setattr(cr, "get_list", lambda name: {})
+    monkeypatch.setattr(cr, "active_brands", lambda: None)
+    monkeypatch.setattr(cr, "open_cases", lambda ids: [c for c in ids if c in still_open])
+    monkeypatch.setattr(cr, "respond", lambda cid, *a: {"case_id": cid, "note": "unchanged", "phases": {}})
+    monkeypatch.setattr(cr, "return_results", lambda r: returned.append(r))
+    cr.main()
+    return returned[0]
+
+
+def test_a_run_says_what_it_read_and_what_it_worked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The entry names the candidates, the ledger, what is open, what was worked and what waits."""
+    out = _main(monkeypatch, ["1", "2", "3", "4", "5"], {"2", "3", "4", "5"}, _ledger_rows(7))
+    text = out["readable_output"]
+    assert "5 candidate case(s)" in text and "7 ledger row(s)" in text
+    assert "4 still open" in text and "worked 3" in text and "1 left for the next pass" in text
+
+
+def test_a_run_with_no_candidates_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run that read nothing says so instead of an empty list."""
+    text = _main(monkeypatch, [], set())["readable_output"]
+    assert "no candidate cases" in text.lower()
