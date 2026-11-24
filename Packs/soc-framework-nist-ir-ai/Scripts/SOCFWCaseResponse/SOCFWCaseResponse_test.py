@@ -486,13 +486,16 @@ def _ledger_rows(n):
              "execution_mode": "shadow", "action_actor": "automation"} for i in range(n)]
 
 
-def test_candidates_are_found_behind_a_large_ledger():
-    # The ledger grows with every pass; on deathstar 721 rows hid the candidates.
+LARGE_LEDGER = 5000
+
+
+def test_candidates_are_found_behind_a_large_ledger() -> None:
+    """The ledger grows with every pass; on deathstar 721 rows once hid every candidate."""
     ctx = {"PaloAltoNetworksXQL": {"GenericQuery": [
         _result_set("socfw_response_candidates", [{"case_id": "52255"}, {"case_id": "52256"}]),
-        _result_set("socfw_response_ledger", _ledger_rows(5000))]}}
+        _result_set("socfw_response_ledger", _ledger_rows(LARGE_LEDGER))]}}
     assert cr.query_results(ctx, "socfw_response_candidates") == [{"case_id": "52255"}, {"case_id": "52256"}]
-    assert len(cr.query_results(ctx, "socfw_response_ledger")) == 5000
+    assert len(cr.query_results(ctx, "socfw_response_ledger")) == LARGE_LEDGER
 
 
 def _main(monkeypatch, candidates, still_open, ledger=()):
@@ -511,13 +514,15 @@ def _main(monkeypatch, candidates, still_open, ledger=()):
     return returned[0]
 
 
-def test_a_run_says_what_it_read_and_what_it_worked(monkeypatch):
+def test_a_run_says_what_it_read_and_what_it_worked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The entry names the candidates, the ledger, what is open, what was worked and what waits."""
     out = _main(monkeypatch, ["1", "2", "3", "4", "5"], {"2", "3", "4", "5"}, _ledger_rows(7))
     text = out["readable_output"]
     assert "5 candidate case(s)" in text and "7 ledger row(s)" in text
     assert "4 still open" in text and "worked 3" in text and "1 left for the next pass" in text
 
 
-def test_a_run_with_no_candidates_says_so(monkeypatch):
+def test_a_run_with_no_candidates_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run that read nothing says so instead of an empty list."""
     text = _main(monkeypatch, [], set())["readable_output"]
     assert "no candidate cases" in text.lower()
