@@ -77,6 +77,10 @@ ENTITY_TYPE = {"host": "host", "identity": "identity", "email": "artifact",
 TARGET_OF = {"soc-isolate-endpoint": "isolated_hosts", "soc-disable-user": "disabled_users",
              "soc-delete-file": "files_removed", "soc-remove-file": "files_removed",
              "soc-remove-persistence": "persistence_removed"}
+# The containment floor's scales, lowest first. A value off the scale ranks
+# below everything, so a missing verdict never clears a floor.
+VERDICT_RANK = {"benign": 0, "suspicious": 1, "malicious": 2}
+CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 TEMPLATE = re.compile(r"\$\{([^}]+)\}")
 
 
@@ -159,7 +163,7 @@ def post_row(payload):
         demisto.debug("SOCFWCaseResponse: dataset post failed ({})".format(e))
 
 
-def read_contract(case_id):
+def read_contract(case_id: str) -> tuple:
     """The Analysis contract on the case: scope rows, the three plans and what to verify."""
     try:
         whole = get_context("INCIDENT-{}".format(case_id))
@@ -173,7 +177,8 @@ def read_contract(case_id):
         node = node[-1] if node else None
     if not isinstance(node, dict):
         return None, "no Analysis contract on the case"
-    out = {"verdict": node.get("verdict"), "response_recommended": node.get("response_recommended"),
+    out = {"verdict": node.get("verdict"), "confidence": node.get("confidence"),
+           "response_recommended": node.get("response_recommended"),
            "scope": as_obj(node.get("scope")) or [],
            "verify_by_human": [v for v in (as_obj(node.get("verify_by_human")) or []) if v],
            "recorded": {}}
@@ -514,6 +519,54 @@ def recovery_gate(phase: str, cfg: dict, undoes: set | None, target: str, done_b
     return None, bool(cfg.get("reverse_only_live_actions")) and "live" not in modes
 
 
+def _below(name: str, value: object, floor: object, ranks: dict) -> str | None:
+    """Why value is below floor on one scale; None when it clears it or no floor is set."""
+    floor = str(floor or "").strip().lower()
+    if not floor:
+        return None
+    if floor not in ranks:
+        return "containment floor {} {} is not one of {}".format(name, floor, ", ".join(ranks))
+    value = str(value or "").strip().lower()
+    if ranks.get(value, -1) < ranks[floor]:
+        return "{} {} is below the containment floor ({})".format(name, value or "missing", floor)
+    return None
+
+
+def containment_hold(phase: str, contract: dict, cfg: dict) -> str | None:
+    """Why the case's analysis does not clear the containment floor the policy sets; None when it does.
+
+    min_verdict and min_confidence in the containment policy. A floor the code
+    cannot read holds containment rather than letting every case through.
+    """
+    if phase != "containment":
+        return None
+    return (_below("verdict", contract.get("verdict"), cfg.get("min_verdict"), VERDICT_RANK)
+            or _below("confidence", contract.get("confidence"), cfg.get("min_confidence"), CONFIDENCE_RANK))
+
+
+def over_cap(cfg: dict, position: int) -> str | None:
+    """Why the step at this position in the containment plan is past max_actions_per_case; None when it is not."""
+    try:
+        cap = int(cfg.get("max_actions_per_case") or 0)
+    except (TypeError, ValueError):
+        cap = 0
+    if cap > 0 and position > cap:
+        return "over the cap of {} containment steps per case".format(cap)
+    return None
+
+
+def step_policy(phase: str, cfg: dict, hold: str | None, position: int, gate: tuple) -> tuple:
+    """What the phase policy settles before a step is sent: (settled row or None, shadow_only).
+
+    Containment below the floor or past the per-case cap is policy_blocked;
+    otherwise the recovery gate's answer stands.
+    """
+    held = hold or (over_cap(cfg, position) if phase == "containment" else None)
+    if held:
+        return {"status": "policy_blocked", "reason": held}, False
+    return gate
+
+
 def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: dict, actions: dict,
               brands: set | None, members: list, contexts: dict, prior_outstanding: int,
               done_before: dict | None = None) -> tuple:
@@ -532,8 +585,9 @@ def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: d
     last = last if isinstance(last, dict) else {}
     scope = {r.get("id"): r for r in contract["scope"] if isinstance(r, dict)}
     undoes = reversed_actions(actions)
+    hold = containment_hold(phase, contract, cfg)
     results, outstanding = [], 0
-    for step in sorted(contract[phase], key=lambda s: int(s.get("step") or 0)):
+    for position, step in enumerate(sorted(contract[phase], key=lambda s: int(s.get("step") or 0)), 1):
         action = step.get("action")
         entity = scope.get(step.get("target")) or {"type": "artifact", "name": step.get("target")}
         row = {"step": step.get("step"), "action": action, "target": entity.get("name"),
@@ -543,7 +597,8 @@ def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: d
         # because a different host had been isolated. Who else acted on the same
         # target is the wrapper's ledger, which answers a repeat with duplicate.
         quiet = False
-        settled, shadow_only = recovery_gate(phase, cfg, undoes.get(action), entity.get("name"), done_before or {})
+        settled, shadow_only = step_policy(phase, cfg, hold, position, recovery_gate(
+            phase, cfg, undoes.get(action), entity.get("name"), done_before or {}))
         if settled:
             row.update(settled)
             outstanding += settled["status"] == "waiting"

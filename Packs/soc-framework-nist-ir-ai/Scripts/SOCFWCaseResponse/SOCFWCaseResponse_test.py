@@ -49,8 +49,9 @@ CONTEXTS = {"11": {"SOCFramework": {"Artifacts": {"Endpoint": {"Hostname": "ws-0
                                                   "Identity": {"User": {"UPN": "svc$@skt.local"}}}}}}
 
 
-def contract(**plans):
-    c = {"scope": SCOPE, "verify_by_human": [], "recorded": {}}
+def contract(verdict: str = "malicious", confidence: str = "high", **plans: list) -> dict:
+    """A case Analysis contract with the given verdict, confidence and phase plans."""
+    c = {"scope": SCOPE, "verify_by_human": [], "recorded": {}, "verdict": verdict, "confidence": confidence}
     for p in cr.PHASES:
         c[p] = plans.get(p, [])
     return c
@@ -66,7 +67,7 @@ marked = []
 
 
 def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None, last=None,
-        policy=POLICY, actions=ACTIONS, done_before=None):
+        policy=POLICY, actions=ACTIONS, done_before=None, verdict="malicious", confidence="high"):
     """Run one phase; decisions maps action -> the executor's answer. Returns (rows, outstanding, sent)."""
     sent = []
     marked.clear()
@@ -80,7 +81,7 @@ def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None, l
     cr.get_context = lambda inv: CONTEXTS.get(str(inv), {})
     cr.post_row = lambda payload: None
     done, no_instance = set(ledger[0]), set(ledger[1])
-    c = contract(**{phase: plan})
+    c = contract(verdict=verdict, confidence=confidence, **{phase: plan})
     c["finished"] = {phase: dict(finished or {})}
     c["last"] = {phase: dict(last or {})}
     posted.clear()
@@ -615,3 +616,64 @@ def test_contained_records_whether_each_action_ran_live_or_only_in_shadow() -> N
                                                ("soc-disable-user", "bob"): "shadow",
                                                ("soc-disable-user", "frieda"): "live",
                                                ("soc-isolate-endpoint", "kh-01"): "shadow"}
+
+
+FLOOR = {"phases": {**POLICY["phases"],
+                    "containment": {**POLICY["phases"]["containment"], "min_verdict": "malicious",
+                                    "min_confidence": "medium", "max_actions_per_case": 2}}}
+ISOLATE = [step(1, "soc-isolate-endpoint", "h1", refs=("12",))]
+
+
+@pytest.mark.parametrize(("verdict", "confidence", "why"), [
+    ("suspicious", "high", "verdict suspicious"),
+    ("benign", "high", "verdict benign"),
+    ("", "high", "verdict missing"),
+    ("malicious", "low", "confidence low"),
+    ("malicious", "", "confidence missing"),
+])
+def test_containment_below_the_policy_floor_is_never_sent(verdict: str, confidence: str, why: str) -> None:
+    """A case the analysis did not call malicious at medium confidence or better contains nothing."""
+    rows, _, sent = run("containment", ISOLATE, {"soc-isolate-endpoint": SHADOW},
+                        policy=FLOOR, verdict=verdict, confidence=confidence)
+    assert sent == []
+    assert rows[0]["status"] == "policy_blocked" and why in rows[0]["reason"]
+    assert [p["action_status"] for p in posted] == ["policy_blocked"]
+
+
+def test_containment_at_the_floor_is_sent() -> None:
+    """Malicious at medium confidence clears a malicious / medium floor."""
+    _, _, sent = run("containment", ISOLATE, {"soc-isolate-endpoint": SHADOW},
+                     policy=FLOOR, verdict="Malicious", confidence="medium")
+    assert sent == [("soc-isolate-endpoint", "12")]
+
+
+def test_containment_past_the_per_case_cap_is_not_sent() -> None:
+    """Only the first max_actions_per_case steps, in plan order, are sent; the rest are reported."""
+    plan = [step(1, "soc-isolate-endpoint", "h1", refs=("12",)),
+            step(2, "soc-disable-user", "u1", refs=("12",)),
+            step(3, "soc-isolate-endpoint", "h1", refs=("11",))]
+    rows, _, sent = run("containment", plan, {"soc-isolate-endpoint": SHADOW, "soc-disable-user": SHADOW},
+                        policy=FLOOR)
+    assert [a for a, _ in sent] == ["soc-isolate-endpoint", "soc-disable-user"]
+    assert rows[2]["status"] == "policy_blocked" and "cap of 2" in rows[2]["reason"]
+
+
+def test_the_floor_holds_containment_only() -> None:
+    """Eradication and recovery are directions; the containment floor does not block them."""
+    _, _, sent = run("eradication", [step(1, "soc-isolate-endpoint", "h1", refs=("12",))],
+                     {"soc-isolate-endpoint": SHADOW}, policy=FLOOR, verdict="suspicious")
+    assert sent
+
+
+def test_a_policy_without_a_floor_contains_as_before() -> None:
+    """Tenants whose policy sets no floor or cap keep today's behaviour."""
+    _, _, sent = run("containment", ISOLATE, {"soc-isolate-endpoint": SHADOW}, verdict="suspicious")
+    assert sent
+
+
+def test_an_unknown_floor_value_fails_closed() -> None:
+    """A floor the code cannot read blocks containment rather than letting everything through."""
+    odd = {"phases": {**POLICY["phases"],
+                      "containment": {**POLICY["phases"]["containment"], "min_verdict": "very_bad"}}}
+    rows, _, sent = run("containment", ISOLATE, {"soc-isolate-endpoint": SHADOW}, policy=odd)
+    assert sent == [] and "very_bad" in rows[0]["reason"]
