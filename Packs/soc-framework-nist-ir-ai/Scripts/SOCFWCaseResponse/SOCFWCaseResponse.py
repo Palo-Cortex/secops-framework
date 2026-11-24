@@ -31,6 +31,7 @@ for 16 cases. Everything loops in-process and reads the JOB's context directly.
 
 import json
 import re
+import time
 from datetime import datetime
 
 import demistomock as demisto  # noqa: F401
@@ -81,6 +82,11 @@ TARGET_OF = {"soc-isolate-endpoint": "isolated_hosts", "soc-disable-user": "disa
 # below everything, so a missing verdict never clears a floor.
 VERDICT_RANK = {"benign": 0, "suspicious": 1, "malicious": 2}
 CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
+# Seconds a run spends before it stops taking new work. The script times out at
+# 5 minutes; a step is a round trip into an issue, so leave room for the last
+# one and for writing what was done.
+TIME_BUDGET_SECONDS = 210
+_deadline = [float("inf")]
 TEMPLATE = re.compile(r"\$\{([^}]+)\}")
 
 
@@ -431,6 +437,23 @@ def plan_step_for(step: dict, entity: dict, phase: str) -> dict:
     return plan_step
 
 
+def start_clock(budget_seconds: float) -> None:
+    """Start this run's time budget."""
+    _deadline[0] = time.monotonic() + budget_seconds
+
+
+def out_of_time() -> bool:
+    """True once this run has used its time budget; the rest waits for the next pass."""
+    return time.monotonic() >= _deadline[0]
+
+
+def dispatch(step: dict, entity: dict, phase: str, case_id: str, issue: str, shadow_only: bool) -> dict:
+    """Send one step unless the run is out of time; a step not sent waits for the next pass."""
+    if out_of_time():
+        return {"status": "waiting", "reason": "the run used its time budget; the next pass continues"}
+    return run_step(dict(step, shadow_only=True) if shadow_only else step, entity, phase, case_id, issue)
+
+
 def run_step(step: dict, entity: dict, phase: str, case_id: str, issue: str) -> dict:
     """One step, inside the issue that evidences it. Returns the executor's decision."""
     plan_step = plan_step_for(step, entity, phase)
@@ -624,17 +647,16 @@ def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: d
                            vendor=prior.get("vendor"))
                 quiet = True
             else:
-                decision = run_step(dict(step, shadow_only=True) if shadow_only else step,
-                                    entity, phase, case_id, issue)
+                decision = dispatch(step, entity, phase, case_id, issue, shadow_only)
                 row.update(status=decision.get("status"), reason=decision.get("reason"),
                            vendor=decision.get("vendor"), issue=issue,
                            shadow=bool(decision.get("shadow")))
                 if decision.get("status") in RAN:
                     finished[(action, entity.get("name"), str(issue))] = {"status": decision.get("status"),
                                                                         "vendor": decision.get("vendor")}
-                elif decision.get("status") == "awaiting_approval":
-                    # Only a step waiting on a person holds the next phase. A
-                    # gap is final for this pass and is reported, not waited on.
+                elif decision.get("status") in ("awaiting_approval", "waiting"):
+                    # Only a step waiting on a person, or on the next pass, holds
+                    # the next phase. A gap is final for this pass and is reported.
                     outstanding += 1
         if last.get((action, row["target"])) == (row["status"], row.get("reason")):
             quiet = True
@@ -958,16 +980,25 @@ def main() -> None:
         cid = c.get("case_id") if isinstance(c, dict) else c
         if cid and str(cid) not in case_ids:
             case_ids.append(str(cid))
-    # Each step is a round trip into an issue, so a run is bounded by cases,
-    # not left to the script timeout. The rest wait for the next pass.
+    # Each step is a round trip into an issue, so a run is bounded by cases and
+    # by time, not left to the script timeout. The rest wait for the next pass.
     limit = int(args.get("max_cases") or 3)
+    budget = float(args.get("time_budget_seconds") or TIME_BUDGET_SECONDS)
+    start_clock(budget)
     policy = get_list(POLICY_LIST)
     actions = {k: v for k, v in (get_list(ACTIONS_LIST) or {}).items() if isinstance(v, dict)}
     declared = (get_list(CONTRACT_LIST) or {}).get("writes_by_phase") or {}
     brands = active_brands()
     still_open = open_cases(case_ids)
-    results = [respond(cid, ledger, policy, actions, declared, brands) for cid in still_open[:limit]]
+    results = []
+    for cid in still_open[:limit]:
+        if out_of_time():
+            break
+        results.append(respond(cid, ledger, policy, actions, declared, brands))
     lines = run_summary(len(case_ids), len(ledger), len(still_open), results, limit)
+    if out_of_time():
+        lines.insert(2, "Stopped at the {:.0f}-second time budget; what is left continues on the next pass.".format(
+            budget))
     for r in results:
         if r.get("phases"):
             lines.append("- case {}: {}".format(r["case_id"], ", ".join(
