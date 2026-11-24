@@ -761,11 +761,14 @@ def respond(case_id, ledger_rows, policy, actions, declared, brands):
     return {"case_id": case_id, "phases": summary}
 
 
-def query_results(ctx, query_name):
+def query_results(ctx: dict, query_name: str) -> list:
     """The rows of the XQL task that ran with this query_name, found by walking context.
 
     The XQL command writes every result set under the same root, so the name set
     on the task is the only thing that tells the candidate rows from the ledger rows.
+    Another task's result set is stepped over, not walked: the ledger grows with
+    every pass, and walking its rows once used up the walk before the candidates
+    were reached, so a run found no cases at all.
     """
     rows = []
     stack = [ctx]
@@ -776,8 +779,9 @@ def query_results(ctx, query_name):
         if isinstance(node, dict):
             name = node.get("query_name") or node.get("QueryName")
             results = node.get("results") or node.get("Results")
-            if name == query_name and isinstance(results, list):
-                rows.extend(results)
+            if name and isinstance(results, list):
+                if name == query_name:
+                    rows.extend(results)
                 continue
             stack.extend(node.values())
         elif isinstance(node, list):
@@ -785,7 +789,23 @@ def query_results(ctx, query_name):
     return rows
 
 
-def main():
+def run_summary(candidates: int, ledger_rows: int, still_open: int, results: list, limit: int) -> list:
+    """The opening lines of a run's War Room entry: what it read, what it kept and what it worked."""
+    lines = ["## Case response - {} case(s)".format(len(results)), ""]
+    if not candidates:
+        lines.append("No candidate cases were read: no case has an analysis that recommends a response, "
+                     "or the candidate query returned nothing.")
+        return lines
+    left = max(still_open - len(results), 0)
+    lines.append("Read {} candidate case(s) and {} ledger row(s); {} still open; worked {} (at most {} a pass)"
+                 "{}.".format(candidates, ledger_rows, still_open, len(results), limit,
+                              "; {} left for the next pass".format(left) if left else ""))
+    lines.append("")
+    return lines
+
+
+def main() -> None:
+    """Work the response plan of each open candidate case, and say what was read and done."""
     args = demisto.args()
     ctx = demisto.context() or {}
     cases = as_obj(args.get("cases")) or query_results(ctx, args.get("cases_query") or "socfw_response_candidates")
@@ -806,7 +826,7 @@ def main():
     brands = active_brands()
     still_open = open_cases(case_ids)
     results = [respond(cid, ledger, policy, actions, declared, brands) for cid in still_open[:limit]]
-    lines = ["## Case response - {} case(s)".format(len(results)), ""]
+    lines = run_summary(len(case_ids), len(ledger), len(still_open), results, limit)
     for r in results:
         if r.get("phases"):
             lines.append("- case {}: {}".format(r["case_id"], ", ".join(
