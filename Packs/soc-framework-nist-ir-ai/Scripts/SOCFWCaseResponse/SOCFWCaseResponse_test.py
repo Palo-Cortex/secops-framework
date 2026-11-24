@@ -64,7 +64,8 @@ def step(n, action, target, refs=("11",), requires_human=False):
 posted = []
 
 
-def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None, last=None):
+def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None, last=None,
+        policy=POLICY, actions=ACTIONS, live=None):
     """Run one phase; decisions maps action -> the executor's answer. Returns (rows, outstanding, sent)."""
     sent = []
 
@@ -82,7 +83,7 @@ def run(phase, plan, decisions, ledger=(set(), set()), prior=0, finished=None, l
     posted.clear()
     cr.post_row = lambda payload: posted.append(payload)
     rows, outstanding = cr.run_phase(phase, c, "500", (done, no_instance),
-                                     POLICY, ACTIONS, None, ["11", "12", "13"], {}, prior)
+                                     policy, actions, None, ["11", "12", "13"], {}, prior, live=live)
     return rows, outstanding, sent
 
 
@@ -526,3 +527,60 @@ def test_a_run_with_no_candidates_says_so(monkeypatch: pytest.MonkeyPatch) -> No
     """A run that read nothing says so instead of an empty list."""
     text = _main(monkeypatch, [], set())["readable_output"]
     assert "no candidate cases" in text.lower()
+
+LIVE_ONLY = {"phases": {**POLICY["phases"],
+                        "recovery": {"enabled": True, "mode": "directions_only",
+                                     "reverse_only_live_actions": True}}}
+REVERSIBLE = {**ACTIONS,
+              "soc-isolate-endpoint": {**ACTIONS["soc-isolate-endpoint"],
+                                       "reversed_by": "soc-deisolate-endpoint"}}
+DEISOLATE = [step(1, "soc-deisolate-endpoint", "h1", refs=("12",))]
+
+
+def test_recovery_does_not_undo_a_containment_that_was_only_simulated() -> None:
+    """Deisolating a host whose isolation was shadowed would undo something that never happened."""
+    rows, _, sent = run("recovery", DEISOLATE, {"soc-deisolate-endpoint": SHADOW},
+                        policy=LIVE_ONLY, actions=REVERSIBLE, live=set())
+    assert sent == []
+    assert rows[0]["status"] == "not_needed" and "simulated" in rows[0]["reason"]
+    assert [p["action_status"] for p in posted] == ["not_needed"]
+
+
+def test_recovery_undoes_a_containment_that_ran_live() -> None:
+    """A host isolated for real is the one recovery brings back."""
+    rows, _, sent = run("recovery", DEISOLATE, {"soc-deisolate-endpoint": SHADOW},
+                        policy=LIVE_ONLY, actions=REVERSIBLE, live={("soc-isolate-endpoint", "ws-01")})
+    assert sent == [("soc-deisolate-endpoint", "12")]
+
+
+def test_a_live_isolation_of_another_host_does_not_count() -> None:
+    """Only the reversed action on this same target makes recovery due."""
+    _, _, sent = run("recovery", DEISOLATE, {"soc-deisolate-endpoint": SHADOW},
+                     policy=LIVE_ONLY, actions=REVERSIBLE, live={("soc-isolate-endpoint", "dc-01")})
+    assert sent == []
+
+
+def test_without_the_policy_setting_recovery_runs_as_before() -> None:
+    """Tenants whose policy does not set reverse_only_live_actions keep today's behaviour."""
+    _, _, sent = run("recovery", DEISOLATE, {"soc-deisolate-endpoint": SHADOW},
+                     actions=REVERSIBLE, live=set())
+    assert sent == [("soc-deisolate-endpoint", "12")]
+
+
+def test_a_recovery_step_that_reverses_nothing_is_not_held() -> None:
+    """Restoring from backup undoes no containment action, so the setting does not apply to it."""
+    _, _, sent = run("recovery", [step(1, "soc-restore-file", "h1", refs=("12",))],
+                     {"soc-restore-file": SHADOW}, policy=LIVE_ONLY, actions=REVERSIBLE, live=set())
+    assert sent == [("soc-restore-file", "12")]
+
+
+def test_live_targets_count_only_steps_that_ran_for_real() -> None:
+    """Executed counts; shadow, a wrapper duplicate and a gap do not, this pass or the last."""
+    results = [{"action": "soc-isolate-endpoint", "target": "ws-01", "status": "executed"},
+               {"action": "soc-isolate-endpoint", "target": "dc-01", "status": "shadow", "shadow": True},
+               {"action": "soc-disable-user", "target": "bob", "status": "done"},
+               {"action": "soc-disable-user", "target": "eve", "status": "contract_gap"}]
+    finished = {("soc-disable-user", "frieda", "12"): {"status": "executed"},
+                ("soc-isolate-endpoint", "kh-01", "13"): {"status": "shadow"}}
+    assert cr.live_targets(results, finished) == {("soc-isolate-endpoint", "ws-01"),
+                                                  ("soc-disable-user", "frieda")}

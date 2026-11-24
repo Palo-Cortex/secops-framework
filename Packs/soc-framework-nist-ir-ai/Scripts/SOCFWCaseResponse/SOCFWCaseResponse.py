@@ -453,9 +453,47 @@ def run_step(step, entity, phase, case_id, issue):
     return {"status": "error", "reason": "executor returned no decision"}
 
 
-def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members, contexts,
-              prior_outstanding):
-    """Every step of one phase. Returns (results, outstanding)."""
+def reversed_actions(actions: dict) -> dict:
+    """For each action that undoes another, the actions it undoes, read from reversed_by in the actions list."""
+    undoes = {}
+    for name, entry in (actions or {}).items():
+        if isinstance(entry, dict) and entry.get("reversed_by"):
+            undoes.setdefault(entry["reversed_by"], set()).add(name)
+    return undoes
+
+
+def live_targets(results: list, finished: dict) -> set:
+    """(action, target) pairs that ran for real, this pass or the last.
+
+    Only "executed" counts. A shadow step never happened; a wrapper duplicate
+    ("done") or a contract written before the shadow flag was kept cannot show
+    which, so recovery does not treat them as something to undo.
+    """
+    live = {(r.get("action"), r.get("target")) for r in results or [] if r.get("status") == "executed"}
+    live |= {(key[0], key[1]) for key, prior in (finished or {}).items()
+             if isinstance(prior, dict) and prior.get("status") == "executed"}
+    return live
+
+
+def nothing_live_to_undo(phase: str, cfg: dict, undoes: set | None, target: str, live: set | None) -> bool:
+    """True when recovery would undo a containment action that never ran live on this target.
+
+    The phase policy's reverse_only_live_actions asks for this: in shadow mode
+    the isolation was only simulated, so a deisolation would undo nothing.
+    """
+    if phase != "recovery" or not cfg.get("reverse_only_live_actions") or not undoes:
+        return False
+    return not any((action, target) in (live or set()) for action in undoes)
+
+
+def run_phase(phase: str, contract: dict, case_id: str, ledger: tuple, policy: dict, actions: dict,
+              brands: set | None, members: list, contexts: dict, prior_outstanding: int,
+              live: set | None = None) -> tuple:
+    """Every step of one phase. Returns (results, outstanding).
+
+    live holds the (action, target) pairs containment ran for real; recovery
+    reads it to leave alone what was only simulated.
+    """
     cfg = (policy.get("phases") or {}).get(phase) or {}
     executes = cfg.get("enabled", False) and cfg.get("mode") == "execute"
     _, no_instance = ledger
@@ -464,6 +502,7 @@ def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members
     last = (contract.get("last") or {}).get(phase)
     last = last if isinstance(last, dict) else {}
     scope = {r.get("id"): r for r in contract["scope"] if isinstance(r, dict)}
+    undoes = reversed_actions(actions)
     results, outstanding = [], 0
     for step in sorted(contract[phase], key=lambda s: int(s.get("step") or 0)):
         action = step.get("action")
@@ -475,7 +514,10 @@ def run_phase(phase, contract, case_id, ledger, policy, actions, brands, members
         # because a different host had been isolated. Who else acted on the same
         # target is the wrapper's ledger, which answers a repeat with duplicate.
         quiet = False
-        if step_seen(step, entity, members, no_instance):
+        if nothing_live_to_undo(phase, cfg, undoes.get(action), entity.get("name"), live):
+            row.update(status="not_needed",
+                       reason="containment was simulated, so there is nothing to undo")
+        elif step_seen(step, entity, members, no_instance):
             row.update(status="integration_unavailable",
                        reason="simulated with no enabled instance for the command; no time credited")
         else:
@@ -524,7 +566,7 @@ MARK = {"done": "\u2705", "executed": "\u2705", "shadow": "\U0001f7e1", "awaitin
         "direction": "\U0001f4cb", "waiting": "\u23f3", "environment_denied": "\u26d4",
         "policy_blocked": "\u26d4", "integration_unavailable": "\U0001f50c",
         "contract_gap": "\u26a0\ufe0f", "content_gap": "\u26a0\ufe0f", "skipped": "\u26a0\ufe0f",
-        "failed": "\u274c", "duplicate": "\u21bb"}
+        "failed": "\u274c", "duplicate": "\u21bb", "not_needed": "\u2796"}
 
 
 def phase_state(results, outstanding):
@@ -702,7 +744,9 @@ def post_to_case(case_id, markdown):
         demisto.debug("SOCFWCaseResponse: War Room post failed ({})".format(e))
 
 
-def respond(case_id, ledger_rows, policy, actions, declared, brands):
+def respond(case_id: str, ledger_rows: list, policy: dict, actions: dict, declared: dict,
+            brands: set | None) -> dict:
+    """Work one case's response plan phase by phase, write what changed to the case and post its row."""
     contract, err = read_contract(case_id)
     if err:
         return {"case_id": case_id, "note": err, "phases": {}}
@@ -717,9 +761,12 @@ def respond(case_id, ledger_rows, policy, actions, declared, brands):
     summary, lines, outstanding, changed = {}, ["## Response - case {}".format(case_id), ""], 0, False
     telemetry = case_telemetry(members, contexts)
     report = ([], [], telemetry)
+    live = set()
     for phase in PHASES:
         results, outstanding = run_phase(phase, contract, case_id, ledger, policy, actions, brands,
-                                         members, contexts, outstanding)
+                                         members, contexts, outstanding, live=live)
+        if phase == "containment":
+            live = live_targets(results, (contract.get("finished") or {}).get("containment"))
         if phase == "eradication":
             report = artifact_report(contract, results, telemetry)
         state = phase_state(results, outstanding)
