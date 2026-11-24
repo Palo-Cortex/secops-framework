@@ -677,3 +677,31 @@ def test_an_unknown_floor_value_fails_closed() -> None:
                       "containment": {**POLICY["phases"]["containment"], "min_verdict": "very_bad"}}}
     rows, _, sent = run("containment", ISOLATE, {"soc-isolate-endpoint": SHADOW}, policy=odd)
     assert sent == [] and "very_bad" in rows[0]["reason"]
+
+
+def test_a_step_reached_after_the_time_budget_waits_for_the_next_pass(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Out of time, a step is not sent; it is held, not reported done, so the phase stays in progress."""
+    monkeypatch.setattr(cr, "out_of_time", lambda: True)
+    rows, outstanding, sent = run("containment", ISOLATE, {"soc-isolate-endpoint": SHADOW})
+    assert sent == []
+    assert rows[0]["status"] == "waiting" and "time budget" in rows[0]["reason"]
+    assert outstanding == 1
+    assert cr.phase_state(rows, outstanding) == "in_progress"
+
+
+def test_no_new_case_is_started_after_the_time_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The run stops starting cases once its time is used up and says how many wait for the next pass."""
+    clock = iter([False, True, True, True])
+    monkeypatch.setattr(cr, "out_of_time", lambda: next(clock))
+    out = _main(monkeypatch, ["1", "2", "3"], {"1", "2", "3"})
+    text = out["readable_output"]
+    assert "worked 1" in text and "2 left for the next pass" in text
+    assert "time budget" in text
+
+
+def test_the_time_budget_starts_when_the_run_starts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A fresh run has its whole budget; one past its deadline is out of time."""
+    cr.start_clock(240)
+    assert not cr.out_of_time()
+    cr.start_clock(0)
+    assert cr.out_of_time()
