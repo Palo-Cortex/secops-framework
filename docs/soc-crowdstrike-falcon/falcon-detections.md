@@ -272,6 +272,12 @@ Issue-field assignments emitted by the correlation rule. The Description column 
 
 | alter originalrawlog = to_json_string(rawJSON)
 
+// Columns that only some detections carry are read from rawJSON: a column the
+// tenant has never ingested fails the rule install (101704).
+| alter
+        user_principal       = json_extract_scalar(originalrawlog, "$.user_principal"),
+        template_instance_id = json_extract_scalar(originalrawlog, "$.template_instance_id")
+
 | alter severity_int_raw = severity
 
 | alter
@@ -322,16 +328,16 @@ Issue-field assignments emitted by the correlation rule. The Description column 
                       grandparent_process_cmd,
                       coalesce(parent_process_cmd, cmdline))
 
-| alter dnsa = json_extract_array(to_json_string(dns_requests), "$")
+| alter dnsa = json_extract_array(originalrawlog, "$.dns_requests")
 | alter dns_queries = arraymap(dnsa, json_extract_scalar(to_json_string("@element"), "$.domain_name"))
-| alter na = json_extract_array(to_json_string(network_accesses), "$")
-| alter fwa = json_extract_array(to_json_string(files_written), "$")
+| alter na = json_extract_array(originalrawlog, "$.network_accesses")
+| alter fwa = json_extract_array(originalrawlog, "$.files_written")
 | alter files_written_names = arraymap(fwa, json_extract_scalar(to_json_string("@element"), "$.filename"))
 | alter remote_ips = arraymap(na, json_extract_scalar(to_json_string("@element"), "$.remote_address"))
 
 // File activity from the detection, so the assessment sees what the process touched.
 // Real-time safe: only functions this rule already uses (no array_length/arraystring/arrayrange).
-| alter faa = json_extract_array(to_json_string(files_accessed), "$")
+| alter faa = json_extract_array(originalrawlog, "$.files_accessed")
 | alter files_accessed_paths = arraymap(faa, concat(json_extract_scalar(to_json_string("@element"), "$.filepath"), "|", json_extract_scalar(to_json_string("@element"), "$.filename")))
 | alter files_written_paths  = arraymap(fwa, concat(json_extract_scalar(to_json_string("@element"), "$.filepath"), "|", json_extract_scalar(to_json_string("@element"), "$.filename")))
 | alter file_activity_summary = concat(
@@ -388,5 +394,5 @@ Issue-field assignments emitted by the correlation rule. The Description column 
         action_local_ip                     = local_ip,
         action_remote_ip                    = remote_ips
 | fields
-    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *
+    device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, originalrawlog, *
 ```
