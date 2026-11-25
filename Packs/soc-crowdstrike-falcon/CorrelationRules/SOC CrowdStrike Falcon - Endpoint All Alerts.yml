@@ -144,6 +144,34 @@ xql_query: |
 
   | alter originalrawlog = to_json_string(rawJSON)
 
+  | alter
+          user_principal                  = json_extract_scalar(originalrawlog, "$.user_principal"),
+          template_instance_id            = json_extract_scalar(originalrawlog, "$.template_instance_id"),
+          user_id                         = json_extract_scalar(originalrawlog, "$.user_id"),
+          display_name                    = json_extract_scalar(originalrawlog, "$.display_name"),
+          description                     = json_extract_scalar(originalrawlog, "$.description"),
+          severity                        = json_extract_scalar(originalrawlog, "$.severity"),
+          severity_name                   = json_extract_scalar(originalrawlog, "$.severity_name"),
+          confidence                      = json_extract_scalar(originalrawlog, "$.confidence"),
+          tactic                          = json_extract_scalar(originalrawlog, "$.tactic"),
+          tactic_id                       = json_extract_scalar(originalrawlog, "$.tactic_id"),
+          technique                       = json_extract_scalar(originalrawlog, "$.technique"),
+          technique_id                    = json_extract_scalar(originalrawlog, "$.technique_id"),
+          objective                       = json_extract_scalar(originalrawlog, "$.objective"),
+          scenario                        = json_extract_scalar(originalrawlog, "$.scenario"),
+          indicator_id                    = json_extract_scalar(originalrawlog, "$.indicator_id"),
+          falcon_host_link                = json_extract_scalar(originalrawlog, "$.falcon_host_link"),
+          agent_id                        = json_extract_scalar(originalrawlog, "$.agent_id"),
+          filename                        = json_extract_scalar(originalrawlog, "$.filename"),
+          filepath                        = json_extract_scalar(originalrawlog, "$.filepath"),
+          sha256                          = json_extract_scalar(originalrawlog, "$.sha256"),
+          md5                             = json_extract_scalar(originalrawlog, "$.md5"),
+          local_process_id                = json_extract_scalar(originalrawlog, "$.local_process_id"),
+          process_start_time              = json_extract_scalar(originalrawlog, "$.process_start_time"),
+          pattern_disposition_description = json_extract_scalar(originalrawlog, "$.pattern_disposition_description"),
+          ioc_source                      = json_extract_scalar(originalrawlog, "$.ioc_source"),
+          ioc_value                       = json_extract_scalar(originalrawlog, "$.ioc_value")
+
   | alter severity_int_raw = severity
 
   | alter
@@ -160,27 +188,27 @@ xql_query: |
     )
 
   | alter
-          hostname                     = device->hostname,
-          domain                       = device->machine_domain,
-          local_ip                     = device->local_ip,
-          external_ip                  = device->external_ip,
-          mac_address                  = device->mac_address,
-          device_id                    = device->device_id,
-          device_os_version            = device->os_version,
-          device_platform_name         = device->platform_name,
-          device_status                = device->status,
-          device_fqdn                  = if(device->machine_domain != null, concat(device->hostname, ".", device->machine_domain), device->hostname),
-          device_ou                    = device->ou[],
-          parent_process_name          = parent_details->filename,
-          parent_process_cmd           = parent_details->cmdline,
-          parent_process_path          = parent_details->filepath,
-          parent_process_sha256        = parent_details->sha256,
-          parent_local_process_id      = parent_details->local_process_id,
-          grandparent_process_name     = grandparent_details->filename,
-          grandparent_process_cmd      = grandparent_details->cmdline,
-          grandparent_process_path     = grandparent_details->filepath,
-          grandparent_process_sha256   = grandparent_details->sha256,
-          grandparent_local_process_id = grandparent_details->local_process_id
+          hostname                     = json_extract_scalar(originalrawlog, "$.device.hostname"),
+          domain                       = json_extract_scalar(originalrawlog, "$.device.machine_domain"),
+          local_ip                     = json_extract_scalar(originalrawlog, "$.device.local_ip"),
+          external_ip                  = json_extract_scalar(originalrawlog, "$.device.external_ip"),
+          mac_address                  = json_extract_scalar(originalrawlog, "$.device.mac_address"),
+          device_id                    = json_extract_scalar(originalrawlog, "$.device.device_id"),
+          device_os_version            = json_extract_scalar(originalrawlog, "$.device.os_version"),
+          device_platform_name         = json_extract_scalar(originalrawlog, "$.device.platform_name"),
+          device_status                = json_extract_scalar(originalrawlog, "$.device.status"),
+          device_fqdn                  = if(json_extract_scalar(originalrawlog, "$.device.machine_domain") != null, concat(json_extract_scalar(originalrawlog, "$.device.hostname"), ".", json_extract_scalar(originalrawlog, "$.device.machine_domain")), json_extract_scalar(originalrawlog, "$.device.hostname")),
+          device_ou                    = json_extract_array(originalrawlog, "$.device.ou"),
+          parent_process_name          = json_extract_scalar(originalrawlog, "$.parent_details.filename"),
+          parent_process_cmd           = json_extract_scalar(originalrawlog, "$.parent_details.cmdline"),
+          parent_process_path          = json_extract_scalar(originalrawlog, "$.parent_details.filepath"),
+          parent_process_sha256        = json_extract_scalar(originalrawlog, "$.parent_details.sha256"),
+          parent_local_process_id      = json_extract_scalar(originalrawlog, "$.parent_details.local_process_id"),
+          grandparent_process_name     = json_extract_scalar(originalrawlog, "$.grandparent_details.filename"),
+          grandparent_process_cmd      = json_extract_scalar(originalrawlog, "$.grandparent_details.cmdline"),
+          grandparent_process_path     = json_extract_scalar(originalrawlog, "$.grandparent_details.filepath"),
+          grandparent_process_sha256   = json_extract_scalar(originalrawlog, "$.grandparent_details.sha256"),
+          grandparent_local_process_id = json_extract_scalar(originalrawlog, "$.grandparent_details.local_process_id")
 
   | alter device_ou_arr = arraymap(device_ou, replace("@element", "\"", ""))
 
@@ -194,14 +222,14 @@ xql_query: |
                         grandparent_process_cmd,
                         coalesce(parent_process_cmd, cmdline))
 
-  | alter dnsa = json_extract_array(to_json_string(dns_requests), "$")
+  | alter dnsa = json_extract_array(originalrawlog, "$.dns_requests")
   | alter dns_queries = arraymap(dnsa, json_extract_scalar(to_json_string("@element"), "$.domain_name"))
-  | alter na = json_extract_array(to_json_string(network_accesses), "$")
-  | alter fwa = json_extract_array(to_json_string(files_written), "$")
+  | alter na = json_extract_array(originalrawlog, "$.network_accesses")
+  | alter fwa = json_extract_array(originalrawlog, "$.files_written")
   | alter files_written_names = arraymap(fwa, json_extract_scalar(to_json_string("@element"), "$.filename"))
   | alter remote_ips = arraymap(na, json_extract_scalar(to_json_string("@element"), "$.remote_address"))
 
-  | alter faa = json_extract_array(to_json_string(files_accessed), "$")
+  | alter faa = json_extract_array(originalrawlog, "$.files_accessed")
   | alter files_accessed_paths = arraymap(faa, concat(json_extract_scalar(to_json_string("@element"), "$.filepath"), "|", json_extract_scalar(to_json_string("@element"), "$.filename")))
   | alter files_written_paths  = arraymap(fwa, concat(json_extract_scalar(to_json_string("@element"), "$.filepath"), "|", json_extract_scalar(to_json_string("@element"), "$.filename")))
   | alter file_activity_summary = concat(
@@ -258,7 +286,7 @@ xql_query: |
           action_local_ip                     = local_ip,
           action_remote_ip                    = remote_ips
   | fields
-      device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, network_accesses, dns_requests, files_written, originalrawlog, *
+      device_id, local_ip, user_name, user_principal, cmdline, sha256, domain, hostname, agent_id, pattern_disposition_description, pattern_disposition_details, cgo_cmd, cgo_name, cgo_path, template_instance_id, external_ip, falcon_host_link, mac_address, mitre_tactic_id, mitre_tactic, mitre_technique_id, mitre_technique, mitre_ids_str, tactic_id, tactic, technique_id, technique, objective, composite_id, parent_process_cmd, parent_process_name, parent_local_process_id, parent_process_path, parent_process_sha256, grandparent_process_name, grandparent_process_cmd, grandparent_process_path, grandparent_process_sha256, grandparent_local_process_id, device_ou_arr, process_start_time, local_process_id, md5, scenario, severity_name, aggregate_id, indicator_id, alert_name, alert_description, originalrawlog, *
 
   | alter idr_sid = null,
           idr_upn = user_principal,
